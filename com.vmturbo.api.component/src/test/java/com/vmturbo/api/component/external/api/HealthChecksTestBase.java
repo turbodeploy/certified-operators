@@ -7,12 +7,12 @@ import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 
+import common.HealthCheck.HealthState;
+
 /**
  * Provides some basic methods for health check tests.
  */
 public class HealthChecksTestBase {
-    protected static final int DEFAULT_FAILED_DISCOVERY_COUNT_THRESHOLD = 3;
-
     protected TargetDetails createTargetDetails(Long id, TargetHealth health, List<Long> derived,
                     List<Long> parents, boolean hidden) {
         return TargetDetails.newBuilder()
@@ -24,30 +24,52 @@ public class HealthChecksTestBase {
                         .build();
     }
 
-    protected TargetHealth makeHealth(final TargetHealthSubCategory category,
+    protected TargetHealth makeHealthCritical(final TargetHealthSubCategory category,
                     final String targetDisplayName, final ErrorType errorType, final String errorText,
                     final long failureTime, final int failureTimes) {
-        return TargetHealth.newBuilder()
-                        .setSubcategory(category)
-                        .setTargetName(targetDisplayName)
-                        .setMessageText(errorText)
-                        .setErrorType(errorType)
+        return makeCriticalHealthBuilder(category, targetDisplayName, errorType, errorText)
                         .setTimeOfFirstFailure(failureTime)
                         .setConsecutiveFailureCount(failureTimes)
                         .build();
     }
 
-    protected TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName,
-                    final String errorText) {
+    protected TargetHealth makeHealthCritical(final TargetHealthSubCategory category,
+                    final String targetDisplayName, final ErrorType errorType, final String errorText,
+                    final long failureTime) {
+        return makeCriticalHealthBuilder(category, targetDisplayName, errorType, errorText)
+                        .setTimeOfFirstFailure(failureTime)
+                        .build();
+    }
+
+    protected TargetHealth makeHealthCritical(final TargetHealthSubCategory category,
+                    final String targetDisplayName, final ErrorType errorType, final String errorText) {
+        return makeCriticalHealthBuilder(category, targetDisplayName, errorType, errorText)
+                        .build();
+    }
+
+    private TargetHealth.Builder makeCriticalHealthBuilder(final TargetHealthSubCategory category,
+                    final String targetDisplayName, final ErrorType errorType, final String errorText) {
         return TargetHealth.newBuilder()
+                        .setHealthState(HealthState.CRITICAL)
+                        .setSubcategory(category)
+                        .setTargetName(targetDisplayName)
+                        .setMessageText(errorText)
+                        .setErrorType(errorType);
+    }
+
+    protected TargetHealth makeHealthMinor(final TargetHealthSubCategory category,
+                    final String targetDisplayName, final String errorText) {
+        return TargetHealth.newBuilder()
+                        .setHealthState(HealthState.MINOR)
                         .setSubcategory(category)
                         .setTargetName(targetDisplayName)
                         .setMessageText(errorText)
                         .build();
     }
 
-    protected TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName) {
+    protected TargetHealth makeHealthNormal(final TargetHealthSubCategory category, final String targetDisplayName) {
         return TargetHealth.newBuilder()
+                        .setHealthState(HealthState.NORMAL)
                         .setSubcategory(category)
                         .setTargetName(targetDisplayName)
                         .build();

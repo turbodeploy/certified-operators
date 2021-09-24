@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
@@ -34,6 +33,11 @@ import common.HealthCheck;
  */
 public class HealthDataMapper {
     private HealthDataMapper() {}
+
+    /**
+     * A suffix appended to the message (error) text for hidden targets.
+     */
+    public static final String HIDDEN_TARGET_MESSAGE_SUFFIX = " (Hidden Target)";
 
     private static final Map<ErrorType, TargetErrorType> ERROR_TYPE_CONVERTER = initializeErrorTypeConverter();
 
@@ -67,7 +71,9 @@ public class HealthDataMapper {
         result.put(TargetErrorType.INTERNAL_PROBE_ERROR,
                 "Check the Target Configuration page for more information. Please contact support if the problem persists.");
         result.put(TargetErrorType.DUPLICATION, "There're duplicate targets present in the system."
-                        + " Check the Target Configuration page for more information.");
+                + " Check the Target Configuration page for more information.");
+        result.put(TargetErrorType.DELAYED_DATA, "Discovered data is too old. Check the pod states,"
+                + " target servers, and Target Configuration page for more information.");
         return result;
     }
 
@@ -150,146 +156,124 @@ public class HealthDataMapper {
 
     /**
      * Aggregate targets health info into a list of {@link AggregatedHealthResponseDTO} items.
-     * @param targetDetails target details of targets received from topology-processor
-     * @param failedDiscoveryCountThreshold failed discovery count threshold.
+     * @param targetsDetails target details of targets received from topology-processor
      * @return {@link AggregatedHealthResponseDTO} items
      */
     public static @Nonnull List<AggregatedHealthResponseDTO> aggregateTargetHealthInfoToDTO(
-            @Nonnull Map<Long, TargetDetails> targetDetails, int failedDiscoveryCountThreshold) {
-        Map<TargetHealthSubCategory, Map<HealthState, Integer>> subcategoryStatesCounters =
+            @Nonnull Map<Long, TargetDetails> targetsDetails) {
+        Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> subcategoryStatesCounters =
                         new EnumMap<>(TargetHealthSubCategory.class);
-        Map<TargetHealthSubCategory, Map<TargetErrorType, String>> subcategoryRecommendations =
+        Map<TargetHealthSubCategory, Map<ErrorType, Boolean>> subcategoryErrorSets =
                         new EnumMap<>(TargetHealthSubCategory.class);
 
-        targetDetails.values().stream().forEach(targetDetail -> {
+        for (TargetDetails targetDetail : targetsDetails.values()) {
             if (!targetDetail.getHidden()) {
                 // Do category analysis in update states.
-                updateStates(subcategoryStatesCounters, subcategoryRecommendations, targetDetail,
-                    failedDiscoveryCountThreshold, targetDetails);
+                updateStates(subcategoryStatesCounters, subcategoryErrorSets, targetDetail, targetsDetails);
             }
-        });
+        }
 
         List<AggregatedHealthResponseDTO> result = new ArrayList<>(2);
-        for (Map.Entry<TargetHealthSubCategory, Map<HealthState, Integer>> entry
+        for (Map.Entry<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> entry
                         : subcategoryStatesCounters.entrySet()) {
-            Map<TargetErrorType, String> recommendations = subcategoryRecommendations.get(entry.getKey());
-            AggregatedHealthResponseDTO responseItem = makeResponseItem(
-                            TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(entry.getKey()),
-                            entry.getValue(), recommendations);
-            result.add(responseItem);
+            AggregatedHealthResponseDTO responseItem = makeResponseItem(entry.getKey(),
+                            entry.getValue(), subcategoryErrorSets.get(entry.getKey()));
+            if (HealthState.NORMAL != responseItem.getHealthState()) {
+                result.add(responseItem);
+            }
         }
 
         return result;
     }
 
-    private static void updateStates(@Nonnull Map<TargetHealthSubCategory, Map<HealthState, Integer>> subcategoryStatesCounters,
-            @Nonnull Map<TargetHealthSubCategory, Map<TargetErrorType, String>> subcategoryRecommendations,
-            @Nonnull TargetDetails targetDetails, int failedDiscoveryCountThreshold,
-            @Nonnull Map<Long, TargetDetails> targetDetailsMap) {
-        List<TargetHealth> allMembers = Lists.newArrayList(targetDetails.getHealthDetails());
+    private static void updateStates(
+                    @Nonnull Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> subcategoryStatesCounters,
+                    @Nonnull Map<TargetHealthSubCategory, Map<ErrorType, Boolean>> subcategoryErrorSets,
+                    @Nonnull TargetDetails targetDetails,
+                    @Nonnull Map<Long, TargetDetails> targetDetailsMap) {
+        TargetHealth parentTargetHealth = targetDetails.getHealthDetails();
+        List<TargetHealth> allMembers = Lists.newArrayList(parentTargetHealth);
         allMembers.addAll(targetDetails.getDerivedList().stream()
-            .map(id -> targetDetailsMap.get(id)).filter(Objects::nonNull)
-            .filter(targetDetail -> targetDetail.getHidden())
-            .map(TargetDetails::getHealthDetails).collect(Collectors.toList()));
-        Pair<HealthState, TargetHealthSubCategory> categoryAndHealth =
-            determineSubCategoryAndHealthState(targetDetails, allMembers, failedDiscoveryCountThreshold);
-        Map<HealthState, Integer> statesCounter = subcategoryStatesCounters.computeIfAbsent(
-                categoryAndHealth.second, k -> new EnumMap<>(HealthState.class));
-        Map<TargetErrorType, String> recommendations = subcategoryRecommendations.computeIfAbsent(
-                categoryAndHealth.second, k -> new EnumMap<>(TargetErrorType.class));
+                        .map(targetDetailsMap::get)
+                        .filter(Objects::nonNull)
+                        .filter(TargetDetails::getHidden)
+                        .map(TargetDetails::getHealthDetails)
+                        .collect(Collectors.toList()));
+
+        Pair<HealthCheck.HealthState, TargetHealthSubCategory> healthAndSubcategory =
+                        siftHealthStateAndSubcategory(parentTargetHealth, allMembers);
+
+        Map<HealthCheck.HealthState, Integer> statesCounter = subcategoryStatesCounters.computeIfAbsent(
+                healthAndSubcategory.second, k -> new EnumMap<>(HealthCheck.HealthState.class));
+        Map<ErrorType, Boolean> errorsSet = subcategoryErrorSets.computeIfAbsent(
+                healthAndSubcategory.second, k -> new EnumMap<>(ErrorType.class));
         for (TargetHealth member : allMembers) {
-            if (hasError(member, failedDiscoveryCountThreshold)) {
+            if (member.getHealthState() != HealthCheck.HealthState.NORMAL) {
                 if (member.hasErrorType()) {
-                    TargetErrorType errorType = ERROR_TYPE_CONVERTER.get(member.getErrorType());
-                    recommendations.putIfAbsent(errorType, TARGET_ERROR_TYPE_RECOMMENDATIONS.get(errorType)
-                        + (member != targetDetails.getHealthDetails() ? " (Hidden Target)" : ""));
+                    errorsSet.putIfAbsent(member.getErrorType(), member != parentTargetHealth);
                 } else if (member.getMessageText().contains("Validation pending")) {
-                    recommendations.putIfAbsent(TargetErrorType.INTERNAL_PROBE_ERROR,
-                        TARGET_ERROR_TYPE_RECOMMENDATIONS.get(TargetErrorType.INTERNAL_PROBE_ERROR)
-                        + (member != targetDetails.getHealthDetails() ? " (Hidden Target)" : ""));
+                    errorsSet.putIfAbsent(ErrorType.INTERNAL_PROBE_ERROR, member != parentTargetHealth);
                 }
             }
         }
-        int counter = statesCounter.getOrDefault(categoryAndHealth.first, 0) + 1;
-        statesCounter.put(categoryAndHealth.first, counter);
+        int counter = statesCounter.getOrDefault(healthAndSubcategory.first, 0) + 1;
+        statesCounter.put(healthAndSubcategory.first, counter);
     }
 
-    private static @Nonnull HealthState getHealthState(@Nonnull TargetHealth targetHealth,
-            int failedDiscoveryCountThreshold) {
-        if (hasError(targetHealth, failedDiscoveryCountThreshold)) {
-            return targetHealth.hasErrorType() ? HealthState.CRITICAL : HealthState.MINOR;
-        } else {
-            return HealthState.NORMAL;
+    private static @Nonnull Pair<HealthCheck.HealthState, TargetHealthSubCategory> siftHealthStateAndSubcategory(
+            @Nonnull TargetHealth parentHealth, @Nonnull List<TargetHealth> allMembers) {
+        HealthCheck.HealthState parentHealthState = parentHealth.getHealthState();
+        if (allMembers.size() == 1 || parentHealthState != HealthCheck.HealthState.NORMAL) {
+            return new Pair<>(parentHealthState, parentHealth.getSubcategory());
         }
-    }
 
-    private static @Nonnull Pair<HealthState, TargetHealthSubCategory> determineSubCategoryAndHealthState(
-            @Nonnull TargetDetails parentDetails, @Nonnull List<TargetHealth> allMembers,
-            int failedDiscoveryCountThreshold) {
-        HealthState parentHealth = getHealthState(parentDetails.getHealthDetails(), failedDiscoveryCountThreshold);
-        if (allMembers.size() == 1 || parentHealth != HealthState.NORMAL) {
-            return new Pair<>(parentHealth, parentDetails.getHealthDetails().getSubcategory());
+        HealthCheck.HealthState worstHealthState = parentHealthState;
+        TargetHealthSubCategory worstCategory = parentHealth.getSubcategory();
+        for (TargetHealth newTargetHealth : allMembers) {
+            // Return early.
+            if (worstHealthState == HealthCheck.HealthState.CRITICAL
+                            && worstCategory == TargetHealthSubCategory.VALIDATION) {
+                return new Pair<>(HealthCheck.HealthState.CRITICAL, TargetHealthSubCategory.VALIDATION);
+            }
+            HealthCheck.HealthState newHealthState = newTargetHealth.getHealthState();
+            TargetHealthSubCategory newCategory = newTargetHealth.getSubcategory();
+            if (newHealthState.ordinal() < worstHealthState.ordinal()) {
+                worstHealthState = newHealthState;
+                worstCategory = newCategory;
+            } else if (newHealthState.ordinal() == worstHealthState.ordinal()
+                            && newCategory.ordinal() < worstCategory.ordinal()) {
+                worstCategory = newCategory;
+            }
         }
-        return getWorstTargetHealth(allMembers, failedDiscoveryCountThreshold);
+        return new Pair<>(worstHealthState, worstCategory);
     }
 
-    private static boolean hasError(@Nonnull TargetHealth healthInfo, int failedDiscoveryCountThreshold) {
-        return !Strings.isNullOrEmpty(healthInfo.getMessageText())
-            && !ignoreFailedDiscovery(healthInfo, failedDiscoveryCountThreshold);
-    }
-
-    private static boolean ignoreFailedDiscovery(TargetHealth healthInfo,
-            int failedDiscoveryCountThreshold) {
-        return healthInfo.getSubcategory() == TargetHealthSubCategory.DISCOVERY
-            && healthInfo.hasErrorType()
-            && healthInfo.getConsecutiveFailureCount() < failedDiscoveryCountThreshold;
-    }
-
-    private static AggregatedHealthResponseDTO makeResponseItem(TargetCheckSubcategory subcategory,
-                    Map<HealthState, Integer> statesCounter, Map<TargetErrorType, String> recommendations) {
-        HealthState state = HealthState.NORMAL;
-        if (statesCounter.containsKey(HealthState.CRITICAL)) {
-            state = HealthState.CRITICAL;
-        } else if (statesCounter.containsKey(HealthState.MINOR)) {
-            state = HealthState.MINOR;
+    private static AggregatedHealthResponseDTO makeResponseItem(TargetHealthSubCategory subcategory,
+                    Map<HealthCheck.HealthState, Integer> statesCounter,
+                    Map<ErrorType, Boolean> errorsSet) {
+        HealthCheck.HealthState state = HealthCheck.HealthState.NORMAL;
+        if (statesCounter.containsKey(HealthCheck.HealthState.CRITICAL)) {
+            state = HealthCheck.HealthState.CRITICAL;
+        } else if (statesCounter.containsKey(HealthCheck.HealthState.MAJOR)) {
+            state = HealthCheck.HealthState.MAJOR;
+        } else if (statesCounter.containsKey(HealthCheck.HealthState.MINOR)) {
+            state = HealthCheck.HealthState.MINOR;
         }
         int numberOfTargets = statesCounter.getOrDefault(state, 0);
 
         AggregatedHealthResponseDTO response = new AggregatedHealthResponseDTO(
-                subcategory.toString(), state, numberOfTargets);
-        for (Map.Entry<TargetErrorType, String> entry : recommendations.entrySet()) {
-            Recommendation recommendation = new Recommendation(entry.getKey().toString(), entry.getValue());
+                        TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(subcategory).toString(),
+                        HEALTH_STATE_CONVERTER.get(state),
+                        numberOfTargets);
+        for (Map.Entry<ErrorType, Boolean> entry : errorsSet.entrySet()) {
+            TargetErrorType errorType = ERROR_TYPE_CONVERTER.get(entry.getKey());
+            boolean reportForHidden = entry.getValue();
+            String recommendationText = TARGET_ERROR_TYPE_RECOMMENDATIONS.get(errorType)
+                            + (reportForHidden ? HIDDEN_TARGET_MESSAGE_SUFFIX : "");
+            Recommendation recommendation = new Recommendation(errorType.toString(),
+                            recommendationText);
             response.addRecommendation(recommendation);
         }
         return response;
-    }
-
-    private static @Nonnull Pair<HealthState, TargetHealthSubCategory> getWorstTargetHealth(
-            @Nonnull List<TargetHealth> targetHealths, int failedDiscoveryCountThreshold) {
-        HealthState worstHealthState = getHealthState(targetHealths.get(0), failedDiscoveryCountThreshold);
-        TargetHealthSubCategory worstCategory = targetHealths.get(0).getSubcategory();
-        for (TargetHealth newTargetHealth : targetHealths) {
-            // Return early.
-            if (worstHealthState == HealthState.CRITICAL && worstCategory == TargetHealthSubCategory.VALIDATION) {
-                return new Pair<>(HealthState.CRITICAL, TargetHealthSubCategory.VALIDATION);
-            }
-            HealthState newHealthState = getHealthState(newTargetHealth, failedDiscoveryCountThreshold);
-            TargetHealthSubCategory newCategory = newTargetHealth.getSubcategory();
-            if (newHealthState.ordinal() < worstHealthState.ordinal()) {
-                worstHealthState = newHealthState;
-                worstCategory = newTargetHealth.getSubcategory();
-            } else if (newHealthState.ordinal() == worstHealthState.ordinal()) {
-                if (worstCategory == TargetHealthSubCategory.VALIDATION) {
-                    continue;
-                } else if (newCategory == TargetHealthSubCategory.VALIDATION) {
-                    worstCategory = newCategory;
-                } else if (worstCategory == TargetHealthSubCategory.DISCOVERY) {
-                    continue;
-                } else if (newCategory == TargetHealthSubCategory.DISCOVERY) {
-                    worstCategory = newCategory;
-                }
-            }
-        }
-        return new Pair<>(worstHealthState, worstCategory);
     }
 }
