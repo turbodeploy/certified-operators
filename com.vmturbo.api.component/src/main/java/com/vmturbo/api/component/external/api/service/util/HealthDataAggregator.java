@@ -17,31 +17,23 @@ import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
 import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
 import com.vmturbo.api.enums.healthCheck.HealthState;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetailLevel;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 
 /**
  * Aggregates health data for the consolidated health check endpoint.
  */
 public class HealthDataAggregator {
     private final TargetsServiceBlockingStub targetsService;
-    private final SettingServiceBlockingStub settingService;
 
     /**
      * Constructor.
      * @param targetsService to get targets health info.
-     * @param settingService to get health info settings.
      */
-    public HealthDataAggregator(@Nonnull final TargetsServiceBlockingStub targetsService,
-        SettingServiceBlockingStub settingService) {
+    public HealthDataAggregator(@Nonnull final TargetsServiceBlockingStub targetsService) {
         this.targetsService = targetsService;
-        this.settingService = settingService;
     }
 
     /**
@@ -55,24 +47,20 @@ public class HealthDataAggregator {
 
             //Only the targets health check for the moment.
             if (healthCheckCategory == null || HealthCheckCategory.TARGET.equals(healthCheckCategory)) {
-                final Map<Long, TargetDetails> targetDetails = targetsService.getTargetDetails(
-                    GetTargetDetailsRequest.newBuilder()
-                        .setReturnAll(true)
-                        .setDetailLevel(TargetDetailLevel.HEALTH_ONLY)
-                        .build()).getTargetDetailsMap();
-                final GetGlobalSettingResponse failedDiscoveryCountResponse = settingService.getGlobalSetting(
-                    GetSingleGlobalSettingRequest.newBuilder()
-                        .setSettingSpecName(GlobalSettingSpecs.FailedDiscoveryCountThreshold
-                            .getSettingName())
-                        .build());
-                int failedDiscoveryCountThreshold = (int)failedDiscoveryCountResponse.getSetting().getNumericSettingValue().getValue();
+                final Map<Long, TargetDetails> targetsDetails = targetsService.getTargetDetails(
+                                GetTargetDetailsRequest.newBuilder()
+                                    .setReturnAll(true)
+                                    .setDetailLevel(TargetDetailLevel.HEALTH_ONLY)
+                                    .build())
+                        .getTargetDetailsMap();
                 List<AggregatedHealthResponseDTO> responseItems = HealthDataMapper
-                    .aggregateTargetHealthInfoToDTO(targetDetails, failedDiscoveryCountThreshold);
+                                .aggregateTargetHealthInfoToDTO(targetsDetails);
                 HealthCategoryReponseDTO targetsHealth = new HealthCategoryReponseDTO();
                 targetsHealth.setHealthCheckCategory(HealthCheckCategory.TARGET);
                 targetsHealth.setCategoryDisplayName("Targets");
                 targetsHealth.setCategoryHealthState(getWorstHealthState(responseItems.stream()
-                    .map(AggregatedHealthResponseDTO::getHealthState).collect(Collectors.toList())));
+                                .map(AggregatedHealthResponseDTO::getHealthState)
+                                .collect(Collectors.toList())));
                 targetsHealth.addResponseItems(responseItems);
 
                 result.add(targetsHealth);
