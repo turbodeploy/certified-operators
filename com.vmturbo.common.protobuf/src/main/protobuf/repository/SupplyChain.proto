@@ -166,6 +166,9 @@ enum SupplyChainGroupBy {
 
     // Group by the ID of the resource group contains the entity.
     RESOURCE_GROUP = 9;
+
+    // Group by the ID of the node pool group contains the entity.
+    NODE_POOL = 10;
 }
 
 // A single supply chain statistic describing the number of entities
@@ -233,6 +236,11 @@ message SupplyChainStat {
         // If set, the resource group oids for this entities
         // If unset, the entities in this group don't belong to resource groups
         optional int64 resource_group_id = 9;
+
+        // If the request group_by criteria contains SuppluChainGroupBy.ResourceGroup:
+       // If set, the resource group oids for this entities
+       // If unset, the entities in this group don't belong to resource groups
+        optional int64 node_pool_id = 10;
     }
 
     // The "group" of a particular stat. See "StatGroup" documentation.

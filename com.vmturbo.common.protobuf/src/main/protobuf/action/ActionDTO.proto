@@ -1850,6 +1850,11 @@ message CurrentActionStatsQuery {
 
         // Group by the CSP
         CSP = 13;
+
+        // The ID of the node pool associated with the action.
+        // All actions with no associated resource group will go into a single group with
+        // an explicitly set "0" value for the node pool ID.
+        NODE_POOL_ID = 14;
     }
 }
 
@@ -1966,6 +1971,10 @@ message HistoricalActionStatsQuery {
         // The ID of the resource group associated with action. Only actions that have associated
         // resource group will be returned.
         RESOURCE_GROUP_ID = 10;
+
+        // The ID of the node pool associated with action. Only actions that have associated
+       // node pool will be returned.
+        NODE_POOL_ID = 11;
     }
 
     // The time range for the query.
@@ -2097,6 +2106,12 @@ message CurrentActionStat {
 
         // Cloud service provider of the Action target entity used for the "group_by" "csp" query
         optional string csp = 12;
+
+        // ID of the node pool associated with the action. Only present if the "group_by" in
+        // the query contained "NODE_POOL_ID".
+        // May be explicitly set to "0" for a stat group representing actions that are not
+        // associated with any node pools.
+        optional int64 node_pool_id = 13;
     }
 
     // The stat group this action stat is in.
@@ -2153,6 +2168,10 @@ message ActionStat {
         // The resource group for this action stat. Only present if the "group_by" in the query was
         // "RESOURCE_GROUP_ID".
         optional int64 resource_group_id = 5;
+
+        // The node pool for this action stat. Only present if the "group_by" in the query was
+        // "NODE_POOL_ID".
+        optional int64 node_pool_id = 6;
     }
 
     // The stat group for this particular stat. Only set if the group_by in the request was

@@ -138,6 +138,7 @@ public class ActionStateUpdaterTest {
         when(workflowStoreMock.fetchWorkflow(1L)).thenReturn(Optional.of(Workflow.getDefaultInstance()));
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
+        when(entitySettingsCache.getNodePoolForEntity(anyLong())).thenReturn(Optional.empty());
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
         when(actionStore.getActionByRecommendationId(eq(notFoundId))).thenReturn(Optional.empty());

@@ -174,6 +174,11 @@ class ActionStatsMapper {
             groupByFilters.setResourceGroupId(actionStat.getStatGroup().getResourceGroupId());
         }
 
+        //TODO: NodePool
+        if (actionStat.getStatGroup().hasNodePoolId()) {
+            groupByFilters.setNodePoolId(actionStat.getStatGroup().getNodePoolId());
+        }
+
         if (actionStat.getStatGroup().hasTargetEntityId()) {
             if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
                 MinimalEntity template = entityLookup.get(actionStat.getStatGroup().getTargetEntityId());
@@ -334,6 +339,11 @@ class ActionStatsMapper {
 
         if (actionStat.getStatGroup().hasResourceGroupId()) {
             groupByFilters.setResourceGroupId(actionStat.getStatGroup().getResourceGroupId());
+        }
+
+        //TODO: NodePool
+        if (actionStat.getStatGroup().hasNodePoolId()) {
+            groupByFilters.setNodePoolId(actionStat.getStatGroup().getNodePoolId());
         }
 
         if (actionStat.getStatGroup().hasActionRelatedRisk()) {

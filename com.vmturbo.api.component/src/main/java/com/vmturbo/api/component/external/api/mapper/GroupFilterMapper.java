@@ -70,6 +70,11 @@ public class GroupFilterMapper {
     public static final String RESOURCE_GROUP_BY_NAME_FILTER_TYPE = "resourceGroupByName";
 
     /**
+     * The filter used in API when filtering based on node pool display name.
+     */
+    public static final String NODE_POOL_BY_NAME_FILTER_TYPE = "nodePoolByName";
+
+    /**
      * The filter used in API when filtering based on resource group OID.
      */
     public static final String RESOURCE_GROUP_BY_ID_FILTER_TYPE = "resourceGroupByUuid";
@@ -108,6 +113,7 @@ public class GroupFilterMapper {
                     .put(GroupType.RESOURCE, StringConstants.TAGS_ATTR, RESOURCE_GROUP_BY_TAG_FILTER_TYPE)
                     .put(GroupType.RESOURCE, StringConstants.ACCOUNTID, RESOURCE_GROUP_BY_OWNER_FILTER_TYPE)
                     .put(GroupType.RESOURCE, StringConstants.OID, RESOURCE_GROUP_BY_ID_FILTER_TYPE)
+                    .put(GroupType.NODE_POOL, SearchableProperties.DISPLAY_NAME, NODE_POOL_BY_NAME_FILTER_TYPE)
                     .put(GroupType.BILLING_FAMILY, SearchableProperties.DISPLAY_NAME, BILLING_FAMILY_FILTER_TYPE)
                     .build();
 

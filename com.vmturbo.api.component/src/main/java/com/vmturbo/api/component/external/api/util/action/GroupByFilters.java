@@ -143,6 +143,15 @@ public class GroupByFilters {
         setValue(StringConstants.RESOURCE_GROUP, String.valueOf(resourceGroupId));
     }
 
+    /**
+     * Add a filter with particular node pool ID.
+     *
+     * @param nodePoolId The ID of the node pool.
+     */
+    public void setNodePoolId(final long nodePoolId) {
+        setValue(StringConstants.NODE_POOL, String.valueOf(nodePoolId));
+    }
+
     public void setTargetEntityId(final long entityId) {
         setValue(StringConstants.TARGET_UUID_CC, String.valueOf(entityId));
     }

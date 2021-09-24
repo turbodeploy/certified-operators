@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.dto.group.NodePoolApiDTO;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -138,6 +139,7 @@ public class GroupMapper {
             .put(StringConstants.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
             .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
             .put(StringConstants.RESOURCE_GROUP, GroupType.RESOURCE)
+            .put(StringConstants.NODE_POOL, GroupType.NODE_POOL)
             .put(StringConstants.BILLING_FAMILY, GroupType.BILLING_FAMILY)
             .build();
 
@@ -151,6 +153,7 @@ public class GroupMapper {
             .put(StringConstants.STORAGE_CLUSTER, GroupFilterMapper.STORAGE_CLUSTERS_FILTER_TYPE)
             .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupFilterMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE)
             .put(StringConstants.RESOURCE_GROUP, GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE)
+             .put(StringConstants.NODE_POOL, GroupFilterMapper.NODE_POOL_BY_NAME_FILTER_TYPE)
             .put(StringConstants.BILLING_FAMILY, GroupFilterMapper.BILLING_FAMILY_FILTER_TYPE)
             .build();
 
@@ -652,7 +655,8 @@ public class GroupMapper {
     }
 
     private Set<Long> getMembersConsideredInMembersCount(GroupAndMembers groupAndMembers) {
-        if (groupAndMembers.group().getDefinition().getType() == GroupType.RESOURCE) {
+        if (groupAndMembers.group().getDefinition().getType() == GroupType.RESOURCE
+                || groupAndMembers.group().getDefinition().getType() == GroupType.NODE_POOL) {
             return groupAndMembers.group()
                 .getDefinition()
                 .getStaticGroupMembers()
@@ -682,7 +686,7 @@ public class GroupMapper {
         final Set<Long> ownerIds = groupsAndMembers.stream()
                 .map(GroupAndMembers::group)
                 .map(Grouping::getDefinition)
-                .filter(def -> def.getType() == GroupType.RESOURCE)
+                .filter(def -> (def.getType() == GroupType.RESOURCE || def.getType() == GroupType.NODE_POOL ))
                 .filter(GroupDefinition::hasOwner)
                 .map(GroupDefinition::getOwner)
                 .collect(Collectors.toSet());
@@ -714,6 +718,7 @@ public class GroupMapper {
              case BILLING_FAMILY:
                 outputDTO = extractBillingFamilyInfo(groupAndMembers);
                 break;
+             case NODE_POOL:
              case RESOURCE:
                 final ResourceGroupApiDTO resourceGroup = new ResourceGroupApiDTO();
                 outputDTO = resourceGroup;
@@ -729,6 +734,7 @@ public class GroupMapper {
                             groupDefinition.getDisplayName(), group.getId());
                  }
                  break;
+
              default:
                 outputDTO = new GroupApiDTO();
          }
@@ -744,7 +750,9 @@ public class GroupMapper {
          if (!directMemberTypes.isEmpty()) {
              if (groupDefinition.getType() == GroupType.RESOURCE) {
                  outputDTO.setGroupType(StringConstants.WORKLOAD);
-             } else {
+             } else if (groupDefinition.getType() == GroupType.NODE_POOL) {
+                 outputDTO.setGroupType(StringConstants.VIRTUAL_MACHINE);
+             }else {
                  outputDTO.setGroupType(String.join(",", directMemberTypes));
              }
          } else {

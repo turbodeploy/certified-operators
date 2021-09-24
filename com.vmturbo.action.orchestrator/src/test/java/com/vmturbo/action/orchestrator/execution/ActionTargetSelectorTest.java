@@ -106,7 +106,7 @@ public class ActionTargetSelectorTest {
         when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
         when(entitySettingsCache.emptySnapshot())
                 .thenReturn(new EntitiesAndSettingsSnapshot(Collections.emptyMap(),
-                        Collections.emptyMap(), null, Collections.emptyMap(),
+                        Collections.emptyMap(), null, Collections.emptyMap(), Collections.emptyMap(),
                         Collections.emptyMap(), Collections.emptyMap(), 0, TopologyType.SOURCE,
                         System.currentTimeMillis()));
         MockitoAnnotations.initMocks(this);
