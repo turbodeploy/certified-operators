@@ -200,6 +200,10 @@ public class SupplyChainStatistician {
                         supplementaryData.getResourceGroupId(entity.getOid())
                                 .ifPresent(statGroupKey::setResourceGroupId);
                         break;
+                    case NODE_POOL:
+                        supplementaryData.getNodePoolId(entity.getOid())
+                                .ifPresent(statGroupKey::setNodePoolId);
+                        break;
                     case BUSINESS_ACCOUNT_ID:
                         Optional<RepoGraphEntity> firstBaOwner;
                         do {
@@ -380,6 +384,36 @@ public class SupplyChainStatistician {
         }
 
         @Nonnull
+        private Map<Long, Long> getNodePoolsById(@Nonnull final List<Long> supplyChainEntities) {
+            if (supplyChainEntities.isEmpty()) {
+                logger.warn("There is no supplyChain entities.");
+                return Collections.emptyMap();
+            }
+            try {
+                final GetGroupsForEntitiesResponse groupsForEntities =
+                        groupService.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                                .addAllEntityId(supplyChainEntities)
+                                .addGroupType(GroupType.NODE_POOL)
+                                .build());
+                if (!groupsForEntities.getEntityGroupMap().isEmpty()) {
+                    return groupsForEntities.getEntityGroupMap()
+                            .entrySet()
+                            .stream()
+                            .filter(el -> !el.getValue().getGroupIdList().isEmpty())
+                            .collect(Collectors.toMap(Entry::getKey,
+                                    el -> el.getValue().getGroupIdList().get(0)));
+                } else {
+                    logger.trace("There is no node pools for {} entities",
+                            supplyChainEntities);
+                    return Collections.emptyMap();
+                }
+            } catch (StatusRuntimeException e) {
+                logger.error("Failed to retrieve node pools. Error: {}", e.getMessage());
+                return Collections.emptyMap();
+            }
+        }
+
+        @Nonnull
         @VisibleForTesting
         SupplementaryData newSupplementaryData(@Nonnull final List<Long> supplyChainEntities,
                                                @Nonnull final List<SupplyChainGroupBy> groupByList,
@@ -396,7 +430,11 @@ public class SupplyChainStatistician {
                 groupByList.contains(SupplyChainGroupBy.RESOURCE_GROUP) ?
                     getResourceGroupsById(supplyChainEntities) :
                         Collections.emptyMap();
-            return new SupplementaryData(severitiesById, actionCategoriesById, resourceGroupsById);
+            final Map<Long, Long> nodePoolsById =
+                    groupByList.contains(SupplyChainGroupBy.NODE_POOL) ?
+                            getNodePoolsById(supplyChainEntities) :
+                            Collections.emptyMap();
+            return new SupplementaryData(severitiesById, actionCategoriesById, resourceGroupsById, nodePoolsById);
         }
     }
 
@@ -411,13 +449,16 @@ public class SupplyChainStatistician {
         private final Map<Long, Severity> severitiesByEntity;
         private final Map<Long, Set<ActionCategory>> categoriesForEntity;
         private final Map<Long, Long> resourceGroupForEntity;
+        private final Map<Long, Long> nodePoolForEntity;
 
         private SupplementaryData(final Map<Long, Severity> severitiesByEntity,
                                   final Map<Long, Set<ActionCategory>> categoriesForEntity,
-                final Map<Long, Long> resourceGroupForEntity) {
+                final Map<Long, Long> resourceGroupForEntity,
+                                  final Map<Long, Long> nodePoolForEntity) {
             this.severitiesByEntity = severitiesByEntity;
             this.categoriesForEntity = categoriesForEntity;
             this.resourceGroupForEntity = resourceGroupForEntity;
+            this.nodePoolForEntity = nodePoolForEntity;
         }
 
         @Nonnull
@@ -432,6 +473,10 @@ public class SupplyChainStatistician {
 
         Optional<Long> getResourceGroupId(final long oid) {
             return Optional.ofNullable(resourceGroupForEntity.get(oid));
+        }
+
+        Optional<Long> getNodePoolId(final long oid) {
+            return Optional.ofNullable(nodePoolForEntity.get(oid));
         }
     }
 
@@ -522,6 +567,8 @@ public class SupplyChainStatistician {
 
         private Long resourceGroupId = null;
 
+        private Long nodePoolId = null;
+
         /**
          * Convert to a {@link StatGroup} protobuf.
          *
@@ -556,12 +603,22 @@ public class SupplyChainStatistician {
             if (resourceGroupId != null) {
                 retBldr.setResourceGroupId(resourceGroupId);
             }
+
+            if (nodePoolId != null) {
+                retBldr.setNodePoolId(nodePoolId);
+            }
             return retBldr.build();
         }
 
         @Nonnull
         StatGroupKey setResourceGroupId(final Long resourceGroupId) {
             this.resourceGroupId = resourceGroupId;
+            return this;
+        }
+
+        @Nonnull
+        StatGroupKey setNodePoolId(final Long nodePoolId) {
+            this.nodePoolId = nodePoolId;
             return this;
         }
 
@@ -624,6 +681,7 @@ public class SupplyChainStatistician {
                     otherKey.severity == severity &&
                     otherKey.actionCategory == actionCategory &&
                     Objects.equals(otherKey.resourceGroupId, resourceGroupId) &&
+                        Objects.equals(otherKey.nodePoolId, nodePoolId) &&
                     Objects.equals(otherKey.template, template);
             } else {
                 return false;
@@ -633,7 +691,7 @@ public class SupplyChainStatistician {
         @Override
         public int hashCode() {
             return Objects.hash(entityType, entityState, discoveringTarget,
-                ownerBusinessAccount, severity, actionCategory, template, resourceGroupId);
+                ownerBusinessAccount, severity, actionCategory, template, resourceGroupId, nodePoolId);
         }
     }
 }

@@ -291,6 +291,7 @@ public class SupplyChainsService implements ISupplyChainsService {
         final List<SupplyChainGroupBy> groupByCriteria = new ArrayList<>();
         for (EntitiesCountCriteria criteria : CollectionUtils.emptyIfNull(supplyChainStatsApiInputDTO.getGroupBy())) {
             supplyChainStatMapper.countCriteriaToGroupBy(criteria).ifPresent(groupByCriteria::add);
+
         }
 
         final List<SupplyChainStat> scStats = fetcherBuilder.fetchStats(groupByCriteria);
@@ -362,6 +363,11 @@ public class SupplyChainsService implements ISupplyChainsService {
                 apiStat.addFilter(EntitiesCountCriteria.resourceGroup.name(),
                         Long.toString(statGroup.getResourceGroupId()));
             }
+
+            if (statGroup.hasNodePoolId()) {
+                apiStat.addFilter(EntitiesCountCriteria.nodePool.name(),
+                        Long.toString(statGroup.getNodePoolId()));
+            }
             return apiStat;
         }
 
@@ -385,6 +391,8 @@ public class SupplyChainsService implements ISupplyChainsService {
                     return Optional.of(SupplyChainGroupBy.TEMPLATE);
                 case resourceGroup:
                     return Optional.of(SupplyChainGroupBy.RESOURCE_GROUP);
+                case nodePool:
+                    return Optional.of(SupplyChainGroupBy.NODE_POOL);
                 default:
                     logger.error("Unexpected entities count criteria: {}", criteria);
                     throw new InvalidOperationException("Invalid criteria: " + criteria);

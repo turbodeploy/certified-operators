@@ -448,6 +448,8 @@ class CurrentQueryMapper {
                             return Optional.of(GroupBy.BUSINESS_ACCOUNT_ID);
                         case StringConstants.RESOURCE_GROUP:
                             return Optional.of(GroupBy.RESOURCE_GROUP_ID);
+                        case StringConstants.NODE_POOL:
+                            return Optional.of(GroupBy.NODE_POOL_ID);
                         case StringConstants.CSP:
                             return Optional.of(GroupBy.CSP);
                         default:

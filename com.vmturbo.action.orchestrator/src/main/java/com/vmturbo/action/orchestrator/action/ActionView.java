@@ -265,6 +265,15 @@ public interface ActionView {
     Optional<Long> getAssociatedResourceGroupId();
 
     /**
+     * Get the OID of node pool this action is associated with. Node pool for
+     * "primaryEntity" involved in the action.
+     *
+     * @return node pool OID.
+     */
+    Optional<Long> getAssociatedNodePoolId();
+
+
+    /**
      * Determine whether the action is executable.
      * An action is generally executable when its recommendation is marked as executable
      * by the market and its state is ready or accepted.

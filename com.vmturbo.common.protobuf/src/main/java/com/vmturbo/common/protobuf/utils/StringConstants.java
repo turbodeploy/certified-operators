@@ -201,6 +201,12 @@ public class StringConstants {
      * The class name used in UI for resource group.
      */
     public static final String RESOURCE_GROUP = "ResourceGroup";
+
+    /**
+     * The class name used in UI for node pools.
+     */
+    public static final String NODE_POOL = "NodePool";
+
     /**
      * Group types set.
      */

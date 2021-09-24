@@ -140,6 +140,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             new ActionTranslation(actionHistory.getRecommendation()),
             actionHistory.getAssociatedAccountId(),
             actionHistory.getAssociatedResourceGroupId(),
+            null,
             actionHistory.getActionDetailData(),
             actionHistory.getRecommendationOid()), actionModeCalculator);
     }

@@ -270,6 +270,7 @@ public class ActionOrchestratorDiagnosticsTest {
         final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getNodePoolForEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, action);
 

@@ -94,6 +94,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final Map<Long, ActionPartialEntity> oidToEntityMap;
         private final OwnershipGraph<EntityWithConnections> ownershipGraph;
         private final Map<Long, Long> entityToResourceGroupMap;
+        private final Map<Long, Long> entityToNodePoolMap;
         private final Map<Long, ScheduleProto.Schedule> oidToScheduleMap;
         private final Map<Long, String> actionToAcceptorMap;
         private final long topologyContextId;
@@ -110,6 +111,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
          * @param entityMap mapping from entity oid to entity info
          * @param ownershipGraph the graph contains connections between entities
          * @param entityToResourceGroupMap mapping from entity oid to related resource group
+         * @param entityToNodePoolMap mapping from entity oid to related node pool
          * @param oidToScheduleMap mapping from entity oid to related schedule
          * @param actionToAcceptorMap mapping from recommendation oid to accepting user
          * @param topologyContextId the topology context id
@@ -121,6 +123,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 @Nonnull final Map<Long, ActionPartialEntity> entityMap,
                 @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
                 @Nonnull final Map<Long, Long> entityToResourceGroupMap,
+                @Nonnull final Map<Long, Long> entityToNodePoolMap,
                 @Nonnull final Map<Long, ScheduleProto.Schedule> oidToScheduleMap,
                 @Nonnull final Map<Long, String> actionToAcceptorMap, final long topologyContextId,
                 @Nonnull final TopologyType targetTopologyType, final long populationTimestamp) {
@@ -128,6 +131,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             this.oidToEntityMap = entityMap;
             this.ownershipGraph = ownershipGraph;
             this.entityToResourceGroupMap = entityToResourceGroupMap;
+            this.entityToNodePoolMap = entityToNodePoolMap;
             this.actionToAcceptorMap = actionToAcceptorMap;
             this.topologyContextId = topologyContextId;
             this.topologyType = targetTopologyType;
@@ -259,6 +263,17 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         }
 
         /**
+         * Get the node pool for entity.
+         *
+         * @param entityId entityId which is looking for the node pool
+         * @return nodePoolId
+         */
+        @Nonnull
+        public Optional<Long> getNodePoolForEntity(final long entityId) {
+            return Optional.ofNullable(entityToNodePoolMap.get(entityId));
+        }
+
+        /**
          * Get the resource group for entity.
          *
          * @param entityId entityId which is looking for the resource group
@@ -297,6 +312,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         final Map<Long, Long> entityToResourceGroupMap =
                 retrieveResourceGroupsForEntities(entities);
 
+        final Map<Long, Long> entityToNodePoolMap =
+                retrieveNodePoolForEntities(entities);
+
         final EntitiesSnapshot entitiesSnapshot = entitiesSnapshotFactory.getEntitiesSnapshot(
                 entities, topologyContextId);
 
@@ -312,7 +330,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
         return new EntitiesAndSettingsSnapshot(settingAndPoliciesMapByEntityAndSpecName,
                 entitiesSnapshot.getEntityMap(), entitiesSnapshot.getOwnershipGraph(),
-                entityToResourceGroupMap, oidToScheduleMap, actionToAcceptorMap,
+                entityToResourceGroupMap, entityToNodePoolMap, oidToScheduleMap, actionToAcceptorMap,
                 topologyContextId, entitiesSnapshot.getTopologyType(), System.currentTimeMillis());
     }
 
@@ -337,6 +355,27 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         return Collections.unmodifiableMap(resultMap);
     }
 
+    @Nonnull
+    private Map<Long, Long> retrieveNodePoolForEntities(@Nonnull Set<Long> entities) {
+        final GetGroupsForEntitiesResponse response = groupService.getGroupsForEntities(
+                GetGroupsForEntitiesRequest.newBuilder()
+                        .addAllEntityId(entities)
+                        .addGroupType(GroupType.NODE_POOL)
+                        .build());
+        final Map<Long, Long> resultMap = new HashMap<>();
+        for (Entry<Long, Groupings> groupingsEntry : response.getEntityGroupMap().entrySet()) {
+            final long entityId = groupingsEntry.getKey();
+            for (Long groupId : groupingsEntry.getValue().getGroupIdList()) {
+                final Long oldGroupId = resultMap.put(entityId, groupId);
+                if (oldGroupId != null) {
+                    logger.warn("Found multiple resource groups for entity {}: {} and {}", entityId,
+                            oldGroupId, groupId);
+                }
+            }
+        }
+        return Collections.unmodifiableMap(resultMap);
+    }
+
 
     /**
      * Creates an empty snapshot. It only has a topology context id.
@@ -346,7 +385,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     @Nonnull
     public EntitiesAndSettingsSnapshot emptySnapshot() {
         return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(),
-                OwnershipGraph.empty(), Maps.newHashMap(), Maps.newHashMap(), Maps.newHashMap(),
+                OwnershipGraph.empty(), Maps.newHashMap(), Maps.newHashMap(), Maps.newHashMap(), Maps.newHashMap(),
                 realtimeTopologyContextId, TopologyType.SOURCE, System.currentTimeMillis());
     }
 

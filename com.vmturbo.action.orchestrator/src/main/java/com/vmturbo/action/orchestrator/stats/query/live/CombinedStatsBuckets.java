@@ -98,6 +98,8 @@ class CombinedStatsBuckets {
                 bucketKey.reasonCommodityBaseType().ifPresent(bldr::setReasonCommodityBaseType);
                 bucketKey.businessAccountId().ifPresent(bldr::setBusinessAccountId);
                 bucketKey.resourceGroupId().ifPresent(bldr::setResourceGroupId);
+                bucketKey.nodePoolId().ifPresent(bldr::setNodePoolId);
+
                 return new CombinedStatsBucket(
                     entityPredicate,
                     bldr.build(),
@@ -158,6 +160,11 @@ class CombinedStatsBuckets {
         if (groupBy.contains(GroupBy.RESOURCE_GROUP_ID)) {
             keyBuilder.resourceGroupId(
                 actionInfo.action().getAssociatedResourceGroupId().orElse(0L));
+        }
+
+        if (groupBy.contains(GroupBy.NODE_POOL_ID)) {
+            keyBuilder.nodePoolId(
+                    actionInfo.action().getAssociatedNodePoolId().orElse(0L));
         }
 
         if (groupBy.contains(GroupBy.CSP)) {
@@ -328,6 +335,13 @@ class CombinedStatsBuckets {
          * @return Value, or {@link Optional} if the requested group-by included the resource group.
          */
         Optional<Long> resourceGroupId();
+
+        /**
+         * The node pool associated with the actions in this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the node pool.
+         */
+        Optional<Long> nodePoolId();
     }
 
     /**
