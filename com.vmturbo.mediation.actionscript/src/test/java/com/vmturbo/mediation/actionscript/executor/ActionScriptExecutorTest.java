@@ -8,10 +8,12 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
-import com.google.gson.GsonBuilder;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,13 +24,16 @@ import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.conversion.action.ActionToApiConverter;
 import com.vmturbo.api.conversion.action.SdkActionInformationProvider;
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
+import com.vmturbo.mediation.actionscript.ActionScriptProbeConfiguration;
 import com.vmturbo.mediation.actionscript.ActionScriptTestBase;
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 
 
@@ -43,6 +48,7 @@ public class ActionScriptExecutorTest extends ActionScriptTestBase {
     @ClassRule
     public static TemporaryFolder tempFolder = new TemporaryFolder();
     private static ActionScriptProbeAccount accountValues;
+    private static ActionScriptProbeConfiguration probeConfiguration;
     private static boolean isChannelSignalingSupported;
     private static String key;
 
@@ -66,6 +72,7 @@ public class ActionScriptExecutorTest extends ActionScriptTestBase {
             "",
             Integer.toString(testPort), null);
         isChannelSignalingSupported = ActionScriptTestBase.isChannelSignalingSupported(accountValues);
+        probeConfiguration = Mockito.mock(ActionScriptProbeConfiguration.class);
     }
 
     @AfterClass
@@ -282,11 +289,64 @@ public class ActionScriptExecutorTest extends ActionScriptTestBase {
      * @throws InvalidProtocolBufferException if something goes wrong.
      */
     @Test
-    public void testStdinReceived() throws ExecutionException, InvalidProtocolBufferException {
+    public void testStdinReceivedInSDKFormatWithStableId() throws ExecutionException, InvalidProtocolBufferException {
+        Mockito.when(probeConfiguration.useStableActionIdAsUuid()).thenReturn(true);
         ScriptRunner scriptRunner = makeScriptRunner("stdin.sh");
         scriptRunner.populateActionExecutionDto();
-        String json = JsonFormat.printer().omittingInsignificantWhitespace()
-            .print(scriptRunner.getActionExecutionDTO());
+        final ActionExecutionDTO actionWithExposedStableId =
+                ActionScriptExecutorUtils.replaceActionInstanceIdWithStableId(
+                        scriptRunner.getActionExecutionDTO());
+        String expectedJson = JsonFormat.printer().omittingInsignificantWhitespace().print(
+                actionWithExposedStableId);
+        scriptRunner
+            .run()
+            .waitForCompletion()
+            .checkExit(0, null, null)
+            .checkStatus(ActionScriptExecutionStatus.COMPLETE)
+            .checkStdout(expectedJson)
+            .checkProgress(ActionResponseState.SUCCEEDED, null, 100);
+    }
+
+    /**
+     * Test that the ActionExecutionDTO json string passed to stdin is received by action script.
+     * We echo the stdin to the stdout, so we can verify this by checking the stdout.
+     *
+     * @throws ExecutionException execution error
+     * @throws InvalidProtocolBufferException if something goes wrong.
+     */
+    @Test
+    public void testStdinReceivedInSDKFormatWithInstanceId() throws ExecutionException, InvalidProtocolBufferException {
+        Mockito.when(probeConfiguration.useStableActionIdAsUuid()).thenReturn(false);
+        ScriptRunner scriptRunner = makeScriptRunner("stdin.sh");
+        scriptRunner.populateActionExecutionDto();
+        String expectedJson = JsonFormat.printer().omittingInsignificantWhitespace().print(
+                scriptRunner.getActionExecutionDTO());
+        scriptRunner
+                .run()
+                .waitForCompletion()
+                .checkExit(0, null, null)
+                .checkStatus(ActionScriptExecutionStatus.COMPLETE)
+                .checkStdout(expectedJson)
+                .checkProgress(ActionResponseState.SUCCEEDED, null, 100);
+    }
+
+    /**
+     * Test that the ActionExecutionDTO json string passed to stdin is received by action script
+     * in the API message format with exposed action stable id.
+     * We echo the stdin to the stdout, so we can verify this by checking the stdout.
+     *
+     * @throws ExecutionException execution error
+     */
+    @Test
+    public void testStdinReceivedInApiFormatWithStableId()
+            throws ExecutionException, JsonProcessingException {
+        Mockito.when(probeConfiguration.useStableActionIdAsUuid()).thenReturn(true);
+        ScriptRunner scriptRunner = makeScriptRunner("stdin.sh")
+            .withApiMessageFormatEnabled(true);
+        scriptRunner.populateActionExecutionDto();
+        String json = new ObjectMapper().writeValueAsString((new ActionToApiConverter()).convert(
+                new SdkActionInformationProvider(scriptRunner.getActionExecutionDTO()), true, 0L,
+                false));
         scriptRunner
             .run()
             .waitForCompletion()
@@ -298,27 +358,28 @@ public class ActionScriptExecutorTest extends ActionScriptTestBase {
 
     /**
      * Test that the ActionExecutionDTO json string passed to stdin is received by action script
-     * in the API message format. We echo the stdin to the stdout, so we can verify this by
-     * checking the stdout.
+     * in the API message format with exposed action instance id.
+     * We echo the stdin to the stdout, so we can verify this by checking the stdout.
      *
      * @throws ExecutionException execution error
      */
     @Test
-    public void testStdinReceivedInApiFormat() throws ExecutionException {
+    public void testStdinReceivedInApiFormatWithInstanceId()
+            throws ExecutionException, JsonProcessingException {
+        Mockito.when(probeConfiguration.useStableActionIdAsUuid()).thenReturn(false);
         ScriptRunner scriptRunner = makeScriptRunner("stdin.sh")
-            .withApiMessageFormatEnabled(true);
+                .withApiMessageFormatEnabled(true);
         scriptRunner.populateActionExecutionDto();
-        String json = (new GsonBuilder()).create()
-            .toJson((new ActionToApiConverter()).convert(
-                new SdkActionInformationProvider(scriptRunner.getActionExecutionDTO()), false,
-                0L, false));
+        String json = new ObjectMapper().writeValueAsString((new ActionToApiConverter()).convert(
+                new SdkActionInformationProvider(scriptRunner.getActionExecutionDTO()), false, 0L,
+                false));
         scriptRunner
-            .run()
-            .waitForCompletion()
-            .checkExit(0, null, null)
-            .checkStatus(ActionScriptExecutionStatus.COMPLETE)
-            .checkStdout(json)
-            .checkProgress(ActionResponseState.SUCCEEDED, null, 100);
+                .run()
+                .waitForCompletion()
+                .checkExit(0, null, null)
+                .checkStatus(ActionScriptExecutionStatus.COMPLETE)
+                .checkStdout(json)
+                .checkProgress(ActionResponseState.SUCCEEDED, null, 100);
     }
 
     /**
@@ -328,6 +389,6 @@ public class ActionScriptExecutorTest extends ActionScriptTestBase {
      * @return new ScriptRunner instance
      */
     private ScriptRunner makeScriptRunner(final @Nonnull String scriptName) {
-        return new ScriptRunner(scriptName, accountValues);
+        return new ScriptRunner(scriptName, accountValues, probeConfiguration);
     }
 }
