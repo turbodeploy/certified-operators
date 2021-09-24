@@ -85,19 +85,19 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
                 .ifPresent(fabricDC ->
                         resultBuilder.queueChangeRelationships(fabricPM,
                                         toUpdate -> toUpdate.removeProvider(fabricDC)));
-        if (keepDCsAfterFabricStitching) {
-            findProvider(fabricPM, EntityType.CHASSIS).ifPresent(chassis -> {
-                findProvider(hypervisorPM, EntityType.DATACENTER).ifPresent(dc -> {
+        findProvider(fabricPM, EntityType.CHASSIS).ifPresent(chassis -> {
+            findProvider(hypervisorPM, EntityType.DATACENTER).ifPresent(dc -> {
+                if (keepDCsAfterFabricStitching) {
                     resultBuilder.queueChangeRelationships(chassis, ch -> {
                         ch.addConnectedTo(ConnectionType.NORMAL_CONNECTION,
                                         Collections.singleton(dc));
                     });
-                });
+                } else {
+                    resultBuilder.queueChangeRelationships(hypervisorPM,
+                                    toUpdate -> toUpdate.removeProvider(dc));
+                }
             });
-        } else {
-            findProvider(hypervisorPM, EntityType.DATACENTER).ifPresent(
-                            hypervisorPM::removeProvider);
-        }
+        });
 
         logger.debug("Stitching UCS PM {} with hypervisor PM {}",
                 fabricPM.getDisplayName(), hypervisorPM.getDisplayName());
