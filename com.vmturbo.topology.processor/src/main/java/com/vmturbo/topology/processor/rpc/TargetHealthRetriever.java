@@ -50,6 +50,27 @@ public class TargetHealthRetriever {
     private final Clock clock;
     private final SettingServiceBlockingStub settingServiceClient;
 
+    /**
+     * Discovery timing status.
+     */
+    enum DiscoveryTimingStatus {
+        /**
+         * FULL discovery delayed.
+         */
+        FULL_DISCOVERY_DELAYED,
+
+        /**
+         * INCREMENTAL discovery delayed.
+         */
+        INCREMENTAL_DISCOVERY_DELAYED,
+
+        /**
+         * Discovery not delayed.
+         */
+        DISCOVERY_NOT_DELAYED
+    }
+
+
     private int failedDiscoveriesCountThreshold = (int)GlobalSettingSpecs.FailedDiscoveryCountThreshold
                     .createSettingSpec().getNumericSettingValueType().getDefault();
     private long delayedDataThresholdMultiplier = (long)GlobalSettingSpecs.DelayedDataThresholdMultiplier
@@ -198,8 +219,9 @@ public class TargetHealthRetriever {
         }
 
         //Check whether there's some persisting discovered data in the system that is too old.
-        if (checkForDelayedData(target)) {
-            return reportDelayedData(targetHealthBuilder, target.getId());
+        DiscoveryTimingStatus discoveryTimingStatus = checkForDelayedData(target);
+        if (discoveryTimingStatus != DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED) {
+            return reportDelayedData(targetHealthBuilder, target.getId(), discoveryTimingStatus);
         }
 
         targetHealthBuilder.setSubcategory(TargetHealthSubCategory.VALIDATION);
@@ -232,10 +254,11 @@ public class TargetHealthRetriever {
         }
 
         //The discovery was ok or the number of consecutive failures is below the threshold.
-        if (checkForDelayedData(target)) {
-            //The data is too old.
-            return reportDelayedData(targetHealthBuilder, target.getId());
+        DiscoveryTimingStatus discoveryTimingStatus = checkForDelayedData(target);
+        if (discoveryTimingStatus != DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED) {
+            return reportDelayedData(targetHealthBuilder, target.getId(), discoveryTimingStatus);
         }
+
         return targetHealthBuilder.setHealthState(HealthState.NORMAL)
                 .setSubcategory(TargetHealthSubCategory.DISCOVERY)
                 .setConsecutiveFailureCount(discoveryFailure == null ? 0 : discoveryFailure.getFailsCount())
@@ -300,9 +323,12 @@ public class TargetHealthRetriever {
                     .setErrorType(ErrorType.OTHER)
                     .setMessageText("The probe for '" + target.getDisplayName() + "' is not connected.")
                     .build();
-        } else if (checkForDelayedData(target)) {
+        }
+
+        DiscoveryTimingStatus discoveryTimingStatus = checkForDelayedData(target);
+        if (discoveryTimingStatus != DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED) {
             //The discovered data is too old, report it.
-            return reportDelayedData(targetHealthBuilder, target.getId());
+            return reportDelayedData(targetHealthBuilder, target.getId(), discoveryTimingStatus);
         } else {
             return targetHealthBuilder.setHealthState(HealthState.MINOR)
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
@@ -311,11 +337,17 @@ public class TargetHealthRetriever {
         }
     }
 
-    private TargetHealth reportDelayedData(TargetHealth.Builder targetHealthBuilder, long targetId) {
+    private TargetHealth reportDelayedData(TargetHealth.Builder targetHealthBuilder, long targetId, DiscoveryTimingStatus discoveryTimingStatus) {
         Pair<Long, Long> lastSuccessfulDiscoveryTime = targetStatusTracker
                         .getLastSuccessfulDiscoveryTime(targetId);
         if (lastSuccessfulDiscoveryTime != null) {
             targetHealthBuilder.setLastSuccessfulDiscoveryStartTime(lastSuccessfulDiscoveryTime.getFirst());
+        }
+        StringBuilder delayedDataMsg = new StringBuilder("The observed data is delayed ");
+        if (discoveryTimingStatus == DiscoveryTimingStatus.FULL_DISCOVERY_DELAYED) {
+            delayedDataMsg.append("[Full Discovery].");
+        } else {
+            delayedDataMsg.append("[Incremental Discovery].");
         }
         Pair<Long, Long> lastSuccessfulIncrementalDiscoveryTime = targetStatusTracker
                         .getLastSuccessfulIncrementalDiscoveryTime(targetId);
@@ -328,7 +360,7 @@ public class TargetHealthRetriever {
         return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                 .setSubcategory(TargetHealthSubCategory.DELAYED_DATA)
                 .setErrorType(ErrorType.DELAYED_DATA)
-                .setMessageText("The data is too old.")
+                .setMessageText(delayedDataMsg.toString())
                 .setTimeOfCheck(System.currentTimeMillis())
                 .build();
     }
@@ -337,9 +369,11 @@ public class TargetHealthRetriever {
      * Check if the data for the target is delayed (too old, the discovery happened too long ago
      * or ran too long itself).
      * @param target is the target whose data is checked.
-     * @return true if the data is too old based on the info about discoveries.
+     * @return Discovery timing status.  FULL_DISCOVERY_DELAYED if full discovery is delayed.
+     * INCREMENTAL_DISCOVERY_DELAYED if incremental discovery is delayed.
+     * DISCOVERY_NOT_DELAYED if last discovery is not delayed or there is no successful last discovery.
      */
-    private boolean checkForDelayedData(Target target) {
+    private DiscoveryTimingStatus checkForDelayedData(Target target) {
         long fullRediscoveryThreshold = delayedDataThresholdMultiplier
                         * target.getProbeInfo().getFullRediscoveryIntervalSeconds() * 1000;
         long incrementalRediscoveryThreshold = delayedDataThresholdMultiplier
@@ -350,10 +384,14 @@ public class TargetHealthRetriever {
                         .getLastSuccessfulDiscoveryTime(target.getId());
         Pair<Long, Long> lastSuccessfulIncrementalDiscoveryTime = targetStatusTracker
                         .getLastSuccessfulIncrementalDiscoveryTime(target.getId());
-
-        return checkLastRediscoveryTime(lastSuccessfulDiscoveryTime, currentInstant, fullRediscoveryThreshold)
-                        || checkLastRediscoveryTime(lastSuccessfulIncrementalDiscoveryTime,
-                                        currentInstant, incrementalRediscoveryThreshold);
+        if (checkLastRediscoveryTime(lastSuccessfulDiscoveryTime, currentInstant, fullRediscoveryThreshold)) {
+            return DiscoveryTimingStatus.FULL_DISCOVERY_DELAYED;
+        }
+        if ((checkLastRediscoveryTime(lastSuccessfulIncrementalDiscoveryTime,
+                currentInstant, incrementalRediscoveryThreshold))) {
+            return DiscoveryTimingStatus.INCREMENTAL_DISCOVERY_DELAYED;
+        }
+        return DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED;
     }
 
     /**
