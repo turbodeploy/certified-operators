@@ -141,16 +141,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     CURRENT_COST_PRICE
     );
 
-    /**
-     * Mapping of string group type names to corresponding ApiEntityType enum option. Used for
-     * group by account/cloudService/csp for the account expenses (top-down reports).
-     */
-    private static final Map<String, ApiEntityType> groupTypeToApiEntity = ImmutableMap.of(
-            StatsService.CLOUD_SERVICE, ApiEntityType.CLOUD_SERVICE,
-            StringConstants.BUSINESS_UNIT, ApiEntityType.BUSINESS_ACCOUNT,
-            StringConstants.CSP, ApiEntityType.SERVICE_PROVIDER
-    );
-
     private final RepositoryApi repositoryApi;
 
     private final CostServiceBlockingStub costServiceRpc;
@@ -233,17 +223,17 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     getValueFunction(requestGroupBySet);
 
             // get entities to use later to create the stat filters.
-            // for group by Cloud services, we need to find all the services and
-            // stitch with expenses in Cost component
-            // Get business accounts or CSPs as the case may be.
-            final Map<Long, MinimalEntity> entityDTOs = new HashMap<>();
-            Optional<String> groupType = requestGroupBySet.stream().findAny();
-            groupType.ifPresent(groupValue -> {
-                ApiEntityType apiType = groupTypeToApiEntity.get(groupValue);
-                if (apiType != null) {
-                    entityDTOs.putAll(getDiscoveredEntityDTOs(apiType));
-                }
-            });
+            final Map<Long, MinimalEntity> entityDTOs;
+            if (requestGroupBySet.contains(StatsService.CLOUD_SERVICE)) {
+                // for group by Cloud services, we need to find all the services and
+                // stitch with expenses in Cost component
+                entityDTOs = getDiscoveredEntityDTOs(ApiEntityType.CLOUD_SERVICE);
+            } else if (requestGroupBySet.contains(StringConstants.BUSINESS_UNIT)) {
+                // get business accounts
+                entityDTOs = getDiscoveredEntityDTOs(ApiEntityType.BUSINESS_ACCOUNT);
+            } else {
+                entityDTOs = Collections.emptyMap();
+            }
 
             final List<CloudCostStatRecord> cloudStatRecords =
                     getCloudExpensesRecordList(requestGroupBySet,
@@ -258,13 +248,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                             valueFunction,
                             entityDTOs))
                     .collect(toList());
-            // For CSP, filter out those that are not in the current user's scope. This is required
-            // because CostRpc doesn't store account expenses by CSP, instead we get expenses by
-            // account, then map it to cloud targets, and then look for a match in the 'entityDTOs'
-            // for the same targets and figure out what the CSP is, and set that as the 'filter'.
-            if (requestGroupBySet.contains(StringConstants.CSP)) {
-                filterStatsResponseByCSP(statsResponse, entityDTOs);
-            }
         } else if (inputScope.isRealtimeMarket() || inputScope.isPlan() ||
                 inputScope.isCloud()) {
             final Set<Long> cloudEntityOids;
@@ -427,32 +410,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             statsResponse = Collections.emptyList();
         }
         return statsResponse;
-    }
-
-    /**
-     * Updates stats response and removes stats that don't match the CSPs specified in the user's
-     * scope. E.g for a user that is scoped to AWS, no non-AWS (e.g Azure) CSP related stats values
-     * are included in the output.
-     *
-     * @param statsResponse Stats response, that may be updated.
-     * @param entityDTOs DTOs with details about CSPs that are in user's scope.
-     */
-    @VisibleForTesting
-    void filterStatsResponseByCSP(final List<StatSnapshotApiDTO> statsResponse,
-            final Map<Long, MinimalEntity> entityDTOs) {
-        // Make up a set of allowed CSPs like 'CSP:AWS', 'CSP:AZURE' - based on user scope.
-        final Set<StatFilterApiDTO> allowedCloudProviders = entityDTOs.values()
-                .stream()
-                .map(minimalEntity -> createStatFilterApiDTO(StringConstants.CSP,
-                        minimalEntity.getDisplayName().toUpperCase()))
-                .collect(Collectors.toSet());
-        if (allowedCloudProviders.isEmpty()) {
-            return;
-        }
-        // From the stats response, pick up only those where the filters match the allowed CSPs.
-        statsResponse.forEach(dto -> dto.getStatistics()
-                .removeIf(statsDto -> !statsDto.getFilters().isEmpty()
-                        && !allowedCloudProviders.contains(statsDto.getFilters().get(0))));
     }
 
     @Nonnull
@@ -720,8 +677,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     @Nonnull
-    @VisibleForTesting
-    static StatFilterApiDTO createStatFilterApiDTO(@Nonnull String type,
+    private static StatFilterApiDTO createStatFilterApiDTO(@Nonnull String type,
                                                            @Nonnull String value) {
         StatFilterApiDTO statFilterDTO = new StatFilterApiDTO();
         statFilterDTO.setType(type);
@@ -1076,6 +1032,9 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                 cloudTypeMapper.fromTargetType(thinTargetInfo.probeInfo().type())
                                     .map(Enum::name));
         }
+
+
+
         // When grouping by cloud service, the filter's value should be the cloud service name.
         // In this case, the associated entity ID is a cloud service ID, and the DTOs are
         // cloud service DTOs.

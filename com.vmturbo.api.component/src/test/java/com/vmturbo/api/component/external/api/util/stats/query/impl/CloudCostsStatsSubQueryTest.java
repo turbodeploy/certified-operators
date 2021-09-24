@@ -10,7 +10,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -51,7 +50,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -556,16 +554,6 @@ public class CloudCostsStatsSubQueryTest {
         StatApiInputDTO queryStat = new StatApiInputDTO();
         queryStat.setGroupBy(Collections.singletonList(StringConstants.CSP));
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
-
-        Set<MinimalEntity> serviceProviders = new HashSet<>();
-        serviceProviders.add(MinimalEntity.newBuilder()
-                .setDisplayName(CSP_AZURE)
-                .setEntityType(ApiEntityType.SERVICE_PROVIDER.typeNumber())
-                .setOid(1001)
-                .build());
-        SearchRequest searchRequest = mock(SearchRequest.class);
-        when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
-        when(searchRequest.getMinimalEntities()).thenReturn(serviceProviders.stream());
 
         StatsQueryContext context = mock(StatsQueryContext.class);
         ApiId apiId = mock(ApiId.class);
@@ -1644,66 +1632,5 @@ public class CloudCostsStatsSubQueryTest {
                 .addCloudStatRecord(recordBuilder1.build())
                 .addCloudStatRecord(recordBuilder2.build())
                 .build()));
-    }
-
-    /**
-     * Tests that the stats response is getting filtered based on the matching CSPs in user scope.
-     */
-    @Test
-    public void filterStatsResponse() {
-        final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-        statSnapshotApiDTO.setDate("2021-09-20T00:00:00Z");
-
-        float value1Aws = 10.05f;
-        float value2Azure = 20.00f;
-
-        final List<StatApiDTO> apiDtoList = new ArrayList<>();
-        apiDtoList.add(createCspStatsApiDto(CloudType.AWS.name(), value1Aws));
-        apiDtoList.add(createCspStatsApiDto(CloudType.AZURE.name(), value2Azure));
-        statSnapshotApiDTO.setStatistics(apiDtoList);
-
-        long cspOid = 10001L;
-        final Map<Long, MinimalEntity> entityDTOs = ImmutableMap.of(cspOid,
-                MinimalEntity.newBuilder()
-                        .setDisplayName(CloudType.AWS.name())
-                        .setEntityType(ApiEntityType.SERVICE_PROVIDER.typeNumber())
-                        .setOid(cspOid)
-                        .build());
-
-        // Verify both stats (AWS and Azure) are present.
-        Assert.assertEquals(statSnapshotApiDTO.getStatistics().size(), 2);
-
-        // Filter out non-AWS stats.
-        query.filterStatsResponseByCSP(ImmutableList.of(statSnapshotApiDTO), entityDTOs);
-
-        // Verify that we only have AWS as the remaining stats.
-        Assert.assertEquals(statSnapshotApiDTO.getStatistics().size(), 1);
-        final StatApiDTO awsStatsDto = statSnapshotApiDTO.getStatistics().get(0);
-        Assert.assertEquals("AWS", awsStatsDto.getFilters().get(0).getValue());
-        Assert.assertEquals(value1Aws, awsStatsDto.getValues().getAvg(), 0.0000001d);
-    }
-
-    /**
-     * Util method to help create StatApiDTO for CSP.
-     *
-     * @param filterValue Value for CSP filter.
-     * @param costValue Value to use for CSP expense.
-     * @return Instance of created StatApiDTO.
-     */
-    private StatApiDTO createCspStatsApiDto(String filterValue, float costValue) {
-        final StatApiDTO statApiDTO = new StatApiDTO();
-        statApiDTO.setName("costPrice");
-        statApiDTO.setUnits("$");
-
-        final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-        statValueApiDTO.setAvg(costValue);
-        statValueApiDTO.setMax(costValue);
-        statValueApiDTO.setMin(costValue);
-        statValueApiDTO.setTotal(costValue);
-        statApiDTO.setValues(statValueApiDTO);
-
-        statApiDTO.setFilters(Collections.singletonList(
-                CloudCostsStatsSubQuery.createStatFilterApiDTO(StringConstants.CSP, filterValue)));
-        return statApiDTO;
     }
 }
