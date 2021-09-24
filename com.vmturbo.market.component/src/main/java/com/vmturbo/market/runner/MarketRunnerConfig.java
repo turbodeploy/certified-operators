@@ -140,13 +140,6 @@ public class MarketRunnerConfig {
     private boolean enableOP;
 
     /**
-     * Whether we should populate the by-product map in analysis. Setting to false disables by-product
-     * analysis (ie disables analysis of CPU throttling commodities during vCPU resize action generation).
-     */
-    @Value("${shouldPopulateByProducts:false}")
-    private boolean shouldPopulateByProducts;
-
-    /**
      * Use max(reservation, used) as VM's commodity bought used.
      */
     @Value("${useVMReservationAsUsed:false}")
@@ -225,7 +218,6 @@ public class MarketRunnerConfig {
                 actionSavingsCalculatorFactory(),
                 licensePriceWeightScale,
                 enableOP,
-                shouldPopulateByProducts,
                 fastProvisionEnabled,
                 branchAndBoundEnabled,
                 useVMReservationAsUsed);

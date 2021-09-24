@@ -153,7 +153,7 @@ public class MarketRunnerTest {
         AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false);
+            false);
         doAnswer(invocation -> {
             TopologyInfo topologyInfo = invocation.getArgumentAt(0, TopologyInfo.class);
             Set<TopologyEntityDTO> entities = invocation.getArgumentAt(1, Set.class);

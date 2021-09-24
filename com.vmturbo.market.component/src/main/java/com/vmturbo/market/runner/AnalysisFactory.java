@@ -138,8 +138,6 @@ public interface AnalysisFactory {
 
         private final boolean enableOP;
 
-        private final boolean shouldPopulateByProducts;
-
         private boolean fastProvisionEnabled;
 
         private boolean branchAndBoundEnabled;
@@ -170,7 +168,6 @@ public interface AnalysisFactory {
                                       @Nonnull JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory,
                                       final int licensePriceWeightScale,
                                       final boolean enableOP,
-                                      final boolean shouldPopulateByProducts,
                                       final boolean fastProvisionEnabled,
                                       final boolean branchAndBoundEnabled,
                                       final boolean useVMReservationAsUsed) {
@@ -204,7 +201,6 @@ public interface AnalysisFactory {
             this.actionSavingsCalculatorFactory = Objects.requireNonNull(actionSavingsCalculatorFactory);
             this.licensePriceWeightScale = licensePriceWeightScale;
             this.enableOP = enableOP;
-            this.shouldPopulateByProducts = shouldPopulateByProducts;
             this.fastProvisionEnabled = fastProvisionEnabled;
             this.branchAndBoundEnabled = branchAndBoundEnabled;
             this.useVMReservationAsUsed = useVMReservationAsUsed;
@@ -224,7 +220,7 @@ public interface AnalysisFactory {
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
-                licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed);
+                licensePriceWeightScale, enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
@@ -372,12 +368,6 @@ public interface AnalysisFactory {
         private final boolean enableOP;
 
         /**
-         * Whether we should populate the by-product map in analysis. Setting to false disables by-product
-         * analysis (ie disables analysis of CPU throttling commodities during vCPU resize action generation).
-         */
-        private final boolean shouldPopulateByProducts;
-
-        /**
          * If enabled, provision algorithm will finish quicker. But the disadvantage is that we
          * will provision slightly more entities than usual.
          */
@@ -412,7 +402,6 @@ public interface AnalysisFactory {
          * @param licensePriceWeightScale value to scale the price weight of commodities for every
          *                                softwareLicenseCommodity sold by a provider.
          * @param enableOP enables the changes for OverProvisioning.
-         * @param shouldPopulateByProducts Whether to populate the byProducts map which permits analysis of commodity byProducts.
          * @param useVMReservationAsUsed Use max(reservation, used) as VM's commodity bought used.
          */
         private AnalysisConfig(final MarketMode marketMode,
@@ -430,7 +419,6 @@ public interface AnalysisFactory {
                               final boolean fullPriceForQuote,
                               final int licensePriceWeightScale,
                               final boolean enableOP,
-                              final boolean shouldPopulateByProducts,
                               final boolean fastProvisionEnabled,
                               final boolean branchAndBoundEnabled,
                               final boolean useVMReservationAsUsed) {
@@ -449,7 +437,6 @@ public interface AnalysisFactory {
             this.fullPriceForQuote = fullPriceForQuote;
             this.licensePriceWeightScale = licensePriceWeightScale;
             this.enableOP = enableOP;
-            this.shouldPopulateByProducts = shouldPopulateByProducts;
             this.fastProvisionEnabled = fastProvisionEnabled;
             this.branchAndBoundEnabled = branchAndBoundEnabled;
             this.useVMReservationAsUsed = useVMReservationAsUsed;
@@ -485,14 +472,6 @@ public interface AnalysisFactory {
 
         public boolean isEnableOP() {
             return enableOP;
-        }
-
-        /**
-         * Whether we should populate the by-product map in analysis. Setting to false disables by-product
-         * analysis (ie disables analysis of CPU throttling commodities during vCPU resize action generation).
-         */
-        public boolean shouldPopulateByProducts() {
-            return shouldPopulateByProducts;
         }
 
         /**
@@ -599,16 +578,15 @@ public interface AnalysisFactory {
          * @param licensePriceWeightScale value to scale the price weight of commodities for every
          *            softwareLicenseCommodity sold by a provider.
          * @param enableOP is OverProvisioning changes enabled.
-         * @param shouldPopulateByProducts Whether we should populate the byproducts map.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
                                          @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                  @Nonnull final Map<String, Setting> globalSettings, final boolean fullPriceForQuote,
-                 final int licensePriceWeightScale, final boolean enableOP, final boolean shouldPopulateByProducts) {
+                 final int licensePriceWeightScale, final boolean enableOP) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
                 suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                enableOP, shouldPopulateByProducts, true, true, true);
+                enableOP, true, true, true);
         }
 
         /**
@@ -627,7 +605,6 @@ public interface AnalysisFactory {
          * @param licensePriceWeightScale value to scale the price weight of commodities for every
          *            softwareLicenseCommodity sold by a provider.
          * @param enableOP is OverProvisioning changes enabled.
-         * @param shouldPopulateByProducts Whether we should populate the byproducts map.
          * @param useVMReservationAsUsed Use max(reservation, used) as VM's commodity bought used.
          * @return The builder, which can be further customized.
          */
@@ -637,13 +614,12 @@ public interface AnalysisFactory {
                                                 final boolean fullPriceForQuote,
                                                 final int licensePriceWeightScale,
                                                 final boolean enableOP,
-                                                final boolean shouldPopulateByProducts,
                                                 final boolean fastProvisionEnabled,
                                                 final boolean branchAndBoundEnabled,
                                                 final boolean useVMReservationAsUsed) {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                    enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed);
+                    enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed);
         }
 
         public boolean isFastProvisionEnabled() {
@@ -685,8 +661,6 @@ public interface AnalysisFactory {
 
             private final boolean enableOP;
 
-            private final boolean shouldPopulateByProducts;
-
             private final boolean fastProvisionEnabled;
 
             private final boolean branchAndBoundEnabled;
@@ -701,7 +675,6 @@ public interface AnalysisFactory {
                             final boolean fullPriceForQuote,
                             final int licensePriceWeightScale,
                             final boolean enableOP,
-                            final boolean shouldPopulateByProducts,
                             final boolean fastProvisionEnabled,
                             final boolean branchAndBoundEnabled,
                             final boolean useVMReservationAsUsed) {
@@ -713,7 +686,6 @@ public interface AnalysisFactory {
                 this.fullPriceForQuote = fullPriceForQuote;
                 this.licensePriceWeightScale = licensePriceWeightScale;
                 this.enableOP = enableOP;
-                this.shouldPopulateByProducts = shouldPopulateByProducts;
                 this.fastProvisionEnabled = fastProvisionEnabled;
                 this.branchAndBoundEnabled = branchAndBoundEnabled;
                 this.useVMReservationAsUsed = useVMReservationAsUsed;
@@ -826,7 +798,7 @@ public interface AnalysisFactory {
                     suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
                     rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
-                    licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled,
+                    licensePriceWeightScale, enableOP, fastProvisionEnabled,
                     branchAndBoundEnabled, useVMReservationAsUsed);
             }
         }
