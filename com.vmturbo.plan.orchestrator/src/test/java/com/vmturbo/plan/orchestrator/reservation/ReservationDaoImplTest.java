@@ -337,19 +337,6 @@ public class ReservationDaoImplTest {
                 .anyMatch(reservation ->  reservation.getName().contains("New-second-reservation")));
     }
 
-    @Test
-    public void testGetReservationsByTemplates() throws DuplicateTemplateException {
-        Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
-                .setName("test-template")
-                .build());
-        Reservation reservation = updateReservationTemplate(testFirstReservation, template);
-        reservationDao.createReservation(reservation);
-        Set<Reservation> reservationSet =
-                reservationDao.getReservationsByTemplates(Sets.newHashSet(template.getId()));
-        assertEquals(1L, reservationSet.size());
-        assertEquals("Test-first-reservation", reservationSet.iterator().next().getName());
-    }
-
     private Reservation createReservationWithTemplate(@Nonnull final Reservation reservation) throws DuplicateTemplateException {
         Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
                 .setName(reservation.getName())
