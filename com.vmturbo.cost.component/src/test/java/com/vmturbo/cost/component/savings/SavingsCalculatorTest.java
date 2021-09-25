@@ -10,6 +10,7 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
@@ -355,7 +356,9 @@ public class SavingsCalculatorTest {
         Gson gson = new Gson();
         JsonReader reader = new JsonReader(new FileReader(eventFileName));
         List<ScriptEvent> events = Arrays.asList(gson.fromJson(reader, ScriptEvent[].class));
-        events.forEach(event -> EventInjector.addEvent(event, entityEventsJournal));
+        AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
+        events.forEach(event -> EventInjector.addEvent(event, entityEventsJournal,
+                purgePreviousTestState));
     }
 
     /**

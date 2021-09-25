@@ -293,6 +293,24 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                 .execute();
     }
 
+    /**
+     * Delete all stats from the hourly, daily, and monthly tables.
+     *
+     * @param uuids list of UUIDs for which to delete stats.
+     */
+    @Override
+    public void deleteStatsForUuids(@Nonnull Set<Long> uuids) {
+        dsl.deleteFrom(ENTITY_SAVINGS_BY_HOUR)
+                .where(ENTITY_SAVINGS_BY_HOUR.ENTITY_OID.in(uuids))
+                .execute();
+        dsl.deleteFrom(ENTITY_SAVINGS_BY_DAY)
+                .where(ENTITY_SAVINGS_BY_DAY.ENTITY_OID.in(uuids))
+                .execute();
+        dsl.deleteFrom(ENTITY_SAVINGS_BY_MONTH)
+                .where(ENTITY_SAVINGS_BY_MONTH.ENTITY_OID.in(uuids))
+                .execute();
+    }
+
     @Override
     @Nonnull
     public LastRollupTimes getLastRollupTimes() {

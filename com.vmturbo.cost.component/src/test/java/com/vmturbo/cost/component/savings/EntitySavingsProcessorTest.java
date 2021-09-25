@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Collections;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -48,7 +49,8 @@ public class EntitySavingsProcessorTest {
         Mockito.when(entitySavingsProcessor.getCurrentDateTime()).thenReturn(endTime);
         entitySavingsProcessor.execute();
         Mockito.verify(topologyEventsPoller).poll(startTime, endTime);
-        Mockito.verify(entitySavingsTracker).processEvents(startTime, endTime);
+        Mockito.verify(entitySavingsTracker).processEvents(startTime, endTime,
+                Collections.emptySet());
     }
 
     /**
@@ -66,7 +68,7 @@ public class EntitySavingsProcessorTest {
         Mockito.when(entitySavingsProcessor.getCurrentDateTime()).thenReturn(endTime);
         entitySavingsProcessor.execute();
         Mockito.verify(topologyEventsPoller, Mockito.never()).poll(startTime, endTime);
-        Mockito.verify(entitySavingsTracker, Mockito.never()).processEvents(startTime, endTime);
+        Mockito.verify(entitySavingsTracker, Mockito.never()).processEvents(startTime, endTime, null);
     }
 
     /**
@@ -83,8 +85,11 @@ public class EntitySavingsProcessorTest {
         LocalDateTime endTime = LocalDateTime.of(2021, 3, 23, 10, 0);
         Mockito.when(entitySavingsProcessor.getCurrentDateTime()).thenReturn(endTime);
         entitySavingsProcessor.execute();
-        Mockito.verify(topologyEventsPoller, Mockito.never()).poll(Mockito.any(LocalDateTime.class), Mockito.any(LocalDateTime.class));
-        Mockito.verify(entitySavingsTracker, Mockito.never()).processEvents(Mockito.any(LocalDateTime.class), Mockito.any(LocalDateTime.class));
+        Mockito.verify(topologyEventsPoller, Mockito.never()).poll(Mockito.any(LocalDateTime.class),
+                Mockito.any(LocalDateTime.class));
+        Mockito.verify(entitySavingsTracker, Mockito.never())
+                .processEvents(Mockito.any(LocalDateTime.class), Mockito.any(LocalDateTime.class),
+                        Mockito.anySet());
     }
 
     /**
@@ -103,7 +108,8 @@ public class EntitySavingsProcessorTest {
         entitySavingsProcessor.execute();
         LocalDateTime updatedEndTime = LocalDateTime.of(2021, 3, 23, 9, 0);
         Mockito.verify(topologyEventsPoller).poll(startTime, updatedEndTime);
-        Mockito.verify(entitySavingsTracker).processEvents(startTime, updatedEndTime);
+        Mockito.verify(entitySavingsTracker).processEvents(startTime, updatedEndTime,
+                Collections.emptySet());
     }
 
     /**

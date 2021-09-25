@@ -228,7 +228,8 @@ public class SQLCloudScopeStoreTest {
         Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1));
         TopologyEntityCloudTopology cloudTopology = SqlEntityStateStoreTest.getCloudTopology(1000L);
         entityStateStore.updateEntityStates(stateSet.stream().collect(
-                Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology, dsl);
+                Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology, dsl,
+                Collections.emptySet());
 
         // Delete datapoint A from entity_compute_tier_allocation table.
         computeTierAllocationStore.deleteAllocations(deleteFilter);

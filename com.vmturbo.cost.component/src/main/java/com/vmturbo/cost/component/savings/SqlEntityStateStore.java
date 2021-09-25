@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Result;
@@ -33,6 +34,7 @@ import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsStateRecord;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopedStore;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Implementation of EntityStateStore that persists data in entity_savings_state table.
@@ -85,18 +87,24 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
      * states that contain an expired action.
      *
      * @param timestamp timestamp of the end of the period being processed
+     * @param uuids if non-empty, return only the forced entity states that are in the uuid list
      * @return a map of entity_oid -> EntityState that must be processed.
      * @throws EntitySavingsException when an error occurs
      */
     @Override
-    public Map<Long, EntityState> getForcedUpdateEntityStates(LocalDateTime timestamp)
+    public Map<Long, EntityState> getForcedUpdateEntityStates(LocalDateTime timestamp,
+            Set<Long> uuids)
             throws EntitySavingsException {
         final Result<Record2<Long, String>> records;
         try {
+            Condition where = ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1)
+                    .or(ENTITY_SAVINGS_STATE.NEXT_EXPIRATION_TIME.le(timestamp));
+            if (!uuids.isEmpty()) {
+                where = where.and(ENTITY_SAVINGS_STATE.ENTITY_OID.in(uuids));
+            }
             records = dsl.select(ENTITY_SAVINGS_STATE.ENTITY_OID, ENTITY_SAVINGS_STATE.ENTITY_STATE)
                     .from(ENTITY_SAVINGS_STATE)
-                    .where(ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1)
-                            .or(ENTITY_SAVINGS_STATE.NEXT_EXPIRATION_TIME.le(timestamp)))
+                    .where(where)
                     .fetch();
             return records.stream().collect(Collectors.toMap(Record2::value1,
                     record -> EntityState.fromJson(record.value2())));
@@ -106,11 +114,16 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     }
 
     @Override
-    public void clearUpdatedFlags(@Nonnull DSLContext dsl) throws EntitySavingsException {
+    public void clearUpdatedFlags(@Nonnull DSLContext dsl, Set<Long> uuids)
+            throws EntitySavingsException {
         try {
+            Condition where = ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1);
+            if (!uuids.isEmpty()) {
+                where = where.and(ENTITY_SAVINGS_STATE.ENTITY_OID.in(uuids));
+            }
             dsl.update(ENTITY_SAVINGS_STATE)
                     .set(ENTITY_SAVINGS_STATE.UPDATED, (byte)0)
-                    .where(ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1))
+                    .where(where)
                     .execute();
         } catch (DataAccessException e) {
             throw new EntitySavingsException("Error occurred when getting entity states from database.", e);
@@ -128,15 +141,32 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         }
     }
 
+    /**
+     * Update entity states. If the state of the entity is not already in the store, create it.
+     *
+     * @param entityStateMap entity ID mapped to entity state
+     * @param cloudTopology cloud topology
+     * @param dsl DSL context for jooq
+     * @param uuids if non-empty, the list of UUIDs to be updated, else all UUIDs will be updated
+     * @throws EntitySavingsException error during operation
+     */
     @Override
     public void updateEntityStates(@Nonnull final Map<Long, EntityState> entityStateMap,
-                                   @Nonnull final TopologyEntityCloudTopology cloudTopology,
-                                   @Nonnull DSLContext dsl)
+            @Nonnull final TopologyEntityCloudTopology cloudTopology,
+            @Nonnull DSLContext dsl, @Nonnull final Set<Long> uuids)
             throws EntitySavingsException {
+        // If limiting the number of states to be updated, remove the entities that aren't selected.
+        if (!uuids.isEmpty()) {
+            entityStateMap.keySet().removeAll(entityStateMap.keySet().stream()
+                    .filter(uuid -> !uuids.contains(uuid))
+                    .collect(Collectors.toSet()));
+        }
+
         // State records requires the corresponding scope record is already present in the scope table.
         // Only create state records that have a scope record.
         List<EntityCloudScopeRecord> scopeRecords = entityStateMap.keySet().stream()
-                .map(entityOid -> createCloudScopeRecord(entityOid, cloudTopology))
+                .map(entityOid -> createCloudScopeRecord(entityOid, cloudTopology,
+                        uuids.contains(entityOid)))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
         try {
@@ -229,29 +259,46 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     }
 
     @Nullable
-    private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid, TopologyEntityCloudTopology cloudTopology) {
+    private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid,
+            TopologyEntityCloudTopology cloudTopology, boolean isTestEntity) {
 
-        final Integer entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
+        Integer entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
 
         // Get the service provider OID.
         Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
-        final Long serviceProviderOid = serviceProvider.map(TopologyEntityDTO::getOid).orElse(null);
+        Long serviceProviderOid = serviceProvider.map(TopologyEntityDTO::getOid).orElse(null);
 
         // Get the region OID.
         Optional<TopologyEntityDTO> region = cloudTopology.getConnectedRegion(entityOid);
-        final Long regionOid = region.map(TopologyEntityDTO::getOid).orElse(null);
+        Long regionOid = region.map(TopologyEntityDTO::getOid).orElse(null);
 
         // Get the availability zone OID.
         Optional<TopologyEntityDTO> availabilityZone = cloudTopology.getConnectedAvailabilityZone(entityOid);
-        final Optional<Long> availabilityZoneOid = availabilityZone.map(TopologyEntityDTO::getOid);
+        Optional<Long> availabilityZoneOid = availabilityZone.map(TopologyEntityDTO::getOid);
 
         // Get the account OID.
         Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
-        final Long accountOid = businessAccount.map(TopologyEntityDTO::getOid).orElse(null);
+        Long accountOid = businessAccount.map(TopologyEntityDTO::getOid).orElse(null);
 
         // Get the resource group OID.
         Optional<GroupAndMembers> resourceGroup = cloudTopology.getResourceGroup(entityOid);
-        final Optional<Long> resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
+        Optional<Long> resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
+
+        if (isTestEntity) {
+            /*
+             * To implement scope for the test entities, create scope based upon the entity's UUID,
+             * divide the UUID by the following:
+             *  - service provider  100,000
+             *  - region            10,000
+             *  - account           1,000
+             *  - resource group    100
+             */
+            entityType = EntityType.VIRTUAL_MACHINE_VALUE;
+            serviceProviderOid = entityOid / 100000L;
+            regionOid = entityOid / 10000L;
+            accountOid = entityOid / 1000L;
+            resourceGroupOid = Optional.of(entityOid / 100L);
+        }
 
         if (entityType != null && serviceProviderOid != null && regionOid != null && accountOid != null) {
             return createCloudScopeRecord(entityOid, entityType, accountOid, regionOid,

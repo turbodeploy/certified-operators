@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -91,8 +92,19 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         return returnEvents;
     }
 
+    /**
+     * Remove events that occurred within the specified time period.  If the UUIDs list is not
+     * empty, only return events for entities specified in the UUID list.
+     *
+     * @param startTime Start time (inclusive).
+     * @param endTime End time (exclusive).
+     * @param uuids set of UUIDs to get events for. If the set is null, all UUIDs will be used.  If
+     *      the set is empty, no UUIDs will be used.
+     * @return filtered list of savings events
+     */
     @Nonnull
-    public List<SavingsEvent> removeEventsBetween(long startTime, long endTime) {
+    public List<SavingsEvent> removeEventsBetween(long startTime, long endTime,
+            @Nonnull Set<Long> uuids) {
         final List<SavingsEvent> returnEvents = new ArrayList<>();
         journalLock.writeLock().lock();
         try {
@@ -100,10 +112,31 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
             keysBetween.forEach(keyTimestamp -> returnEvents.addAll(events.get(keyTimestamp)));
             // Cannot iterate over the multimap's live key set.
             (new HashSet<>(keysBetween)).forEach(events::removeAll);
+            // If in test mode (i.e., removing events for a subset of UUIDs, put the events that
+            // weren't requested back into the event journal.
+            if (!uuids.isEmpty()) {
+                // Only return events whose UUID is in the uuids list.
+                final List<SavingsEvent> filteredEvents = new ArrayList<>();
+                for (SavingsEvent event : returnEvents) {
+                    if (uuids.contains(event.getEntityId())) {
+                        filteredEvents.add(event);
+                    } else {
+                        // Add the unselected event back to the event journal.
+                        addEvent(event);
+                    }
+                }
+                return filteredEvents;
+            }
         } finally {
             journalLock.writeLock().unlock();
         }
         return returnEvents;
+
+    }
+
+    @Nonnull
+    public List<SavingsEvent> removeEventsBetween(long startTime, long endTime) {
+        return removeEventsBetween(startTime, endTime, Collections.emptySet());
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.savings;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -112,7 +113,7 @@ class EntitySavingsProcessor {
 
             logger.info("Invoke EntitySavingsTracker to process events.");
             final List<Long> hourlyStatsTimes = entitySavingsTracker.processEvents(startTime,
-                    endTime);
+                    endTime, Collections.emptySet());
 
             logger.info("Invoking RollupSavingsProcessor to process rollup.");
             rollupProcessor.process(hourlyStatsTimes);

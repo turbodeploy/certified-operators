@@ -117,6 +117,8 @@ public class EntitySavingsTrackerTest {
 
     private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
 
+    private final Set<Long> uuids = Collections.emptySet();
+
     /**
      * Config providing access to DB. Also ClassRule to init Db and upgrade to latest.
      */
@@ -154,9 +156,12 @@ public class EntitySavingsTrackerTest {
         final long time1000amMillis = TimeUtil.localDateTimeToMilli(time1000am, clock);
         final long time1100amMillis = TimeUtil.localDateTimeToMilli(time1100am, clock);
         final long time1200pmMillis = TimeUtil.localDateTimeToMilli(time1200pm, clock);
-        when(entityEventsJournal.removeEventsBetween(time0900amMillis, time1000amMillis)).thenReturn(eventsByPeriod.get(time0900am));
-        when(entityEventsJournal.removeEventsBetween(time1000amMillis, time1100amMillis)).thenReturn(eventsByPeriod.get(time1000am));
-        when(entityEventsJournal.removeEventsBetween(time1100amMillis, time1200pmMillis)).thenReturn(eventsByPeriod.get(time1100am));
+        when(entityEventsJournal.removeEventsBetween(time0900amMillis, time1000amMillis, uuids))
+                .thenReturn(eventsByPeriod.get(time0900am));
+        when(entityEventsJournal.removeEventsBetween(time1000amMillis, time1100amMillis, uuids))
+                .thenReturn(eventsByPeriod.get(time1000am));
+        when(entityEventsJournal.removeEventsBetween(time1100amMillis, time1200pmMillis, uuids))
+                .thenReturn(eventsByPeriod.get(time1100am));
         entitySavingsStore = new SqlEntitySavingsStore(dsl, clock, 5);
         entityStateStore = mock(SqlEntityStateStore.class);
 
@@ -290,21 +295,21 @@ public class EntitySavingsTrackerTest {
      */
     @Test
     public void verifyCorrectDslContextUsed() throws Exception {
-        tracker.processEvents(time0900am, time1000am);
+        tracker.processEvents(time0900am, time1000am, uuids);
         final long startTimeMillis = TimeUtil.localDateTimeToMilli(time0900am, clock);
         ArgumentCaptor<DSLContext> dslCaptor = ArgumentCaptor.forClass(DSLContext.class);
-        verify(tracker).generateStats(eq(startTimeMillis), dslCaptor.capture());
+        verify(tracker).generateStats(eq(startTimeMillis), dslCaptor.capture(), any());
         DSLContext generateStatesDsl = dslCaptor.getValue();
         assertNotEquals(dsl, generateStatesDsl);
 
         ArgumentCaptor<DSLContext> clearUpdatedFlagsDslCaptor = ArgumentCaptor.forClass(DSLContext.class);
-        verify(entityStateStore).clearUpdatedFlags(clearUpdatedFlagsDslCaptor.capture());
+        verify(entityStateStore).clearUpdatedFlags(clearUpdatedFlagsDslCaptor.capture(), eq(uuids));
         DSLContext clearUpdateFlagsDsl = clearUpdatedFlagsDslCaptor.getValue();
         assertNotEquals(dsl, clearUpdateFlagsDsl);
 
         ArgumentCaptor<DSLContext> updateStateDslCaptor = ArgumentCaptor.forClass(DSLContext.class);
         verify(entityStateStore).updateEntityStates(anyMap(), any(TopologyEntityCloudTopology.class),
-                updateStateDslCaptor.capture());
+                updateStateDslCaptor.capture(), eq(uuids));
         DSLContext updateStateDsl = updateStateDslCaptor.getValue();
         assertNotEquals(dsl, updateStateDsl);
 
@@ -322,11 +327,11 @@ public class EntitySavingsTrackerTest {
      */
     @Test
     public void processWithOnePeriod() throws Exception {
-        tracker.processEvents(time0900am, time1000am);
+        tracker.processEvents(time0900am, time1000am, uuids);
         final long startTimeMillis = TimeUtil.localDateTimeToMilli(time0900am, clock);
         final long endTimeMillis = TimeUtil.localDateTimeToMilli(time1000am, clock);
-        verify(entityEventsJournal).removeEventsBetween(startTimeMillis, endTimeMillis);
-        verify(tracker).generateStats(eq(startTimeMillis), any(DSLContext.class));
+        verify(entityEventsJournal).removeEventsBetween(startTimeMillis, endTimeMillis, uuids);
+        verify(tracker).generateStats(eq(startTimeMillis), any(DSLContext.class), eq(uuids));
         List<Long> vmIds = Arrays.asList(vm1Id, vm2Id);
         verify(repositoryClient).getAllBusinessAccountOidsInScope(new HashSet<>(vmIds));
         verify(repositoryClient).getEntitiesByType(Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER));
@@ -356,12 +361,13 @@ public class EntitySavingsTrackerTest {
         final long time0900amMillis = TimeUtil.localDateTimeToMilli(time0900am, clock);
         final long time1000amMillis = TimeUtil.localDateTimeToMilli(time1000am, clock);
         final long time1100amMillis = TimeUtil.localDateTimeToMilli(time1100am, clock);
-        tracker.processEvents(time0900am, time1100am);
-        verify(entityEventsJournal).removeEventsBetween(time0900amMillis, time1000amMillis);
-        verify(tracker).generateStats(eq(time0900amMillis), any(DSLContext.class));
-        verify(entityEventsJournal).removeEventsBetween(time1000amMillis, time1100amMillis);
-        verify(tracker).generateStats(eq(time1000amMillis), any(DSLContext.class));
-        verify(tracker, times(2)).generateStats(anyLong(), any(DSLContext.class));
+        tracker.processEvents(time0900am, time1100am, uuids);
+        verify(entityEventsJournal).removeEventsBetween(0, time0900amMillis, uuids);
+        verify(entityEventsJournal).removeEventsBetween(time0900amMillis, time1000amMillis, uuids);
+        verify(tracker).generateStats(eq(time0900amMillis), any(DSLContext.class), eq(uuids));
+        verify(entityEventsJournal).removeEventsBetween(time1000amMillis, time1100amMillis, uuids);
+        verify(tracker).generateStats(eq(time1000amMillis), any(DSLContext.class), eq(uuids));
+        verify(tracker, times(2)).generateStats(anyLong(), any(DSLContext.class), eq(uuids));
 
         // Assert that data is inserted into entity_savings_by_hour table.
         List<AggregatedSavingsStats> statsReadBack = getSavingsStats();
@@ -378,7 +384,7 @@ public class EntitySavingsTrackerTest {
     public void testDatabaseRollback() throws Exception {
         doThrow(EntitySavingsException.class).when(entityStateStore)
                 .deleteEntityStates(anySetOf(Long.class), any(DSLContext.class));
-        List<Long> hourlyStatsTimes = tracker.processEvents(time0900am, time1000am);
+        List<Long> hourlyStatsTimes = tracker.processEvents(time0900am, time1000am, uuids);
         List<AggregatedSavingsStats> statsReadBack = getSavingsStats();
 
         // There should be no data in the entity_savings_by_hour table because a rollback occurred.
@@ -412,7 +418,7 @@ public class EntitySavingsTrackerTest {
         EntitySavingsTracker tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
                 entityStateStore, Clock.systemUTC(), mock(TopologyEntityCloudTopologyFactory.class),
                 repositoryClient, dsl, realtimeTopologyContextId, 2));
-        tracker.generateStats(time1000amMillis, dsl);
+        tracker.generateStats(time1000amMillis, dsl, uuids);
 
         // Make sure we call the version of getAllEntityStates that accepts DSL context as parameter.
         verify(entityStateStore).getAllEntityStates(dsl);
@@ -422,6 +428,35 @@ public class EntitySavingsTrackerTest {
         // Third state will generate 4 stats records => 1 call
         // Forth state will generate 1 stats (less than 1 page) and flushed at the end => 1 call
         verify(entitySavingsStore, times(3)).addHourlyStats(statsCaptor.capture(), any(DSLContext.class));
+    }
+
+    /**
+     * Verify that stats are only generated for the provided list of UUIDs.  The test state set
+     * contains vm1Id, vm2Id, vm3Id, and vm4Id.  The test will scope to vm2Id and vm4Id, so stats
+     * for only those entities will be generated.
+     *
+     * @throws Exception exceptions
+     */
+    @Test
+    public void testGenerateStatsScopedUuids() throws Exception {
+        final Set<Long> scopedUuids = ImmutableSet.of(vm2Id, vm4Id);
+        final long time1000amMillis = TimeUtil.localDateTimeToMilli(time1000am, clock);
+        EntitySavingsStore<DSLContext> entitySavingsStore = mock(EntitySavingsStore.class);
+        EntitySavingsTracker tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
+                entityStateStore, Clock.systemUTC(), mock(TopologyEntityCloudTopologyFactory.class),
+                repositoryClient, dsl, realtimeTopologyContextId, 1000));
+        tracker.generateStats(time1000amMillis, dsl, scopedUuids);
+
+        // Make sure we call the version of getAllEntityStates that accepts DSL context as parameter.
+        verify(entityStateStore).getAllEntityStates(dsl);
+        verify(entitySavingsStore).addHourlyStats(statsCaptor.capture(), any(DSLContext.class));
+        // Verify that EntitySavingsTracker.stateToStats is called only for UUIDs 201 and 401.
+        assertEquals(1, statsCaptor.getAllValues().size());
+        Set<EntitySavingsStats> stats = statsCaptor.getValue();
+        assertEquals(2, stats.size());
+        assertTrue(ImmutableSet.of(vm2Id, vm4Id).containsAll(stats.stream()
+                .map(EntitySavingsStats::getEntityId)
+                .collect(Collectors.toSet())));
     }
 
     private EntityState createEntityState(long entityId, Double realizedSavings, Double realizedInvestments,

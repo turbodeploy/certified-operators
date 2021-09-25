@@ -327,8 +327,8 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EventInjector eventInjector() {
-        EventInjector injector = new EventInjector(entitySavingsTracker(), entityEventsJournal(),
-                getEntitySavingsRetentionConfig());
+        EventInjector injector = new EventInjector(entitySavingsTracker(), entitySavingsProcessor(),
+                entityEventsJournal(), getEntitySavingsRetentionConfig());
         injector.start();
         return injector;
     }

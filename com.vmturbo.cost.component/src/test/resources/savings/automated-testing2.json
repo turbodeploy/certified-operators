@@ -1,0 +1,89 @@
+[
+  {
+    "timestamp": 1630641600000,
+    "expirationTimestamp": 1693713600000,
+    "uuid": 3,
+    "eventType": "RECOMMENDATION_ADDED",
+    "sourceTier": 6,
+    "destTier": 7
+  },
+  {
+    "timestamp": 1630641600000,
+    "expirationTimestamp": 1693713600000,
+    "uuid": 4,
+    "eventType": "RECOMMENDATION_ADDED",
+    "sourceTier": 3,
+    "destTier": 2.25
+  },
+  {
+    "timestamp": 1630641600000,
+    "expirationTimestamp": 1693713600000,
+    "uuid": 3,
+    "eventType": "RESIZE_EXECUTED",
+    "sourceTier": 6,
+    "destTier": 7
+  },
+  {
+    "timestamp": 1630641600000,
+    "expirationTimestamp": 1693713600000,
+    "uuid": 4,
+    "eventType": "RESIZE_EXECUTED",
+    "sourceTier": 3,
+    "destTier": 2.25
+  },
+  {
+    "timestamp": 1630643400000,
+    "expirationTimestamp": 1693715400000,
+    "uuid": 4,
+    "eventType": "RECOMMENDATION_ADDED",
+    "sourceTier": 2.25,
+    "destTier": 1.5
+  },
+  {
+    "timestamp": 1630643400000,
+    "expirationTimestamp": 1693715400000,
+    "uuid": 4,
+    "eventType": "RESIZE_EXECUTED",
+    "sourceTier": 2.25,
+    "destTier": 1.5
+  },
+  {
+    "timestamp": 1630674000000,
+    "expirationTimestamp": 1693746000000,
+    "uuid": 3,
+    "eventType": "RECOMMENDATION_ADDED",
+    "sourceTier": 3,
+    "destTier": 1.2
+  },
+  {
+    "timestamp": 1630674000000,
+    "expirationTimestamp": 1693746000000,
+    "uuid": 3,
+    "eventType": "RESIZE_EXECUTED",
+    "sourceTier": 3,
+    "destTier": 1.2
+  },
+  {
+    "timestamp": 1630711800000,
+    "expirationTimestamp": 1693783800000,
+    "uuid": 4,
+    "eventType": "RECOMMENDATION_ADDED",
+    "sourceTier": 1.5,
+    "destTier": 1
+  },
+  {
+    "timestamp": 1630711800000,
+    "expirationTimestamp": 1693783800000,
+    "uuid": 4,
+    "eventType": "RESIZE_EXECUTED",
+    "sourceTier": 1.5,
+    "destTier": 1
+  },
+  {
+    "timestamp": 1630728000000,
+    "expirationTimestamp": 1693800000000,
+    "uuid": 0,
+    "eventType": "STOP",
+    "purgeState": true
+  }
+]

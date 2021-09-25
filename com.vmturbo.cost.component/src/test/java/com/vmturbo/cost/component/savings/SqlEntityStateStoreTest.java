@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -81,10 +82,12 @@ public class SqlEntityStateStoreTest {
     private final DSLContext dsl = dbConfig.getDslContext();
 
     /**
-     * Cloud scope store
+     * Cloud scope store.
      */
     private final SQLCloudScopeStore cloudScopeStore = new SQLCloudScopeStore(
             dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
+
+    private final Set<Long> uuids = Collections.emptySet();
 
     /**
      * Initializing store.
@@ -96,6 +99,11 @@ public class SqlEntityStateStoreTest {
         store = new SqlEntityStateStore(dsl, 2);
     }
 
+    /**
+     * Verify entity state and cloud scope database operations.
+     *
+     * @throws Exception if an unhandled error occurs.  These are test failures.
+     */
     @Test
     public void testStoreOperations() throws Exception {
         // Insert states into store. Start with 10 states.
@@ -109,8 +117,8 @@ public class SqlEntityStateStoreTest {
         assertEquals(0, scopeEntries.size());
 
         TopologyEntityCloudTopology cloudTopology = getCloudTopology(1000L);
-        store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology, dsl);
+        store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId,
+                        Function.identity())), cloudTopology, dsl, uuids);
 
         // Get states by IDs.
         Set<Long> entityIds = ImmutableSet.of(3L, 4L, 5L, 100L);
@@ -147,7 +155,7 @@ public class SqlEntityStateStoreTest {
         entity3.setActionList(Arrays.asList(1d, 2d, 3d, 4d, 5d));
         stateSetToUpdate.add(entity3);
         store.updateEntityStates(stateSetToUpdate.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology, dsl);
+                cloudTopology, dsl, uuids);
         Set<Long> entitiesUpdated = ImmutableSet.of(3L, 11L);
         stateMap = store.getEntityStates(entitiesUpdated);
         assertEquals(2, stateMap.size());
@@ -161,24 +169,59 @@ public class SqlEntityStateStoreTest {
         assertEquals(9, stateList.size());
 
         // Get all states with the updated flag = 1.
-        Map<Long, EntityState> updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
+        Map<Long, EntityState> updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN, uuids);
         assertEquals(0, updated.size());
         EntityState updatedState = createState(12L);
         updatedState.setUpdated(true);
         stateSetToUpdate = new HashSet<>();
         stateSetToUpdate.add(updatedState);
         store.updateEntityStates(stateSetToUpdate.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology, dsl);
-        updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
+                cloudTopology, dsl, uuids);
+        updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN, uuids);
         assertEquals(1, updated.size());
         // the updated flag should not be serialized with the state object, so state is false
         // when deserializing the state.
         updated.values().forEach(state -> assertFalse(state.isUpdated()));
 
         // Clear the updated flags
-        store.clearUpdatedFlags(dsl);
-        updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
+        store.clearUpdatedFlags(dsl, uuids);
+        updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN, uuids);
         assertEquals(0, updated.size());
+    }
+
+    /**
+     * Verify that entity state database operations are optionally scoped by a provided UUID list.
+     *
+     * @throws Exception if an unhandled error occurs.  These are test failures.
+     */
+    @Test
+    public void testStoreOperationsScopedByUuid() throws Exception {
+        // Insert states into store. Start with 10 states.
+        Set<EntityState> stateSet = new HashSet<>();
+        for (long i = 1; i <= 10; i++) {
+            stateSet.add(createState(i));
+        }
+
+        // We only want to update these UUIDs. UUID 100 does not exist, so only three will be updated.
+        Set<Long> entityIds = ImmutableSet.of(3L, 4L, 5L, 100L);
+
+        // entity_cloud_scope table should be empty at the beginning.
+        List<EntityCloudScope> scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
+        assertEquals(0, scopeEntries.size());
+
+        TopologyEntityCloudTopology cloudTopology = getCloudTopology(1000L);
+        store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId,
+                        Function.identity())), cloudTopology, dsl, entityIds);
+
+        // Get states by IDs.
+        Map<Long, EntityState> stateMap = store.getAllEntityStates()
+                .collect(Collectors.toMap(item -> item.getEntityId(), item -> item));
+        assertEquals(3, stateMap.size());
+
+        // Validate records inserted to entity_cloud_scope. Only the ones in the UUID list should
+        // be present.
+        scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
+        assertEquals(3, scopeEntries.size());
     }
 
     /**
@@ -204,7 +247,7 @@ public class SqlEntityStateStoreTest {
                 12345L, 12345L, 12345L, 12345L, 12345L);
         dsl.insertInto(Tables.ENTITY_CLOUD_SCOPE).set(r1).execute();
         store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology, dsl);
+                cloudTopology, dsl, uuids);
 
         List<EntityState> states = store.getAllEntityStates().collect(Collectors.toList());
         assertEquals(11, states.size());

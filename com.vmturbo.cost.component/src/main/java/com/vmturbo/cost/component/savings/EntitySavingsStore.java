@@ -194,6 +194,13 @@ public interface EntitySavingsStore<T> {
             long toTime, @Nonnull List<Long> fromTimes);
 
     /**
+     * Delete all stats from the hourly, daily, and monthly tables.
+     *
+     * @param uuids list of UUIDs for which to delete stats.
+     */
+    void deleteStatsForUuids(@Nonnull Set<Long> uuids);
+
+    /**
      * Util class to keep info about rollup (daily or monthly) to be done.
      */
     class RollupTimeInfo {
@@ -315,7 +322,7 @@ public interface EntitySavingsStore<T> {
         }
 
         long getLastTimeUpdated() {
-           return lastTimeUpdated;
+            return lastTimeUpdated;
         }
 
         void setLastTimeByHour(long lastHourly) {

@@ -32,19 +32,21 @@ public interface EntityStateStore<T> {
      * states that contain an expired action.
      *
      * @param timestamp timestamp of the end of the period being processed
+     * @param uuids if non-empty, return only the forced entity states that are in the uuid list
      * @return a map of entity_oid -> EntityState that must be processed.
      * @throws EntitySavingsException when an error occurs
      */
-    Map<Long, EntityState> getForcedUpdateEntityStates(LocalDateTime timestamp)
+    Map<Long, EntityState> getForcedUpdateEntityStates(LocalDateTime timestamp, Set<Long> uuids)
             throws EntitySavingsException;
 
     /**
      * Set the updated_by_event values to zeroes.
      *
      * @param transaction object used for transaction management
+     * @param uuids if non-empty, only clear the entity states that are in the uuid list
      * @throws EntitySavingsException error during operation
      */
-    void clearUpdatedFlags(T transaction) throws EntitySavingsException;
+    void clearUpdatedFlags(T transaction, Set<Long> uuids) throws EntitySavingsException;
 
     /**
      * Delete entity states given a set of entity IDs.
@@ -61,11 +63,12 @@ public interface EntityStateStore<T> {
      * @param entityStateMap entity ID mapped to entity state
      * @param cloudTopology cloud topology
      * @param transaction object used for transaction management
+     * @param uuids if non-empty, the list of UUIDs to be updated, else all UUIDs will be updated
      * @throws EntitySavingsException error during operation
      */
     void updateEntityStates(@Nonnull Map<Long, EntityState> entityStateMap,
-                            @Nonnull TopologyEntityCloudTopology cloudTopology,
-                            T transaction)
+            @Nonnull TopologyEntityCloudTopology cloudTopology,
+            T transaction, @Nonnull Set<Long> uuids)
             throws EntitySavingsException;
 
     /**

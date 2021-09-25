@@ -14,8 +14,12 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +28,7 @@ import com.google.gson.stream.JsonReader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
@@ -62,6 +67,7 @@ public class EventInjector implements Runnable {
     private static final Logger logger = LogManager.getLogger();
     private static final String SCRIPT_FILE = "/tmp/injected-events.json";
     private final EntitySavingsTracker entitySavingsTracker;
+    private final EntitySavingsProcessor entitySavingsProcessor;
     private final EntityEventsJournal entityEventsJournal;
 
     /**
@@ -80,6 +86,7 @@ public class EventInjector implements Runnable {
         boolean state;
         double destTier;
         double sourceTier;
+        boolean purgeState;
 
         /**
          * Return string representation of event.
@@ -93,15 +100,16 @@ public class EventInjector implements Runnable {
 
     /**
      * Constructor.
-     *
-     * @param entitySavingsTracker entity savings tracker to inject actions into.
+     *  @param entitySavingsTracker entity savings tracker to inject actions into.
+     * @param entitySavingsProcessor savings processor
      * @param entityEventsJournal events journal to populate.
      * @param entitySavingsRetentionConfig savings action retention configuration.
      */
     EventInjector(EntitySavingsTracker entitySavingsTracker,
-                  EntityEventsJournal entityEventsJournal,
+            EntitySavingsProcessor entitySavingsProcessor, EntityEventsJournal entityEventsJournal,
             @Nonnull final EntitySavingsRetentionConfig entitySavingsRetentionConfig) {
         this.entitySavingsTracker = entitySavingsTracker;
+        this.entitySavingsProcessor = entitySavingsProcessor;
         this.entityEventsJournal = entityEventsJournal;
         this.entitySavingsRetentionConfig = entitySavingsRetentionConfig;
     }
@@ -111,7 +119,8 @@ public class EventInjector implements Runnable {
      * Start the event injector.
      */
     public void start() {
-        (new Thread(new EventInjector(entitySavingsTracker, entityEventsJournal,
+        (new Thread(new EventInjector(entitySavingsTracker, entitySavingsProcessor,
+                entityEventsJournal,
                 entitySavingsRetentionConfig))).start();
     }
 
@@ -176,32 +185,58 @@ public class EventInjector implements Runnable {
         // Open the script file, convert the events to SavingsEvents, and add them to the event
         // journal.
         Gson gson = new Gson();
-        JsonReader reader = null;
+        JsonReader reader;
+        List<ScriptEvent> events = new ArrayList<>();
+        AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
         try {
             reader = new JsonReader(new FileReader(SCRIPT_FILE));
-            List<ScriptEvent> events = Arrays.asList(gson.fromJson(reader, ScriptEvent[].class));
-            events.forEach(event -> addEvent(event, entityEventsJournal));
+            events = Arrays.asList(gson.fromJson(reader, ScriptEvent[].class));
+            events.forEach(event -> addEvent(event, entityEventsJournal, purgePreviousTestState));
         } catch (FileNotFoundException e) {
             logger.error("Cannot inject events: " + e.toString());
         } finally {
             // Remove the events available file.
             availableFile.delete();
         }
-        // Call the tracker here to handle the injected events.  Always process all events.
-        Long oldestEventTime = entityEventsJournal.getOldestEventTime();
-        if (oldestEventTime != null) {
-            LocalDateTime startTime = Instant.ofEpochMilli(oldestEventTime).atZone(ZoneId.of("UTC"))
-                    .toLocalDateTime().truncatedTo(ChronoUnit.HOURS);
-            entitySavingsTracker.processEvents(startTime, LocalDateTime.now().truncatedTo(ChronoUnit.HOURS));
+        // Determine the scope of the scenario: participating UUIDs and the time period.
+        Long earliestEventTime = Long.MAX_VALUE;
+        Long latestEventTime = Long.MIN_VALUE;
+        Set<Long> participatingUuids = new HashSet<>();
+        for (ScriptEvent event : events) {
+            earliestEventTime = Math.min(earliestEventTime, event.timestamp);
+            latestEventTime = Math.max(latestEventTime, event.timestamp);
+            if (event.uuid != 0L) {
+                participatingUuids.add(event.uuid);
+            }
         }
+
+        if (earliestEventTime > latestEventTime) {
+            logger.warn("No events in script file - not running savings tracker");
+            return;
+        }
+        LocalDateTime startTime = makeLocalDateTime(earliestEventTime);
+        LocalDateTime endTime = makeLocalDateTime(latestEventTime);
+        if (purgePreviousTestState.get()) {
+            entitySavingsTracker.purgeState(participatingUuids);
+        }
+        entitySavingsTracker.processEvents(startTime, endTime, participatingUuids);
+    }
+
+    @NotNull
+    private LocalDateTime makeLocalDateTime(Long timestamp) {
+        return Instant.ofEpochMilli(timestamp).atZone(ZoneId.of("UTC"))
+                .toLocalDateTime().truncatedTo(ChronoUnit.HOURS);
     }
 
     /**
      * Convert a script event to a SavingsEvent and add it to the journal.
      * @param event event generated by the script
      * @param entityEventsJournal event journal to populate
+     * @param purgePreviousTestState true if the stats and entity for the entities in the UUID list
+     *          should be deleted before processing the events.
      */
-     public static void addEvent(ScriptEvent event, EntityEventsJournal entityEventsJournal) {
+     public static void addEvent(ScriptEvent event, EntityEventsJournal entityEventsJournal,
+             AtomicBoolean purgePreviousTestState) {
         logger.debug("Adding event: " + event);
         Builder result = new SavingsEvent.Builder()
                 .entityId(event.uuid)
@@ -266,14 +301,15 @@ public class EventInjector implements Runnable {
                 .build());
         } else if ("PROVIDER_CHANGE".equals(event.eventType)) {
             result.topologyEvent(createTopologyEvent(TopologyEventType.PROVIDER_CHANGE,
-                    event.timestamp)
-                .setEventInfo(TopologyEventInfo.newBuilder()
-                        .setProviderChange(ProviderChangeDetails.newBuilder()
-                                .setSourceProviderOid(1L)
-                                .setDestinationProviderOid(2L)
-                                .setProviderType(EntityType.VIRTUAL_MACHINE.getValue()))
-                        .build())
-                .build());
+                    event.timestamp).setEventInfo(TopologyEventInfo.newBuilder()
+                    .setProviderChange(ProviderChangeDetails.newBuilder()
+                            .setSourceProviderOid(1L)
+                            .setDestinationProviderOid(2L)
+                            .setProviderType(EntityType.VIRTUAL_MACHINE.getValue()))
+                    .build()).build());
+        } else if ("STOP".equals(event.eventType)) {
+            purgePreviousTestState.set(event.purgeState);
+            return;
         } else {
             logger.error("Invalid injected event type '{}' - ignoring", event.eventType);
             return;
