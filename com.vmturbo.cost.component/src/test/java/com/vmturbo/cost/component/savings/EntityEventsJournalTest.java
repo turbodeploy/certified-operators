@@ -217,6 +217,55 @@ public class EntityEventsJournalTest {
     }
 
     /**
+     * Verify that we can extract a subset of events from the event journal.
+     */
+    @Test
+    public void testGetEventsFilteredByUuid() {
+        assertEquals(0, store.size());
+        final EntityPriceChange priceChange = new EntityPriceChange.Builder()
+                .sourceOid(1001L)
+                .sourceCost(10.518d)
+                .destinationOid(2001L)
+                .destinationCost(6.23d)
+                .build();
+
+        ImmutableSet<SavingsEvent> inputEvents = ImmutableSet.of(
+                getPowerStateEvent(vm1Id, 300L, false),
+                getPowerStateEvent(vm1Id, 300L, true),
+                getActionEvent(vm1Id, 300L, ActionEventType.RECOMMENDATION_ADDED,
+                        action1Id, priceChange),
+                getPowerStateEvent(vm2Id, 500L, false),
+                getActionEvent(vm1Id, 400L, ActionEventType.RECOMMENDATION_ADDED,
+                        action1Id, priceChange),
+                getActionEvent(vm2Id, 200L, ActionEventType.RECOMMENDATION_REMOVED,
+                        action2Id, priceChange),
+                getResourceDeletedEvent(vm2Id, 600L)
+        );
+
+        // Insert 7 different events into store - with timestamps ranging from 200 to 600.
+
+        // Add 7 events, remove them all and check if counts are good.
+        store.addEvents(inputEvents);
+        assertEquals(7, store.size());
+
+        // Only get events between 400 and 600 related to UUID 101
+        List<SavingsEvent> filteredEvents = store.removeEventsBetween(400L, 601L,
+                ImmutableSet.of(101L));
+        assertEquals(6, store.size());
+        assertEquals(1, filteredEvents.size());
+
+        // Get all events for UUID 101.
+        store.addEvents(inputEvents);
+        // Add an additional event with an unrelated UUID in the same time bucket as a UUID 101
+        // event.
+        store.addEvent(getActionEvent(vm3Id, 400L, ActionEventType.RECOMMENDATION_ADDED,
+                action1Id, priceChange));
+        filteredEvents = store.removeEventsBetween(0L, 1000L, ImmutableSet.of(101L));
+        assertEquals(4, store.size());
+        assertEquals(4, filteredEvents.size());
+    }
+
+    /**
      * Check that events don't get lost if they happen all at the same time.
      * We cannot guarantee the order of events occurring at the exact same time, only that non will
      * be lost.

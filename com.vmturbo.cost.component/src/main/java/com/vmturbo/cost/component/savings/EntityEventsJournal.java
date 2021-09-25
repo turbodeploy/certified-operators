@@ -1,8 +1,10 @@
 package com.vmturbo.cost.component.savings;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -68,7 +70,25 @@ interface EntityEventsJournal {
      * @return Events in order between the time range.
      */
     @Nonnull
-    List<SavingsEvent> removeEventsBetween(long startTime, long endTime);
+    default List<SavingsEvent> removeEventsBetween(long startTime, long endTime) {
+        return removeEventsBetween(startTime, endTime, Collections.emptySet());
+    }
+
+    /**
+     * Gets events between the specified start (inclusive) and end time (exclusive), and removes
+     * them from the journal as well.  If the UUIDs list is non-empty, only the events related to
+     * the UUIDs in the list will be returned.
+     * E.g requesting event removal between 10:00:00 and 11:00:00 will remove any events with
+     * timestamps like 10:00:00, 10:00:01, ... 10:59:50, 10:59:59 but not anything with timestamp
+     * 11:00:00.
+     *
+     * @param startTime Start time (inclusive).
+     * @param endTime End time (exclusive).
+     * @param uuids set of UUIDs to get events for.  If the set is empty, all UUIDs will be returned.
+     * @return Events in order between the time range for the selected UUIDs.
+     */
+    @Nonnull
+    List<SavingsEvent> removeEventsBetween(long startTime, long endTime, @Nonnull Set<Long> uuids);
 
     /**
      * Removes all events in the store and returns them (in timestamp ascending order).

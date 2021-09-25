@@ -100,19 +100,22 @@ public class EntitySavingsTracker {
      *
      * @param startTime start time
      * @param endTime end time
+     * @param uuids list of UUIDs to process.  If empty, all UUIDs will be processed.
      * @return List of times to the hour mark for which we have wrote stats this time, so these
      *      hours are now eligible for daily and monthly rollups, if applicable.
      */
     @Nonnull
-    List<Long> processEvents(@Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime) {
-        logger.debug("Processing savings/investment.");
-
+    List<Long> processEvents(@Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime,
+            final @Nonnull Set<Long> uuids) {
+        boolean testMode = !uuids.isEmpty();
+        logger.debug("Processing savings/investment.{}", testMode ? " [TEST MODE]" : "");
         final List<Long> hourlyStatsTimes = new ArrayList<>();
 
         // There should not be any events before period start time left in the journal.
         // If for some reasons old events are left in the journal, remove them.
         List<SavingsEvent> events =
-                entityEventsJournal.removeEventsBetween(0, TimeUtil.localDateTimeToMilli(startTime, clock));
+                entityEventsJournal.removeEventsBetween(0L,
+                        TimeUtil.localDateTimeToMilli(startTime, clock), uuids);
         if (events.size() > 0) {
             logger.warn("There are {} events in the events journal that have timestamps before period start time of {}.",
                     events.size(), startTime);
@@ -126,7 +129,8 @@ public class EntitySavingsTracker {
                 final long endTimeMillis = TimeUtil.localDateTimeToMilli(periodEndTime, clock);
 
                 // Remove events from entity event journal.
-                events = entityEventsJournal.removeEventsBetween(startTimeMillis, endTimeMillis);
+                events = entityEventsJournal.removeEventsBetween(startTimeMillis,
+                        endTimeMillis, uuids);
 
                 // Get all entity IDs from the events
                 Set<Long> entityIds = events.stream()
@@ -141,7 +145,7 @@ public class EntitySavingsTracker {
                 // and put the states in the state map.
                 Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
                 Map<Long, EntityState> forcedEntityStates = entityStateStore
-                        .getForcedUpdateEntityStates(periodEndTime);
+                        .getForcedUpdateEntityStates(periodEndTime, uuids);
                 entityStates.putAll(forcedEntityStates);
 
                 // Invoke calculator
@@ -158,14 +162,14 @@ public class EntitySavingsTracker {
                     DSLContext transactionDsl = DSL.using(transactionConfig);
 
                     // Clear the updated_by_event flags
-                    entityStateStore.clearUpdatedFlags(transactionDsl);
+                    entityStateStore.clearUpdatedFlags(transactionDsl, uuids);
 
                     // Update entity states. Also insert new states to track new entities.
                     entityStateStore.updateEntityStates(entityStates,
-                            createCloudTopology(entityStates.keySet()), transactionDsl);
+                            createCloudTopology(entityStates.keySet()), transactionDsl, uuids);
 
                     // create stats records from state map for this period.
-                    generateStats(startTimeMillis, transactionDsl);
+                    generateStats(startTimeMillis, transactionDsl, uuids);
 
                     // We delete inactive entity state after the stats for the entity have been flushed
                     // a final time.
@@ -199,19 +203,39 @@ public class EntitySavingsTracker {
     }
 
     /**
+     * Delete entity state and stats for the provided list of UUIDs.
+     *
+     * @param uuids list of UUIDs to purge.  If the list is empty, no state will be deleted.
+     */
+    void purgeState(@Nonnull Set<Long> uuids) {
+        if (!uuids.isEmpty()) {
+            try {
+                logger.info("Purging state for UUIDs: {}", uuids);
+                entityStateStore.deleteEntityStates(uuids, dsl);
+                entitySavingsStore.deleteStatsForUuids(uuids);
+            } catch (EntitySavingsException e) {
+                logger.warn("Error purging test state for UUIDs {}: {}", uuids, e);
+            }
+        }
+    }
+
+    /**
      * Generate savings stats records from the state map.
      *
      * @param statTime Timestamp of the stats records which is the start time of a period.
      * @param dsl jooq DSL Context
+     * @param uuids if non-empty, only generate stats for UUIDs in the list, else generate for all.
      * @throws EntitySavingsException Error occurred when inserting the DB records.
      */
     @VisibleForTesting
-    void generateStats(long statTime, @Nonnull DSLContext dsl) throws EntitySavingsException {
+    void generateStats(long statTime, @Nonnull DSLContext dsl, Set<Long> uuids) throws EntitySavingsException {
         Set<EntitySavingsStats> stats = new HashSet<>();
         // Use try with resource here because the stream implementation uses an open cursor that
         // need to be closed.
         try (Stream<EntityState> stateStream = entityStateStore.getAllEntityStates(dsl)) {
-            stateStream.forEach(state -> {
+            stateStream
+                    .filter(state -> uuids.isEmpty() || uuids.contains(state.getEntityId()))
+                    .forEach(state -> {
                 stats.addAll(stateToStats(state, statTime));
                 if (stats.size() >= chunkSize) {
                     try {
