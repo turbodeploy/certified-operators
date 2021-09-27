@@ -17,7 +17,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 @Import(SQLDatabaseConfig2.class)
 public class SearchDbBaseConfig {
 
-    private static final String MYSQL_MIGRATION_LOCATION = "db.migration.mysql";
     @Autowired
     private SQLDatabaseConfig2 dbConfig;
 
@@ -58,7 +57,7 @@ public class SearchDbBaseConfig {
                 .withRootUserName(searchDatabaseRootUser)
                 .withUserName(searchDatabaseUser)
                 .withHost(searchDbHost)
-                .withMigrationLocations(MYSQL_MIGRATION_LOCATION)
+                .withNoMigrations()
                 .build();
     }
 }

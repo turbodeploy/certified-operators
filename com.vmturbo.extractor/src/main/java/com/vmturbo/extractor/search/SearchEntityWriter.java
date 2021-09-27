@@ -1,7 +1,6 @@
 package com.vmturbo.extractor.search;
 
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
-import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -32,6 +31,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
+import com.vmturbo.extractor.models.DslReplaceSearchRecordSink;
+import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.patchers.CommoditiesPatcher;
@@ -48,6 +49,7 @@ import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.TopologyWriterBase;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -138,7 +140,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
         }
 
         // create a new record for this entity
-        final Record entityRecord = new Record(SEARCH_ENTITY_TABLE);
+        final Record entityRecord = new Record(ModelDefinitions.SEARCH_ENTITY_TABLE);
         // create an attrs map for the jsonb column
         final Map<String, Object> attrs = new HashMap<>();
         final PartialRecordInfo partialRecordInfo = new PartialRecordInfo(
@@ -164,8 +166,15 @@ public class SearchEntityWriter extends TopologyWriterBase {
             throws UnsupportedDialectException, SQLException, InterruptedException {
         final AtomicInteger counter = new AtomicInteger();
         try (DSLContext dsl = dbEndpoint.dslContext();
-             TableWriter entitiesReplacer = SEARCH_ENTITY_TABLE.open(
-                     getEntityReplacerSink(dsl), "Entities Replacer", logger)) {
+             TableWriter entitiesReplacer =  ModelDefinitions.SEARCH_ENTITY_TABLE.open(getEntityReplacerSink(dsl),
+                     "Entities Replacer", logger);
+             TableWriter numericsEntitiesReplacer = ModelDefinitions.SEARCH_ENTITY_NUMERIC_TABLE.open(
+                     new DslReplaceSearchRecordSink(dsl, ModelDefinitions.SEARCH_ENTITY_NUMERIC_TABLE,
+                             Location.Numerics, config, pool, "new"), "Numeric Entities Replacer", logger);
+             TableWriter stringsEntitiesReplacer = ModelDefinitions.SEARCH_ENTITY_STRING_TABLE.open(
+                     new DslReplaceSearchRecordSink(dsl, ModelDefinitions.SEARCH_ENTITY_STRING_TABLE,
+                             Location.Strings, config, pool, "new"), "Strings Entities Replacer",
+                     logger)) {
             // patch entities
             logger.info("Starting stage: Patch entities");
             timer.start("Patch entities");
@@ -190,7 +199,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
                     return;
                 }
 
-                final Record groupRecord = new Record(SEARCH_ENTITY_TABLE);
+                final Record groupRecord = new Record(ModelDefinitions.SEARCH_ENTITY_TABLE);
                 final Map<String, Object> attrs = new HashMap<>();
                 final PartialRecordInfo partialRecordInfo = new PartialRecordInfo(
                         group.getId(), group.getDefinition().getType(), groupRecord, attrs);
@@ -206,7 +215,8 @@ public class SearchEntityWriter extends TopologyWriterBase {
             });
             timer.stop();
 
-            // insert entities into db
+            //TODO: comment out when the implementation of the record writers is finished
+            /*// insert entities into db
             logger.info("Starting stage: Write entities");
             timer.start("Write entities");
             partialRecordInfos.forEach(recordInfo -> entitiesReplacer.accept(recordInfo.record));
@@ -215,14 +225,18 @@ public class SearchEntityWriter extends TopologyWriterBase {
             logger.info("Starting stage: Write groups");
             timer.start("Write groups");
             groupRecords.forEach(entitiesReplacer::accept);
-            timer.stop();
+            timer.stop();*/
+
+            entitiesReplacer.accept(null);
+            numericsEntitiesReplacer.accept(null);
+            stringsEntitiesReplacer.accept(null);
         }
         return counter.get();
     }
 
     @VisibleForTesting
     DslReplaceRecordSink getEntityReplacerSink(final DSLContext dsl) {
-        return new DslReplaceRecordSink(dsl, SEARCH_ENTITY_TABLE, config, pool, "replace");
+        return new DslReplaceSearchRecordSink(dsl, ModelDefinitions.SEARCH_ENTITY_TABLE, Location.Entities, config, pool, "new");
     }
 
     /**
