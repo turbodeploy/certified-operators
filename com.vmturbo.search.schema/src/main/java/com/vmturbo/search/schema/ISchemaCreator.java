@@ -2,11 +2,6 @@ package com.vmturbo.search.schema;
 
 import java.util.List;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
-
 /**
  * Interface for search schema DDL queries construction.
  * Search data are temporary and consequently schema needs not to be persisted or migrated.
@@ -25,11 +20,9 @@ public interface ISchemaCreator {
      * If there is a schema in place, it should be dropped.
      *
      * @param suffix to add to table names
-     * @param location table location
      * @return list of queries to execute
      */
-    @Nonnull
-    List<String> createWithoutIndexes(@Nonnull String suffix, @Nullable Location location);
+    List<String> createWithoutIndexes(String suffix);
 
     /**
      * Create indexes on previously created schema.
@@ -38,20 +31,15 @@ public interface ISchemaCreator {
      * @param suffix to add to table names
      * @return list of queries to execute
      */
-    @Nonnull
-    List<String> createIndexes(@Nonnull String suffix);
+    List<String> createIndexes(String suffix);
 
     /**
-     * Atomically (transactionally if possible) replace main schema with temporary schema.
+     * Atomically (transactionally if possible) replace schema with one suffix by another.
      * Intended to be called from 'post hook' of record sink.
      *
-     * @param oldSuffix suffix for storing current data as old data, will be deleted after
-     *         replace schema.
-     * @param newSuffix suffix for storing new data as current data.
-     * @param location table location
+     * @param srcSuffix source data
+     * @param dstSuffix destination name, if there is a schema in place, it should be dropped
      * @return list of queries to execute
      */
-    @Nonnull
-    List<String> replace(@Nonnull String oldSuffix, @Nonnull String newSuffix,
-            @Nullable Location location);
+    List<String> replace(String srcSuffix, String dstSuffix);
 }

@@ -16,7 +16,6 @@ import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.enums.SavingsType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.tables.Metric;
-import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
 
 /**
  * Definitions of models, tables, and columns used in topology ingestion.
@@ -39,17 +38,9 @@ public class ModelDefinitions {
      */
     public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid");
     /**
-     * ENTITY_ID.
-     */
-    public static final Column<Long> ENTITY_ID = Column.longColumn("id");
-    /**
      * ENTITY_NAME column.
      */
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
-    /**
-     * NAME column.
-     */
-    public static final Column<String> FIELD_NAME = Column.stringColumn("name");
     /**
      * ATTRS column.
      */
@@ -181,14 +172,7 @@ public class ModelDefinitions {
      * ACTIONS COUNT enum column.
      */
     public static final Column<Integer> NUM_ACTIONS = Column.intColumn("num_actions");
-    /**
-     * STRING VALUE column.
-     */
-    public static final Column<String> STRING_VALUE = Column.stringColumn("value");
-    /**
-     * DOUBLE VALUE column.
-     */
-    public static final Column<Double> DOUBLE_VALUE = Column.doubleColumn("value");
+
     /**
      * file table.
      */
@@ -224,32 +208,16 @@ public class ModelDefinitions {
     /**
      * SEARCH_ENTITY_TABLE.
      */
-    public static final Table SEARCH_ENTITY_TABLE = Table.named(Location.Entities.getTable())
-            .withColumns(ENTITY_ID, ENTITY_OID_AS_OID, ENTITY_TYPE_AS_TYPE_ENUM, ENTITY_NAME,
-                    ENTITY_STATE_ENUM, ENVIRONMENT_TYPE_ENUM)
-            .build();
+    public static final Table SEARCH_ENTITY_TABLE = Table.named("search_entity").withColumns(
+            ENTITY_OID_AS_OID, ENTITY_TYPE_AS_TYPE_ENUM, ENTITY_NAME, ENVIRONMENT_TYPE_ENUM,
+            ENTITY_STATE_ENUM, ATTRS).build();
 
     /**
      * SEARCH_ENTITY_ACTION_TABLE.
      */
-    public static final Table SEARCH_ENTITY_ACTION_TABLE = Table.named(Location.Actions.getTable())
-            .withColumns(ENTITY_ID, ENTITY_OID_AS_OID, ENTITY_TYPE_AS_TYPE_ENUM, SEVERITY_ENUM,
-                    NUM_ACTIONS)
+    public static final Table SEARCH_ENTITY_ACTION_TABLE = Table.named("search_entity_action")
+            .withColumns(ENTITY_OID_AS_OID, NUM_ACTIONS, SEVERITY_ENUM)
             .build();
-
-    /**
-     * SEARCH_ENTITY_STRING_TABLE.
-     */
-    public static final Table SEARCH_ENTITY_STRING_TABLE = Table.named(Location.Strings.getTable())
-            .withColumns(ENTITY_ID, ENTITY_OID_AS_OID, FIELD_NAME, STRING_VALUE)
-            .build();
-
-    /**
-     * SEARCH_ENTITY_NUMERIC_TABLE.
-     */
-    public static final Table SEARCH_ENTITY_NUMERIC_TABLE = Table.named(
-            Location.Numerics.getTable()).withColumns(ENTITY_ID, ENTITY_OID_AS_OID, FIELD_NAME,
-            DOUBLE_VALUE).build();
 
     /**
      * SEARCH_MODEL.

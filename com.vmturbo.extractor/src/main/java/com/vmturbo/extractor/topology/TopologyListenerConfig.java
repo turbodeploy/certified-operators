@@ -69,6 +69,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -333,13 +334,16 @@ public class TopologyListenerConfig {
      */
     @Bean
     public List<TopologyWriterFactory<?>> writerFactories() {
+        final DbEndpoint dbEndpoint = dbConfig.ingesterEndpoint();
         List<TopologyWriterFactory<?>> retFactories = new ArrayList<>();
         ExtractorFeatureFlags featureFlags = extractorGlobalConfig.featureFlags();
         if (featureFlags.isSearchEnabled()) {
-            retFactories.add(() -> new SearchEntityWriter(dbConfig.ingesterMySqlEndpoint(), pool()));
+            //TODO: this needs to be replaced by mysql endpoint call (com.vmturbo.extractor.ExtractorDbConfig.ingesterMySqlEndpoint)
+            // for new search transition when the logic for writing is fully implemented
+            retFactories.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
         }
         if (featureFlags.isReportingEnabled()) {
-            retFactories.add(() -> new EntityMetricWriter(dbConfig.ingesterEndpoint(), entityHashManager(),
+            retFactories.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
                     scopeManager(), fileDataManager(),
                     oidPack(), pool(), dataExtractionFactory()));
             retFactories.add(historicalAttributeWriterFactory());

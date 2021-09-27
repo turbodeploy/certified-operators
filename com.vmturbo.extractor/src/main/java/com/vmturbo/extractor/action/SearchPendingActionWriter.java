@@ -47,7 +47,6 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.action.PendingActionWriter.IActionWriter;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
-import com.vmturbo.extractor.models.DslReplaceSearchRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
@@ -58,7 +57,6 @@ import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
-import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
 import com.vmturbo.search.metadata.utils.SearchFiltersMapper;
 import com.vmturbo.search.metadata.utils.SearchFiltersMapper.SearchFilterSpec;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -155,24 +153,21 @@ class SearchPendingActionWriter implements IActionWriter {
             topologyGraph.entities()
                     .filter(e -> SearchMetadataUtils.hasMetadata(e.getEntityType()))
                     .parallel().forEach(entity -> {
-                //TODO: comment out when the implementation of the record writers is finished
-                /*
                 final long entityId = entity.getOid();
                 final int entityType = entity.getEntityType();
-                final InvolvedEntityCalculation calcType = getInvolvedEntityCalculation(entityType);final int count = (int)getActionsForEntity(entityId, entityType, calcType, supplyChain).count();
+                final InvolvedEntityCalculation calcType = getInvolvedEntityCalculation(entityType);
+                final int count = (int)getActionsForEntity(entityId, entityType, calcType, supplyChain).count();
                 if (count > 0) {
                     actionsReplacer.accept(newActionRecord(entityId, count,
                             severityMap.getSeverity(entityId)));
-                }*/
-                actionsReplacer.accept(null);
+                }
             });
             timer.stop();
 
             // write action data for all groups
             timer.start("Write action data for search groups");
             if (groupToLeafEntityIds != null) {
-                //TODO: comment out when the implementation of the record writers is finished
-                /*groupToLeafEntityIds.long2ObjectEntrySet().parallelStream()
+                groupToLeafEntityIds.long2ObjectEntrySet().parallelStream()
                         .forEach(entry -> {
                             final int count = getActionCountForGroup(entry.getValue(), topologyGraph, supplyChain);
                             if (count > 0) {
@@ -180,7 +175,7 @@ class SearchPendingActionWriter implements IActionWriter {
                                         severityMap.calculateSeverity(entry.getValue()));
                                 actionsReplacer.accept(record);
                             }
-                        });*/
+                        });
             }
             timer.stop();
         }
@@ -251,7 +246,7 @@ class SearchPendingActionWriter implements IActionWriter {
 
     @VisibleForTesting
     DslReplaceRecordSink getSearchActionReplacerSink(final DSLContext dsl) {
-        return new DslReplaceSearchRecordSink(dsl, SEARCH_ENTITY_ACTION_TABLE, Location.Actions, writerConfig, pool, "new");
+        return new DslReplaceRecordSink(dsl, SEARCH_ENTITY_ACTION_TABLE, writerConfig, pool, "replace");
     }
 
     /**

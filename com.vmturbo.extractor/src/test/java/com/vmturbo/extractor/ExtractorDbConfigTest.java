@@ -132,6 +132,7 @@ public class ExtractorDbConfigTest {
         endpointRule.addEndpoints(ingesterMySqlEndpoint);
         Assert.assertEquals(SQLDialect.MYSQL, config.getDialect());
         Assert.assertEquals(3306, config.getPort().intValue());
+        Assert.assertEquals("db.migration.mysql", config.getMigrationLocations());
         // migrations are not needed, data for new search is created once for 10 minutes
         Assert.assertEquals(0, config.getFlywayCallbacks().length);
     }

@@ -41,7 +41,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,7 +79,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-@Ignore("Until the implementation of the record writers  new search is finished")
 public class SearchEntityWriterTest {
 
     private static final Logger logger = LogManager.getLogger();

@@ -32,7 +32,7 @@ public class SchemaCreatorTest {
         Mockito.when(col.constraint(Mockito.any())).thenReturn(constraint);
 
         ISchemaCreator sc = new SchemaCreator(dsl);
-        List<String> queries = sc.createWithoutIndexes("", null);
+        List<String> queries = sc.createWithoutIndexes("");
         Assert.assertEquals(4 + 4, queries.size());
         Assert.assertEquals(7 + 6 + 5 + 5, colAnswer.getColumns().size());
     }
