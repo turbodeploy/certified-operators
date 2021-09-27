@@ -27,6 +27,7 @@ import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -375,6 +376,7 @@ public class TopologyPipelineExecutorServiceTest {
      *
      * @throws Exception If anything goes wrong.
      */
+    @Ignore("Test disable due to random failures. See OM-75353")
     @Test
     public void testQueueBlockingExpires() throws Exception {
         TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(clock, 1);
