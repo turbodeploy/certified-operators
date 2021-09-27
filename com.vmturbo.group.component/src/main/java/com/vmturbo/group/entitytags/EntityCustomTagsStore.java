@@ -78,7 +78,8 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
                 final String truncateTagValue = Truncator.truncateTagValue(tagValue, true);
                 final EntityCustomTags tag = new EntityCustomTags(entityId, tagKey, truncateTagValue);
                 EntityCustomTagsRecord tagRecord = context.newRecord(ENTITY_CUSTOM_TAGS, tag);
-                result.add(context.insertInto(ENTITY_CUSTOM_TAGS).set(tagRecord));
+                result.add(context.insertInto(ENTITY_CUSTOM_TAGS)
+                        .set(tagRecord).onDuplicateKeyIgnore());
             }
         }
         return result;

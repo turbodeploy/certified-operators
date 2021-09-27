@@ -52,6 +52,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
@@ -895,6 +897,38 @@ public class GroupRpcService extends GroupServiceImplBase {
             responseObserver.onCompleted();
         });
     }
+
+    @Override
+    public void createTags(final CreateTagsRequest request,
+            final StreamObserver<CreateTagsResponse> responseObserver) {
+        if (!request.hasGroupId()) {
+            final String errMsg = "Incoming custom group tags create request does not contain group id: "
+                    + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        if (!request.hasTags()) {
+            final String errMsg = "Incoming custom group tags create request does not contain any tags: "
+                    + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            try {
+                stores.getGroupStore().insertTags(request.getGroupId(), request.getTags());
+            } catch (StoreOperationException e) {
+                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+            }
+
+            responseObserver.onNext(CreateTagsResponse.newBuilder().build());
+            responseObserver.onCompleted();
+        });
+    }
+
 
     @Override
     public void getOwnersOfGroups(GetOwnersRequest request,

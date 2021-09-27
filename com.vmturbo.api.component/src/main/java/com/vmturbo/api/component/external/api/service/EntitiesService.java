@@ -27,7 +27,6 @@ import com.google.common.collect.Maps;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -103,7 +102,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
-import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
@@ -1015,7 +1013,7 @@ public class EntitiesService implements IEntitiesService {
         final long oid = getEntityOidFromString(uuid);
 
         // Convert to Tags and also validate.
-        Tags tags = convertApiTagsToTags(tagApiDTOs);
+        Tags tags = convertToTags(tagApiDTOs);
         final EntityCustomTagsCreateRequest request = EntityCustomTagsCreateRequest.newBuilder()
                 .setEntityId(oid)
                 .setTags(tags).build();
@@ -1030,7 +1028,7 @@ public class EntitiesService implements IEntitiesService {
         return tagApiDTOs;
     }
 
-    private static Tags convertApiTagsToTags(List<TagApiDTO> apiTags)
+    private static Tags convertToTags(List<TagApiDTO> apiTags)
             throws OperationFailedException {
 
         final Tags.Builder tags = Tags.newBuilder();
@@ -1044,8 +1042,14 @@ public class EntitiesService implements IEntitiesService {
                 throw new OperationFailedException("Tag values list cannot be empty");
             }
 
-            tags.putTags(tag.getKey(),
-                    TagValuesDTO.newBuilder().addAllValues(tag.getValues()).build());
+            TagValuesDTO currentValues = tags.getTagsMap().get(tag.getKey());
+            TagValuesDTO.Builder newValues = TagValuesDTO.newBuilder()
+                    .addAllValues(tag.getValues());
+            if(currentValues != null) {
+                newValues.addAllValues(currentValues.getValuesList());
+            }
+
+            tags.putTags(tag.getKey(), newValues.build()).build();
         }
         return tags.build();
     }

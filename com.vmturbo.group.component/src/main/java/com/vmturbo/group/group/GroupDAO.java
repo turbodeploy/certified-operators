@@ -10,6 +10,7 @@ import static com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS;
 import static com.vmturbo.group.db.tables.Grouping.GROUPING;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -112,6 +113,7 @@ import com.vmturbo.group.db.tables.pojos.GroupStaticMembersGroups;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.db.tables.pojos.GroupTags;
 import com.vmturbo.group.db.tables.pojos.Grouping;
+import com.vmturbo.group.db.tables.records.GroupTagsRecord;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -463,23 +465,58 @@ public class GroupDAO implements IGroupStore {
             records.addAll(insertGroupStaticMembers(context, groupId,
                     groupDefinition.getStaticGroupMembers()));
         }
-        records.addAll(insertTags(context, groupDefinition.getTags(), groupId));
+        records.addAll(insertTags(context, groupDefinition.getTags(), groupId, TagOrigin.DISCOVERED));
         return records;
     }
 
+    @Override
+    public int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException {
+
+        Collection<Query> queries = insertCustomTags(dslContext, tags, groupId,
+                TagOrigin.USER_CREATED);
+        return Arrays.stream(dslContext.batch(queries).execute()).sum();
+    }
+
     private Collection<Query> insertTags(@Nonnull DSLContext context, @Nonnull Tags tags,
-            long groupId) {
+            long groupId, TagOrigin tagOrigin) {
         final Collection<Query> result = new ArrayList<>();
         for (Entry<String, TagValuesDTO> entry : tags.getTagsMap().entrySet()) {
             final String tagKey = Truncator.truncateTagKey(entry.getKey(), true);
             for (String tagValue : entry.getValue().getValuesList()) {
                 final String truncateTagValue = Truncator.truncateTagValue(tagValue, true);
                 final GroupTags tag = new GroupTags(groupId, tagKey, truncateTagValue,
-                        (short)TagOrigin.DISCOVERED.ordinal());
+                        (short)tagOrigin.ordinal());
                 result.add(
                     context.insertInto(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS)
                         .set(context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag))
                         .onDuplicateKeyIgnore()
+                );
+            }
+        }
+        return result;
+    }
+
+    private Collection<Query> insertCustomTags(@Nonnull DSLContext context, @Nonnull Tags tags,
+            long groupId, TagOrigin tagOrigin) throws StoreOperationException {
+        final Collection<Query> result = new ArrayList<>();
+        for (Entry<String, TagValuesDTO> entry : tags.getTagsMap().entrySet()) {
+            final String tagKey = Truncator.truncateTagKey(entry.getKey(), true);
+            if (context.fetchExists(context.selectFrom(GROUP_TAGS).where(
+                    GROUP_TAGS.GROUP_ID.eq(groupId),
+                    GROUP_TAGS.TAG_KEY.eq(tagKey),
+                    GROUP_TAGS.TAG_ORIGIN.eq((short)tagOrigin.ordinal())))) {
+                throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                        "Trying to insert a tag with a key that already exists: " + tagKey);
+            }
+
+            for (String tagValue : entry.getValue().getValuesList()) {
+
+                final String truncateTagValue = Truncator.truncateTagValue(tagValue, true);
+                final GroupTags tag = new GroupTags(groupId, tagKey, truncateTagValue, (short)tagOrigin.ordinal());
+                GroupTagsRecord record = context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag);
+                result.add(
+                    context.insertInto(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS)
+                            .set(record).onDuplicateKeyIgnore()
                 );
             }
         }

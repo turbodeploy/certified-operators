@@ -857,6 +857,62 @@ public class GroupDaoTest {
     }
 
     /**
+     * Tests how tags are inserted.
+     *
+     * @throws StoreOperationException should not happen
+     */
+    @Test
+    public void testInsertCustomTags() throws StoreOperationException {
+        final String tagName1 = "tag1";
+        final String tagValue11 = "v1";
+        final String tagValue12 = "v2";
+        final String tagName2 = "tag2";
+        final Long groupID = 42L;
+
+        final Tags tags = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())
+                .putTags(tagName2, TagValuesDTO.newBuilder()
+                        .addAllValues(Collections.singletonList(tagValue11)).build()).build();
+
+        // create group to group by id
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition()).build();
+        final Origin origin = createUserOrigin();
+        groupStore.createGroup(groupID, origin, groupDefinition, EXPECTED_MEMBERS, true);
+
+        int result = groupStore.insertTags(groupID, tags);
+        Assert.assertEquals(result, 3);
+    }
+
+    /**
+     * Tests how tags are inserted if a tag already exists.
+     *
+     * @throws StoreOperationException due to duplicate tag insertion.
+     */
+    @Test(expected = StoreOperationException.class)
+    public void testInsertCustomDuplicateTags() throws StoreOperationException {
+        final String tagName1 = "tag";
+        final String tagValue1 = "v1";
+        final String tagValue2 = "v2";
+        final Long groupID = 42L;
+
+        final Tags tags1 = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue1, tagValue2)).build()).build();
+        final Tags tags2 = Tags.newBuilder().putTags(tagName1, TagValuesDTO.newBuilder()
+                .addAllValues(Collections.singletonList(tagValue1)).build()).build();
+
+        // create group to group by id
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition()).build();
+        final Origin origin = createUserOrigin();
+        groupStore.createGroup(groupID, origin, groupDefinition, EXPECTED_MEMBERS, true);
+
+        groupStore.insertTags(groupID, tags2);
+        // Duplicate tag insertion
+        groupStore.insertTags(groupID, tags1);
+    }
+
+    /**
      * Tests how groups are filtered in queries that contain "non-equals" tag filters.
      *
      * @throws StoreOperationException on db error

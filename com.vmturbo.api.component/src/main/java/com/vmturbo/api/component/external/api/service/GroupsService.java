@@ -92,6 +92,7 @@ import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
@@ -124,6 +125,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -1230,8 +1232,49 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public List<TagApiDTO> createTagByGroupUuid(final String s, final TagApiDTO tagApiDTO) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<TagApiDTO> createTagsByGroupUuid(final String uuid, final List<TagApiDTO> tagApiDTOs)
+        throws OperationFailedException {
+        final long oid = getGroupOidFromString(uuid);
+
+        // Convert to Tags, and validate, otherwise throws IllegalArgumentException
+        Tags tags = convertToTags(tagApiDTOs);
+        final CreateTagsRequest request = CreateTagsRequest.newBuilder()
+                .setGroupId(oid)
+                .setTags(tags).build();
+
+        try {
+            groupServiceRpc.createTags(request);
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException("Group service RPC call failed to complete request: "
+                    + e.getMessage());
+        }
+
+        return tagApiDTOs;
+    }
+
+    private static Tags convertToTags(List<TagApiDTO> apiTags) throws OperationFailedException {
+
+        final Tags.Builder tags = Tags.newBuilder();
+
+        for(TagApiDTO tag : apiTags) {
+            if(StringUtils.isEmpty(tag.getKey())) {
+                throw new OperationFailedException("Tag key cannot be empty string");
+            }
+
+            if(tag.getValues().isEmpty()) {
+                throw new OperationFailedException("Tag values list cannot be empty");
+            }
+
+            TagValuesDTO currentValues = tags.getTagsMap().get(tag.getKey());
+            TagValuesDTO.Builder newValues = TagValuesDTO.newBuilder()
+                    .addAllValues(tag.getValues());
+            if(currentValues != null) {
+                newValues.addAllValues(currentValues.getValuesList());
+            }
+
+            tags.putTags(tag.getKey(), newValues.build()).build();
+        }
+        return tags.build();
     }
 
     @Override
