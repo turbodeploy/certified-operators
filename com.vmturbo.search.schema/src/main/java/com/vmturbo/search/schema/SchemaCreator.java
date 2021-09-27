@@ -6,7 +6,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -45,56 +52,64 @@ public class SchemaCreator implements ISchemaCreator {
     private static final int FIELD_NAME_SIZE = 256;
 
     private final DSLContext dsl;
+    private final Map<Location, Function<String, String>> tableToCreateTableQuery =
+            new ImmutableMap.Builder<Location, Function<String, String>>().put(Location.Entities,
+                    (name) -> createMainTable(name, Location.Entities)).put(Location.Actions,
+                    (name) -> createMainTable(name, Location.Actions)).put(Location.Numerics,
+                    (name) -> commonTableFields(name).column(NAME,
+                                    SQLDataType.VARCHAR(FIELD_NAME_SIZE).nullable(false))
+                            .column(VALUE, DbFieldDescriptor.NUMERIC_DB_TYPE.nullable(false))
+                            .constraint(DSL.primaryKey(ID))
+                            .toString()).put(Location.Strings, (name) -> commonTableFields(
+                    name).column(NAME, SQLDataType.VARCHAR(FIELD_NAME_SIZE).nullable(false))
+                    .column(VALUE,
+                            SQLDataType.VARCHAR(DbFieldDescriptor.STRING_SIZE).nullable(false))
+                    .constraint(DSL.primaryKey(ID))
+                    .toString()).build();
 
     /**
      * Construct the schema creator instance.
      *
      * @param dsl jOOQ context - for query construction, not execution
      */
-    public SchemaCreator(DSLContext dsl) {
+    public SchemaCreator(@Nonnull DSLContext dsl) {
         this.dsl = dsl;
     }
 
     @Override
-    public List<String> createWithoutIndexes(String suffix) {
-        List<String> queries = dropSchema(suffix);
+    @Nonnull
+    public List<String> createWithoutIndexes(@Nonnull String suffix, @Nullable Location location) {
+        List<String> queries = new ArrayList<>(dropSchema(suffix, location));
+        if (location == null) {
+            // clustered autoincrement ids to speed up insertion in all tables
+            // no nulls allowed anywhere - default values for indexing
 
-        // clustered autoincrement ids to speed up insertion in all tables
-        // no nulls allowed anywhere - default values for indexing
+            // all search queries are paginated with 'left-off' technique
+            // e.g.:
+            //    select oid from search_entity where type = 10
+            //    and (severity < 1 or severity = 1 and oid > 73162192619280)
+            //    order by severity desc, oid asc limit 50
+            // for above to be efficient 'severity' needs to be in the same table as type and oid
+            // so at least 'standard' fields (that appear by default in UI) are pulled up to entities table
+            // to speed up typical paginated/ordered by them queries in large environments
+            // NB this only can speed up order by's from single table
+            queries.add(tableToCreateTableQuery.get(Location.Entities).apply(ENTITIES + suffix));
 
-        // all search queries are paginated with 'left-off' technique
-        // e.g.:
-        //    select oid from search_entity where type = 10
-        //    and (severity < 1 or severity = 1 and oid > 73162192619280)
-        //    order by severity desc, oid asc limit 50
-        // for above to be efficient 'severity' needs to be in the same table as type and oid
-        // so at least 'standard' fields (that appear by default in UI) are pulled up to entities table
-        // to speed up typical paginated/ordered by them queries in large environments
-        // NB this only can speed up order by's from single table
+            // actions' data are queried and written separately from the rest, upon notifications from AO
+            // for faster insertion they need a separate table
+            // and that table has to contain redundant oid and type, to avoid joins when paginating
+            queries.add(tableToCreateTableQuery.get(Location.Actions).apply(ACTIONS + suffix));
 
-        queries.add(createMainTable(ENTITIES + suffix, Location.Entities));
-
-        // actions' data are queried and written separately from the rest, upon notifications from AO
-        // for faster insertion they need a separate table
-        // and that table has to contain redundant oid and type, to avoid joins when paginating
-        queries.add(createMainTable(ACTIONS + suffix, Location.Actions));
-
-        queries.add(commonTableFields(STRINGS + suffix)
-            .column(NAME, SQLDataType.VARCHAR(FIELD_NAME_SIZE).nullable(false))
-            .column(VALUE, SQLDataType.VARCHAR(DbFieldDescriptor.STRING_SIZE).nullable(false))
-            .constraint(DSL.primaryKey(ID))
-            .toString());
-
-        queries.add(commonTableFields(NUMERICS + suffix)
-            .column(NAME, SQLDataType.VARCHAR(FIELD_NAME_SIZE).nullable(false))
-            .column(VALUE, DbFieldDescriptor.NUMERIC_DB_TYPE.nullable(false))
-            .constraint(DSL.primaryKey(ID))
-            .toString());
-
+            queries.add(tableToCreateTableQuery.get(Location.Strings).apply(STRINGS + suffix));
+            queries.add(tableToCreateTableQuery.get(Location.Numerics).apply(NUMERICS + suffix));
+            return queries;
+        }
+        queries.add(tableToCreateTableQuery.get(location).apply(location.getTable() + suffix));
         return queries;
     }
 
-    private String createMainTable(String table, Location location) {
+    @Nonnull
+    private String createMainTable(@Nonnull String table, @Nonnull Location location) {
         // entities or actions
         DbFieldDescriptor<?> entityTypeDesc = SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE.getDbDescriptor();
         CreateTableColumnStep commonFields = commonTableFields(table)
@@ -118,36 +133,48 @@ public class SchemaCreator implements ISchemaCreator {
     }
 
     @Override
-    public List<String> createIndexes(String suffix) {
+    @Nonnull
+    public List<String> createIndexes(@Nonnull String suffix) {
         // TODO add indexes - by entity type, oid, field name
         return Collections.emptyList();
     }
 
     @Override
-    public List<String> replace(String srcSuffix, String dstSuffix) {
-        List<String> queries = dropSchema(dstSuffix);
-        Stream.of(ENTITIES, ACTIONS, STRINGS, NUMERICS).forEach(table -> {
-            queries.add(dsl.alterTable(table + srcSuffix)
-                            .renameTo(table + dstSuffix)
-                            .toString());
-            // TODO rename indexes as well
-        });
-
-        // TODO executing this (in the caller) should be synchronized with api queries in one way or another
-        // - either db transaction on a row in a dedicated table
-        // - or java lock
+    @Nonnull
+    public List<String> replace(@Nonnull String srcSuffix, @Nonnull String dstSuffix,
+            @Nullable Location location) {
+        List<String> queries = new ArrayList<>(dropSchema(dstSuffix, location));
+        if (location == null) {
+            //TODO this should be replaced with Stream.of(Location.values()) when tags support is implemented
+            Stream.of(ENTITIES, ACTIONS, STRINGS, NUMERICS).forEach(table -> {
+                queries.add(dsl.alterTable(table + srcSuffix)
+                        .renameTo(table + dstSuffix)
+                        .toString());
+                // TODO rename indexes as well
+            });
+            return queries;
+        } else {
+            final String table = location.getTable();
+            queries.add(dsl.alterTable(table + srcSuffix).renameTo(table + dstSuffix).toString());
+            // TODO rename indexes to one table as well
+        }
         return queries;
     }
 
-    private List<String> dropSchema(String suffix) {
-        // if the schema ever starts to change drastically, consider dropping all tables
-        // using rdbms schema access methods - for now, hard-code the current tableset
-        List<String> queries = new ArrayList<>(10);
-        queries.add(dsl.dropTableIfExists(ENTITIES + suffix).toString());
-        queries.add(dsl.dropTableIfExists(ACTIONS + suffix).toString());
-        queries.add(dsl.dropTableIfExists(STRINGS + suffix).toString());
-        queries.add(dsl.dropTableIfExists(NUMERICS + suffix).toString());
-        return queries;
+    @Nonnull
+    private List<String> dropSchema(@Nonnull String suffix, @Nullable Location location) {
+        if (location == null) {
+            // if the schema ever starts to change drastically, consider dropping all tables
+            // using rdbms schema access methods - for now, hard-code the current tableset
+            List<String> queries = new ArrayList<>();
+            queries.add(dsl.dropTableIfExists(ENTITIES + suffix).toString());
+            queries.add(dsl.dropTableIfExists(ACTIONS + suffix).toString());
+            queries.add(dsl.dropTableIfExists(STRINGS + suffix).toString());
+            queries.add(dsl.dropTableIfExists(NUMERICS + suffix).toString());
+            return queries;
+        }
+        return Collections.singletonList(
+                dsl.dropTableIfExists(location.getTable() + suffix).toString());
     }
 
     /**
@@ -183,7 +210,7 @@ public class SchemaCreator implements ISchemaCreator {
                 try (Connection conn = dataSource.getConnection()) {
                     SchemaCreator creator = new SchemaCreator(DSL.using(conn));
                     // not bothering with transactions as there's only 1.5 rdbms that support ddl ones
-                    for (String query : creator.createWithoutIndexes("")) {
+                    for (String query : creator.createWithoutIndexes("", null)) {
                         DSL.using(conn).execute(query);
                     }
                 }

@@ -1,7 +1,5 @@
 package com.vmturbo.search.metadata;
 
-import java.math.BigDecimal;
-
 import org.jooq.DataType;
 import org.jooq.impl.SQLDataType;
 
@@ -15,7 +13,7 @@ public class DbFieldDescriptor<DbValueT> {
     /**
      * How numerics are stored.
      */
-    public static final DataType<BigDecimal> NUMERIC_DB_TYPE = SQLDataType.DECIMAL(15, 3);
+    public static final DataType<Double> NUMERIC_DB_TYPE = SQLDataType.DOUBLE;
     /**
      * Truncated string length - backend does not store infinite strings.
      */
