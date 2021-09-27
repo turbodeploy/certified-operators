@@ -188,9 +188,12 @@ public class DslRecordSink implements Consumer<Record> {
             dsl.transaction(trans -> DSL.using(trans).connection(transConn -> {
                 runPreCopyHook(transConn);
                 try {
-                    // execute the copy operation, with data coming from our reader
-                    final CopyManager copier = new CopyManager(transConn.unwrap(PgConnection.class));
-                    recordCount.set(copier.copyIn(copySql, inputStream));
+                    if (inputStream.available() != 0) {
+                        // execute the copy operation, with data coming from our reader
+                        final CopyManager copier = new CopyManager(
+                                transConn.unwrap(PgConnection.class));
+                        recordCount.set(copier.copyIn(copySql, inputStream));
+                    }
                 } catch (Exception e) {
                     logger.error("Failed performing copy to table {}", getWriteTableName(), e);
                     // rethrow to rollback transaction
