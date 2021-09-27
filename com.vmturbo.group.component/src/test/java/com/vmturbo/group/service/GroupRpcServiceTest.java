@@ -63,6 +63,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.jdbc.BadSqlGrammarException;
@@ -75,10 +76,13 @@ import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersRequest;
@@ -122,6 +126,8 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
@@ -2167,6 +2173,72 @@ public class GroupRpcServiceTest {
         final StatusException statusException = (StatusException)throwable;
         Assert.assertEquals(Status.INTERNAL.getCode(), statusException.getStatus().getCode());
         Assert.assertThat(statusException.getMessage(), CoreMatchers.containsString(errorMessage));
+    }
+
+    /**
+     * Test create tags on db.
+     */
+    @Test
+    public void testCreateTags() throws StoreOperationException {
+
+        final long groupID = 42L;
+
+        final StreamObserver<CreateTagsResponse> mockObserver = mock(StreamObserver.class);
+        Tags tags = Tags.newBuilder().putTags("key1",
+                TagValuesDTO.newBuilder()
+                        .addValues("v1")
+                        .addValues("v2").build()
+        ).build();
+
+        CreateTagsRequest request = GroupDTO.CreateTagsRequest.newBuilder()
+                .setGroupId(groupID)
+                .setTags(tags).build();
+
+        when(groupStoreDAO.insertTags(groupID, tags)).thenReturn(2);
+        groupRpcService.createTags(request, mockObserver);
+
+        verify(mockObserver).onNext(CreateTagsResponse.newBuilder().build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Test create tags on db should fail, due to no group id sent to request.
+     */
+    @Test
+    public void testCreateTagsNoGroupID() {
+
+        final StreamObserver<CreateTagsResponse> mockObserver = mock(StreamObserver.class);
+        Tags tags = Tags.newBuilder().putTags("key1",
+                TagValuesDTO.newBuilder()
+                        .addValues("v1")
+                        .addValues("v2").build()
+        ).build();
+
+        CreateTagsRequest request = GroupDTO.CreateTagsRequest.newBuilder()
+                .setTags(tags).build();
+
+        groupRpcService.createTags(request, mockObserver);
+
+        Mockito.verify(mockObserver).onError(Matchers.any(IllegalArgumentException.class));
+    }
+
+    /**
+     * Test create tags on db should fail, due to no tags sent to request.
+     */
+    @Test
+    public void testCreateTagsNoTags() {
+
+        final long groupID = 42L;
+
+        final StreamObserver<CreateTagsResponse> mockObserver = mock(StreamObserver.class);
+
+        CreateTagsRequest request = GroupDTO.CreateTagsRequest.newBuilder()
+                .setGroupId(groupID)
+                .build();
+
+        groupRpcService.createTags(request, mockObserver);
+
+        Mockito.verify(mockObserver).onError(Matchers.any(IllegalArgumentException.class));
     }
 
     /**

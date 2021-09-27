@@ -21,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -121,6 +122,8 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -2495,5 +2498,176 @@ public class GroupsServiceTest {
         when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
 
         final List<TagApiDTO> tags = groupsService.getTagsByGroupUuid(String.valueOf(VM_ID));
+    }
+
+    /**
+     * Create tags using group id should work as expected.
+     *
+     * @throws OperationFailedException should not happen.
+     */
+    @Test
+    public void testCreateTags() throws OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+        tag.setKey(TAG_KEY);
+        tag.setValues(TAG_VALUES);
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().putTags(TAG_KEY, TagValuesDTO.newBuilder()
+                .addAllValues(TAG_VALUES).build()).build();
+
+        final CreateTagsRequest request = CreateTagsRequest.newBuilder()
+                .setGroupId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final CreateTagsResponse response = CreateTagsResponse.newBuilder().build();
+
+        when(groupServiceSpyMole.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        final List<TagApiDTO> result = groupsService.createTagsByGroupUuid(Long.toString(VM_ID), tags);
+
+        // check tags
+        Assert.assertEquals(1, result.size());
+        Assert.assertEquals(TAG_KEY, result.get(0).getKey());
+        Assert.assertArrayEquals(TAG_VALUES.toArray(), result.get(0).getValues().toArray());
+    }
+
+    /**
+     * Create empty tags using group id should work as expected.
+     *
+     * @throws OperationFailedException should not happen.
+     */
+    @Test
+    public void testCreateEmptyTags() throws OperationFailedException {
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final CreateTagsRequest request = CreateTagsRequest.newBuilder()
+                .setGroupId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final CreateTagsResponse response = CreateTagsResponse.newBuilder().build();
+
+        when(groupServiceSpyMole.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        final List<TagApiDTO> result = groupsService.createTagsByGroupUuid(Long.toString(VM_ID), tags);
+
+        // check tags
+        Assert.assertEquals(0, result.size());
+    }
+
+    /**
+     * Create tags using invalid group id should fail with exception.
+     *
+     * @throws IllegalArgumentException in case of illegal group uuid.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateTagsInvalidId() throws IllegalArgumentException, OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final CreateTagsRequest request = CreateTagsRequest.newBuilder()
+                .setGroupId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final CreateTagsResponse response = CreateTagsResponse.newBuilder().build();
+
+        when(groupServiceSpyMole.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        groupsService.createTagsByGroupUuid(Long.toString(VM_ID), tags);
+    }
+
+    /**
+     * Create tags with a tag key of empty string should fail with exception.
+     *
+     * @throws OperationFailedException
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testCreateTagsEmptyKey() throws OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+        tag.setKey("");
+        tag.setValues(TAG_VALUES);
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final CreateTagsRequest request = CreateTagsRequest.newBuilder()
+                .setGroupId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final CreateTagsResponse response = CreateTagsResponse.newBuilder().build();
+
+        when(groupServiceSpyMole.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        groupsService.createTagsByGroupUuid(Long.toString(VM_ID), tags);
+    }
+
+    /**
+     * Create tags with a tag with empty list of values should fail with exception.
+     *
+     * @throws OperationFailedException
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testCreateTagsEmptyValues() throws OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+        tag.setKey(TAG_KEY);
+        tag.setValues(new ArrayList<>());
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final CreateTagsRequest request = CreateTagsRequest.newBuilder()
+                .setGroupId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final CreateTagsResponse response = CreateTagsResponse.newBuilder().build();
+
+        when(groupServiceSpyMole.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        groupsService.createTagsByGroupUuid(Long.toString(VM_ID), tags);
     }
 }

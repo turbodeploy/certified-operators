@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupMembersPlain;
@@ -259,6 +260,11 @@ public class MockGroupStore implements IGroupStore {
     @Override
     public Map<String, Set<String>> getTagValues(final GetTagValuesRequest request) {
         return Collections.emptyMap();
+    }
+
+    @Override
+    public int insertTags(long groupId, @Nonnull Tags tags) {
+        return 0;
     }
 
     @Nonnull

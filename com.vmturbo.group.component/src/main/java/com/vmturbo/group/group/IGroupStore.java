@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.service.StoreOperationException;
@@ -267,6 +268,18 @@ public interface IGroupStore {
      */
     @Nonnull
     Map<String, Set<String>> getTagValues(GetTagValuesRequest request);
+
+    /**
+     * Create a list of user defined group tags. Discovered tags are not supported by this
+     * call.
+     *
+     * @param groupId is the entity oid to attach the tags.
+     * @param tags is the list of tag entries to store.
+     * @return the number of tags inserted.
+     *
+     * @throws StoreOperationException if a tag already exists.
+     */
+    int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException;
 
     /**
      * Returns direct static members of the specified group. Method does not perform any

@@ -80,8 +80,6 @@ message GroupDefinition {
     }
 
     // Tags on this group.
-    // (roman Sept 5, 2019): Currently we only have discovered tags, but in the future we may
-    // support user tags as well.
     optional .tag.Tags tags = 11;
 
     // Represent a list of group-specific search parameters, for groups that contain other groups.
@@ -525,6 +523,18 @@ message GetTagValuesResponse {
     optional .tag.Tags distinct_tags = 1;
 }
 
+// Request to create tags for a group
+message CreateTagsRequest {
+    // The group uuid
+    optional int64 group_id = 1;
+
+    // The tags DTO is a list of tags to create
+    optional .tag.Tags tags = 2;
+}
+
+// Response to the tags created
+message CreateTagsResponse {}
+
 // Request owners for groups
 message GetOwnersRequest {
     // The groupType to get owners for. If not specified, query will not distinguish between group types.
@@ -601,6 +611,9 @@ service GroupService {
 
     // Returns tags of groups
     rpc GetTags (GetTagsRequest) returns (GetTagsResponse);
+
+    // The rpc call to create tags based on the group id.
+    rpc CreateTags(CreateTagsRequest) returns (CreateTagsResponse);
 
     // Returns distinct tag values.
     // This is different from GetTags because it does not return per-group tags. Instead, it returns
