@@ -79,4 +79,8 @@ public class DslReplaceRecordSink extends DslRecordSink {
     private String renameOldTable(@Nonnull String table) {
         return table + "_old";
     }
+
+    protected String getTempSuffix() {
+        return tempSuffix;
+    }
 }
