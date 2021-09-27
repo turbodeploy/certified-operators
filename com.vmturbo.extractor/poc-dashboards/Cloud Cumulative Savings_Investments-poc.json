@@ -1,0 +1,115 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 39,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Turbo Timescale",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "left",
+            "displayMode": "auto"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "entity name"
+          }
+        ]
+      },
+      "pluginVersion": "8.0.6",
+      "targets": [
+        {
+          "format": "table",
+          "group": [],
+          "hide": false,
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "WITH accounts AS (SELECT oid AS \"account id\", name AS \"account\" FROM entity WHERE type='BUSINESS_ACCOUNT'\n     ), rgroups AS (SELECT DISTINCT \"account id\", \"account\", e.oid AS resource_group_id, e.name as \"resource group name\"\n         FROM accounts, entity e,\n         scope_to($__timeFrom(), $__timeTo(), 'RESOURCE_GROUP', ARRAY[\"account id\"], false) AS s\n         WHERE s.oid = e.oid\n     ), entities AS (SELECT DISTINCT \"account id\", \"account\", resource_group_id, \"resource group name\", e.oid AS \"entity id\", e.name AS \"entity name\", e.type AS \"entity type\", e.attrs as tags\n         FROM rgroups, entity e,\n         scope_to_types($__timeFrom(), $__timeTo(), ARRAY['VIRTUAL_MACHINE','VIRTUAL_VOLUME', 'DATABASE', 'DATABASE_SERVER']::entity_type[], ARRAY[resource_group_id], false) AS s\n         WHERE s.oid = e.oid\n)\n\nSELECT  \"entity id\", \"entity name\", \"entity type\", es.savings_type AS \"savings type\", sum(es.stats_value) AS \"total savings/investment\", \"account\", \"resource group name\",  tags\n    FROM entity_savings es, entities\n    WHERE es.entity_oid = entities.\"entity id\"\n    AND time BETWEEN $__timeFrom() AND $__timeTo()\n    GROUP BY 1, 2, 3, 4, 6, 7, 8 ORDER BY 1;\n   \n\n\n",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "timeColumn": "time",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "title": "Savings Data",
+      "type": "table"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 30,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Cloud Cumulative Savings/Investments",
+  "uid": "KyVsQoSnz",
+  "version": 521
+}
