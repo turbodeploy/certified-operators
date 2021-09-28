@@ -1,5 +1,6 @@
 package com.vmturbo.mediation.actionscript.executor;
 
+import static com.vmturbo.mediation.actionscript.executor.ActionScriptExecutorUtils.STABLE_ID_KEY;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.File;
@@ -16,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
+import com.vmturbo.mediation.actionscript.ActionScriptProbeConfiguration;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
 import com.vmturbo.mediation.actionscript.executor.ActionScriptExecutor.CompletionInfo;
 import com.vmturbo.mediation.actionscript.executor.ActionScriptExecutor.TestAccess;
@@ -25,6 +27,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
+import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -40,7 +43,6 @@ class ScriptRunner {
     private final String scriptName;
     private ActionScriptProbeAccount accountValues;
     private ActionScriptExecutor executor;
-    private ActionScriptExecutionStatus initialStatus;
     private TestProgressTracker progressTracker;
     private Integer timeoutSeconds = null;
     private Integer gracePeriodSeconds = null;
@@ -50,11 +52,15 @@ class ScriptRunner {
     private TestAccess testAccess = null;
     private ActionExecutionDTO actionExecutionDTO = null;
     private boolean apiMessageFormatEnabled = false;
+    private ActionScriptProbeConfiguration probeConfiguration;
 
-    ScriptRunner(final @Nonnull String scriptName, final @Nonnull ActionScriptProbeAccount accountValues) {
+    ScriptRunner(final @Nonnull String scriptName,
+            final @Nonnull ActionScriptProbeAccount accountValues,
+            final @Nonnull ActionScriptProbeConfiguration probeConfiguration) {
         this.accountValues = accountValues;
         this.scriptPath = new File(ActionScriptExecutorTest.tempFolder.getRoot(), scriptName).getAbsolutePath();
         this.scriptName = new File(scriptPath).getName();
+        this.probeConfiguration = probeConfiguration;
     }
 
     ScriptRunner withTimeoutSeconds(final int timeoutSeconds) {
@@ -105,7 +111,7 @@ class ScriptRunner {
         if (actionExecutionDTO == null) {
             populateActionExecutionDto();
         }
-        this.executor = new ActionScriptExecutor(accountValues, actionExecutionDTO, progressTracker);
+        this.executor = new ActionScriptExecutor(accountValues, actionExecutionDTO, progressTracker, probeConfiguration);
         this.testAccess = executor.getTestAccess();
         // perform any customizations to the executor before running it
         if (gracePeriodSeconds != null) {
@@ -299,7 +305,7 @@ class ScriptRunner {
      * @param scriptPath the path of script.
      * @param displayName the display name.
      * @param timeoutSeconds  the timeout.
-     * @param apiMessageFormatEnabled if we shoud sent the message in API format.
+     * @param apiMessageFormatEnabled if we should send the message in API format.
      * @return the action execution DTO.
      */
     private ActionExecutionDTO createActionExecution(final @Nonnull String scriptPath,
@@ -321,9 +327,14 @@ class ScriptRunner {
         }
         return ActionExecutionDTO.newBuilder()
             .setActionType(ActionType.MOVE)
+            .setActionOid(1245L)
             .addActionItem(ActionItemDTO.newBuilder()
                 .setUuid("112")
                 .setActionType(ActionType.MOVE)
+                .addContextData(ContextData.newBuilder()
+                    .setContextKey(STABLE_ID_KEY)
+                    .setContextValue(String.valueOf(86756L))
+                    .build())
                 .setTargetSE(EntityDTO.newBuilder()
                     .setEntityType(EntityType.VIRTUAL_MACHINE)
                     .setId("vm12")

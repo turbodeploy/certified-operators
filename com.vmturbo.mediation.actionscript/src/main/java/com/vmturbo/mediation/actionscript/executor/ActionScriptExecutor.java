@@ -12,10 +12,10 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.api.conversion.action.ActionToApiConverter;
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
+import com.vmturbo.mediation.actionscript.ActionScriptProbeConfiguration;
 import com.vmturbo.mediation.actionscript.SshUtils;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
@@ -121,6 +121,8 @@ public class ActionScriptExecutor {
     private final ActionExecutionDTO actionExecution;
     // progress tracker for reporting progress
     private final IProgressTracker progressTracker;
+    // probe configuration
+    private final ActionScriptProbeConfiguration probeConfiguration;
 
     IProgressTracker getProgressTracker() {
         return progressTracker;
@@ -135,27 +137,16 @@ public class ActionScriptExecutor {
      * @param accountValues   the {@link ActionScriptProbeAccount} from target configuration
      * @param actionExecution the {@link ActionExecutionDTO} containing the {@link Workflow} to be executed
      * @param progressTracker the {@link IProgressTracker} to which progress updates are made
+     * @param probeConfiguration probe configuration
      */
     public ActionScriptExecutor(final @Nonnull ActionScriptProbeAccount accountValues,
                                 final @Nonnull ActionExecutionDTO actionExecution,
-                                final @Nonnull IProgressTracker progressTracker) {
+                                final @Nonnull IProgressTracker progressTracker,
+                                final @Nonnull ActionScriptProbeConfiguration probeConfiguration) {
         this.accountValues = Objects.requireNonNull(accountValues);
         this.actionExecution = Objects.requireNonNull(actionExecution);
         this.progressTracker = Objects.requireNonNull(progressTracker);
-    }
-
-    /**
-     * Create a new dummy instance that cannot be executed; this is only used by some unit tests.
-     */
-    @VisibleForTesting
-    ActionScriptExecutor() {
-        // dummy non-null values
-        this.accountValues = new ActionScriptProbeAccount();
-        this.actionExecution = ActionExecutionDTO.newBuilder()
-            .setActionType(ActionType.MOVE)
-            .build();
-        this.progressTracker = (actionResponseState, s, i) -> {
-        };
+        this.probeConfiguration = Objects.requireNonNull(probeConfiguration);
     }
 
     /**
@@ -185,7 +176,7 @@ public class ActionScriptExecutor {
             progressTracker.updateActionProgress(ActionResponseState.IN_PROGRESS, "ActionScript execution in progress", 50);
             // start and run an SSH channel to execute the script, and capture its completionInfo information
             this.completionInfo = SshUtils.runInSshSession(accountValues, actionExecution,
-                new SshScriptExecutor(this, new ActionToApiConverter()));
+                new SshScriptExecutor(this, new ActionToApiConverter(), probeConfiguration));
         } catch (Exception e) {
             // here if we weren't able to execute the script (or if we were sabotaged in a unit test)
             this.completionInfo = new CompletionInfo();

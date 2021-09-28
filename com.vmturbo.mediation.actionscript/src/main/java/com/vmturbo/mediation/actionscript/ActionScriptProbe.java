@@ -28,7 +28,6 @@ import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
-import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
  * A probe that will provide access to ActionScript files (any linux script file) found on
@@ -48,13 +47,15 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
 
     private final Logger logger = LogManager.getLogger(getClass());
     private DelegatingProgressTracker delegatingProgressTracker;
+    private ActionScriptProbeConfiguration probeConfiguration;
 
     @Override
     public void initialize(@Nonnull IProbeContext probeContext,
-                           @Nullable ProbeConfiguration configuration) {
+            @Nullable ProbeConfiguration configuration) {
 
         this.probeContext = probeContext;
-        final IPropertyProvider propertyProvider = this.probeContext.getPropertyProvider();
+        this.probeConfiguration = new ActionScriptProbeConfiguration(
+                probeContext.getPropertyProvider());
     }
 
     @Nonnull
@@ -141,7 +142,8 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
                                       @Nonnull final IProgressTracker progressTracker)
         throws InterruptedException {
         this.delegatingProgressTracker = new DelegatingProgressTracker(progressTracker);
-        ActionScriptExecutor actionExecutor = new ActionScriptExecutor(accountValues, actionExecutionDto, delegatingProgressTracker);
+        ActionScriptExecutor actionExecutor = new ActionScriptExecutor(accountValues,
+                actionExecutionDto, delegatingProgressTracker, probeConfiguration);
         ActionScriptExecutionStatus status = actionExecutor.execute();
         return getActionResultForStatus(status);
     }

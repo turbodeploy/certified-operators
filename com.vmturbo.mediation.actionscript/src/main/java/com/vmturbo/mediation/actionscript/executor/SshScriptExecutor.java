@@ -27,6 +27,7 @@ import com.vmturbo.api.conversion.action.ActionToApiConverter;
 import com.vmturbo.api.conversion.action.SdkActionInformationProvider;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
+import com.vmturbo.mediation.actionscript.ActionScriptProbeConfiguration;
 import com.vmturbo.mediation.actionscript.SshUtils.RemoteCommand;
 import com.vmturbo.mediation.actionscript.executor.ActionScriptExecutor.CompletionInfo;
 import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterMapper;
@@ -54,11 +55,14 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
 
     private final ActionToApiConverter converter;
     private final ObjectMapper jsonConverter = new ObjectMapper();
+    private final ActionScriptProbeConfiguration probeConfiguration;
 
     SshScriptExecutor(final ActionScriptExecutor actionScriptExecutor,
-                      @Nonnull ActionToApiConverter converter) {
+                      @Nonnull ActionToApiConverter converter,
+                      @Nonnull ActionScriptProbeConfiguration probeConfiguration) {
         this.actionScriptExecutor = actionScriptExecutor;
-        this.converter = converter;
+        this.converter = Objects.requireNonNull(converter);
+        this.probeConfiguration = Objects.requireNonNull(probeConfiguration);
     }
 
     private static final String ENV_VAR_FORMAT = "%s=%s";
@@ -304,19 +308,20 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
     private String convertToCompactJson(@Nonnull ActionExecutionDTO actionExecutionDTO) {
         try {
             final String converted;
+            final boolean useStableActionIdAsUuid = probeConfiguration.useStableActionIdAsUuid();
             if (actionExecutionDTO.getWorkflow().getApiMessageFormatEnabled()) {
                 logger.debug("Using API message format when sending action with ID \"{}\" to "
                     + "workflow \"{}\".", actionExecutionDTO.getActionOid(),
                     actionExecutionDTO.getWorkflow().getDisplayName());
                 final ActionApiDTO apiMessage = converter.convert(
-                    new SdkActionInformationProvider(actionExecutionDTO), true, 0L, false);
+                    new SdkActionInformationProvider(actionExecutionDTO), useStableActionIdAsUuid, 0L, false);
                 converted = jsonConverter.writeValueAsString(apiMessage);
             } else {
                 logger.debug("Using SDK message format when sending action with ID \"{}\" to "
                         + "workflow \"{}\".", actionExecutionDTO.getActionOid(),
                     actionExecutionDTO.getWorkflow().getDisplayName());
                 converted = JsonFormat.printer().omittingInsignificantWhitespace()
-                    .print(actionExecutionDTO);
+                    .print(useStableActionIdAsUuid ? ActionScriptExecutorUtils.replaceActionInstanceIdWithStableId(actionExecutionDTO) : actionExecutionDTO);
             }
             logger.trace("The converted message with ID \"{}\" to workflow \"{}\" is \"{}\"",
                 actionExecutionDTO.getActionOid(),
