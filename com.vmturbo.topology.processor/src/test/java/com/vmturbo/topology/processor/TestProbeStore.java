@@ -18,11 +18,15 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import org.jetbrains.annotations.NotNull;
+
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -57,8 +61,8 @@ public class TestProbeStore implements ProbeStore {
 
     @Override
     public boolean registerNewProbe(@Nonnull ProbeInfo probeInfo,
-                                    @Nonnull ITransport<MediationServerMessage,
-                                        MediationClientMessage> transport) throws ProbeException {
+            @Nonnull ContainerInfo containerInfo, @Nonnull ITransport<MediationServerMessage,
+            MediationClientMessage> transport) throws ProbeException {
         final long probeId;
         try {
             probeId = identityProvider.getProbeId(probeInfo);
@@ -68,6 +72,10 @@ public class TestProbeStore implements ProbeStore {
         probeInfos.put(probeId, probeInfo);
         probes.put(probeId, transport);
         listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
+        if (containerInfo.hasCommunicationBindingChannel()) {
+            channelToTransport.computeIfAbsent(containerInfo.getCommunicationBindingChannel(),
+                    x -> new ArrayList()).add(transport);
+        }
 
         return true;
     }
@@ -117,13 +125,6 @@ public class TestProbeStore implements ProbeStore {
             throw new ProbeException(noTransportMessage(probeId, communicationBindingChannel));
         }
         return filteredTransports;
-    }
-
-    @Override
-    public void updateTransportByChannel(@Nonnull String communicationBindingChannel,
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        // Same implementation as in RemoteProbeStore
-        channelToTransport.computeIfAbsent(communicationBindingChannel, x -> new ArrayList()).add(transport);
     }
 
     @Override
@@ -211,6 +212,18 @@ public class TestProbeStore implements ProbeStore {
             return;
         }
         probeInfos.put(probeId.get(), newProbeInfo);
+    }
+
+    @NotNull
+    @Override
+    public Collection<ProbeRegistrationDescription> getAllProbeRegistrations() {
+        return null;
+    }
+
+    @NotNull
+    @Override
+    public Optional<ProbeRegistrationDescription> getProbeRegistrationById(long id) {
+        return Optional.empty();
     }
 
     @Override

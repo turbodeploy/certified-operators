@@ -131,6 +131,11 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public ProbeRegistrationController probeRegistrationController() {
+        return new ProbeRegistrationController(probeConfig.probeStore());
+    }
+
+    @Bean
     public IdentityController identityController() {
         return new IdentityController(entityConfig.entityStore());
     }

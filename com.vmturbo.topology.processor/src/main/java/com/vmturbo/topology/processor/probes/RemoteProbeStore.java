@@ -28,11 +28,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
+import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -82,6 +84,9 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final Map<String, Collection<ITransport<MediationServerMessage,
             MediationClientMessage>>> channelToTransport = new ConcurrentHashMap<>();
+
+    private final Map<ITransport<MediationServerMessage, MediationClientMessage>,
+            Collection<ProbeRegistrationDescription>> transportToProbeRegistrations = new ConcurrentHashMap<>();
 
     /**
      * The action merge policy/specs conversion repository.
@@ -147,9 +152,11 @@ public class RemoteProbeStore implements ProbeStore {
      */
     @Override
     public boolean registerNewProbe(@Nonnull ProbeInfo probeInfo,
-                    @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport)
-                    throws ProbeException {
+            @Nonnull ContainerInfo containerInfo,
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport)
+            throws ProbeException {
         Objects.requireNonNull(probeInfo, "Probe info should not be null");
+        Objects.requireNonNull(containerInfo, "Container info should not be null");
         Objects.requireNonNull(transport, "Transport should not be null");
 
         boolean probeExists;
@@ -189,6 +196,18 @@ public class RemoteProbeStore implements ProbeStore {
             stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
             // Save the action merge policies
             actionMergeSpecsRepository.setPoliciesForProbe(probeId, probeInfo);
+
+            // Store the probe registration
+            final long probeRegistrationId = identityProvider_.getProbeRegistrationId(probeInfo, transport);
+            final ProbeRegistrationDescription probeRegistration = new ProbeRegistrationDescription(
+                    probeRegistrationId, probeId, probeInfo, containerInfo);
+            final Collection<ProbeRegistrationDescription> probeRegistrations
+                    = transportToProbeRegistrations.getOrDefault(transport, new ArrayList<>());
+            probeRegistrations.add(probeRegistration);
+            transportToProbeRegistrations.put(transport, probeRegistrations);
+            if (containerInfo.hasCommunicationBindingChannel()) {
+                updateTransportByChannel(containerInfo.getCommunicationBindingChannel(), transport);
+            }
 
             if (probeExists) {
                 logger.info("Connected probe " + probeId + " type=" + probeInfo.getProbeType()
@@ -282,10 +301,12 @@ public class RemoteProbeStore implements ProbeStore {
     }
 
     /**
-     * {@inheritDoc}
+     * Associate the transport with the given communication binding channel.
+     *
+     * @param communicationBindingChannel the communication binding channel
+     * @param transport the associated transport
      */
-    @Override
-    public void updateTransportByChannel(@Nonnull final String communicationBindingChannel,
+    private void updateTransportByChannel(@Nonnull final String communicationBindingChannel,
             @Nonnull final ITransport<MediationServerMessage, MediationClientMessage> transport) {
         channelToTransport.computeIfAbsent(communicationBindingChannel, x -> new ArrayList()).add(transport);
     }
@@ -296,6 +317,7 @@ public class RemoteProbeStore implements ProbeStore {
     @Override
     public void removeTransport(ITransport<MediationServerMessage, MediationClientMessage> transport) {
         synchronized (dataLock) {
+            transportToProbeRegistrations.remove(transport);
             final Iterator<Entry<Long, ITransport<MediationServerMessage, MediationClientMessage>>> iterator =
                             probes.entries().iterator();
             while (iterator.hasNext()) {
@@ -414,6 +436,26 @@ public class RemoteProbeStore implements ProbeStore {
             // Cache the probeInfo in memory
             probeInfos.put(probeId, probeInfo);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Collection<ProbeRegistrationDescription> getAllProbeRegistrations() {
+        return transportToProbeRegistrations.values().stream().flatMap(Collection::stream)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Optional<ProbeRegistrationDescription> getProbeRegistrationById(final long id) {
+        return transportToProbeRegistrations.values().stream().flatMap(Collection::stream)
+                .filter(i -> i.getId() == id).findAny();
     }
 
     /**

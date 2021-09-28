@@ -100,9 +100,6 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
     @Override
     public void parseContainerInfoWithTransport(@Nonnull final ContainerInfo containerInfo,
                                                 @Nonnull final ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        if (containerInfo.hasCommunicationBindingChannel()) {
-            probeStore.updateTransportByChannel(containerInfo.getCommunicationBindingChannel(), transport);
-        }
         containerInfo.getPersistentTargetIdMapMap()
             .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
                 .forEach(targetId -> assignTargetToTransport(

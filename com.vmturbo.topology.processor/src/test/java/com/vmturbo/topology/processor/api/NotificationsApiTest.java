@@ -50,6 +50,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
@@ -523,7 +524,8 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> transport =
                         Mockito.mock(ITransport.class);
-        probeStore.registerNewProbe(Probes.defaultProbe, transport);
+        final ContainerInfo containerInfo = ContainerInfo.newBuilder().build();
+        probeStore.registerNewProbe(Probes.defaultProbe, containerInfo, transport);
         final long probeId = probeStore.getProbes().keySet().iterator().next();
         return probeId;
     }

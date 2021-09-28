@@ -9,10 +9,12 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.common.RequiresDataInitialization;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.targets.Target;
 
 /**
@@ -54,6 +56,7 @@ public interface ProbeStore extends RequiresDataInitialization {
      * Method registers a new probe with a specified transport.
      *
      * @param probeInfo Probe to register
+     * @param containerInfo Info of the corresponding mediation container
      * @param transport Transport to use for this probe
      * @return Whether a new probe has been registered (<code>true</code>) or this is just a new
      *         transport for existing probe (<code>false</code>).
@@ -61,6 +64,7 @@ public interface ProbeStore extends RequiresDataInitialization {
      * @throws NullPointerException If <code>probeInfo</code> is null
      */
     boolean registerNewProbe(@Nonnull ProbeInfo probeInfo,
+                             @Nonnull ContainerInfo containerInfo,
                              @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport)
             throws ProbeException;
 
@@ -86,15 +90,6 @@ public interface ProbeStore extends RequiresDataInitialization {
     @Nonnull
     Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransportsForTarget(
             @Nonnull Target target) throws ProbeException;
-
-    /**
-     * Associate the transport with the given communication binding channel.
-     *
-     * @param communicationBindingChannel the communication binding channel
-     * @param transport the associated transport
-     */
-    void updateTransportByChannel(@Nonnull String communicationBindingChannel,
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport);
 
     /**
      * Remove the transport (i.e. disconnect an instance of the probe). If a probe has no more
@@ -207,4 +202,22 @@ public interface ProbeStore extends RequiresDataInitialization {
      *
      */
     void updateProbeInfo(@Nonnull ProbeInfo updatedProbeInfo) throws ProbeException;
+
+    /**
+     * Returns all probe registrations.
+     *
+     * @return all probe registrations.
+     */
+    @Nonnull
+    Collection<ProbeRegistrationDescription> getAllProbeRegistrations();
+
+    /**
+     * Returns the probe registration by id wrapped by Optional.  If no probe registration exists
+     * with the id, an Optional.empty() is returned.s
+     *
+     * @param id the id of the probe registration
+     * @return the found probe registration wrapped by Optional; or Optional.empty() if not found.
+     */
+    @Nonnull
+    Optional<ProbeRegistrationDescription> getProbeRegistrationById(final long id);
 }
