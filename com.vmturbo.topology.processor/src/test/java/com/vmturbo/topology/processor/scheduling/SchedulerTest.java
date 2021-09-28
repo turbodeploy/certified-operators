@@ -720,28 +720,29 @@ public class SchedulerTest {
                 .setFullRediscoveryIntervalSeconds(999999).build();
         Assert.assertEquals(999999000, scheduler.getFullDiscoveryInterval(slowDiscoveryProbeInfo, true));
 
-        // test with longer discovery interval and performance discovery interval
+        /*
+         * Test with discovery interval and performance discovery interval
+         * and check that performance discovery interval is ignored.
+         */
         ProbeInfo slowFullFastPerformanceProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
                 .setFullRediscoveryIntervalSeconds(999999)
                 .setPerformanceRediscoveryIntervalSeconds(99).build();
-        Assert.assertEquals(99000, scheduler.getFullDiscoveryInterval(slowFullFastPerformanceProbeInfo, true));
+        Assert.assertEquals(999999000, scheduler.getFullDiscoveryInterval(slowFullFastPerformanceProbeInfo, true));
 
-        // test with performance discovery interval slower than full discovery interval
-        ProbeInfo fastFullSlowPerformanceProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
-                .setFullRediscoveryIntervalSeconds(99)
-                .setPerformanceRediscoveryIntervalSeconds(9999).build();
-        Assert.assertEquals(99000, scheduler.getFullDiscoveryInterval(fastFullSlowPerformanceProbeInfo, true));
-
-        // test with both full/performance discovery interval are lower than broadcast interval
-        // and sync with broadcast schedule
+        /*
+         * Test with both full/performance discovery interval are lower than broadcast interval
+         * and sync with broadcast schedule.
+         */
         ProbeInfo lowerThanBroadcastIntervalProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
             .setFullRediscoveryIntervalSeconds(50)
             .setPerformanceRediscoveryIntervalSeconds(30).build();
         Assert.assertEquals(60000, scheduler.getFullDiscoveryInterval(lowerThanBroadcastIntervalProbeInfo, true));
 
-        // test with both full/performance discovery interval are lower than broadcast interval
-        // and do not sync with broadcast schedule
-        Assert.assertEquals(30000, scheduler.getFullDiscoveryInterval(lowerThanBroadcastIntervalProbeInfo, false));
+        /*
+         * Test with both full/performance discovery interval are lower than broadcast interval
+         * and do not sync with broadcast schedule
+         */
+        Assert.assertEquals(50000, scheduler.getFullDiscoveryInterval(lowerThanBroadcastIntervalProbeInfo, false));
     }
 
     @Test

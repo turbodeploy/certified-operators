@@ -341,18 +341,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      * Get the FULL discovery interval to use for this probe, respecting the broadcast schedule
      * if needed.
      *
-     * <p>If syncToBroadcastSchedule is false, we will use the smaller of either the full rediscovery
-     * interval or performance rediscovery interval as our rediscovery interval.
-     *
-     * <p>For example the VC Probe configures full discovery every hour, with the expectation that
-     * incremental discoveries on 30 second intervals will fill the gaps between full discoveries.
-     * It also specifies "performance" discoveries on 10 minute intervals that ensure updates to the
-     * stats on the usual broadcast cycle.
-     *
-     * <p>Our logic to determine this full discovery interval will be based on the smaller of the
-     * full discovery and performance discovery intervals, if available. This should handle the VC
-     * configuration (and any other probe using the same full + incremental discovery config),
-     * while also respecting the full discovery interval values configured in the probes.
+     * <p>If syncToBroadcastSchedule is false, we will use the full rediscovery interval
+     * as our rediscovery interval.
      *
      * <p>If syncToBroadcastSchedule is true, we will also only accept probe discovery intervals that
      * are greater than the broadcast interval. If a probe configures discovery at a higher
@@ -365,36 +355,17 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      * @return The discovery interval to use (in milliseconds) for full discovery
      */
     public long getFullDiscoveryInterval(@Nonnull ProbeInfo probeInfo, boolean syncToBroadcastSchedule) {
-        Long discoveryIntervalMillis = null;
-
-        // as per discussion with Ron, use the smaller of the performance discovery interval or
-        // full discovery interval, if both are specified.
         if (probeInfo.getFullRediscoveryIntervalSeconds() > 0) {
-            discoveryIntervalMillis = TimeUnit.SECONDS.toMillis(probeInfo.getFullRediscoveryIntervalSeconds());
-        }
-        // if there is a performance discovery setting, use that if it's less than the current
-        // discovery interval.
-        if (probeInfo.getPerformanceRediscoveryIntervalSeconds() > 0) {
-            long performanceRediscoveryMillis = TimeUnit.SECONDS.toMillis(
-                probeInfo.getPerformanceRediscoveryIntervalSeconds());
-            if (discoveryIntervalMillis == null || performanceRediscoveryMillis < discoveryIntervalMillis) {
-                // we're falling back to the performance discovery interval
-                discoveryIntervalMillis = performanceRediscoveryMillis;
-            }
-        }
-
-        final long broadcastIntervalMillis = getBroadcastIntervalMillis();
-        if (discoveryIntervalMillis == null) {
-            // if no full or performance interval defined in probe, set the discovery interval to
-            // the broadcast interval.
-            return broadcastIntervalMillis;
-        } else {
+            final long fullDiscoveryIntervalMillis = TimeUnit.SECONDS.toMillis(probeInfo.getFullRediscoveryIntervalSeconds());
             // if needs to sync with broadcast schedule, the final discovery interval should be
             // at least as long as the broadcast cycle
             return syncToBroadcastSchedule
-                ? Math.max(broadcastIntervalMillis, discoveryIntervalMillis)
-                : discoveryIntervalMillis;
+                ? Math.max(getBroadcastIntervalMillis(), fullDiscoveryIntervalMillis)
+                : fullDiscoveryIntervalMillis;
         }
+        // if no full interval defined in probe, set the discovery interval to
+        // the broadcast interval.
+        return getBroadcastIntervalMillis();
     }
 
     /**
