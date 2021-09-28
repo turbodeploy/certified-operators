@@ -1,7 +1,15 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.function.BiConsumer;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableMap;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
@@ -18,6 +26,24 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
     private static final String PRICING_MODEL = "pricing_model";
     private static final String STORAGE_TIER = "storage_tier";
     private static final String DB_SERVER_NAME_PROPERTY = "DB_SERVER_NAME";
+    private static final String DB_SERVICE_TIER = "server_service_tier";
+    private static final String DB_COMPUTE_TIER = "server_compute_tier";
+    private static final String DB_HW_GENERATION = "server_hardware_generation";
+
+    private static final Map<String, BiConsumer<DBEntityAspectApiDTO, String>> SETTER_MAPPING =
+            ImmutableMap.<String, BiConsumer<DBEntityAspectApiDTO, String>>builder()
+                    .put(MAX_CONCURRENT_SESSION,
+                            (aspect, v) -> aspect.setMaxConcurrentSessions(Integer.parseInt(v)))
+                    .put(MAX_CONCURRENT_WORKER,
+                            (aspect, v) -> aspect.setMaxConcurrentWorkers(Integer.parseInt(v)))
+                    .put(PRICING_MODEL, DBEntityAspectApiDTO::setPricingModel)
+                    .put(STORAGE_TIER, DBEntityAspectApiDTO::setStorageTier)
+                    .put(DB_SERVER_NAME_PROPERTY, DBEntityAspectApiDTO::setDbServerName)
+                    .put(DB_SERVICE_TIER, DBEntityAspectApiDTO::setServiceTier)
+                    .put(DB_COMPUTE_TIER, DBEntityAspectApiDTO::setComputeTier)
+                    .put(DB_HW_GENERATION, DBEntityAspectApiDTO::setHardwareGeneration)
+                    .build();
+
 
 
     @Nullable
@@ -43,28 +69,12 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
             }
         }
 
-        String concurrentSessions = entity.getEntityPropertyMapOrDefault(MAX_CONCURRENT_SESSION, null);
-        if (concurrentSessions != null) {
-            aspect.setMaxConcurrentSessions(Integer.parseInt(concurrentSessions));
-        }
-
-        String concurrentWorkers = entity.getEntityPropertyMapOrDefault(MAX_CONCURRENT_WORKER, null);
-        if (concurrentWorkers != null) {
-            aspect.setMaxConcurrentWorkers(Integer.parseInt(concurrentWorkers));
-        }
-
-        String pricingModel = entity.getEntityPropertyMapOrDefault(PRICING_MODEL, null);
-        if (pricingModel != null) {
-            aspect.setPricingModel(pricingModel);
-        }
-
-        String storageTier = entity.getEntityPropertyMapOrDefault(STORAGE_TIER, null);
-        if (storageTier != null) {
-            aspect.setStorageTier(storageTier);
-        }
-        String dbServerName = entity.getEntityPropertyMapOrDefault(DB_SERVER_NAME_PROPERTY, null);
-        if (dbServerName != null) {
-            aspect.setDbServerName(dbServerName);
+        for (Entry<String, BiConsumer<DBEntityAspectApiDTO, String>> entry : SETTER_MAPPING.entrySet()) {
+            final String propertyName = entry.getKey();
+            final String value = entity.getEntityPropertyMapOrDefault(propertyName, null);
+            if (StringUtils.isNotBlank(value)) {
+                entry.getValue().accept(aspect, value);
+            }
         }
 
         return aspect;
