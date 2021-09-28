@@ -12,10 +12,13 @@ import javax.annotation.Nonnull;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
@@ -42,6 +45,16 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
      * @return The OID to use to identify the target.
      */
     long getTargetId(@Nonnull TargetSpec targetSpec);
+
+    /**
+     * Generate an ID for the probe registration given the probe info and the transport.
+     *
+     * @param probeInfo the probe info
+     * @param transport the transport of the probe registration
+     * @return The OID to use to identify the probe registration
+     */
+    long getProbeRegistrationId(@Nonnull ProbeInfo probeInfo,
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport);
 
     /**
      * Get the probe ID for the probe described by a probeInfo.

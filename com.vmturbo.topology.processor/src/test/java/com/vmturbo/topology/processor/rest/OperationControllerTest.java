@@ -57,6 +57,7 @@ import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -700,7 +701,8 @@ public class OperationControllerTest {
                 .addTargetIdentifierField("targetId")
                 .addAccountDefinition(Probes.mandatoryField)
                 .build();
-        probeStore.registerNewProbe(probeInfo, transport);
+        final ContainerInfo containerInfo = ContainerInfo.newBuilder().build();
+        probeStore.registerNewProbe(probeInfo, containerInfo, transport);
         return identityProvider.getProbeId(probeInfo);
     }
 

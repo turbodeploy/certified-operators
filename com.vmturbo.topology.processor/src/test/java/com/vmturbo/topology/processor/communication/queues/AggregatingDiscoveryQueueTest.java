@@ -78,6 +78,9 @@ public class AggregatingDiscoveryQueueTest {
 
     private final ProbeInfo probeInfo2 = createProbeInfo("HyperV", false);
 
+    private final String channel1 = "channel1";
+    private final String channel2 = "channel2";
+
     @Mock
     private Function<Runnable, DiscoveryBundle> discoveryMethodMock1;
 
@@ -139,9 +142,11 @@ public class AggregatingDiscoveryQueueTest {
         when(target1.getSpec()).thenReturn(defaultSpec);
         when(target2.getSpec()).thenReturn(defaultSpec);
         when(target3.getSpec()).thenReturn(defaultSpec);
-        probeStore.registerNewProbe(probeInfo1, transportVc1);
-        probeStore.registerNewProbe(probeInfo1, transportVc2);
-        probeStore.registerNewProbe(probeInfo2, transportHyperV1);
+        final ContainerInfo containerInfo1 = ContainerInfo.newBuilder().setCommunicationBindingChannel(channel1).build();
+        final ContainerInfo containerInfo2 = ContainerInfo.newBuilder().setCommunicationBindingChannel(channel2).build();
+        probeStore.registerNewProbe(probeInfo1, containerInfo1, transportVc1);
+        probeStore.registerNewProbe(probeInfo1, containerInfo2, transportVc2);
+        probeStore.registerNewProbe(probeInfo2, containerInfo1, transportHyperV1);
 
         queue = new AggregatingDiscoveryQueueImpl(probeStore);
     }
@@ -353,24 +358,19 @@ public class AggregatingDiscoveryQueueTest {
      * channel
      *
      * @throws InterruptedException if Thread.sleep or Future.get throws it.
-     * @throws ExecutionException if Future.get throws it.
      * @throws ProbeException if a problem occurs with the probe
      */
     @Test
     public void testDedicatedTransportForTargetWithLabel() throws InterruptedException,
-        ExecutionException, ProbeException {
-        String channel = "channel1";
-
+            ProbeException {
         final ContainerInfo containerInfo = ContainerInfo.newBuilder()
-                .setCommunicationBindingChannel(channel)
+                .setCommunicationBindingChannel(channel1)
                 .build();
         queue.parseContainerInfoWithTransport(containerInfo, transportVc1);
         queue.parseContainerInfoWithTransport(containerInfo, transportVc2);
-        probeStore.updateTransportByChannel(channel, transportVc1);
-        probeStore.updateTransportByChannel(channel, transportVc2);
 
         TargetSpec specWithLabel =
-            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel1).build();
         when(target1.getSpec()).thenReturn(specWithLabel);
 
        addToQueueAndVerify(target1, DiscoveryType.FULL,
@@ -416,19 +416,12 @@ public class AggregatingDiscoveryQueueTest {
      * transports on the same channel. Even if that target had a persistent connection.
      *
      * @throws InterruptedException if Thread.sleep or Future.get throws it.
-     * @throws ExecutionException if Future.get throws it.
      * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testDiscoveryWithUpdatedChannel() throws InterruptedException,
-        ExecutionException, ProbeException {
-        String channel1 = "channel1";
-        String channel2 = "channel2";
-
+    public void testDiscoveryWithUpdatedChannel() throws InterruptedException, ProbeException {
         queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel1).build(), transportVc1);
         queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel2).build(), transportVc2);
-        probeStore.updateTransportByChannel(channel1, transportVc1);
-        probeStore.updateTransportByChannel(channel2, transportVc2);
 
         queue.assignTargetToTransport(transportVc1, target1);
 
@@ -474,21 +467,15 @@ public class AggregatingDiscoveryQueueTest {
      * Test that we can assign targets with channels to specific transports. Once one transport is
      * removed the property of the channel should remain
      *
-     * @throws InterruptedException if Thread.sleep or Future.get throws it.
-     * @throws ExecutionException if Future.get throws it.
      * @throws ProbeException if a problem occurs with the probe
      */
     @Test(expected = ProbeException.class)
-    public void testNoAvailableTransportsOnChannel() throws InterruptedException,
-        ExecutionException, ProbeException {
-        String channel = "channel1";
-
+    public void testNoAvailableTransportsOnChannel() throws ProbeException {
         TargetSpec specWithLabel =
-            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel("channel").build();
         when(target1.getSpec()).thenReturn(specWithLabel);
 
-        addToQueueAndVerify(target1, DiscoveryType.FULL,
-            discoveryMethodMock1, false);
+        addToQueueAndVerify(target1, DiscoveryType.FULL, discoveryMethodMock1, false);
     }
 
     /**
@@ -548,13 +535,11 @@ public class AggregatingDiscoveryQueueTest {
     @Test
     public void testTargetWithChannel() throws InterruptedException, ExecutionException, ProbeException {
         // tie target1 to transportVc1
-        final String channel = "channel";
         TargetSpec specWithLabel =
-            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel1).build();
         when(target1.getSpec()).thenReturn(specWithLabel);
 
-        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build(), transportVc1);
-        probeStore.updateTransportByChannel(channel, transportVc1);
+        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel1).build(), transportVc1);
 
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
             discoveryMethodMock1, false);

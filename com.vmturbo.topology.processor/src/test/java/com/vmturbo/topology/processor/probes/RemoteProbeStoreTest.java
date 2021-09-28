@@ -2,16 +2,19 @@ package com.vmturbo.topology.processor.probes;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -33,6 +36,7 @@ import org.mockito.Mockito;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -40,6 +44,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -53,12 +58,13 @@ import com.vmturbo.topology.processor.util.Probes;
 public class RemoteProbeStoreTest {
 
     private IdentityProvider idProvider;
-    private final StitchingOperationStore stitchingOperationStore = Mockito.mock(StitchingOperationStore.class);
+    private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
     private RemoteProbeStore store;
 
     private final ProbeInfo probeInfo = Probes.emptyProbe;
-    private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
-    private final ActionMergeSpecsRepository actionMergeSpecsRepository = Mockito.mock(ActionMergeSpecsRepository.class);
+    private final ContainerInfo containerInfo = ContainerInfo.newBuilder().build();
+    private final KeyValueStore keyValueStore = mock(KeyValueStore.class);
+    private final ActionMergeSpecsRepository actionMergeSpecsRepository = mock(ActionMergeSpecsRepository.class);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -68,14 +74,14 @@ public class RemoteProbeStoreTest {
 
     @Before
     public void setup() {
-        idProvider = Mockito.mock(IdentityProvider.class);
+        idProvider = mock(IdentityProvider.class);
         store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore, actionMergeSpecsRepository);
     }
 
     @Test
     public void testRegisterNewProbe() throws Exception {
         when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
-        assertFalse(store.registerNewProbe(probeInfo, transport));
+        assertFalse(store.registerNewProbe(probeInfo, containerInfo, transport));
 
         verify(stitchingOperationStore).setOperationsForProbe(eq(1234L), eq(probeInfo), eq(store.getProbeOrdering()));
     }
@@ -83,7 +89,7 @@ public class RemoteProbeStoreTest {
     @Test
     public void testGetProbeByName() throws Exception {
         when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
-        store.registerNewProbe(probeInfo, transport);
+        store.registerNewProbe(probeInfo, containerInfo, transport);
 
         assertTrue(store.getProbeIdForType(probeInfo.getProbeType()).isPresent());
         assertFalse(store.getProbeIdForType("non-existing-probe").isPresent());
@@ -99,7 +105,7 @@ public class RemoteProbeStoreTest {
                 .build();
         final long probeId = 12345L;
         when(idProvider.getProbeId(probeInfoWithCategory)).thenReturn(probeId);
-        store.registerNewProbe(probeInfoWithCategory, transport);
+        store.registerNewProbe(probeInfoWithCategory, containerInfo, transport);
         List<Long> dbServerProbeIds = store.getProbeIdsForCategory(ProbeCategory.DATABASE_SERVER);
         assertEquals(1, dbServerProbeIds.size());
         assertEquals(probeId, (long) dbServerProbeIds.get(0));
@@ -107,11 +113,11 @@ public class RemoteProbeStoreTest {
 
     @Test
     public void testRegisterNewProbeNotifiesListeners() throws Exception {
-        ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
+        ProbeStoreListener listener = mock(ProbeStoreListener.class);
         store.addListener(listener);
         when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
 
-        store.registerNewProbe(probeInfo, transport);
+        store.registerNewProbe(probeInfo, containerInfo, transport);
         verify(listener).onProbeRegistered(1234L, probeInfo);
     }
 
@@ -146,7 +152,7 @@ public class RemoteProbeStoreTest {
         // register the probe on another thread
         final ScheduledFuture<Boolean> future = Executors.newSingleThreadScheduledExecutor().schedule(() -> {
             try {
-                store.registerNewProbe(probeInfo, transport);
+                store.registerNewProbe(probeInfo, containerInfo, transport);
                 return latchOccurredBeforeTimeout.getValue().get();
             } catch (ProbeException e) {
                 fail("Probe Exception registering probe: " + e);
@@ -166,7 +172,7 @@ public class RemoteProbeStoreTest {
 
     @Test
     public void testRemoveListenerWhenPresent() throws Exception {
-        ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
+        ProbeStoreListener listener = mock(ProbeStoreListener.class);
 
         store.addListener(listener);
         assertTrue(store.removeListener(listener));
@@ -174,7 +180,7 @@ public class RemoteProbeStoreTest {
 
     @Test
     public void testRemoveListenerWhenAbsent() throws Exception {
-        assertFalse(store.removeListener(Mockito.mock(ProbeStoreListener.class)));
+        assertFalse(store.removeListener(mock(ProbeStoreListener.class)));
     }
 
     /**
@@ -192,7 +198,7 @@ public class RemoteProbeStoreTest {
         final String channel = "nyc";
         final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeFooId)
                 .setCommunicationBindingChannel(channel).build();
-        final Target target = Mockito.mock(Target.class);
+        final Target target = mock(Target.class);
         when(target.getProbeId()).thenReturn(probeFooId);
         when(target.getSpec()).thenReturn(targetSpec);
         // 2nd probe to assist on the testing
@@ -201,64 +207,90 @@ public class RemoteProbeStoreTest {
         when(idProvider.getProbeId(probeBar)).thenReturn(probeBarId);
 
         // No probe registered => no transports
-        Assert.assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+        Collection<ProbeRegistrationDescription> probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be no probe registration", 0, probeRegistrations.size());
 
         // One registered probe with no channel => still zero transports
-        store.registerNewProbe(probeFoo, transport);
-        Assert.assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+        store.registerNewProbe(probeFoo,containerInfo, transport);
+        assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+        probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be one probe registration", 1, probeRegistrations.size());
+        final long probeRegistrationId = probeRegistrations.iterator().next().getId();
+        final Optional<ProbeRegistrationDescription> probeRegistration = store.getProbeRegistrationById(probeRegistrationId);
+        assertTrue("Probe registration with id " + probeRegistrationId + " should be present",
+                probeRegistration.isPresent());
+        assertEquals(probeRegistrations.iterator().next(), probeRegistration.get());
 
         // Add another transport with the channel this time => 1 transport
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 = createTransport();
-        store.registerNewProbe(probeFoo, transport2);
-        store.updateTransportByChannel(channel, transport2);
+        final ContainerInfo containerInfo2 = ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build();
+        store.registerNewProbe(probeFoo, containerInfo2, transport2);
         Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportsWithChannel
                 = store.getTransportsForTarget(target);
-        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
-        Assert.assertEquals(1, transportsWithChannel.size());
-        Assert.assertEquals(transport2, transportsWithChannel.iterator().next());
+        assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(1, transportsWithChannel.size());
+        assertEquals(transport2, transportsWithChannel.iterator().next());
+        probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be 2 probe registrations", 2, probeRegistrations.size());
 
         // Add the 3rd transport with the channel, so we have two choices ;)
         final ITransport<MediationServerMessage, MediationClientMessage> transport3 = createTransport();
-        store.registerNewProbe(probeFoo, transport3);
-        store.updateTransportByChannel(channel, transport3);
+        final ContainerInfo containerInfo3 = ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build();
+        store.registerNewProbe(probeFoo, containerInfo3, transport3);
         transportsWithChannel = store.getTransportsForTarget(target);
-        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
-        Assert.assertEquals(2, transportsWithChannel.size());
-        Assert.assertEquals(ImmutableSet.of(transport2, transport3),
-                transportsWithChannel.stream().collect(Collectors.toSet()));
+        assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(2, transportsWithChannel.size());
+        assertEquals(ImmutableSet.of(transport2, transport3), transportsWithChannel.stream().collect(Collectors.toSet()));
+        probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be 3 probe registrations", 3, probeRegistrations.size());
 
         // Add the 4th transport with a different channel; that wouldn't add to the choices and
         // there are still only two choices.
         final ITransport<MediationServerMessage, MediationClientMessage> transport4 = createTransport();
-        store.registerNewProbe(probeFoo, transport4);
-        store.updateTransportByChannel("sfo", transport4);
+        final ContainerInfo containerInfo4 = ContainerInfo.newBuilder().setCommunicationBindingChannel("sfo").build();
+        store.registerNewProbe(probeFoo, containerInfo4, transport4);
         transportsWithChannel = store.getTransportsForTarget(target);
-        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
-        Assert.assertEquals(2, transportsWithChannel.size());
-        Assert.assertEquals(ImmutableSet.of(transport2, transport3),
-                transportsWithChannel.stream().collect(Collectors.toSet()));
+        assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(2, transportsWithChannel.size());
+        assertEquals(ImmutableSet.of(transport2, transport3), transportsWithChannel.stream().collect(Collectors.toSet()));
+        probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be 4 probe registrations", 4, probeRegistrations.size());
 
         // Add the 5th transport with the same channel but a different probe; that wouldn't add to
         // the choices and there are still only the two choices.
         final ITransport<MediationServerMessage, MediationClientMessage> transport5 = createTransport();
-        store.registerNewProbe(probeBar, transport5);
-        store.updateTransportByChannel(channel, transport5);
+        final ContainerInfo containerInfo5 = ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build();
+        store.registerNewProbe(probeBar, containerInfo5, transport5);
         transportsWithChannel = store.getTransportsForTarget(target);
-        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
-        Assert.assertEquals(2, transportsWithChannel.size());
-        Assert.assertEquals(ImmutableSet.of(transport2, transport3),
-                transportsWithChannel.stream().collect(Collectors.toSet()));
+        assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(2, transportsWithChannel.size());
+        assertEquals(ImmutableSet.of(transport2, transport3), transportsWithChannel.stream().collect(Collectors.toSet()));
+        probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be 5 probe registrations", 5, probeRegistrations.size());
 
         // Remove the 2nd transport => only transport3 left for channel nyc
         store.removeTransport(transport2);
         transportsWithChannel = store.getTransportsForTarget(target);
-        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
-        Assert.assertEquals(1, transportsWithChannel.size());
-        Assert.assertEquals(transport3, transportsWithChannel.iterator().next());
+        assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(1, transportsWithChannel.size());
+        assertEquals(transport3, transportsWithChannel.iterator().next());
+        probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be 4 probe registrations left", 4, probeRegistrations.size());
 
         // Remove the 3rd transport => none left for channel nyc
         store.removeTransport(transport3);
-        Assert.assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+        probeRegistrations = store.getAllProbeRegistrations();
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be 3 probe registrations left", 3, probeRegistrations.size());
     }
 
     /**
@@ -270,7 +302,7 @@ public class RemoteProbeStoreTest {
      */
     @Test
     public void testAddTransportForExistingProbe() throws Exception {
-        ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
+        ProbeStoreListener listener = mock(ProbeStoreListener.class);
         store.addListener(listener);
         final String tgt1 = "tgt1";
         final String tgt2 = "tgt2";
@@ -285,8 +317,8 @@ public class RemoteProbeStoreTest {
         when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(1234L);
 
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 = createTransport();
-        store.registerNewProbe(probe1, transport);
-        store.registerNewProbe(probe2, transport2);
+        store.registerNewProbe(probe1, containerInfo, transport);
+        store.registerNewProbe(probe2, containerInfo, transport2);
         final long probeId = store.getProbes().keySet().iterator().next();
         Assert.assertEquals(2, store.getTransport(probeId).size());
         verify(listener).onProbeRegistered(1234L, probe1);
@@ -300,7 +332,7 @@ public class RemoteProbeStoreTest {
      */
     @Test
     public void testAddTransportForIncompatibleProbe() throws Exception {
-        ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
+        ProbeStoreListener listener = mock(ProbeStoreListener.class);
         store.addListener(listener);
         final String tgt1 = "tgt1";
         final String tgt2 = "tgt2";
@@ -313,12 +345,12 @@ public class RemoteProbeStoreTest {
             .build();
         when(idProvider.getProbeId(probe1)).thenReturn(123L);
 
-        store.registerNewProbe(probe1, transport);
+        store.registerNewProbe(probe1, containerInfo, transport);
 
         // Incompatibility.
         when(idProvider.getProbeId(any())).thenThrow(new IdentityProviderException("BOO!"));
         expectedException.expect(ProbeException.class);
-        store.registerNewProbe(probe2, transport);
+        store.registerNewProbe(probe2, containerInfo, transport);
     }
 
     /**
@@ -330,7 +362,7 @@ public class RemoteProbeStoreTest {
      */
     @Test
     public void testUpdatedProbeRejected() throws Exception {
-        ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
+        ProbeStoreListener listener = mock(ProbeStoreListener.class);
         store.addListener(listener);
         final String tgt1 = "tgt1";
         final String tgt2 = "tgt2";
@@ -343,7 +375,7 @@ public class RemoteProbeStoreTest {
             .build();
         when(idProvider.getProbeId(probe1)).thenReturn(123L);
 
-        store.registerNewProbe(probe1, transport);
+        store.registerNewProbe(probe1, containerInfo, transport);
         store.removeTransport(transport);
         verify(stitchingOperationStore).removeOperationsForProbe(anyLong());
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
@@ -351,7 +383,7 @@ public class RemoteProbeStoreTest {
 
         when(idProvider.getProbeId(any())).thenThrow(new IdentityProviderException("BOO!"));
         expectedException.expect(ProbeException.class);
-        store.registerNewProbe(probe2, transport2);
+        store.registerNewProbe(probe2, containerInfo, transport2);
     }
 
     /**
@@ -363,7 +395,7 @@ public class RemoteProbeStoreTest {
      */
     @Test
     public void testUpdatedProbePermitted() throws Exception {
-        ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
+        ProbeStoreListener listener = mock(ProbeStoreListener.class);
         store.addListener(listener);
         final String tgt1 = "tgt1";
         final ProbeInfo probe1 = ProbeInfo.newBuilder(Probes.defaultProbe)
@@ -376,14 +408,14 @@ public class RemoteProbeStoreTest {
         final long probeId = 1234L;
         Mockito.when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(probeId);
 
-        store.registerNewProbe(probe1, transport);
+        store.registerNewProbe(probe1, containerInfo, transport);
         assertEquals(probe1, store.getProbe(probeId).get());
         store.removeTransport(transport);
         verify(stitchingOperationStore).removeOperationsForProbe(anyLong());
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
             createTransport();
 
-        store.registerNewProbe(probe2, transport2);
+        store.registerNewProbe(probe2, containerInfo, transport2);
         assertEquals(probe2, store.getProbe(probeId).get());
     }
 
@@ -406,7 +438,7 @@ public class RemoteProbeStoreTest {
         when(idProvider.getProbeId(probe1)).thenReturn(1234L);
         when(idProvider.getProbeId(probe2)).thenReturn(2345L);
 
-        store.registerNewProbe(probe1, transport);
+        store.registerNewProbe(probe1,containerInfo,  transport);
         verify(actionMergeSpecsRepository).setPoliciesForProbe(eq(1234L), eq(probe1));
 
         store.overwriteProbeInfo(ImmutableMap.of(2345L, probe2));
@@ -435,11 +467,11 @@ public class RemoteProbeStoreTest {
         Mockito.when(idProvider.getProbeId(storageProbe)).thenReturn(storageProbeId);
         Mockito.when(idProvider.getProbeId(hypervisorProbe)).thenReturn(hypervisorProbeId);
         Mockito.when(idProvider.getProbeId(fabricProbe)).thenReturn(fabricProbeId);
-        store.registerNewProbe(storageProbe, transport);
+        store.registerNewProbe(storageProbe, containerInfo, transport);
         assertEquals(storageProbe, store.getProbe(storageProbeId).get());
-        store.registerNewProbe(hypervisorProbe, transport);
+        store.registerNewProbe(hypervisorProbe, containerInfo, transport);
         assertEquals(hypervisorProbe, store.getProbe(hypervisorProbeId).get());
-        store.registerNewProbe(fabricProbe, transport);
+        store.registerNewProbe(fabricProbe, containerInfo, transport);
         ProbeStitchingOperation storageOp = new ProbeStitchingOperation(storageProbeId,
                 new StorageStitchingOperation());
         ProbeStitchingOperation hyperVisorOp = new ProbeStitchingOperation(hypervisorProbeId,
@@ -457,7 +489,7 @@ public class RemoteProbeStoreTest {
 
     @SuppressWarnings("unchecked")
     private static ITransport<MediationServerMessage, MediationClientMessage> createTransport() {
-        return (ITransport<MediationServerMessage, MediationClientMessage>)Mockito.mock(
+        return (ITransport<MediationServerMessage, MediationClientMessage>)mock(
             ITransport.class);
     }
 }

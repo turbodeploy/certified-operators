@@ -32,12 +32,15 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.extractor.IdentifyingPropertyExtractor;
@@ -207,6 +210,14 @@ public class IdentityProviderImpl implements IdentityProvider {
          * of equivalence.
          */
         Objects.requireNonNull(targetSpec);
+        return IdentityGenerator.next();
+    }
+
+    @Override
+    public long getProbeRegistrationId(@Nonnull ProbeInfo probeInfo,
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport) {
+        Objects.requireNonNull(probeInfo);
+        Objects.requireNonNull(transport);
         return IdentityGenerator.next();
     }
 

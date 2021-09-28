@@ -35,6 +35,28 @@ public interface TopologyProcessor {
     ProbeInfo getProbe(long id) throws CommunicationException, TopologyProcessorException;
 
     /**
+     * Returns all probe registrations, available currently in topology processor. Method is
+     * blocked until result is returned or exception is raised.
+     *
+     * @return set of probe registration infos
+     * @throws CommunicationException if persistent communication exception occurred
+     */
+    @Nonnull
+    Set<ProbeRegistrationInfo> getAllProbeRegistrations() throws CommunicationException;
+
+    /**
+     * Returns probe registration info by probe registration id.
+     *
+     * @param id probe registration identifier
+     * @return probe registration info object
+     * @throws CommunicationException if persistent communication exception occurred
+     * @throws TopologyProcessorException if probe is not found by the specified id
+     * @throws IllegalArgumentException if {@code id} is {@code null}
+     */
+    @Nonnull
+    ProbeRegistrationInfo getProbeRegistration(long id) throws CommunicationException, TopologyProcessorException;
+
+    /**
      * Returns all targets currently registered. Target set can be changed concurrently and the
      * result may not contain latest changes. Use {@link TargetListener} to be notified about all
      * the targets.

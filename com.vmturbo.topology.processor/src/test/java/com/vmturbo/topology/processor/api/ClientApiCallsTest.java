@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,6 +59,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
@@ -121,7 +123,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         identityProviderSpy.getStore().initialize();
         repositoryClientFake = integrationTestServer.getBean(FakeRepositoryClient.class);
         groupScopeResolver = mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any(), Matchers.any()))
+        when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any(), Matchers.any()))
                 .then(AdditionalAnswers.returnsSecondArg());
     }
 
@@ -224,8 +226,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final String communicationBindingChannel = "testChannel";
         final AccountValue original = new InputField(FIELD_NAME, "fieldValue", Optional.empty());
         final TargetData data = mock(TargetData.class);
-        Mockito.when(data.getAccountData()).thenReturn(Collections.singleton(original));
-        Mockito.when(data.getCommunicationBindingChannel()).thenReturn(Optional.of(communicationBindingChannel));
+        when(data.getAccountData()).thenReturn(Collections.singleton(original));
+        when(data.getCommunicationBindingChannel()).thenReturn(Optional.of(communicationBindingChannel));
         final long targetId = getTopologyProcessor().addTarget(probeId, data);
         final Optional<Target> target = targetStore.getTarget(targetId);
         Assert.assertTrue(target.isPresent());
@@ -247,9 +249,9 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final AccountValue field1 = new InputField(FIELD_NAME + 1, "fieldValue", Optional.empty());
         final AccountValue field2 = new InputField(FIELD_NAME + 2, "fieldValue", Optional.empty());
         final TargetData data = mock(TargetData.class);
-        Mockito.when(data.getAccountData())
+        when(data.getAccountData())
                         .thenReturn(new HashSet<>(Arrays.asList(field1, field2)));
-        Mockito.when(data.getCommunicationBindingChannel()).thenReturn(Optional.empty());
+        when(data.getCommunicationBindingChannel()).thenReturn(Optional.empty());
         expectedException.expect(TopologyProcessorException.class);
         expectedException.expectMessage(
                         CoreMatchers.allOf(CoreMatchers.containsString(field1.getName()),
@@ -759,7 +761,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 .clearAccountDefinition()
                 .addAllAccountDefinition(accountDefEntries)
                 .build();
-        probeStore.registerNewProbe(oneMandatory, null);
+        final ContainerInfo containerInfo = ContainerInfo.newBuilder().build();
+        probeStore.registerNewProbe(oneMandatory, containerInfo, null);
         return probeStore.getProbes().entrySet().stream()
                 .filter(e -> e.getValue().getProbeType()
                         .equals(oneMandatory.getProbeType()))

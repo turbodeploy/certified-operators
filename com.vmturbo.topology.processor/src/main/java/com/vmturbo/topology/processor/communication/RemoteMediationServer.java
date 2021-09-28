@@ -132,7 +132,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
-                probeStore.registerNewProbe(probeInfo, serverEndpoint);
+                probeStore.registerNewProbe(probeInfo, containerInfo, serverEndpoint);
                 logger.info("Transport has been registered");
             } catch (ProbeException e) {
                 logger.error("Probe " + probeInfo.getProbeType() + " from " + serverEndpoint

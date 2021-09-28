@@ -25,6 +25,7 @@ import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
 import com.vmturbo.topology.processor.api.PlanExportNotificationListener;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.ProbeListener;
+import com.vmturbo.topology.processor.api.ProbeRegistrationInfo;
 import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TargetListener;
@@ -139,6 +140,19 @@ public class TopologyProcessorClient extends
     @Nonnull
     public ProbeInfo getProbe(final long id) throws CommunicationException, TopologyProcessorException {
         return restClient.getProbe(id);
+    }
+
+    @Override
+    @Nonnull
+    public Set<ProbeRegistrationInfo> getAllProbeRegistrations() throws CommunicationException {
+        return restClient.getAllProbeRegistrations();
+    }
+
+    @Override
+    @Nonnull
+    public ProbeRegistrationInfo getProbeRegistration(final long id) throws CommunicationException,
+            TopologyProcessorException {
+        return restClient.getProbeRegistration(id);
     }
 
     @Override

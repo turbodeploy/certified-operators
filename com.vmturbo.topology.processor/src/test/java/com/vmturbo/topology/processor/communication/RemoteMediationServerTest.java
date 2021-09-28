@@ -8,6 +8,7 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
@@ -109,7 +110,7 @@ public class RemoteMediationServerTest {
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
         final ProbeInfo probeInfo = Probes.defaultProbe;
-        probeStore.registerNewProbe(probeInfo, transport);
+        probeStore.registerNewProbe(probeInfo, containerInfo, transport);
         probeId = identityProvider.getProbeId(probeInfo);
         Mockito.when(mockOperationMessageHandler.expirationTime()).thenReturn(Long.MAX_VALUE);
         target1 = mock(Target.class);
@@ -186,7 +187,7 @@ public class RemoteMediationServerTest {
         final String errorMessage = "Test Exception";
         final RuntimeException exception = new RuntimeException();
         doThrow(new KeyValueStoreOperationException(errorMessage, exception)).when(mockProbeStore)
-                .registerNewProbe(any(), any());
+                .registerNewProbe(any(), any(), any());
         try {
             remoteMediationServer.registerTransport(containerInfo, transportToClose);
             fail();
@@ -259,8 +260,8 @@ public class RemoteMediationServerTest {
         final ProbeInfo incrementalProbeInfo2 = Probes.incrementalProbe;
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
             (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
-        probeStore.registerNewProbe(incrementalProbeInfo1, transport);
-        probeStore.registerNewProbe(incrementalProbeInfo2, transport2);
+        probeStore.registerNewProbe(incrementalProbeInfo1, containerInfo, transport);
+        probeStore.registerNewProbe(incrementalProbeInfo2, containerInfo, transport2);
 
         long incrementalProbeId = identityProvider.getProbeId(incrementalProbeInfo1);
 

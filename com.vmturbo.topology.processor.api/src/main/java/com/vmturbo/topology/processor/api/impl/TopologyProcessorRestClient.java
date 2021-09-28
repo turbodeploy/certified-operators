@@ -21,6 +21,7 @@ import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentRestClient;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.ProbeRegistrationInfo;
 import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.ValidationStatus;
@@ -31,6 +32,8 @@ import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationRespons
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllResponse;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.GetAllProbes;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
+import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.GetAllProbeRegistrations;
+import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
@@ -43,12 +46,17 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
 
     private final String targetUri;
     private final String probeUri;
+    private final String probeRegistrationUri;
     private final String entityUri;
     private final String actionUri;
 
     private final NoExceptionsRestClient<GetAllProbes> getAllProbesClient;
 
     private final ProbeRestClient getProbeClient;
+
+    private final NoExceptionsRestClient<GetAllProbeRegistrations> getAllProbeRegistrationsClient;
+
+    private final ProbeRegistrationRestClient getProbeRegistrationClient;
 
     private final SensitiveDataTargetRestClient addTargetClient;
 
@@ -71,11 +79,14 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         super(connectionConfig);
         this.targetUri = restUri + "/target/";
         this.probeUri = restUri + "/probe/";
+        this.probeRegistrationUri = restUri + "/probe/registration";
         this.entityUri = restUri + "/entity/";
         this.actionUri = restUri + "/action/";
 
         getAllProbesClient = new NoExceptionsRestClient<>(GetAllProbes.class);
         getProbeClient = new ProbeRestClient();
+        getAllProbeRegistrationsClient = new NoExceptionsRestClient<>(GetAllProbeRegistrations.class);
+        getProbeRegistrationClient = new ProbeRegistrationRestClient();
         addTargetClient = new SensitiveDataTargetRestClient(HttpStatus.BAD_REQUEST);
         getTargetClient = new TargetRestClient(HttpStatus.NOT_FOUND);
         getAllTargetsClient = new NoExceptionsRestClient<>(GetAllTargetsResponse.class);
@@ -99,8 +110,23 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
     @Nonnull
     public ProbeInfo getProbe(final long id) throws CommunicationException, TopologyProcessorException {
         final RequestEntity<?> request =
-                        RequestEntity.get(URI.create(probeUri + Long.toString(id))).build();
+                RequestEntity.get(URI.create(probeUri + Long.toString(id))).build();
         return getProbeClient.execute(request);
+    }
+
+    @Nonnull
+    public Set<ProbeRegistrationInfo> getAllProbeRegistrations() throws CommunicationException {
+        final RequestEntity<?> request = RequestEntity.get(URI.create(probeRegistrationUri)).build();
+        final GetAllProbeRegistrations result = getAllProbeRegistrationsClient.execute(request);
+        return ImmutableSet.copyOf(result.getProbeRegistrations());
+    }
+
+    @Nonnull
+    public ProbeRegistrationInfo getProbeRegistration(final long id) throws CommunicationException,
+            TopologyProcessorException {
+        final RequestEntity<?> request =
+                RequestEntity.get(URI.create(probeRegistrationUri + Long.toString(id))).build();
+        return getProbeRegistrationClient.execute(request);
     }
 
     public long addTarget(final long probeId, @Nonnull final TargetData targetData)
@@ -245,6 +271,7 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
             return "Error executing target request " + request.getUrl();
         }
     }
+
     /**
      * Rest client, returning {@link TargetInfo} response.
      */
@@ -257,6 +284,21 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         @Override
         protected TopologyProcessorException createException(ProbeDescription body) {
             return new TopologyProcessorException(body.getError());
+        }
+    }
+
+    /**
+     * Rest client, returning {@link TargetInfo} response.
+     */
+    private class ProbeRegistrationRestClient extends RestClient<ProbeRegistrationDescription, TopologyProcessorException> {
+
+        ProbeRegistrationRestClient() {
+            super(ProbeRegistrationDescription.class, HttpStatus.NOT_FOUND);
+        }
+
+        @Override
+        protected TopologyProcessorException createException(ProbeRegistrationDescription body) {
+            return new TopologyProcessorException("error getting probe registration" + body.getId());
         }
     }
 

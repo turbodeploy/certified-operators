@@ -87,6 +87,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionListResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -191,6 +192,8 @@ public class OperationManagerTest {
 
     private final EntityStore entityStore = Mockito.mock(EntityStore.class);
 
+    private final ContainerInfo containerInfo = ContainerInfo.newBuilder().build();
+
     private final DiscoveredGroupUploader discoveredGroupUploader = Mockito.mock(DiscoveredGroupUploader.class);
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader = Mockito.mock(DiscoveredWorkflowUploader.class);
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader = Mockito.mock(DiscoveredCloudCostUploader.class);
@@ -263,7 +266,7 @@ public class OperationManagerTest {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder(Probes.emptyProbe)
                 .setProbeCategory(ProbeCategory.COST.getCategory())
                 .build();
-        probeStore.registerNewProbe(probeInfo, transport);
+        probeStore.registerNewProbe(probeInfo, containerInfo, transport);
         final TargetSpec targetSpec = new TargetSpec(probeId, Collections.singletonList(new InputField("targetId",
             "123", Optional.empty())), Optional.empty(), "System");
         target = targetStore.createTarget(targetSpec.toDto());
@@ -341,7 +344,7 @@ public class OperationManagerTest {
                         .setProbeCategory(ProbeCategory.COST.getCategory())
                         .setLicense(ProbeLicense.APP_CONTROL.getKey())
                         .build();
-        probeStore.registerNewProbe(probeInfo, transport);
+        probeStore.registerNewProbe(probeInfo, containerInfo, transport);
 
         final TargetSpec targetSpec = new TargetSpec(probeId,
                                                      Collections.singletonList(
@@ -799,7 +802,7 @@ public class OperationManagerTest {
                         .setProbeCategory(ProbeCategory.COST.getCategory())
                         .setLicense(ProbeLicense.APP_CONTROL.getKey())
                         .build();
-        probeStore.registerNewProbe(probeInfo, transport);
+        probeStore.registerNewProbe(probeInfo, containerInfo, transport);
 
         final TargetSpec targetSpec = new TargetSpec(probeId,
                                                      Collections.singletonList(
@@ -1024,7 +1027,7 @@ public class OperationManagerTest {
         probeInfo = Probes.defaultProbe.toBuilder()
             .setIncrementalRediscoveryIntervalSeconds(30)
             .build();
-        probeStore.registerNewProbe(probeInfo, transport);
+        probeStore.registerNewProbe(probeInfo, containerInfo, transport);
         operationManager.onProbeRegistered(probeId, probeInfo);
 
         OperationTestUtilities.waitForEvent(
