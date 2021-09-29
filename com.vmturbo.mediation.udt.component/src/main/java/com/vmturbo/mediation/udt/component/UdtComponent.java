@@ -95,6 +95,6 @@ public class UdtComponent extends MediationComponentMain {
      * @param args Program arguments
      */
     public static void main(String[] args) {
-        startContext(UdtComponent.class);
+        startComponent(UdtComponent.class);
     }
 }

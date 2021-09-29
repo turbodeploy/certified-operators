@@ -70,7 +70,7 @@ public class MediationComponentMain extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startContext(MediationComponentMain.class);
+        startComponent(MediationComponentMain.class);
     }
 
     @Bean

@@ -129,7 +129,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startContext(PlanOrchestratorComponent.class);
+        startComponent(PlanOrchestratorComponent.class);
     }
 
     /**
