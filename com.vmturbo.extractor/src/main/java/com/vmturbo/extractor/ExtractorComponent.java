@@ -99,7 +99,7 @@ public class ExtractorComponent extends BaseVmtComponent {
      * @param args none expected
      */
     public static void main(String[] args) {
-        startContext(ExtractorComponent.class);
+        startComponent(ExtractorComponent.class);
     }
 
     @Override

@@ -16,6 +16,9 @@ import javax.annotation.Nullable;
 
 import org.apache.commons.lang.StringUtils;
 
+import com.vmturbo.components.common.featureflags.FeatureFlag;
+import com.vmturbo.components.common.featureflags.FeatureFlagEnablementStoreBase;
+
 /**
  * Configuration for a Voltron instance. Created via {@link VoltronConfiguration#newBuilder()}.
  */
@@ -166,6 +169,15 @@ public class VoltronConfiguration {
     @Nonnull
     public Optional<String> getLicensePath() {
         return Optional.ofNullable(licensePath);
+    }
+
+    /**
+     * Return the map of global property overrides.
+     *
+     * @return global property overrides
+     */
+    public Map<String, Object> getGlobalPropertyOverrides() {
+        return globalPropertyOverrides;
     }
 
     /**
@@ -411,6 +423,21 @@ public class VoltronConfiguration {
          */
         public Builder globalPropertyOverride(String propName, Object value) {
             globalPropertyOverrides.put(propName, value);
+            return this;
+        }
+
+        /**
+         * Specify one or more feature flags to be enabled during this Voltron exececution.
+         *
+         * @param featureFlags feature flags to be enabled
+         * @return workbench builder
+         */
+        public Builder enableFeatureFlag(FeatureFlag... featureFlags) {
+            for (final FeatureFlag featureFlag : featureFlags) {
+                final String propertyName =
+                        FeatureFlagEnablementStoreBase.getConfigPropertyName(featureFlag);
+                globalPropertyOverride(propertyName, "true");
+            }
             return this;
         }
 

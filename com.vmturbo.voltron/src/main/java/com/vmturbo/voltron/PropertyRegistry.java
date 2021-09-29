@@ -3,6 +3,7 @@ package com.vmturbo.voltron;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.Properties;
 
 import javax.annotation.Nonnull;
@@ -31,8 +32,14 @@ class PropertyRegistry {
         this.voltronConfiguration = voltronConfiguration;
     }
 
+    /**
+     * Get the voltron global properties, possibly including those added via the workbench builder.
+     *
+     * @param includeWorkbenchOverrides true to include global overrides added in workbench builder
+     * @return global properties properties object
+     */
     @Nonnull
-    private Properties getGlobalOverrides() {
+    public Properties getGlobalOverrides(boolean includeWorkbenchOverrides) {
         Properties props = new Properties();
         // Override certain global properties.
         props.put("kafkaServers", "localhost:9093");
@@ -106,6 +113,10 @@ class PropertyRegistry {
 
             // SQL schemas are on a per-component basis, so we don't do them here.
         }
+        if (includeWorkbenchOverrides) {
+            voltronConfiguration.getGlobalPropertyOverrides().forEach((prop, value) ->
+                    props.setProperty(prop, Objects.toString(value)));
+        }
         return props;
     }
 
@@ -139,7 +150,7 @@ class PropertyRegistry {
         // Start with the config map properties, which take lowest priority.
         Properties props = ConfigMapPropertiesReader.readConfigMap(shortName, "file:" + Voltron.getAbsolutePath("com.vmturbo.voltron/src/main/resources/config/configmap.yaml"));
         // Apply global overrides.
-        props.putAll(getGlobalOverrides());
+        props.putAll(getGlobalOverrides(false));
 
         // Additional overrides.
         props.put("migrationLocation", Voltron.migrationLocation(topFolder));

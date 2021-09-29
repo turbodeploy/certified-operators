@@ -52,6 +52,8 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
+import com.vmturbo.components.common.featureflags.FeatureFlagManager;
+import com.vmturbo.components.common.featureflags.PropertiesFeatureFlagEnablementStore;
 
 /**
  * Velocity-Oriented Lightweight Turbo Running On Native.
@@ -139,6 +141,9 @@ public class Voltron extends BaseVmtComponent {
 
         PropertyRegistry propertyRegistry = new PropertyRegistry(namespace, config.getDataPath(), config);
 
+        // use global properties for feature flag enablement data
+        FeatureFlagManager.setStore(
+                new PropertiesFeatureFlagEnablementStore(propertyRegistry.getGlobalOverrides(true)));
         // The root context.
         final AnnotationConfigWebApplicationContext voltronRootContext =
                 voltronComponentContext("voltron", "com.vmturbo.voltron", Voltron.class, null, propertyRegistry);

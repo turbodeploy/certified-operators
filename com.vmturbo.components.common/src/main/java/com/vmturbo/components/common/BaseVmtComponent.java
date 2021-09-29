@@ -47,6 +47,7 @@ import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.springframework.beans.FatalBeanException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
@@ -72,6 +73,9 @@ import com.vmturbo.components.common.RequiresDataInitialization.InitializationEx
 import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.featureflags.FeatureFlagEnablementStore;
+import com.vmturbo.components.common.featureflags.FeatureFlagManager;
+import com.vmturbo.components.common.featureflags.PropertiesLoaderFeatureFlagEnablementStore;
 import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -702,16 +706,37 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
+     * Start the component by starting its web server with Spring context, initialized from the
+     * given configuration class. Before that's done, feature flags are initialized with the
+     * needed {@link FeatureFlagEnablementStore}, so feature flags can be used in code used during
+     * context construction.
+     *
+     * @param configurationClass starting point for Spring context creation
+     */
+    protected static void startComponent(@Nonnull Class<?> configurationClass) {
+        configureFeatureFlagStore();
+        startContext(configurationClass);
+    }
+
+    /**
      * Starts web server with Spring context, initialized from the specified configuration class.
      *
      * @param configurationClass spring context configuration class
      * @return Spring context initialized
      */
     @Nonnull
-    protected static ConfigurableWebApplicationContext startContext(
+    private static ConfigurableWebApplicationContext startContext(
             @Nonnull Class<?> configurationClass) {
         return startContext(servletContextHolder -> attachSpringContext(servletContextHolder,
                 configurationClass));
+    }
+
+    private static void configureFeatureFlagStore() {
+        try {
+            FeatureFlagManager.setStore(new PropertiesLoaderFeatureFlagEnablementStore());
+        } catch (ContextConfigurationException e) {
+            throw new FatalBeanException("Failed to configure a feature flag store", e);
+        }
     }
 
     protected static void addMetricsServlet(@Nonnull final ServletContextHandler contextServer) {

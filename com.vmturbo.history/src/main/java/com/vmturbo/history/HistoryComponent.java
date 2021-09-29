@@ -122,7 +122,7 @@ public class HistoryComponent extends BaseVmtComponent {
      * @param args Command-line arguments.
      */
     public static void main(String[] args) {
-        startContext(HistoryComponent.class);
+        startComponent(HistoryComponent.class);
     }
 
     @Override

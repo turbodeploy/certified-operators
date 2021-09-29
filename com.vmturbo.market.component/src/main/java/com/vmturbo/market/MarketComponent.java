@@ -78,7 +78,7 @@ public class MarketComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startContext(MarketComponent.class);
+        startComponent(MarketComponent.class);
     }
 
     @PostConstruct
