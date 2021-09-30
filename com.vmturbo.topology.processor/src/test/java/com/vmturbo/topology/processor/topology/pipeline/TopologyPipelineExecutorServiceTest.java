@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology.pipeline;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.isA;
@@ -27,7 +28,6 @@ import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -376,34 +376,43 @@ public class TopologyPipelineExecutorServiceTest {
      *
      * @throws Exception If anything goes wrong.
      */
-    @Ignore("Test disable due to random failures. See OM-75353")
     @Test
     public void testQueueBlockingExpires() throws Exception {
+        // ARRANGE
         TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(clock, 1);
-        pipelineQueue.block(10, TimeUnit.MILLISECONDS);
-        assertTrue(pipelineQueue.isBlocked());
         final long topologyId = 123;
-        pipelineQueue.queuePipeline(() -> TopologyInfo.newBuilder()
+        CompletableFuture<Void> waitForPipelineAndCheckResult =
+                CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return pipelineQueue.take().getTopologyId();
+                    } catch (InterruptedException e) {
+                        Assert.fail("test failed due to " + e);
+                        return null;
+                    }
+                }).thenAccept(topologyIdResult -> assertEquals(topologyId, (long)topologyIdResult));
+
+        // ACT - ASSERT
+
+        // Block the pipeline and check that it is blocked
+        pipelineQueue.block(10, TimeUnit.MILLISECONDS);
+        assertTrue("pipeline should be blocked", pipelineQueue.isBlocked());
+
+        // Queue a request and check that it is not executing
+        pipelineQueue.queuePipeline(() -> TopologyInfo
+                .newBuilder()
                 .setTopologyContextId(777)
                 .setTopologyId(topologyId)
                 .build(), () -> null);
-        CompletableFuture<Void> takeStarted = new CompletableFuture<>();
-        CompletableFuture<Long> takeSuccess = new CompletableFuture<>();
-        new Thread(() -> {
-            try {
-                takeStarted.complete(null);
-                takeSuccess.complete(pipelineQueue.take().getTopologyId());
-            } catch (InterruptedException e) {
-                takeSuccess.completeExceptionally(e);
-            }
-        }).start();
 
-        takeStarted.get(1, TimeUnit.MINUTES);
-        assertFalse(takeSuccess.isDone());
+        try {
+            waitForPipelineAndCheckResult.get(1, TimeUnit.MILLISECONDS);
+            Assert.fail("request should not run yet");
+        } catch (TimeoutException e) {
+        }
 
+        // Time travel to when the pipeline is not blocked and assert that the result is correct
         clock.addTime(10, ChronoUnit.MILLIS);
-
-        assertThat(takeSuccess.get(1, TimeUnit.MINUTES), is(topologyId));
+        waitForPipelineAndCheckResult.get(1, TimeUnit.SECONDS);
     }
 
     /**
@@ -413,31 +422,40 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testQueueBlockUnblock() throws Exception {
+        // ARRANGE
         TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(clock, 1);
+        final long topologyId = 123;
+        CompletableFuture<Void> waitForPipelineAndCheckResult =
+                CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return pipelineQueue.take().getTopologyId();
+                    } catch (InterruptedException e) {
+                        Assert.fail("test failed due to " + e);
+                        return null;
+                    }
+                }).thenAccept(topologyIdResult -> assertEquals(topologyId, (long)topologyIdResult));
+
+        // ACT -ASSERT
+
+        // Block the pipeline and check that it is blocked
         pipelineQueue.block(MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
         assertTrue(pipelineQueue.isBlocked());
-        final long topologyId = 123;
+
+        // Queue a request and check that it is not executing
         pipelineQueue.queuePipeline(() -> TopologyInfo.newBuilder()
                 .setTopologyContextId(777)
                 .setTopologyId(topologyId)
                 .build(), () -> null);
-        CompletableFuture<Void> takeStarted = new CompletableFuture<>();
-        CompletableFuture<Long> takeSuccess = new CompletableFuture<>();
-        new Thread(() -> {
-            try {
-                takeStarted.complete(null);
-                takeSuccess.complete(pipelineQueue.take().getTopologyId());
-            } catch (InterruptedException e) {
-                takeSuccess.completeExceptionally(e);
-            }
-        }).start();
 
-        takeStarted.get(1, TimeUnit.MINUTES);
-        assertFalse(takeSuccess.isDone());
+        try {
+            waitForPipelineAndCheckResult.get(1, TimeUnit.MILLISECONDS);
+            Assert.fail("request should not run yet");
+        } catch (TimeoutException e) {
+        }
 
+        // Unblock the pipeline and check that the request is processed correctly
         pipelineQueue.unblock();
-
-        assertThat(takeSuccess.get(1, TimeUnit.MINUTES), is(topologyId));
+        waitForPipelineAndCheckResult.get(1, TimeUnit.SECONDS);
     }
 
     /**
