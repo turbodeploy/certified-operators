@@ -134,8 +134,23 @@ COPY CentOS-Base.repo /etc/yum.repos.d/
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
     # The name and file path of the key needs to match the ones configured in the CentOS .repo files.
     curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official -s -o /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official && \
-    dnf search chrom && \
-    dnf install -y --nobest rsyslog procps udev chromium libXScrnSaver
+    # Install common libs that every component has
+    dnf install -y --nobest rsyslog procps-ng \
+    # Install specific dependencies that the grafana renderer plugins need. Taken from lib list for centos:
+    # https://grafana.com/docs/grafana/latest/administration/image_rendering/
+    libXcomposite libXdamage libXtst cups libXScrnSaver pango atk adwaita-cursor-theme adwaita-icon-theme \
+    at at-spi2-atk at-spi2-core cairo-gobject colord-libs dconf desktop-file-utils ed emacs-filesystem gdk-pixbuf2 \
+    glib-networking gnutls gsettings-desktop-schemas gtk-update-icon-cache gtk3 hicolor-icon-theme jasper-libs json-glib \
+    libappindicator-gtk3 libdbusmenu libdbusmenu-gtk3 libepoxy liberation-fonts liberation-narrow-fonts \
+    liberation-sans-fonts liberation-serif-fonts libgusb libindicator-gtk3 libmodman libproxy libsoup libwayland-cursor \
+    libwayland-egl libxkbcommon m4 mailx nettle patch psmisc redhat-lsb-core redhat-lsb-submod-security rest spax time \
+    trousers xdg-utils xkeyboard-config alsa-lib \
+    # the below libs were not in the grafana doc list, but without those the pdf generation was not working.
+    # those were found by running this command: "ldd /var/lib/grafanax/plugins/grafana-image-renderer/chrome-linux/chrome"
+    # from inside the grafana image, and check which lib was missing
+    libX11-xcb libdrm libgbm && \
+    # clean up
+    dnf clean all
 
 COPY rsyslog.conf /etc
 
@@ -181,6 +196,10 @@ RUN /grafana-default/bin/grafana-cli \
     --pluginUrl https://grafana.com/api/plugins/marcusolsson-treemap-panel/versions/0.9.1/download \
     plugins install marcusolsson-treemap-panel
 
+# This command is only used to have a visual indication during the build that all the chrome dependencies are satisfied
+RUN echo "IMPORTANT! Make sure that in the list below all the chrome dependencies are satisfied." && \
+    ldd /var/lib/grafanax/plugins/grafana-image-renderer/chrome-linux/chrome
+
 # This is our python script to manage the server, responding to newly uploaded licenses, SMTP
 # config changes in turbonomic, etc.
 COPY grafana_mgr.py /
@@ -203,3 +222,4 @@ EXPOSE 3000
 STOPSIGNAL SIGTERM
 
 ENTRYPOINT [ "/entrypoint.sh" ]
+
