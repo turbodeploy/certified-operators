@@ -1,12 +1,15 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionStateMachine;
+import com.vmturbo.action.orchestrator.action.ActionStateMachine.ActionEventListener;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 
@@ -16,8 +19,13 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 public class ActionFactory implements IActionFactory {
 
     private final ActionModeCalculator actionModeCalculator;
-    public ActionFactory(ActionModeCalculator actionModeCalculator) {
+    private final List<ActionStateMachine.ActionEventListener> actionEventListeners;
+
+    public ActionFactory(
+            @Nonnull ActionModeCalculator actionModeCalculator,
+            @Nonnull List<ActionEventListener> actionEventListeners) {
         this.actionModeCalculator = actionModeCalculator;
+        this.actionEventListeners = actionEventListeners;
     }
 
     /**
@@ -27,7 +35,8 @@ public class ActionFactory implements IActionFactory {
     @Nonnull
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             final long actionPlanId, long recommendationOid) {
-        return new Action(recommendation, actionPlanId, actionModeCalculator, recommendationOid);
+        return new Action(recommendation, actionPlanId, actionModeCalculator, recommendationOid,
+                actionEventListeners);
     }
 
     /**
@@ -43,6 +52,7 @@ public class ActionFactory implements IActionFactory {
                                 @Nullable final Long associatedResourceGroupId) {
         return new Action(recommendation, recommendationTime, actionPlanId,
             actionModeCalculator, description, associatedAccountId, associatedResourceGroupId,
-                IdentityGenerator.next());
+                IdentityGenerator.next(),
+                actionEventListeners);
     }
 }

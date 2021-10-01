@@ -76,8 +76,8 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 /**
  * The representation of an action in the system.
  *
- * Actions permit mutation through event reception via the {@link #receive(ActionEvent)} method
- * which updates their internal state via a {@link StateMachine}.
+ * <p>Actions permit mutation through event reception via the {@link #receive(ActionEvent)} method
+ * which updates their internal state via a {@link StateMachine}.</p>
  */
 @ThreadSafe
 public class Action implements ActionView {
@@ -87,9 +87,9 @@ public class Action implements ActionView {
     /**
      * The recommended steps to take in the environment.
      *
-     * Not final - if the same recommendation with different non-identifying properties (e.g.
+     * <p>Not final - if the same recommendation with different non-identifying properties (e.g.
      * different savings or explanation) comes in from the market we want to be able to capture
-     * the updated information.
+     * the updated information.</p>
      */
     @GuardedBy("recommendationLock")
     private ActionDTO.Action recommendation;
@@ -97,9 +97,9 @@ public class Action implements ActionView {
     /**
      * The translation for this action.
      *
-     * Actions are translated from the market's domain-agnostic action recommendations into
+     * <p>Actions are translated from the market's domain-agnostic action recommendations into
      * domain-specific actions that make sense in the real world. See
-     * {@link ActionTranslator} for more details.
+     * {@link ActionTranslator} for more details.</p>
      */
     @Nonnull
     @GuardedBy("recommendationLock")
@@ -109,8 +109,8 @@ public class Action implements ActionView {
      * A lock used to control re-assignments of the recommendation, and the associated
      * action translation.
      *
-     * Because the recommendation is immutable, you don't need to hold the lock when interacting
-     * with it if you save it to a local variable. i.e:
+     * <p>Because the recommendation is immutable, you don't need to hold the lock when interacting
+     * with it if you save it to a local variable. i.e:</p>
      *
      * <code>
      * final ActionDTO.Action curRecommendation;
@@ -125,18 +125,17 @@ public class Action implements ActionView {
      * The cached action mode for the action. This is not final, because for "live" actions it
      * can change during the lifetime of the action. We save it because action mode computation
      * is always necessary, rarely changes, and fairly expensive.
-     * <p>
-     * Plans/BuyRI:
-     * In plans, and for Buy RI actions, this action mode is always the same.
-     * <p>
-     * Live:
+     *
+     * <p>Plans/BuyRI:
+     * In plans, and for Buy RI actions, this action mode is always the same.</p>
+     *
+     * <p>Live:
      * Every broadcast the Topology Processor updates the per-entity settings in the group
      * component according to the group and setting policies defined by the user. When the
      * Action Orchestrator processes an action plan it gets these per-entity settings, and
      * can then determine the new action mode. The processing code is responsible for calling
      * {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} for all live actions when the per-entity settings
-     * are updated.
-     * <p>
+     * are updated.</p>
      */
     private volatile ActionMode actionMode = ActionMode.RECOMMEND;
 
@@ -144,13 +143,13 @@ public class Action implements ActionView {
      * The cached workflow settings for the actions, broken down by state.
      * Each action state may have a different workflow setting.
      * Not final, because the settings can change during the lifetime of the action.
-     * <p>
-     * Plans/BuyRI:
+     *
+     * <p>Plans/BuyRI:
      * In plans, and for Buy RI actions, this should always be empty because we don't allow
-     * action execution.
-     * <p>
-     * Live:
-     * Updated every broadcast via {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} for all live actions.
+     * action execution.</p>
+     *
+     * <p>Live:
+     * Updated every broadcast via {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} for all live actions.</p>
      */
     private volatile Map<ActionState, SettingProto.Setting> workflowSettingsForState =
         Collections.emptyMap();
@@ -225,11 +224,11 @@ public class Action implements ActionView {
     /**
      * The category of the action, extracted from the explanation in the {@link ActionDTO.Action}
      * and saved here for efficiency.
-     * <p>
-     * The category of an action is determined from explanations, which are affected by translation.
+     *
+     * <p>The category of an action is determined from explanations, which are affected by translation.
      * However, the translation shouldn't affect the category (i.e. running an action through
      * translation shouldn't change the purpose of doing the action), so we should be safe
-     * saving the {@link ActionCategory} regardless of the translation status.
+     * saving the {@link ActionCategory} regardless of the translation status.</p>
      */
     private ActionCategory actionCategory;
 
@@ -258,7 +257,7 @@ public class Action implements ActionView {
         if (savedState.actionDecision != null) {
             this.decision.setDecision(savedState.actionDecision);
         }
-        this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
+        this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState, Collections.emptyList());
         this.actionTranslation = savedState.actionTranslation;
         this.actionCategory = savedState.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
@@ -283,6 +282,47 @@ public class Action implements ActionView {
         }
     }
 
+    /**
+     * Creates an action for testing without action event listeners.
+     *
+     * @param recommendation the version of the action from the market.
+     * @param recommendationTime the time the recommendation was created.
+     * @param actionPlanId the plan id that the action belongs to.
+     * @param actionModeCalculator the calculator used for determining action mode.
+     * @param description the description of the action. In live action case this is null since it
+     *                    comes from action translation.
+     * @param associatedAccountId associatedAccountId which is null when this is a live action.
+     * @param associatedResourceGroupId associatedResourceGroupId which is null when this is a live action.
+     * @param recommendationOid the oid of the action.
+     */
+    @VisibleForTesting
+    public Action(@Nonnull final ActionDTO.Action recommendation,
+            @Nonnull final LocalDateTime recommendationTime,
+            final long actionPlanId,
+            @Nonnull final ActionModeCalculator actionModeCalculator,
+            @Nullable final String description,
+            @Nullable final Long associatedAccountId,
+            @Nullable final Long associatedResourceGroupId,
+            long recommendationOid) {
+        this(recommendation, recommendationTime, actionPlanId, actionModeCalculator,
+                description, associatedAccountId, associatedResourceGroupId, recommendationOid,
+                Collections.emptyList());
+    }
+
+    /**
+     * Creates an action.
+     *
+     * @param recommendation the version of the action from the market.
+     * @param recommendationTime the time the recommendation was created.
+     * @param actionPlanId the plan id that the action belongs to.
+     * @param actionModeCalculator the calculator used for determining action mode.
+     * @param description the description of the action. In live action case this is null since it
+     *                    comes from action translation.
+     * @param associatedAccountId associatedAccountId which is null when this is a live action.
+     * @param associatedResourceGroupId associatedResourceGroupId which is null when this is a live action.
+     * @param recommendationOid the oid of the action.
+     * @param actionEventListeners listeners monitoring state transitions of the action.
+     */
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
                   final long actionPlanId,
@@ -290,12 +330,13 @@ public class Action implements ActionView {
                   @Nullable final String description,
                   @Nullable final Long associatedAccountId,
                   @Nullable final Long associatedResourceGroupId,
-            long recommendationOid) {
+                  long recommendationOid,
+                  @Nonnull List<ActionStateMachine.ActionEventListener> actionEventListeners) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
         this.recommendationTime = Objects.requireNonNull(recommendationTime);
-        this.stateMachine = ActionStateMachine.newInstance(this);
+        this.stateMachine = ActionStateMachine.newInstance(this, actionEventListeners);
         this.currentExecutableStep = Optional.empty();
         this.decision = new Decision();
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
@@ -307,14 +348,42 @@ public class Action implements ActionView {
         this.recommendationOid = recommendationOid;
     }
 
+    /**
+     * Creates a live action in testing without action listeners.
+     *
+     * @param recommendation the version of the action from the market.
+     * @param actionPlanId the plan id that the action belongs to.
+     * @param actionModeCalculator the calculator used for determining action mode.
+     * @param recommendationOid the oid of the action.
+     */
+    @VisibleForTesting
     public Action(@Nonnull final ActionDTO.Action recommendation,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator,
+            final long actionPlanId,
+            @Nonnull final ActionModeCalculator actionModeCalculator,
             long recommendationOid) {
+        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null, null,
+                null, recommendationOid, Collections.emptyList());
+    }
+
+    /**
+     * Creates a live action.
+     *
+     * @param recommendation the version of the action from the market.
+     * @param actionPlanId the plan id that the action belongs to.
+     * @param actionModeCalculator the calculator used for determining action mode.
+     * @param recommendationOid the oid of the action.
+     * @param actionEventListeners listeners monitoring state transitions of the action.
+     */
+    public Action(@Nonnull final ActionDTO.Action recommendation,
+                  final long actionPlanId,
+                  @Nonnull final ActionModeCalculator actionModeCalculator,
+                  long recommendationOid,
+                  @Nonnull List<ActionStateMachine.ActionEventListener> actionEventListeners) {
         // This constructor is used by LiveActionStore, so passing null to 'description' argument
         // or the 'associatedAccountId' or to "associatedResourceGroup" is not hurtful since the
         // description will be formed at a later stage during refreshAction.
         this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null, null,
-                null, recommendationOid);
+                null, recommendationOid, actionEventListeners);
     }
 
     /**
@@ -433,7 +502,11 @@ public class Action implements ActionView {
      *
      * <p>This should only be called during live action plan processing, after the
      * {@link EntitiesAndSettingsSnapshotFactory} is updated with the new snapshot of the settings
-     * and entities needed to resolve action modes and form the action description.
+     * and entities needed to resolve action modes and form the action description.</p>
+     *
+     * @param entitiesSnapshot snapshot containing all relevant entities and settings to this broadcast
+     *                         cycle of actions.
+     * @throws UnsupportedActionException when failing to build the action description.
      */
     public void refreshAction(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot)
             throws UnsupportedActionException {
@@ -454,8 +527,8 @@ public class Action implements ActionView {
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
                 // if it was unsupported.
-                logger.error("Unexpected unsupported action exception while refreshing action:" +
-                    " {}. Error: {}", recommendation, e.getMessage());
+                logger.error("Unexpected unsupported action exception while refreshing action:"
+                    + " {}. Error: {}", recommendation, e.getMessage());
             }
             // in real-time, entitiesSnapshot has information on all action types, hence the second
             // parameter specific to detached volumes is not needed as in plans.
@@ -589,11 +662,11 @@ public class Action implements ActionView {
     /**
      * Sets action description.
      *
-     * This method is exposed to permit setting action description in tests without the need to
-     * go through Action Store logic.
+     * <p>This method is exposed to permit setting action description in tests without the need to
+     * go through Action Store logic.</p>
      *
-     * The action description is being built by
-     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     * <p>The action description is being built by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}</p>
      *
      * @param description The action description that will be set.
      */
@@ -1058,7 +1131,7 @@ public class Action implements ActionView {
     }
 
     /**
-     * Called when an action enters the POST state, after executing an action unsuccessfully
+     * Called when an action enters the POST state, after executing an action unsuccessfully.
      *
      * @param event The failure event signaling the end of action execution
      */
@@ -1072,7 +1145,7 @@ public class Action implements ActionView {
     /**
      * Called when an action enters the POST state, after executing an action.
      *
-     * Helper method for onActionPostSuccess and onActionPostFailure.
+     * <p>Helper method for onActionPostSuccess and onActionPostFailure.</p>
      *
      * @param event The event signaling the end of action execution
      */
@@ -1146,7 +1219,7 @@ public class Action implements ActionView {
      */
     @FunctionalInterface
     private interface ExecutionStatusUpdater {
-        void updateExecutionStep(@Nonnull final ExecutableStep stepToUpdate);
+        void updateExecutionStep(@Nonnull ExecutableStep stepToUpdate);
     }
 
     /**
@@ -1167,8 +1240,8 @@ public class Action implements ActionView {
 
     private void createExecutionStep(final long targetId) {
         if (currentExecutableStep.isPresent()) {
-            throw new IllegalStateException("createExecutionStep for target " + targetId +
-                " called when execution step already present");
+            throw new IllegalStateException("createExecutionStep for target " + targetId
+                + " called when execution step already present");
         }
 
         final ExecutableStep newExecutableStep = new ExecutableStep(targetId);
@@ -1235,9 +1308,9 @@ public class Action implements ActionView {
      * decided to execute or not to execute a particular action.
      * Not provided if no decision has been made.
      *
-     * Tracked using an internal class so that the variable can be final and
+     * <p>Tracked using an internal class so that the variable can be final and
      * all attempts to write to it, even those from internal to the Action model,
-     * can be checked for legality before being carried out.
+     * can be checked for legality before being carried out.</p>
      */
     private class Decision {
         private Optional<ActionDecision> decision;
@@ -1297,10 +1370,6 @@ public class Action implements ActionView {
 
         public ActionDecision getActionDecision() {
             return actionDecision;
-        }
-
-        public ExecutionStep getExecutionStep() {
-            return executionStep;
         }
 
         public ActionState getCurrentState() {
@@ -1366,6 +1435,11 @@ public class Action implements ActionView {
          */
         final ActionCategory actionCategory;
 
+        /**
+         * Creates an instance of the action data filled in using an action.
+         *
+         * @param action the action to save to the database.
+         */
         public SerializationState(@Nonnull final Action action) {
             this.actionPlanId = action.actionPlanId;
             this.recommendation = action.getTranslationResultOrOriginal();
@@ -1383,6 +1457,22 @@ public class Action implements ActionView {
             this.recommendationOid = action.getRecommendationOid();
         }
 
+        /**
+         * Creates an instance of the action data filled in using the columns from the database.
+         *
+         * @param actionPlanId actionPlanId from the database.
+         * @param recommendation recommendation from the database.
+         * @param recommendationTime recommendationTime from the database.
+         * @param decision decision from the database.
+         * @param executableStep executableStep from the database.
+         * @param actionState actionState from the database.
+         * @param actionTranslation actionTranslation from the database.
+         * @param associatedAccountId associatedAccountId from the database.
+         * @param associatedResourceGroupId associatedResourceGroupId from the database.
+         * @param associatedNodePoolId associatedNodePoolId from the database.
+         * @param actionDetailData actionDetailData from the database.
+         * @param recommendationOid recommendationOid from the database.
+         */
         public SerializationState(final long actionPlanId,
                                   @Nonnull ActionDTO.Action recommendation,
                                   @Nonnull LocalDateTime recommendationTime,
@@ -1425,6 +1515,10 @@ public class Action implements ActionView {
             return recommendationOid;
         }
 
+        public ExecutionStep getExecutionStep() {
+            return executionStep;
+        }
+
         /**
          * For the completed FAILED actions return the failed execution step.
          * Fot the other actions it will be returned the latest execution step if any.
@@ -1455,10 +1549,11 @@ public class Action implements ActionView {
          * And only actions with failed REPLACE and POST steps may have TWO failed steps
          * and in this case REPLACE step will be returned as more important one.
          *
-         * <p>Examples:</p>
-         * <p>1- If PRE fails, return the error for PRE</p>
-         * <p>2- If REPLACE fails, we show the error for REPLACE regardless of POST failing or not</p>
-         * <p>3- If POST fails, we show the error for POST</p>
+         * <ul>Examples:
+         * <li>1- If PRE fails, return the error for PRE</li>
+         * <li>2- If REPLACE fails, we show the error for REPLACE regardless of POST failing or not</li>
+         * <li>3- If POST fails, we show the error for POST</li>
+         * </ul>
          *
          * @param executableSteps all executed steps for the action
          * @return the failed step

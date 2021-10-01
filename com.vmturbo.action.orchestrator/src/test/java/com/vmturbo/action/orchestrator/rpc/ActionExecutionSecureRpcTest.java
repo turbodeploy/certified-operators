@@ -137,7 +137,8 @@ public class ActionExecutionSecureRpcTest {
     final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
     final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
-    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+            Collections.emptyList());
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);

@@ -543,7 +543,8 @@ public class LiveActionPipelineIntegrationTest {
     public void testNotRecommendedAreClearedAndRemoved() throws Exception {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
-        final ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+        final ActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+                Collections.emptyList());
         final ActionStore actionStore =
             new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 targetSelector, entitySettingsCache, actionHistoryDao,
@@ -604,7 +605,8 @@ public class LiveActionPipelineIntegrationTest {
     public void testAuditActionSendReady() throws Exception {
         final ActionAuditSender listener = Mockito.mock(ActionAuditSender.class);
 
-        final ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+        final ActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+                Collections.emptyList());
         final ActionStore actionStore =
             new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 targetSelector, entitySettingsCache, actionHistoryDao,
