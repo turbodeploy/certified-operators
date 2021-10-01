@@ -75,8 +75,11 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                                      final StreamObserver<FindInitialPlacementResponse> responseObserver) {
         request.getInitialPlacementList().forEach(initialPlacement -> {
             logger.info("{} The number of workloads for reservation {} is {} with mode {} "
-                + "and grouping {}", logPrefix, initialPlacement.getId(), initialPlacement.getInitialPlacementBuyerCount(),
-                initialPlacement.getReservationMode(), initialPlacement.getReservationGrouping());
+                            + ", grouping {} and {} providers", logPrefix, initialPlacement.getId(),
+                    initialPlacement.getInitialPlacementBuyerCount(),
+                    initialPlacement.getReservationMode(),
+                    initialPlacement.getReservationGrouping(),
+                    initialPlacement.getProvidersList().size());
         });
         Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder
                 .findPlacement(request);

@@ -15,15 +15,19 @@ message InitialPlacementDTO {
     // List of buyers.
     repeated InitialPlacementBuyer initialPlacementBuyer = 1;
 
-    // Specification to determine what the type of behavior Placement entities should take.
-    optional .topology.ReservationMode reservation_mode = 2;
+  // Specification to determine what the type of behavior Placement entities should take.
+  optional .topology.ReservationMode reservation_mode = 2;
 
-    // Specification to determine what group type entities should be placed on corresponding to
-    // the Mode of the reservation.
-    optional .topology.ReservationGrouping reservation_grouping = 3;
+  // Specification to determine what group type entities should be placed on corresponding to
+  // the Mode of the reservation.
+  optional .topology.ReservationGrouping reservation_grouping = 3;
 
-    // The reservation id.
-    optional int64 id = 4;
+  // The reservation id.
+  optional int64 id = 4;
+
+  // The potential providers for this placement restricting initial placement to these providers
+  // based on the passed providers' entity type.
+  repeated int64 providers = 5;
 }
 
 message InitialPlacementBuyer {

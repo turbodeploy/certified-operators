@@ -19,11 +19,8 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
  * Spring Configuration for Reservation services.
  */
 @Configuration
-@Import({PlanOrchestratorDBConfig.class,
-        TemplatesConfig.class,
-        BaseKafkaProducerConfig.class,
-        MarketClientConfig.class
-})
+@Import({PlanOrchestratorDBConfig.class, TemplatesConfig.class, BaseKafkaProducerConfig.class,
+        MarketClientConfig.class})
 public class ReservationConfig {
 
     @Autowired
@@ -82,9 +79,9 @@ public class ReservationConfig {
      */
     @Bean
     public ReservationManager reservationManager() {
-        ReservationManager reservationManager = new ReservationManager(dbConfig.reservationDao(),
-                reservationNotificationSender(), initialPlacementService(),
-                templatesConfig.templatesDao(), planConfig.planDao(), planConfig.planService(), prepareReservationCache);
-        return reservationManager;
+        return new ReservationManager(dbConfig.reservationDao(), reservationNotificationSender(),
+                initialPlacementService(), templatesConfig.templatesDao(), planConfig.planDao(),
+                planConfig.planService(), prepareReservationCache,
+                planConfig.groupServiceBlockingStub());
     }
 }
