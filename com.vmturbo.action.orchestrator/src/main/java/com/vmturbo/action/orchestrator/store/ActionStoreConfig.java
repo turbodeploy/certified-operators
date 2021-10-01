@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.Arrays;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,6 +22,7 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.LoggingActionEventListener;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
@@ -160,7 +162,13 @@ public class ActionStoreConfig {
 
     @Bean
     public IActionFactory actionFactory() {
-        return new ActionFactory(actionModeCalculator());
+        return new ActionFactory(actionModeCalculator(),
+                Arrays.asList(loggingActionEventListener()));
+    }
+
+    @Bean
+    public LoggingActionEventListener loggingActionEventListener() {
+        return new LoggingActionEventListener();
     }
 
     /**

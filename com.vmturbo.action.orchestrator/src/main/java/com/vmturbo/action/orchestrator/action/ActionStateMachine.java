@@ -1,11 +1,9 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
@@ -28,8 +26,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
  * A state machine for use in tracking action states.
  */
 public class ActionStateMachine {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private ActionStateMachine() {}
 
@@ -64,21 +60,22 @@ public class ActionStateMachine {
      *   ---------------------------------------
      * </pre>
      *
-     * Transitions from READY -> QUEUED are guarded by checks that verify the action
-     * is in an appropriate mode that allows such a transition.
+     * <p>Transitions from READY -> QUEUED are guarded by checks that verify the action
+     * is in an appropriate mode that allows such a transition.</p>
      *
      * @param action The action to create the state machine for.
      * @param currentState The current state of the action.
+     * @param actionEventListeners listeners of action events received by the action state machine.
      * @return A state machine for the action.
      */
     public static StateMachine<ActionState, ActionEvent> newInstance(
-                                @Nonnull final Action action,
-                                @Nonnull final ActionState currentState) {
+            @Nonnull final Action action,
+            @Nonnull final ActionState currentState,
+            @Nonnull List<ActionEventListener> actionEventListeners) {
 
         Objects.requireNonNull(action);
-        final long actionId = action.getId();
 
-        return StateMachine.<ActionState, ActionEvent>newBuilder(currentState)
+        StateMachine.Builder<ActionState, ActionEvent> builder = StateMachine.<ActionState, ActionEvent>newBuilder(currentState)
             // The legal state transitions
             .addTransition(from(ActionState.READY).to(ActionState.CLEARED)
                 .onEvent(NotRecommendedEvent.class)
@@ -176,25 +173,28 @@ public class ActionStateMachine {
                 .after(action::onActionFailure))
             .addTransition(from(ActionState.FAILING).to(ActionState.FAILED)
                 .onEvent(SuccessEvent.class)
-                .after(action::onActionSuccess))
+                .after(action::onActionSuccess));
 
-            // Called on all events
-            .addEventListener((preState, postState, event, performedTransition) -> {
-                onActionEvent(actionId, preState, postState, event, performedTransition);
-            })
+        for (final ActionEventListener actionEventListener : actionEventListeners) {
+            builder.addEventListener((preState, postState, event, performedTransition) ->
+                actionEventListener.onActionEvent(action, preState, postState, event, performedTransition));
+        }
 
-            .build();
+        return builder.build();
     }
 
     /**
      * Create a new instance of an action state machine in the initial state.
-     * See {@link ActionStateMachine#newInstance(Action, ActionState)}.
+     * See {@link ActionStateMachine#newInstance(Action, ActionState, List)}.
      *
      * @param action The action whose state machine should be created.
+     * @param actionEventListeners listeners of action events received by the action state machine.
      * @return A new state machine for the action.
      */
-    public static StateMachine<ActionState, ActionEvent> newInstance(@Nonnull final Action action) {
-        return newInstance(action, ActionState.READY);
+    public static StateMachine<ActionState, ActionEvent> newInstance(
+            @Nonnull final Action action,
+            @Nonnull List<ActionEventListener> actionEventListeners) {
+        return newInstance(action, ActionState.READY, actionEventListeners);
     }
 
     private static Transition.SourceBuilder<ActionState, ActionEvent> from(
@@ -203,36 +203,41 @@ public class ActionStateMachine {
     }
 
     /**
-     * Called on receiving all action events.
-     * This method should record an entry in the audit log when we create an action audit log.
+     * Interface used for registering an object as a listener of the action state machine.
      *
-     * @param actionId The ID of the action associated with the event.
-     * @param preState The state prior to the event being received.
-     * @param postState The state after the event being received.
-     * @param event The event that was received.
-     * @param performedTransition Whether the transition was performed.
+     * <p>Previously, new features would add themselves to ActionStateUpdater, creating this
+     * monster that monitors action step state changes from TP and then translating that into the
+     * business logic depending on if there's another action step. Instead of repeating that,
+     * ActionStateMachine already knows the next state. Use this listener for ActionOrchestrator's
+     * version of the action state, which is more complete than TopologyProcessor's.</p>
+     *
+     * <p><b>WARNING:</b> Do not change the state of the action within the listener. This will result in
+     * unexpected behavior that is difficult to debug. We intentionally provide the ActionView to
+     * try to prevent you from changing the action state.</p>
+     *
+     * <p><b>WARNING:</b> Do not perform blocking calls like writing to the database as this will prevent
+     * the action state from progressing. Instead place blocking calls in an Executor service.</p>
      */
-    private static void onActionEvent(long actionId,
-                                      @Nonnull final ActionState preState,
-                                      @Nonnull final ActionState postState,
-                                      @Nonnull final ActionEvent event,
-                                      boolean performedTransition) {
-        if (event instanceof ActionEvent.NotRecommendedEvent) {
-            logger.trace("Action {} {} event {} ({} -> {})",
-                    actionId,
-                    performedTransition ? "handled" : "dropped",
-                    event,
-                    preState,
-                    postState
-            );
-        } else {
-            logger.info("Action {} {} event {} ({} -> {})",
-                    actionId,
-                    performedTransition ? "handled" : "dropped",
-                    event,
-                    preState,
-                    postState
-            );
-        }
+    @FunctionalInterface
+    public interface ActionEventListener {
+
+        /**
+         * This method will be called when an action event is received by the action state machine.
+         *
+         * @param actionView A reference to a read only version of the action.
+         * @param preState The state prior to the event being received.
+         * @param postState The state after the event being received.
+         * @param event The event that was received.
+         * @param performedTransition Whether a transition was actually performed.
+         *                            It is possible for preState.equals(postState) == true && performedTransition == true
+         *                            (on a self-transition), but it is not possible for
+         *                            preState.equals(postState) == false && performedTransition == true
+         */
+        void onActionEvent(
+                @Nonnull ActionView actionView,
+                @Nonnull ActionState preState,
+                @Nonnull ActionState postState,
+                @Nonnull ActionEvent event,
+                boolean performedTransition);
     }
 }

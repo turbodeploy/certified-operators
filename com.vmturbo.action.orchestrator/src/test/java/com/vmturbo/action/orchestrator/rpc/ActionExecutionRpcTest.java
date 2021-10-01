@@ -114,7 +114,8 @@ public class ActionExecutionRpcTest {
     final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
-    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+            Collections.emptyList());
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
@@ -540,7 +541,8 @@ public class ActionExecutionRpcTest {
         final ActionsServiceBlockingStub actionOrchestratorServiceClient =
                 ActionsServiceGrpc.newBlockingStub(
             grpcServer.getChannel());
-        final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+        final IActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+                Collections.emptyList());
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, entitySettingsCache, actionHistoryDao,
             actionTranslator, clock, userSessionContext,

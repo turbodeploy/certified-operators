@@ -85,7 +85,8 @@ public class PlanActionStoreTransactionTest {
     private final ActionTranslator actionTranslator = passthroughTranslator();
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
 
-    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+            Collections.emptyList());
     private PlanActionStore actionStore;
     private static ActionPipelineStages.AtomicActionsPlan emptyAtomicActionsPlan;
     private static List<ActionDTO.Action> emptyMergedActions;

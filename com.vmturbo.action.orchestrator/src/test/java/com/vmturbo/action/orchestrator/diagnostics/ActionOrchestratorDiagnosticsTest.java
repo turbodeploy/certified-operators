@@ -56,7 +56,8 @@ public class ActionOrchestratorDiagnosticsTest {
     private final ActionStore actionStore = mock(ActionStore.class);
     private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
-    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+            Collections.emptyList());
     private final IActionStoreFactory storeFactory = mock(IActionStoreFactory.class);
     private final ActionOrchestratorDiagnostics diagnostics =
             new ActionOrchestratorDiagnostics(actionStorehouse, actionModeCalculator);

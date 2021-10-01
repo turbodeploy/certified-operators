@@ -55,6 +55,23 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
  * The {@link ActionStateUpdater} listens for Action Execution notifications
  * as actions are being executed. When they are received, the corresponding
  * actions are updated so that their state reflects the notification received.
+ *
+ * <p>WARNING: DO NOT ADD MORE FEATURES TO THIS CLASS. Instead use
+ * {@link com.vmturbo.action.orchestrator.action.ActionStateMachine.ActionEventListener}
+ * and register it in {@link com.vmturbo.action.orchestrator.store.ActionStoreConfig}!</p>
+ *
+ * <p>This class's purpose is to listen to action step (PRE/REPLACE/POST) events from
+ * topology processor and translate it to messages ActionStateMachine can use.
+ *
+ * <ul>It has evolved far beyond that by connecting all the business logic for
+ * action state transitions like:
+ *     <li>accepted actions</li>
+ *     <li>external approval</li>
+ *     <li>workflows</li>
+ *     <li>action history</li>
+ *     <li>cloud vm group management</li>
+ *     <li>audit log</li>
+ * </ul>
  */
 public class ActionStateUpdater implements ActionExecutionListener {
 

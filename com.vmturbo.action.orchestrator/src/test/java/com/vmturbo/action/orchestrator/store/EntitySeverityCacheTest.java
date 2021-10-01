@@ -62,7 +62,8 @@ public class EntitySeverityCacheTest {
     private EntitySeverityCache entitySeverityCache;
     private ActionStore actionStore = mock(ActionStore.class);
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
-    private final ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final ActionFactory actionFactory = new ActionFactory(actionModeCalculator,
+            Collections.emptyList());
     private static final long DEFAULT_SOURCE_ID = 1;
     private static final long ACTION_PLAN_ID = 9876;
 
