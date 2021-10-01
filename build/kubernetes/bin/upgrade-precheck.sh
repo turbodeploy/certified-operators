@@ -1,5 +1,5 @@
 #!/bin/bash
-#Upgrade pre-check script - September 28, 2021
+#Upgrade pre-check script - September 29, 2021
 #Author: CS
 echo " "
 RED=`tput setaf 1`
@@ -12,8 +12,11 @@ NC=`tput sgr0` # No Color
 VERBOSE=0
 ECC=0 # Endpoints connectivity checks details
 
+# Reset terminal on exit not to mess with colors
+trap 'tput sgr0' EXIT
+
 usage () {
-   echo "v2.03"
+   echo "v2.06"
    echo ""
    echo "Usage:"
    echo ""
@@ -33,7 +36,7 @@ check_space(){
     echo "Checking for free disk space..."
     VARSPACE=$(df | egrep -v "overlay|shm")
     if [[ ${VERBOSE} = 1 ]]; then
-        printf %s "${VARSPACE}"
+        df -h | egrep -v "overlay|shm"
         echo " "
     fi
     if [[ $(printf %s "${VARSPACE}" | grep "/var$" | awk {'print $4'}) > 15728640 ]]; then
@@ -62,12 +65,12 @@ check_space(){
 check_internet(){
     echo "${WHITE}****************************"
     echo "${WHITE}Checking endpoints connectivity for ONLINE upgrade ONLY..."
-    URL_LIST=( https://index.docker.io https://auth.docker.io https://registry-1.docker.io https://production.cloudflare.docker.com https://raw.githubusercontent.com https://github.com https://download.vmturbo.com/appliance/download/updates/8.2.7/onlineUpgrade.sh https://yum.mariadb.org https://packagecloud.io https://download.postgresql.org https://yum.postgresql.org )
+    URL_LIST=( https://index.docker.io https://auth.docker.io https://registry-1.docker.io https://production.cloudflare.docker.com https://raw.githubusercontent.com https://github.com https://download.vmturbo.com/appliance/download/updates/8.3.2/onlineUpgrade.sh https://yum.mariadb.org https://packagecloud.io https://download.postgresql.org https://yum.postgresql.org )
     NOT_REACHABLE_LIST=()
     read -p "${GREEN}Are you using a proxy to connect to the internet on this Turbonomic instance (y/n)? " CONT
     if [[ "${CONT}" =~ ^([yY][eE][sS]|[yY])$ ]]
     then
-        read -p "${WHITE}What is the proxy name or IP and port you use?....example https://proxy.server.com:8080 " P_NAME_PORT
+        read -p "${WHITE}What is the proxy name or IP and port you use?....example https://proxy.server.com:8443 " P_NAME_PORT
         echo " "
         echo "${WHITE}Checking endpoints connectivity for ONLINE upgrade ONLY using proxy provided..."
         for URL in "${URL_LIST[@]}"
@@ -80,6 +83,7 @@ check_internet(){
                 NOT_REACHABLE_LIST+=( $URL )
                 if [[ ${VERBOSE} = 1 || ${ECC} = 1 ]]; then
                     echo "${RED}Cannot reach ${URL} - Do not proceed with online upgrade until this is resolved."
+                    echo "${RED}Please work with your IT administrators to make sure this system has access to this URL."
                 fi
             fi
         done
@@ -94,6 +98,7 @@ check_internet(){
                 NOT_REACHABLE_LIST+=( ${URL} )
                 if [[ ${VERBOSE} = 1 || ${ECC} = 1 ]]; then
                     echo "${RED}Cannot reach ${URL} - Do not proceed with online upgrade until this is resolved."
+                    echo "${RED}Please work with your IT administrators to make sure this system has access to this URL."
                 fi
             fi
         done
@@ -453,7 +458,12 @@ echo "Starting Upgrade Pre-check..."
 echo " "
 check_space
 echo " "
-check_internet
+echo "${WHITE}*****************************"
+read -p "${GREEN}Are you going to be performing an ONLINE upgrade of the Turbonomic instance (y/n)? " ONL
+echo " "
+if [[ "${ONL}" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+   check_internet    
+fi
 echo " "
 check_database
 echo " "
@@ -467,7 +477,11 @@ check_time_and_date
 echo " "
 check_turbonomic_pods
 echo " "
-echo "${WHITE}Please take time to review and resolve any issues above before proceeding with the upgrade, if you cannot resolve **please contact support**"
+if [[ ${VERBOSE} = 1 ]]; then
+   echo "${WHITE}Please review and resolve any FAILED issues above before proceeding with the upgrade, if you cannot resolve **please contact Turbonomic support**"
+else
+   echo "${WHITE}Please review and resolve any FAILED issues above before proceeding with the upgrade, if you need more details of any failed items re-run the script with the -v switch, if you cannot resolve **please contact Turbonomic support**"
+fi
 echo " "
 echo "End of Upgrade Pre-Check"
 
