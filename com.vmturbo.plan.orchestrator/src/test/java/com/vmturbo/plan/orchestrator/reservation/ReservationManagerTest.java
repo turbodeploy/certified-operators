@@ -5,19 +5,25 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
@@ -30,6 +36,10 @@ import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
@@ -80,14 +90,17 @@ public class ReservationManagerTest {
 
     private ReservationNotificationSender resNotificationSender;
 
+    private InitialPlacementServiceMole initialPlacementService =
+            spy(new InitialPlacementServiceMole());
 
-    private InitialPlacementServiceMole initialPlacementService = spy(new InitialPlacementServiceMole());
+    private final GroupServiceMole groupRpcService = spy(new GroupServiceMole());
 
     /**
      * mock server for initialPlacementService.
      */
     @Rule
-    public GrpcTestServer mockServer = GrpcTestServer.newServer(initialPlacementService);
+    public GrpcTestServer mockServer =
+            GrpcTestServer.newServer(initialPlacementService, groupRpcService);
 
     private InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub;
 
@@ -240,36 +253,53 @@ public class ReservationManagerTest {
             .build();
 
     // active for the last 2 hrs and expires in another hr
-    private Reservation testActiveNotExpiredReservation = Reservation.newBuilder()
+    private Reservation testActiveNotExpiredReservation = Reservation
+            .newBuilder()
             .setId(1007)
             .setName("test-reservation")
             .setStartDate(System.currentTimeMillis() - 1000 * 60 * 60 * 2)
             .setExpirationDate(System.currentTimeMillis() + 1000 * 60 * 60)
-            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                    .addReservationTemplate(ReservationTemplate.newBuilder()
-                            .setCount(1L)
-                            .setTemplateId(234L)))
+            .setReservationTemplateCollection(ReservationTemplateCollection
+                    .newBuilder()
+                    .addReservationTemplate(
+                            ReservationTemplate.newBuilder().setCount(1L).setTemplateId(234L)))
             .build();
 
-    private Reservation testReservationForBroadcast1 = Reservation.newBuilder()
+    private Reservation testReservationForBroadcast1 = Reservation
+            .newBuilder()
             .setId(1008)
             .setName("test-reservation1")
             .setStatus(ReservationStatus.RESERVED)
-            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                    .addReservationTemplate(ReservationTemplate.newBuilder()
-                            .setCount(10L)
-                            .setTemplateId(4444L)))
+            .setReservationTemplateCollection(ReservationTemplateCollection
+                    .newBuilder()
+                    .addReservationTemplate(
+                            ReservationTemplate.newBuilder().setCount(10L).setTemplateId(4444L)))
             .build();
 
-    private Reservation testReservationForBroadcast2 = Reservation.newBuilder()
+    private Reservation testReservationForBroadcast2 = Reservation
+            .newBuilder()
             .setId(1009)
             .setName("test-reservation2")
             .setStatus(ReservationStatus.PLACEMENT_FAILED)
-            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                    .addReservationTemplate(ReservationTemplate.newBuilder()
-                            .setCount(20L)
-                            .setTemplateId(5555L)))
+            .setReservationTemplateCollection(ReservationTemplateCollection
+                    .newBuilder()
+                    .addReservationTemplate(
+                            ReservationTemplate.newBuilder().setCount(20L).setTemplateId(5555L)))
             .build();
+
+    private Reservation testReservationWithScopeIds(List<Long> scope) {
+        return Reservation
+                .newBuilder()
+                .setId(1000)
+                .setName("test-reservation-with-scope-ids")
+                .setConstraintInfoCollection(
+                        ConstraintInfoCollection.newBuilder().addAllScopeIds(scope))
+                .setReservationTemplateCollection(ReservationTemplateCollection
+                        .newBuilder()
+                        .addReservationTemplate(
+                                ReservationTemplate.newBuilder().setCount(1L).setTemplateId(234L)))
+                .build();
+    }
 
     /**
      * Initial setup.
@@ -280,7 +310,8 @@ public class ReservationManagerTest {
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
         reservationDao = Mockito.mock(ReservationDao.class);
-        initialPlacementServiceBlockingStub = InitialPlacementServiceGrpc.newBlockingStub(mockServer.getChannel());
+        initialPlacementServiceBlockingStub =
+                InitialPlacementServiceGrpc.newBlockingStub(mockServer.getChannel());
         templatesDao = Mockito.mock(TemplatesDao.class);
         sender = Mockito.mock(IMessageSender.class);
         resNotificationSender = new ReservationNotificationSender(sender);
@@ -289,12 +320,9 @@ public class ReservationManagerTest {
 
         templatesDao = Mockito.mock(TemplatesDao.class);
 
-        reservationManager = new ReservationManager(reservationDao,
-                resNotificationSender,
-                initialPlacementServiceBlockingStub,
-                templatesDao,
-                planDao,
-                planService, true);
+        reservationManager = new ReservationManager(reservationDao, resNotificationSender,
+                initialPlacementServiceBlockingStub, templatesDao, planDao, planService, true,
+                GroupServiceGrpc.newBlockingStub(mockServer.getChannel()));
     }
 
     /**
@@ -754,20 +782,104 @@ public class ReservationManagerTest {
 
         assertEquals(2, resChanges.getReservationChangeCount());
 
-        Set<Long> reservedReservations =
-                resChanges.getReservationChangeList().stream()
-                        .filter(a -> ReservationStatus.RESERVED == a.getStatus())
-                        .map(a -> a.getId())
-                        .collect(Collectors.toSet());
-        Set<Long> failedReservations =
-                resChanges.getReservationChangeList().stream()
-                        .filter(a -> a.getStatus() == ReservationStatus.PLACEMENT_FAILED)
-                        .map(a -> a.getId())
-                        .collect(Collectors.toSet());
+        Set<Long> reservedReservations = resChanges
+                .getReservationChangeList()
+                .stream()
+                .filter(a -> ReservationStatus.RESERVED == a.getStatus())
+                .map(a -> a.getId())
+                .collect(Collectors.toSet());
+        Set<Long> failedReservations = resChanges
+                .getReservationChangeList()
+                .stream()
+                .filter(a -> a.getStatus() == ReservationStatus.PLACEMENT_FAILED)
+                .map(a -> a.getId())
+                .collect(Collectors.toSet());
         assert (reservedReservations.size() == 1);
         assert (reservedReservations.contains(1008L));
         assert (failedReservations.size() == 1);
         assert (failedReservations.contains(1009L));
     }
 
+    /**
+     * Tests that groups specified in scopeIds are correctly replaced by their members.
+     */
+    @Test
+    public void testThatScopeAreMappedCorrectlyToProviders() {
+
+        // ARRANGE
+        List<Long> scope = ImmutableList.of(1L, 2L);
+        Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
+        Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
+        Set<Long> providers2 = ImmutableSet.of(21L, 22L);
+
+        when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(1L).addAllMemberId(providers1).build(),
+                GetMembersResponse.newBuilder().setGroupId(2L).addAllMemberId(providers2).build()));
+
+        // ACT
+        FindInitialPlacementRequest request =
+                reservationManager.buildInitialPlacementRequest(reservations);
+
+        // ASSERT
+        assertEquals("should only get one initial placement", 1,
+                request.getInitialPlacementCount());
+        Set<Long> returnedProviders =
+                ImmutableSet.copyOf(request.getInitialPlacement(0).getProvidersList());
+        assertThat("providers of cluster 1 exist", returnedProviders.containsAll(providers1));
+        assertThat("providers of cluster 2 exist", returnedProviders.containsAll(providers2));
+    }
+
+    /**
+     * Tests that if no groups are specified in scopeIds the mapping is not performed.
+     */
+    @Test
+    public void testEmptyScopeDoesNotCallGroup() {
+
+        // ARRANGE
+        List<Long> scope = Collections.emptyList();
+        Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
+
+        // ACT
+        FindInitialPlacementRequest request =
+                reservationManager.buildInitialPlacementRequest(reservations);
+
+        // ASSERT
+        verify(groupRpcService, never()).getMembers(any());
+        assertEquals("should only get one initial placement", 1,
+                request.getInitialPlacementCount());
+        Set<Long> returnedProviders =
+                ImmutableSet.copyOf(request.getInitialPlacement(0).getProvidersList());
+        assertThat("no providers should exist", returnedProviders.isEmpty());
+    }
+
+    /**
+     * Tests that if a group in scope does not have any members the mapping still works as expected.
+     */
+    @Test
+    public void testThatIfAGroupInScopeDoesNotHaveMembersItIsOk() {
+
+        // ARRANGE
+        List<Long> scope = ImmutableList.of(1L, 2L);
+        Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
+        Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
+
+        when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(
+                Collections.singletonList(GetMembersResponse
+                        .newBuilder()
+                        .setGroupId(1L)
+                        .addAllMemberId(providers1)
+                        .build()));
+
+        // ACT
+        FindInitialPlacementRequest request =
+                reservationManager.buildInitialPlacementRequest(reservations);
+
+        // ASSERT
+        assertEquals("should only get one initial placement", 1,
+                request.getInitialPlacementCount());
+        Set<Long> returnedProviders =
+                ImmutableSet.copyOf(request.getInitialPlacement(0).getProvidersList());
+        assertThat("providers of cluster 1 exist", returnedProviders.containsAll(providers1));
+        assertEquals("no more providers exist", providers1.size(), returnedProviders.size());
+    }
 }

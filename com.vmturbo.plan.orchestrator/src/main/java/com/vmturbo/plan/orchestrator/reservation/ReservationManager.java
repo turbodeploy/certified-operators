@@ -1,9 +1,11 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,15 +16,20 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
@@ -101,39 +108,44 @@ public class ReservationManager implements ReservationDeletedListener {
 
     private final boolean prepareReservationCache;
 
-
+    private final GroupServiceBlockingStub groupServiceBlockingStub;
 
     /**
      * Track reservation counts.
      */
-    private static final DataMetricCounter RESERVATION_STATUS_COUNTER = DataMetricCounter.builder()
+    private static final DataMetricCounter RESERVATION_STATUS_COUNTER = DataMetricCounter
+            .builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "reservations_total")
-            .withHelp("Number of reservation analyses that have been run since Plan Orchestrator was started per current status")
+            .withHelp(
+                    "Number of reservation analyses that have been run since Plan Orchestrator was started per current status")
             .withLabelNames("status")
             .build()
             .register();
 
     /**
      * constructor for ReservationManager.
+     *
      * @param reservationDao input reservation dao.
      * @param reservationNotificationSender the reservation notification sender.
      * @param initialPlacementServiceBlockingStub for grpc call to market component.
-     * @param templatesDao  input template dao
+     * @param templatesDao input template dao
      * @param planDao the planDao.
      * @param planService the plan rpc service.
      * @param prepareReservationCache if false don't run reservation.
+     * @param groupServiceBlockingStub
      */
     public ReservationManager(@Nonnull final ReservationDao reservationDao,
-                              @Nonnull final ReservationNotificationSender reservationNotificationSender,
-                              @Nonnull final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub,
-                              @Nonnull final TemplatesDao templatesDao,
-                              @Nonnull final PlanDao planDao,
-                              @Nonnull final PlanRpcService planService,
-                              final boolean prepareReservationCache) {
+            @Nonnull final ReservationNotificationSender reservationNotificationSender,
+            @Nonnull final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub,
+            @Nonnull final TemplatesDao templatesDao, @Nonnull final PlanDao planDao,
+            @Nonnull final PlanRpcService planService, final boolean prepareReservationCache,
+            @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
+        this.groupServiceBlockingStub = groupServiceBlockingStub;
         this.reservationDao.addListener(this);
-        this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
+        this.initialPlacementServiceBlockingStub =
+                Objects.requireNonNull(initialPlacementServiceBlockingStub);
         this.templatesDao = templatesDao;
         this.planDao = planDao;
         this.planService = planService;
@@ -284,8 +296,9 @@ public class ReservationManager implements ReservationDeletedListener {
                 // TODO We should have a timeout on this.
                 FindInitialPlacementRequest initialPlacementRequest =
                         buildInitialPlacementRequest(currentReservations);
-                FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
-                        .findInitialPlacement(initialPlacementRequest);
+                FindInitialPlacementResponse response =
+                        initialPlacementServiceBlockingStub.findInitialPlacement(
+                                initialPlacementRequest);
                 updatedReservations = updateProviderInfoForReservations(response.getInitialPlacementBuyerPlacementInfoList(),
                         currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()),
                         ReservationStatus.INPROGRESS);
@@ -460,14 +473,36 @@ public class ReservationManager implements ReservationDeletedListener {
     public FindInitialPlacementRequest buildInitialPlacementRequest(@Nonnull Set<Reservation> reservations) {
         FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
         reservations.forEach(reservation -> {
-            InitialPlacementDTO.Builder findInitialPlacement = InitialPlacementDTO.newBuilder()
-                .addAllInitialPlacementBuyer(buildInitialPlacementBuyerList(reservation))
-                .setReservationMode(reservation.getReservationMode())
-                .setReservationGrouping(reservation.getReservationGrouping())
-                .setId(reservation.getId());
+            InitialPlacementDTO.Builder findInitialPlacement = InitialPlacementDTO
+                    .newBuilder()
+                    .addAllInitialPlacementBuyer(buildInitialPlacementBuyerList(reservation))
+                    .setReservationMode(reservation.getReservationMode())
+                    .setReservationGrouping(reservation.getReservationGrouping())
+                    .addAllProviders(getProvidersForScope(
+                            reservation.getConstraintInfoCollection().getScopeIdsList()))
+                    .setId(reservation.getId());
             initialPlacementRequestBuilder.addInitialPlacement(findInitialPlacement.build());
         });
         return initialPlacementRequestBuilder.build();
+    }
+
+    @Nonnull
+    private List<Long> getProvidersForScope(@NotNull List<Long> scopeIdsList) {
+
+        if (scopeIdsList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Iterator<GetMembersResponse> members = groupServiceBlockingStub.getMembers(
+                GetMembersRequest.newBuilder().addAllId(scopeIdsList).build());
+
+        return ImmutableList
+                .copyOf(members)
+                .stream()
+                .map(GetMembersResponse::getMemberIdList)
+                .flatMap(Collection::stream)
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     /**
