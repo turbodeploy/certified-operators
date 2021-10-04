@@ -1,9 +1,8 @@
 package com.vmturbo.topology.processor.identity;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -13,28 +12,12 @@ import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
  * Mock entity descriptor that actually persists data.
  */
 public class EntityDescriptorMock implements EntityDescriptor {
-    private final List<PropertyDescriptor> identifyingPropertiers;
 
     private final List<PropertyDescriptor> volatilePropertiers;
 
     private final List<PropertyDescriptor> heuristicPropertiers;
 
     private final List<PropertyDescriptor> nonVolatileProperties;
-
-
-    /**
-     * Constructs entity descriptor mock.
-     *
-     * @param identifyingPropertiers identifying properties
-     * @param heuristicPropertiers heuristic properties
-     */
-    public EntityDescriptorMock(List<String> identifyingPropertiers,
-                                List<String> heuristicPropertiers) {
-        this.identifyingPropertiers = composePropertySet(identifyingPropertiers);
-        this.volatilePropertiers = composePropertySet(Collections.singletonList("hyperv_vm"));
-        this.heuristicPropertiers = composePropertySet(heuristicPropertiers);
-        this.nonVolatileProperties = composePropertySet(identifyingPropertiers);
-    }
 
     /**
      * Constructs entity descriptor mock.
@@ -46,11 +29,9 @@ public class EntityDescriptorMock implements EntityDescriptor {
     public EntityDescriptorMock(List<String> nonVolatileProperties,
                                 List<String> volatileProperties,
                                 List<String> heuristicProperties) {
-        this.identifyingPropertiers = composePropertySet(nonVolatileProperties);
-        this.nonVolatileProperties = composePropertySet(nonVolatileProperties);
-        this.volatilePropertiers = composePropertySet(volatileProperties);
-        this.identifyingPropertiers.addAll(this.volatilePropertiers);
-        this.heuristicPropertiers = composePropertySet(heuristicProperties);
+        this.nonVolatileProperties = composePropertySet(nonVolatileProperties, 1);
+        this.volatilePropertiers = composePropertySet(volatileProperties, 2);
+        this.heuristicPropertiers = composePropertySet(heuristicProperties, 3);
     }
 
     @Override
@@ -71,7 +52,8 @@ public class EntityDescriptorMock implements EntityDescriptor {
     @Nonnull
     public List<PropertyDescriptor> getIdentifyingProperties(
             @Nonnull EntityMetadataDescriptor metadataDescriptor) {
-        return identifyingPropertiers;
+        return Stream.concat(nonVolatileProperties.stream(), volatilePropertiers.stream())
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -97,12 +79,12 @@ public class EntityDescriptorMock implements EntityDescriptor {
      * Composes property set.
      *
      * @param properties properties
+     * @param rank the rank of the properties
      * @return property descriptors
      */
-    public static List<PropertyDescriptor> composePropertySet(@Nonnull List<String> properties) {
-        final AtomicInteger idCounter = new AtomicInteger(0);
+    public static List<PropertyDescriptor> composePropertySet(@Nonnull List<String> properties, int rank) {
         return properties.stream()
-                .map(prop -> new PropertyDescriptorImpl(prop, idCounter.incrementAndGet()))
+                .map(prop -> new PropertyDescriptorImpl(prop, rank))
                 .collect(Collectors.toList());
     }
 }

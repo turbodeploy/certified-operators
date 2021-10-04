@@ -63,6 +63,9 @@ public class IdentityProviderConfig {
     @Value("${useIdentityRecordsCache:false}")
     private boolean useIdentityRecordsCache;
 
+    @Value("${useOptimizedIdentityRecordsCache:false}")
+    private boolean useOptimizedIdentityRecordsCache;
+
     @Value("${entityExpirationTimeDays:30}")
     private int entityExpirationTimeDays;
 
@@ -93,7 +96,7 @@ public class IdentityProviderConfig {
             identityStoreinitializationTimeoutMin,
             assignedIdReloadReattemptIntervalSeconds,
             useIdentityRecordsCache,
-            staleOidManager());
+            staleOidManager(), useOptimizedIdentityRecordsCache);
     }
 
     @Bean

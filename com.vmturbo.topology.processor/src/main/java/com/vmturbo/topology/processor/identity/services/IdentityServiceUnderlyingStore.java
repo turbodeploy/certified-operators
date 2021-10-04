@@ -4,6 +4,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -34,8 +35,8 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
      * @throws IdentityServiceStoreOperationException In case of an error looking up the OID.
      * @throws IdentityUninitializedException If the store is not initialized yet.
      */
-    long lookupByIdentifyingSet(@Nonnull EntityMetadataDescriptor metadataDescriptor,
-                                @Nonnull List<PropertyDescriptor> properties)
+    long lookupByIdentifyingSet(@Nonnull List<PropertyDescriptor> nonVolatileProperties,
+                                @Nonnull List<PropertyDescriptor> volatileProperties)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
@@ -67,24 +68,6 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
-     * Updates the entry to the underlying store.
-     *
-     * @param oid                The object id.
-     * @param descriptor         The descriptor.
-     * @param metadataDescriptor The metadata descriptor.
-     * @param entityType         The type of the entity.
-     * @param probeId            The ID of the probe of the target which discovered the entity.
-     * @throws IdentityServiceStoreOperationException In case of an error updating the Entity.
-     * @throws IdentityUninitializedException If the store is not initialized yet.
-     */
-    void updateEntry(final long oid,
-                     @Nonnull final EntityDescriptor descriptor,
-                     @Nonnull final EntityMetadataDescriptor metadataDescriptor,
-                     @Nonnull final EntityType entityType,
-                     final long probeId)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException;
-
-    /**
      * Remove the entry to the underlying store.
      *
      * @param oid The object id.
@@ -103,11 +86,13 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
      */
     boolean shallowRemove(long oid);
 
+    int bulkRemove(Set<Long> oids);
+
     /**
      * Get all the oids that currently exist in the cache.
      * @return {@link LongSet} containing the oids
      */
-    LongSet getCurrentOidsInIdentityCache() throws IdentityUninitializedException;
+    Set<Long> getCurrentOidsInIdentityCache() throws IdentityUninitializedException;
 
     /**
      * Performs the search using the set of properties.
@@ -130,20 +115,6 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
      * @throws IdentityUninitializedException If the store is not initialized yet.
      */
     boolean containsOID(long oid) throws IdentityServiceStoreOperationException, IdentityUninitializedException;
-
-    /**
-     * Checks whether entity with such set of identifying properties is already present.
-     *
-     * @param metadataDescriptor The metadata descriptor.
-     * @param properties         The set of identifying properties.
-     * @return {@code true} iff Entity with such set of identifying properties is present.
-     * @throws IdentityServiceStoreOperationException In case of an issue querying.
-     * @throws IdentityUninitializedException If the store is not initialized yet.
-     */
-    boolean containsWithIdentifyingProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor,
-            @Nonnull List<PropertyDescriptor> properties)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
      * Makes the current thread wait until the store gets initialized or a timeout occurs.

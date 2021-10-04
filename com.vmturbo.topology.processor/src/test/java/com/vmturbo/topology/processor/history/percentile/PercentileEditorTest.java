@@ -1457,7 +1457,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
         @Override
         public Map<EntityCommodityFieldReference, PercentileRecord> load(
             @Nonnull Collection<EntityCommodityReference> commodities,
-            @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final LongSet oidsToUse) {
+            @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final Set<Long> oidsToUse) {
             // Current implementation doesn't use this parameter.
             // If this assertion fails then most likely the implementation changed and
             // you should add more unit tests for that.

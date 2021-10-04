@@ -25,8 +25,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
-import it.unimi.dsi.fastutil.longs.LongSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,13 +41,14 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.identity.cache.DescriptorsBasedCache;
+import com.vmturbo.topology.processor.identity.cache.IdentityRecordsBasedCache;
+import com.vmturbo.topology.processor.identity.cache.OptimizedIdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.extractor.IdentifyingPropertyExtractor;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadata;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.DescriptorsBasedCache;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -138,16 +137,17 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     /**
      * Create a new IdentityProvider implementation.
-     *  @param keyValueStore The key value store where identity information that needs to be persisted is stored
+     * @param keyValueStore The key value store where identity information that needs to be persisted is stored
      * @param compatibilityChecker compatibility checker
      * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
      * @param identityDatabaseStore the store containing the oids
      * @param identityStoreinitializationTimeoutMin the maximum time that threads will wait for
-     * the store to be ready
+* the store to be ready
      * @param assignedIdReloadReattemptIntervalSeconds The interval at which to attempt to reload assigned IDs
      * @param useIdentityRecordsCache whether to use the {@link IdentityRecordsBasedCache} or
-     * {@link DescriptorsBasedCache}
+* {@link DescriptorsBasedCache}
      * @param staleOidManager used to expire stale oids
+     * @param useOptimizedIdentityRecordsCache whether to use the optimized verion of the {@link OptimizedIdentityRecordsBasedCache}
      */
     public IdentityProviderImpl(@Nonnull final KeyValueStore keyValueStore,
                                 @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker,
@@ -155,11 +155,13 @@ public class IdentityProviderImpl implements IdentityProvider {
                                 @Nonnull IdentityDatabaseStore identityDatabaseStore,
                                 int identityStoreinitializationTimeoutMin,
                                 long assignedIdReloadReattemptIntervalSeconds,
-                                boolean useIdentityRecordsCache, final StaleOidManager staleOidManager) {
+                                boolean useIdentityRecordsCache, final StaleOidManager staleOidManager,
+                                final boolean useOptimizedIdentityRecordsCache) {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
         this.identityServiceInMemoryUnderlyingStore =
             new IdentityServiceInMemoryUnderlyingStore(identityDatabaseStore, identityStoreinitializationTimeoutMin,
-            assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS, perProbeMetadata, useIdentityRecordsCache);
+            assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS, perProbeMetadata, useIdentityRecordsCache,
+                    useOptimizedIdentityRecordsCache);
         this.identityService = new IdentityService(identityServiceInMemoryUnderlyingStore,
             new HeuristicsMatcher());
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
@@ -283,7 +285,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     }
 
     @Override
-    public LongSet getCurrentOidsInIdentityCache() throws IdentityUninitializedException {
+    public Set<Long> getCurrentOidsInIdentityCache() throws IdentityUninitializedException {
         return identityServiceInMemoryUnderlyingStore.getCurrentOidsInIdentityCache();
     }
 
@@ -474,8 +476,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     private void removeStaleOidsFromCache(@Nonnull Set<Long> staleOids) {
         synchronized (identityServiceLock) {
             final long startTime = System.currentTimeMillis();
-            final long removedOids = staleOids.stream().filter(
-                    identityServiceInMemoryUnderlyingStore::shallowRemove).count();
+            final long removedOids = identityServiceInMemoryUnderlyingStore.bulkRemove(staleOids);
             if (staleOids.size() > 0) {
                 logger.info("Removed {} oids from in memory cache in {} milliseconds. "
                                 + "{} oids were not found in cache.", removedOids,

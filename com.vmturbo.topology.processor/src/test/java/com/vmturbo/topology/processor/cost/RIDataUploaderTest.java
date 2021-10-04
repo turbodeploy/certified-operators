@@ -91,7 +91,7 @@ public class RIDataUploaderTest {
     private IdentityProvider identityProvider = new IdentityProviderImpl(
             keyValueStore,
             new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10,  0,
-        false, mock(StaleOidManagerImpl.class));
+        false, mock(StaleOidManagerImpl.class), false);
 
     private StitchingContext mockStitchingContext = Mockito.mock(StitchingContext.class);
 

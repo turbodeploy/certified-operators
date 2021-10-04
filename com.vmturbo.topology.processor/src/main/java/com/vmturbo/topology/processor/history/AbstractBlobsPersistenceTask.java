@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -22,8 +23,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.StreamObserver;
-
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -87,8 +86,8 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
     /**
      * Getter for {@link AbstractBlobsPersistenceTask#lastCheckpointMs} field.
      *
-     * @return checkpoint timestamp of last {@link IHistoryLoadingTask#load(Collection, Object, LongSet)}
-     * or zero if {@link IHistoryLoadingTask#load(Collection, Object, LongSet)} wasn't called.
+     * @return checkpoint timestamp of last {@link IHistoryLoadingTask#load(Collection, Object, Set)}
+     * or zero if {@link IHistoryLoadingTask#load(Collection, Object, Set)} wasn't called.
      */
     public long getLastCheckpointMs() {
         return lastCheckpointMs;
@@ -97,7 +96,7 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
     @Override
     public Map<EntityCommodityFieldReference, DbRecordT> load(
             @Nonnull Collection<EntityCommodityReference> commodities,
-            @Nonnull ConfigT config, @Nonnull final LongSet oidsToUse)
+            @Nonnull ConfigT config, @Nonnull final Set<Long> oidsToUse)
             throws HistoryCalculationException, InterruptedException {
         ReaderObserver observer = new ReaderObserver(clock, config.getGrpcStreamTimeoutSec());
         makeGetRequest(statsHistoryClient, config, startTimestamp, observer);
@@ -176,7 +175,7 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
     Map<EntityCommodityFieldReference, DbValueT> parseDbRecords(long startTimestamp,
                                                                 @Nonnull InputStream source,
                                                                 @Nonnull com.vmturbo.commons.utils.ThrowingFunction<InputStream, Iterable<DbValueT>, IOException> parser,
-                                                                @Nullable LongSet oidsToUse,
+                                                                @Nullable Set<Long> oidsToUse,
                                                                 @Nonnull Function<DbValueT, Long> recordToOidFunc,
                                                                 @Nonnull Function<DbValueT, EntityCommodityFieldReference> recordToRefFunc,
                                                                 boolean enableExpiredOidFiltering) throws IOException {
@@ -234,7 +233,7 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
      */
     @Nonnull
     protected abstract Map<EntityCommodityFieldReference, DbRecordT> parse(long startTimestamp,
-            @Nonnull InputStream source, @Nonnull LongSet oidsToUse,
+            @Nonnull InputStream source, @Nonnull Set<Long> oidsToUse,
             boolean enableExpiredOidFiltering) throws IOException;
 
     /**

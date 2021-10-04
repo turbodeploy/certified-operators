@@ -7,13 +7,12 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
-
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,7 +59,7 @@ public class TimeSlotLoadingTask extends
     @Nonnull
     public Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> load(
         @Nonnull Collection<EntityCommodityReference> commodities,
-        @Nonnull TimeslotHistoricalEditorConfig config, LongSet oidsToUse)
+        @Nonnull TimeslotHistoricalEditorConfig config, Set<Long> oidsToUse)
                     throws HistoryCalculationException {
         Stopwatch sw = Stopwatch.createStarted();
 

@@ -2,10 +2,9 @@ package com.vmturbo.topology.processor.history;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
-
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.stitching.EntityCommodityReference;
 
@@ -29,6 +28,6 @@ public interface IHistoryLoadingTask<Config, DbValue> {
      */
     @Nonnull
     Map<EntityCommodityFieldReference, DbValue>
-       load(@Nonnull Collection<EntityCommodityReference> commodities, @Nonnull Config config, final LongSet oidsToUse)
+       load(@Nonnull Collection<EntityCommodityReference> commodities, @Nonnull Config config, final Set<Long> oidsToUse)
                        throws HistoryCalculationException, InterruptedException;
 }

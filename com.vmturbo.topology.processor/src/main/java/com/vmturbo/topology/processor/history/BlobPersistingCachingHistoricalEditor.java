@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.zip.ZipEntry;
@@ -25,7 +26,6 @@ import io.grpc.stub.AbstractStub;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -261,7 +261,7 @@ public abstract class BlobPersistingCachingHistoricalEditor<HistoryDataT extends
      * @throws HistoryCalculationException is oids can't be read from the identity cache
      */
     protected void expireStaleOidsFromCache() throws HistoryCalculationException {
-        LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
+        Set<Long> currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
         int originalCacheSize = getCache().keySet().size();
         getCache().keySet().removeIf(entityRef -> !currentOidsInIdentityCache.contains(entityRef.getEntityOid()));
         int numEntriesExpired = originalCacheSize - getCache().keySet().size();
@@ -276,7 +276,7 @@ public abstract class BlobPersistingCachingHistoricalEditor<HistoryDataT extends
      * @return A set containing the OIDs of the entities in the identity cache.
      * @throws HistoryCalculationException If the identity provider has not been properly initialized.
      */
-    protected LongSet getCurrentOidsInInIdentityCache()
+    protected Set<Long> getCurrentOidsInInIdentityCache()
         throws HistoryCalculationException {
         try {
             return identityProvider.getCurrentOidsInIdentityCache();

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
@@ -13,8 +14,6 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.stub.StreamObserver;
-
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -102,7 +101,7 @@ public class PercentilePersistenceTask extends AbstractBlobsPersistenceTask<Perc
     @Override
     protected Map<EntityCommodityFieldReference, PercentileRecord> parse(long startTimestamp,
                                                                          @Nonnull InputStream source,
-                                                                         @Nonnull LongSet oidsToUse,
+                                                                         @Nonnull Set<Long> oidsToUse,
                                                                          boolean enableExpiredOidFiltering)
             throws IOException {
         return parse(startTimestamp, source, PercentileCounts::parseFrom, oidsToUse, enableExpiredOidFiltering);
@@ -125,7 +124,7 @@ public class PercentilePersistenceTask extends AbstractBlobsPersistenceTask<Perc
     protected static Map<EntityCommodityFieldReference, PercentileRecord> parse(long startTimestamp,
                                                                                 @Nonnull InputStream source,
                                                                                 @Nonnull ThrowingFunction<InputStream, PercentileCounts, IOException> parser,
-                                                                                LongSet oidsToUse, boolean enableExpiredOidFiltering)
+                                                                                Set<Long> oidsToUse, boolean enableExpiredOidFiltering)
         throws IOException {
 
         final ThrowingFunction<InputStream, Iterable<PercentileRecord>, IOException> countsToRecords = inputStream -> {

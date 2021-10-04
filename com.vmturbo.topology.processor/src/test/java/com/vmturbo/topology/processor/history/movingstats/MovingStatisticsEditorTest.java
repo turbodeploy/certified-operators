@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -555,7 +556,7 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
         public Map<EntityCommodityFieldReference, MovingStatisticsRecord> load(
             @Nonnull Collection<EntityCommodityReference> commodities,
             @Nonnull MovingStatisticsHistoricalEditorConfig config,
-            @Nonnull final LongSet oidsToUse) {
+            @Nonnull final Set<Long> oidsToUse) {
             // Current implementation doesn't use this parameter.
             // If this assertion fails then most likely the implementation changed and
             // you should add more unit tests for that.

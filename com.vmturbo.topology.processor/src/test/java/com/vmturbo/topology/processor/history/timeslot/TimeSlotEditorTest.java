@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -23,8 +24,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -501,7 +500,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
         @Override
         public Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> load(
             @Nonnull Collection<EntityCommodityReference> commodities,
-            @Nonnull TimeslotHistoricalEditorConfig config, final LongSet oidsToUse)
+            @Nonnull TimeslotHistoricalEditorConfig config, final Set<Long> oidsToUse)
                         throws HistoryCalculationException {
             try {
                 if (!maintenaceData.isEmpty()) {

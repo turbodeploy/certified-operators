@@ -133,7 +133,7 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
      * @return {@link LongSet} containing the oids
      * @throws IdentityUninitializedException If the identity service initialization is incomplete.
      */
-    LongSet getCurrentOidsInIdentityCache() throws IdentityUninitializedException;
+    Set<Long> getCurrentOidsInIdentityCache() throws IdentityUninitializedException;
 
     /**
      * Returns the underlying store of the service.

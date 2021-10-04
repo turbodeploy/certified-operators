@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -25,7 +26,6 @@ import com.google.protobuf.ByteString;
 import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
-import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.junit.Before;
@@ -262,7 +262,7 @@ public class AbstractBlobsPersistenceTaskTest {
         @Nonnull
         @Override
         protected Map<EntityCommodityFieldReference, MovingStatisticsRecord>
-        parse(long startTimestamp, @Nonnull InputStream source, @Nonnull LongSet oidsToUse,
+        parse(long startTimestamp, @Nonnull InputStream source, @Nonnull Set<Long> oidsToUse,
               boolean enableExpiredOidFiltering) throws IOException {
             final MovingStatisticsRecord rec = MovingStatisticsRecord.parseFrom(source);
             final EntityCommodityFieldReference ref = new EntityCommodityFieldReference(rec.getEntityOid(),
