@@ -325,12 +325,6 @@ defaultProperties:
         probeDiscoveryPermitWaitTimeoutMins: 40
         # Additional random interval timeout for acquring permit to prevent thundering herd issue.
         probeDiscoveryPermitWaitTimeoutIntervalMins: 20
-        # This configuration value controls the initial delay before triggering
-        # the background load task when the initial load during startup fails.
-        # For subsequent fetches from the DB or when the initial load succeeds,
-        # the delay will be based on the maxValuesBackgroundLoadFrequencyMinutes
-        # config value.
-        maxValuesBackgroundLoadDelayOnInitFailureMinutes: 30
         # IOPS capacities for each type of disk in Storage Controller, Logical Pool, and Disk Array entities.
         diskIopsCapacitySsd: 5000
         diskIopsCapacity7200Rpm: 800
