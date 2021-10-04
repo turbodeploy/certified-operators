@@ -269,7 +269,6 @@ public class BootstrapSupply {
                             }
                         } //end looking for infiniteQuote SL.
                     } else {
-                        @NonNull Trader buyer = entry.getKey().getBuyer();
                         if (logger.isTraceEnabled() || isDebugBuyer) {
                             logger.info("Quote is infinity, and unable to find a seller that"
                                     + " will fit the trader {}.", buyerDebugInfo);
@@ -621,13 +620,7 @@ public class BootstrapSupply {
                     } else {
                         try {
                             Trader currentSupplier = sl.getSupplier();
-                            Set<CommoditySpecification> commsCausingProvision = minimizer.getQuoteTracker()
-                                .getInfiniteQuotesToExplain().stream().map(quote -> quote.getExplanation(sl))
-                                .filter(Optional::isPresent).map(Optional::get)
-                                .flatMap(explanation -> explanation.commBundle.stream())
-                                .map(commBoudle -> commBoudle.commSpec)
-                                .collect(Collectors.toSet());
-                            Action action = new ProvisionByDemand(economy, sl, commsCausingProvision,
+                            Action action = new ProvisionByDemand(economy, sl,
                                 (currentSupplier != null && clonableSellers.contains(currentSupplier)) ?
                                     currentSupplier : clonableSellers.get(0)).take();
                             ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
@@ -1331,14 +1324,8 @@ public class BootstrapSupply {
             return Collections.emptyList();
         } else if (!clonableSellers.isEmpty()) {
             try {
-                Set<CommoditySpecification> commsCausingProvision = quoteMinimizer.getQuoteTracker()
-                    .getInfiniteQuotesToExplain().stream().map(quote -> quote.getExplanation(shoppingList))
-                    .filter(Optional::isPresent).map(Optional::get)
-                    .flatMap(explanation -> explanation.commBundle.stream())
-                    .map(commBoudle -> commBoudle.commSpec)
-                    .collect(Collectors.toSet());
                 // if none of the existing sellers can fit the shoppingList, provision current seller
-                bootstrapAction = new ProvisionByDemand(economy, shoppingList, commsCausingProvision,
+                bootstrapAction = new ProvisionByDemand(economy, shoppingList,
                     (shoppingList.getSupplier() != null
                         && clonableSellers.contains(shoppingList.getSupplier()))
                         ? shoppingList.getSupplier() : clonableSellers.get(0)).take();
