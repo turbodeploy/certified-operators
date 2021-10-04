@@ -18,6 +18,8 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 
+import io.jsonwebtoken.lang.Collections;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,6 +54,8 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -272,14 +276,59 @@ public class ActionDescriptionBuilder {
             resize.getCommodityAttribute() == CommodityAttribute.CAPACITY
                 ? ActionMessageFormat.ACTION_DESCRIPTION_RESIZE
                 : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
+
+        String commodity = beautifyCommodityType(resize.getCommodityType());
+
+        if (commodityType == CommodityDTO.CommodityType.VSTORAGE) {
+            commodity += getPartition(entity, resize);
+        }
+
         return messageFormat.format(
             resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
-            beautifyCommodityType(resize.getCommodityType()),
+            commodity,
             beautifyEntityTypeAndName(entity),
             formatResizeActionCommodityValue(
                 commodityType, entity.getEntityType(), resize.getOldCapacity(), false),
             formatResizeActionCommodityValue(
                 commodityType, entity.getEntityType(), resize.getNewCapacity(), true));
+    }
+
+    @Nonnull
+    private static String getPartition(@Nonnull ActionPartialEntity entity,
+            @Nonnull Resize resize) {
+        ActionEntityTypeSpecificInfo info = entity.getTypeSpecificInfo();
+        if (info == null) {
+            logger.warn("VM {} is missing the type specific info", entity.getDisplayName());
+            return "";
+        }
+
+        ActionVirtualMachineInfo vmInfo = info.getVirtualMachine();
+        if (vmInfo == null) {
+            logger.warn("VM {} is missing the VM info", entity.getDisplayName());
+            return "";
+        }
+
+        Map<String, String> partitions = vmInfo.getPartitionsMap();
+        if (Collections.isEmpty(partitions)) {
+            logger.warn("VM {} is missing the partition info", entity.getDisplayName());
+            return "";
+        }
+
+        String key = resize.getCommodityType().getKey();
+        if (Strings.isNullOrEmpty(key)) {
+            logger.warn("VM {}: Resize vStorage action is missing the key",
+                    entity.getDisplayName());
+            return "";
+        }
+
+        String partition = partitions.get(key);
+        if (Strings.isNullOrEmpty(partition)) {
+            logger.warn("VM {}: Failed to find the partition for the key '{}'",
+                    entity.getDisplayName(), key);
+            return "";
+        }
+
+        return " " + partition;
     }
 
     /**
