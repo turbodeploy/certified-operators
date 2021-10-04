@@ -2,7 +2,6 @@ package com.vmturbo.common.protobuf.topology;
 
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLUSTER;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -583,6 +582,8 @@ public final class TopologyDTOUtil {
 
     private static Optional<ActionVirtualMachineInfo.Builder> createActionVmInfo(@Nonnull final VirtualMachineInfo vmInfo) {
         ActionVirtualMachineInfo.Builder actionVmInfo = ActionVirtualMachineInfo.newBuilder();
+        // We need the partition information for the vStorage actions.
+        actionVmInfo.putAllPartitions(vmInfo.getPartitionsMap());
         // Avoid creating an object if the necessary properties are not set.
         // Most notably, none of these properties are set for on-prem VMs.
         if (!(vmInfo.hasArchitecture() || vmInfo.hasVirtualizationType()

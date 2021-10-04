@@ -53,6 +53,8 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -167,6 +169,7 @@ public class ActionDescriptionBuilderTest {
     private static final String SPEC1_DISPLAY_NAME = "spec1_test";
     private static final Long CONTAINER_SPEC2_ID = 502L;
     private static final String SPEC2_DISPLAY_NAME = "spec2_test";
+    private static final String VSTORAGE_KEY = "1";
 
 
     /**
@@ -356,7 +359,7 @@ public class ActionDescriptionBuilderTest {
             CommodityDTO.CommodityType.PORT_CHANEL_VALUE, "PortChannelFI-IO:10.0.100.132:sys/switch-A/sys/chassis-1/slot-1",
             1000, 2000), SupportLevel.SUPPORTED).build();
         resizeVStorageRecommendation = makeRec(makeResizeInfo(VM1_ID,
-            CommodityDTO.CommodityType.VSTORAGE_VALUE, 2000, 4000),
+            CommodityDTO.CommodityType.VSTORAGE_VALUE, VSTORAGE_KEY, 2000, 4000),
             SupportLevel.SUPPORTED).build();
         resizeMemReservationRecommendation =
                 makeRec(makeResizeReservationMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -1256,15 +1259,21 @@ public class ActionDescriptionBuilderTest {
      */
     @Test
     public void testBuildResizeVStorageActionDescription() throws UnsupportedActionException {
+        ActionVirtualMachineInfo vmInfo = ActionVirtualMachineInfo.newBuilder()
+                .putPartitions(VSTORAGE_KEY, "/tmp").build();
+        ActionEntityTypeSpecificInfo info = ActionEntityTypeSpecificInfo.newBuilder()
+                .setVirtualMachine(vmInfo).build();
+        ActionPartialEntity vm = ActionPartialEntity.newBuilder().setOid(VM1_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setDisplayName(VM1_DISPLAY_NAME).setTypeSpecificInfo(info).build();
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
-            .thenReturn((createEntity(VM1_ID,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                .thenReturn(Optional.of(vm));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVStorageRecommendation);
 
-        assertEquals("Resize up VStorage for Virtual Machine vm1_test from 2.0 GB to 3.9 GB", description);
+        assertEquals("Resize up VStorage /tmp for Virtual Machine vm1_test from 2.0 GB to 3.9 GB",
+                description);
     }
 
     /**
