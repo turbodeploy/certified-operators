@@ -29,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader buyer} as the
@@ -64,11 +65,12 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
      */
     public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer,
                     @NonNull Trader modelSeller) {
-        this(economy, modelBuyer, Collections.emptySet(), modelSeller);
+        this(economy, modelBuyer, ProvisionUtils.insufficientCapacityComms(modelBuyer, modelSeller,
+            economy, false), modelSeller);
     }
 
     /**
-     * Constuctor.
+     * Constructor.
      *
      * @param economy The economy in which the seller will be provisioned.
      * @param modelBuyer The shopping list that should be satisfied by the new seller.
