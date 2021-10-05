@@ -98,7 +98,7 @@ public abstract class StitchingIntegrationTest {
         postStitchingOperationLibrary =
                 new PostStitchingOperationLibrary(
                         new CommodityPostStitchingOperationConfig(
-                                statsServiceClient, 30, 10, true),  //meaningless values
+                                statsServiceClient, 30),  //meaningless values
                         diskCapacityCalculator, cpuCapacityStore, clock, 0, mock(MaxCapacityCache.class), true);
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
