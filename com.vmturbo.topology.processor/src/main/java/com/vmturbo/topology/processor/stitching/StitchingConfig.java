@@ -50,6 +50,9 @@ public class StitchingConfig {
     @Value("${armCapacityRefreshIntervalHours:6}")
     private long armCapacityRefreshIntervalHours;
 
+    @Value("${maxValuesBackgroundLoadDelayOnInitFailureMinutes:30}")
+    private long maxValuesBackgroundLoadDelayOnInitFailureMinutes;
+
     @Value("${diskIopsCapacitySsd:5000}")
     private double diskIopsCapacitySsd;
 
@@ -88,6 +91,9 @@ public class StitchingConfig {
 
     @Value("${journalsPerRecording:6}")
     private int journalsPerRecording;
+
+    @Value("${maxQueryOnTPStartup:true}")
+    private boolean maxQueryOnTPStartup;
 
     /**
      * Feature flag for whether to enable consistent scaling of containers when they are running on
@@ -181,7 +187,9 @@ public class StitchingConfig {
         PostStitchingOperationLibrary postStitchingOperationLibrary = new PostStitchingOperationLibrary(
             new CommodityPostStitchingOperationConfig(
                 historyClient(),
-                maxValuesBackgroundLoadFrequencyMinutes),
+                maxValuesBackgroundLoadFrequencyMinutes,
+                maxValuesBackgroundLoadDelayOnInitFailureMinutes,
+                maxQueryOnTPStartup),
                 diskPropertyCalculator(),
                 cpuCapacityConfig.cpucCapacityStore(),
                 clockConfig.clock(),
