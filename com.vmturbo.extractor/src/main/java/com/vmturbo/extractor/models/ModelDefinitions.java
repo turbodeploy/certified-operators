@@ -2,6 +2,17 @@ package com.vmturbo.extractor.models;
 
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
+
+import org.jooq.DataType;
+import org.jooq.impl.SQLDataType;
 
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.Tables;
@@ -17,6 +28,7 @@ import com.vmturbo.extractor.schema.enums.SavingsType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.tables.Metric;
 import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
+import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
  * Definitions of models, tables, and columns used in topology ingestion.
@@ -39,17 +51,9 @@ public class ModelDefinitions {
      */
     public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid");
     /**
-     * ENTITY_ID.
-     */
-    public static final Column<Long> ENTITY_ID = Column.longColumn("id");
-    /**
      * ENTITY_NAME column.
      */
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
-    /**
-     * NAME column.
-     */
-    public static final Column<String> FIELD_NAME = Column.stringColumn("name");
     /**
      * ATTRS column.
      */
@@ -221,42 +225,48 @@ public class ModelDefinitions {
     public static final Model REPORTING_MODEL = Model.named("reporting").withTables(ENTITY_TABLE,
             METRIC_TABLE, FILE_TABLE).build();
 
+    // -------- search model is driven by fields' declarations in SearchMetadataMapping used for both writing and reading
+
+    private static final Map<DataType<?>, Function<String, Column<?>>> JOOQ_TO_HANDWRITTEN_EXTRACTOR_ORM =
+                    new ImmutableMap.Builder<DataType<?>, Function<String, Column<?>>>()
+                        .put(SQLDataType.DOUBLE, (name) -> Column.doubleColumn(name))
+                        .put(SQLDataType.TINYINT, (name) -> Column.shortColumn(name))
+                        .put(SQLDataType.SMALLINT, (name) -> Column.intColumn(name))
+                        .put(SQLDataType.BIGINT, (name) -> Column.longColumn(name))
+                        .put(SQLDataType.VARCHAR, (name) -> Column.stringColumn(name))
+                        .build();
+
     /**
      * SEARCH_ENTITY_TABLE.
      */
     public static final Table SEARCH_ENTITY_TABLE = Table.named(Location.Entities.getTable())
-            .withColumns(ENTITY_ID, ENTITY_OID_AS_OID, ENTITY_TYPE_AS_TYPE_ENUM, ENTITY_NAME,
-                    ENTITY_STATE_ENUM, ENVIRONMENT_TYPE_ENUM)
-            .build();
+            .withColumns(getSearchColumns(Location.Entities)).build();
 
     /**
      * SEARCH_ENTITY_ACTION_TABLE.
      */
     public static final Table SEARCH_ENTITY_ACTION_TABLE = Table.named(Location.Actions.getTable())
-            .withColumns(ENTITY_ID, ENTITY_OID_AS_OID, ENTITY_TYPE_AS_TYPE_ENUM, SEVERITY_ENUM,
-                    NUM_ACTIONS)
-            .build();
+                    .withColumns(getSearchColumns(Location.Actions)).build();
 
     /**
      * SEARCH_ENTITY_STRING_TABLE.
      */
     public static final Table SEARCH_ENTITY_STRING_TABLE = Table.named(Location.Strings.getTable())
-            .withColumns(ENTITY_ID, ENTITY_OID_AS_OID, FIELD_NAME, STRING_VALUE)
-            .build();
+                    .withColumns(getSearchColumns(Location.Strings)).build();
 
     /**
      * SEARCH_ENTITY_NUMERIC_TABLE.
      */
-    public static final Table SEARCH_ENTITY_NUMERIC_TABLE = Table.named(
-            Location.Numerics.getTable()).withColumns(ENTITY_ID, ENTITY_OID_AS_OID, FIELD_NAME,
-            DOUBLE_VALUE).build();
+    public static final Table SEARCH_ENTITY_NUMERIC_TABLE = Table.named(Location.Numerics.getTable())
+                    .withColumns(getSearchColumns(Location.Numerics)).build();
 
     /**
      * SEARCH_MODEL.
      */
     public static final Model SEARCH_MODEL = Model.named("search")
-            .withTables(SEARCH_ENTITY_TABLE)
-            .build();
+                    .withTables(SEARCH_ENTITY_TABLE, SEARCH_ENTITY_ACTION_TABLE,
+                                    SEARCH_ENTITY_STRING_TABLE, SEARCH_ENTITY_NUMERIC_TABLE)
+                    .build();
 
     /**
      * The historical attributes model.
@@ -450,5 +460,15 @@ public class ModelDefinitions {
         public static String name() {
             return Tables.ENTITY_SAVINGS.getName();
         }
+    }
+
+    private static Collection<Column<?>> getSearchColumns(Location location) {
+        return Arrays.stream(SearchMetadataMapping.values())
+                        .filter(smm -> smm.getDbDescriptor().getLocations().contains(location))
+                        .map(SearchMetadataMapping::getDbDescriptor)
+                        .map(field -> Optional.ofNullable(JOOQ_TO_HANDWRITTEN_EXTRACTOR_ORM.get(field.getDbType()))
+                                        .map(fn -> fn.apply(field.getColumn())))
+                        .filter(Optional::isPresent).map(Optional::get)
+                        .collect(Collectors.toList());
     }
 }

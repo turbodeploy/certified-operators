@@ -53,19 +53,29 @@ public class SchemaCreator implements ISchemaCreator {
 
     private final DSLContext dsl;
     private final Map<Location, Function<String, String>> tableToCreateTableQuery =
-            new ImmutableMap.Builder<Location, Function<String, String>>().put(Location.Entities,
-                    (name) -> createMainTable(name, Location.Entities)).put(Location.Actions,
-                    (name) -> createMainTable(name, Location.Actions)).put(Location.Numerics,
-                    (name) -> commonTableFields(name).column(NAME,
-                                    SQLDataType.VARCHAR(FIELD_NAME_SIZE).nullable(false))
-                            .column(VALUE, DbFieldDescriptor.NUMERIC_DB_TYPE.nullable(false))
-                            .constraint(DSL.primaryKey(ID))
-                            .toString()).put(Location.Strings, (name) -> commonTableFields(
-                    name).column(NAME, SQLDataType.VARCHAR(FIELD_NAME_SIZE).nullable(false))
-                    .column(VALUE,
-                            SQLDataType.VARCHAR(DbFieldDescriptor.STRING_SIZE).nullable(false))
-                    .constraint(DSL.primaryKey(ID))
-                    .toString()).build();
+                    new ImmutableMap.Builder<Location, Function<String, String>>()
+                                    .put(Location.Entities,
+                                                    (name) -> createMainTable(name,
+                                                                    Location.Entities))
+                                    .put(Location.Actions,
+                                                    (name) -> createMainTable(name,
+                                                                    Location.Actions))
+                                    .put(Location.Numerics, (name) -> commonTableFields(name)
+                                                    .column(NAME, SQLDataType
+                                                                    .VARCHAR(FIELD_NAME_SIZE)
+                                                                    .nullable(false))
+                                                    .column(VALUE, DbFieldDescriptor.NUMERIC_DB_TYPE
+                                                                    .nullable(false))
+                                                    .constraint(DSL.primaryKey(ID)).toString())
+                                    .put(Location.Strings, (name) -> commonTableFields(name).column(
+                                                    NAME,
+                                                    SQLDataType.VARCHAR(FIELD_NAME_SIZE)
+                                                                    .nullable(false))
+                                                    .column(VALUE, SQLDataType.VARCHAR(
+                                                                    DbFieldDescriptor.STRING_SIZE)
+                                                                    .nullable(false))
+                                                    .constraint(DSL.primaryKey(ID)).toString())
+                                    .build();
 
     /**
      * Construct the schema creator instance.
@@ -119,7 +129,7 @@ public class SchemaCreator implements ISchemaCreator {
                         // and are added explicitly
                         .filter(smm -> smm != SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE
                                         && smm != SearchMetadataMapping.PRIMITIVE_OID)
-                        .filter(smm -> smm.getDbDescriptor().getLocation() == location)
+                        .filter(smm -> smm.getDbDescriptor().getLocations().contains(location))
                         .map(SearchMetadataMapping::getDbDescriptor)
                         .forEach(field -> commonFields.column(field.getColumn(),
                                         field.getDbType().nullable(false)));

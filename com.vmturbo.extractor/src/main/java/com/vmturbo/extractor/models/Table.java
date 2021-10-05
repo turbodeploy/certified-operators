@@ -137,6 +137,17 @@ public class Table {
         }
 
         /**
+         * Add one or more columns to the table under construction.
+         *
+         * @param columns columns to be added
+         * @return this builder
+         */
+        public Builder withColumns(Collection<Column<?>> columns) {
+            columns.forEach(c -> this.columns.put(c.getName(), c));
+            return this;
+        }
+
+        /**
          * Build the table.
          *
          * @return the newly built table
@@ -460,6 +471,10 @@ public class Table {
             return values.entrySet().stream()
                     .filter(e -> e.getKey() != null && e.getValue() != null)
                     .collect(Collectors.toMap(e -> e.getKey().getName(), Entry::getValue));
+        }
+
+        public Table getTable() {
+            return table;
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.vmturbo.search.metadata;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1048,21 +1049,24 @@ public enum SearchMetadataMapping {
      */
     public DbFieldDescriptor<?> getDbDescriptor() {
         boolean isPrimitive = SearchEntityMetadata.Constants.ENTITY_COMMON_FIELDS.containsValue(this);
-        final DbFieldDescriptor.Location location;
+        final Set<DbFieldDescriptor.Location> locations = new HashSet<>();
         DataType<?> dbType = API_TYPE_TO_DB_TYPE.get(apiDatatype);
         if (isPrimitive) {
-            location = (this == PRIMITIVE_SEVERITY || this == RELATED_ACTION_COUNT)
-                            ? Location.Actions : Location.Entities;
+            locations.add((this == PRIMITIVE_SEVERITY || this == RELATED_ACTION_COUNT)
+                            ? Location.Actions : Location.Entities);
+            if (this == PRIMITIVE_OID || this == PRIMITIVE_ENTITY_TYPE) {
+                locations.add(Location.Actions);
+            }
         } else {
             // TODO put tags to stringmaps
             if (apiDatatype == Type.TEXT || apiDatatype == Type.MULTI_TEXT) {
-                location = Location.Strings;
+                locations.add(Location.Strings);
             } else {
-                location = Location.Numerics;
+                locations.add(Location.Numerics);
                 dbType = DbFieldDescriptor.NUMERIC_DB_TYPE;
             }
         }
-        return new DbFieldDescriptor(location, columnName, dbType);
+        return new DbFieldDescriptor(locations, columnName, dbType);
     }
 
     /**
