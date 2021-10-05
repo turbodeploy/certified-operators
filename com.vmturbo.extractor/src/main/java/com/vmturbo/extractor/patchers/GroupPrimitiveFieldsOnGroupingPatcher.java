@@ -2,7 +2,6 @@ package com.vmturbo.extractor.patchers;
 
 import static com.vmturbo.extractor.export.ExportUtils.TAGS_JSON_KEY_NAME;
 import static com.vmturbo.extractor.export.ExportUtils.TARGETS_JSON_KEY_NAME;
-import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,6 +24,7 @@ import com.vmturbo.commons.Pair;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.Column;
+import com.vmturbo.extractor.models.Table;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.json.export.Target;
@@ -93,24 +93,29 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
         // normal columns
         ListUtils.emptyIfNull(NORMAL_COLUMN_METADATA_BY_GROUP_TYPE.get(group.getDefinition().getType()))
                 .forEach(metadata -> {
-                    Column<?> column = SEARCH_ENTITY_TABLE.getColumn(metadata.getColumnName());
+                    Table destinationTable = recordInfo.getRecord().getTable();
+                    Column<?> column = destinationTable.getColumn(metadata.getColumnName());
                     if (column == null) {
                         logger.error("No column {} in table {}", metadata.getColumnName(),
-                                SEARCH_ENTITY_TABLE.getName());
+                                        destinationTable.getName());
                         return;
                     }
                     Optional<Object> fieldValue = metadata.getGroupFieldFunction().apply(group);
-                    if (fieldValue.isPresent()) {
-                        final Object value = fieldValue.get();
-                        switch (column.getColType()) {
-                            case ENTITY_TYPE:
-                                // convert to database enum
-                                recordInfo.getRecord().set((Column<EntityType>)column,
-                                        GroupTypeUtils.protoToDb((GroupDTO.GroupType)value));
-                                break;
-                            default:
-                                // for other fields like oid, name, origin.
-                                recordInfo.getRecord().set((Column<Object>)column, value);
+                    if (patchCase == PatchCase.SEARCH) {
+                        // TODO transform to db value using SearchMetadataMapping definitions
+                    } else {
+                        if (fieldValue.isPresent()) {
+                            final Object value = fieldValue.get();
+                            switch (column.getColType()) {
+                                case ENTITY_TYPE:
+                                    // convert to database enum
+                                    recordInfo.getRecord().set((Column<EntityType>)column,
+                                            GroupTypeUtils.protoToDb((GroupDTO.GroupType)value));
+                                    break;
+                                default:
+                                    // for other fields like oid, name, origin.
+                                    recordInfo.getRecord().set((Column<Object>)column, value);
+                            }
                         }
                     }
                 });

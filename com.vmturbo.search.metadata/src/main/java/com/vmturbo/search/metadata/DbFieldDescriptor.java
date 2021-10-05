@@ -1,5 +1,8 @@
 package com.vmturbo.search.metadata;
 
+import java.util.Collections;
+import java.util.Set;
+
 import org.jooq.DataType;
 import org.jooq.impl.SQLDataType;
 
@@ -19,7 +22,8 @@ public class DbFieldDescriptor<DbValueT> {
      */
     public static final int STRING_SIZE = 1024;
 
-    private final Location location;
+    // some fields e.g. oid and type go into more than one table - for pagination
+    private final Set<Location> locations;
     private final String column;
     // this is backend-specific i.e. jOOQ
     private final DataType<DbValueT> dbType;
@@ -32,13 +36,26 @@ public class DbFieldDescriptor<DbValueT> {
      * @param dbType db type e.g. "varchar"
      */
     public DbFieldDescriptor(Location location, String column, DataType<DbValueT> dbType) {
-        this.location = location;
+        this.locations = Collections.singleton(location);
         this.column = column;
         this.dbType = dbType;
     }
 
-    public Location getLocation() {
-        return location;
+    /**
+     * Construct the field db storage description.
+     *
+     * @param locations tables to contain that field
+     * @param column column name
+     * @param dbType db type e.g. "varchar"
+     */
+    public DbFieldDescriptor(Set<Location> locations, String column, DataType<DbValueT> dbType) {
+        this.locations = locations;
+        this.column = column;
+        this.dbType = dbType;
+    }
+
+    public Set<Location> getLocations() {
+        return locations;
     }
 
     public String getColumn() {
