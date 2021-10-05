@@ -548,10 +548,22 @@ public final class InitialPlacementUtils {
      */
     public static void restoreCanNotAcceptNewCustomerSellers(@Nonnull final Economy economy,
             @Nonnull final Set<Long> ineligibleSellers) {
+        setCanAcceptNewCustomerSellers(economy, ineligibleSellers, true);
+    }
+
+    /**
+     * Set sellers can accept new customers value.
+     *
+     * @param economy the economy.
+     * @param sellers the sellers.
+     * @param canAccept the value.
+     */
+    public static void setCanAcceptNewCustomerSellers(@Nonnull final Economy economy,
+            @Nonnull final Set<Long> sellers, boolean canAccept) {
         economy.clearSellersFromMarkets();
         economy.getTraders().stream().forEach(t -> {
-            if (ineligibleSellers.contains(t.getOid())) {
-                t.getSettings().setCanAcceptNewCustomers(true);
+            if (sellers.contains(t.getOid())) {
+                t.getSettings().setCanAcceptNewCustomers(canAccept);
             }
         });
     }

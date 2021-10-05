@@ -318,7 +318,7 @@ public class InitialPlacementFinder {
                     .getInitialPlacementBuyerList(), slToClusterMap, maxRetry,
                     initialPlacement.getReservationMode(),
                     initialPlacement.getReservationGrouping(),
-                    maxGroupingRetry);
+                    maxGroupingRetry, initialPlacement.getProvidersList());
             buyerPlacements.putAll(initialPlacementPerReservation);
             // Keep incoming reservation buyers in the existingReservations map
             existingReservations.put(initialPlacement.getId(),
