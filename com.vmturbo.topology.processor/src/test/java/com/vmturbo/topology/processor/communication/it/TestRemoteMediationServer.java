@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +70,11 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
                 .build();
     }
 
+    /**
+     * Awaits until transport get registered or fails after 30 seconds.
+     *
+     * @throws InterruptedException in case awaiting process has been interrupted.
+     */
     public void awaitTransportRegistered() throws InterruptedException {
         getLogger().debug("Awaiting container to register");
         Assert.assertTrue("Transport did not appear",

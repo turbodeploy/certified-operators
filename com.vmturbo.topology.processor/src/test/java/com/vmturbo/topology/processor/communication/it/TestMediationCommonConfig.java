@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import static com.vmturbo.topology.processor.communication.SdkServerConfig.REMOTE_MEDIATION_PATH;
 
@@ -50,10 +50,13 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 @Configuration
 public class TestMediationCommonConfig {
 
+    /**
+     * Test name property.
+     */
     public static final String FIELD_TEST_NAME = "testName";
 
     @Value("${" + FIELD_TEST_NAME + "}")
-    public String testName;
+    private String testName;
 
     /**
      * Redefinition of the KeyValueStore bean

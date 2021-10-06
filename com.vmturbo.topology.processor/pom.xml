@@ -389,6 +389,18 @@
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.client</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.common</artifactId>
+            <type>test-jar</type>
+            <version>${vmturbo.mt.branch.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>com.vmturbo</groupId>
