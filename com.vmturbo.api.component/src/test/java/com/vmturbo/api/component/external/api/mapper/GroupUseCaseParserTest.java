@@ -37,8 +37,7 @@ public class GroupUseCaseParserTest {
         Arrays.stream(new String[] {
                 "VirtualMachine", "PhysicalMachine", "VirtualDataCenter", "Storage",
                 "Database", "Cluster", "Group",
-                "StorageCluster", "VirtualMachineCluster", "DiskArray", "StorageController",
-                "Switch", "Service"})
+                "StorageCluster", "VirtualMachineCluster", "DiskArray", "StorageController", "Switch"})
                 .forEach(className -> assertTrue(useCases.containsKey(className)));
     }
 
