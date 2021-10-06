@@ -35,11 +35,11 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
-import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculator;
 import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
@@ -97,6 +97,8 @@ public interface AnalysisFactory {
 
         private final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory;
 
+        private final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine;
+
         private final CloudCostDataProvider cloudCostDataProvider;
 
         private final AnalysisRICoverageListener listener;
@@ -151,6 +153,7 @@ public interface AnalysisFactory {
                                       @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
                                       @Nonnull final WastedFilesAnalysisEngine wastedFilesAnalysisEngine,
                                       @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
+                                      @Nonnull final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine,
                                       @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                                       @Nonnull final Clock clock,
                                       final float alleviatePressureQuoteFactor,
@@ -182,6 +185,7 @@ public interface AnalysisFactory {
             this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
             this.wastedFilesAnalysisEngine = Objects.requireNonNull(wastedFilesAnalysisEngine);
             this.buyRIImpactAnalysisFactory = Objects.requireNonNull(buyRIImpactAnalysisFactory);
+            this.namespaceQuotaAnalysisEngine = Objects.requireNonNull(namespaceQuotaAnalysisEngine);
             this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
             this.clock = Objects.requireNonNull(clock);
             this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
@@ -226,8 +230,8 @@ public interface AnalysisFactory {
                 groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisEngine,
-                buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory,
-                initialPlacementFinder, reversibilitySettingFetcherFactory,
+                buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine, tierExcluderFactory, listener,
+                consistentScalingHelperFactory, initialPlacementFinder, reversibilitySettingFetcherFactory,
                 migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
                 actionSavingsCalculatorFactory);
         }

@@ -66,6 +66,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -174,6 +175,8 @@ public class MarketRunnerTest {
                 mock(WastedFilesAnalysisEngine.class);
             final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                     mock(BuyRIImpactAnalysisFactory.class);
+            final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine =
+                mock(NamespaceQuotaAnalysisEngine.class);
             when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
             final GroupServiceBlockingStub groupServiceGrpc =
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -182,8 +185,8 @@ public class MarketRunnerTest {
             return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                    wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                    mock(AnalysisRICoverageListener.class),
+                    wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine,
+                    tierExcluderFactory, mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                     new CommodityIdUpdater(), actionSavingsCalculatorFactory);

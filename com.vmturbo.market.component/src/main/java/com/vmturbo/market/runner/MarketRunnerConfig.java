@@ -49,6 +49,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -201,6 +202,7 @@ public class MarketRunnerConfig {
                 topologyCostCalculatorFactory(),
                 wastedFilesAnalysisFactory(),
                 buyRIImpactAnalysisConfig.buyRIImpactAnalysisFactory(),
+                namespaceQuotaAnalysisEngine(),
                 marketCloudCostDataProvider(),
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
@@ -271,6 +273,16 @@ public class MarketRunnerConfig {
     @Bean
     public WastedFilesAnalysisEngine wastedFilesAnalysisFactory() {
         return new WastedFilesAnalysisEngine();
+    }
+
+    /**
+     * Create the instance of {@link NamespaceQuotaAnalysisEngine}.
+     *
+     * @return Instance of {@link NamespaceQuotaAnalysisEngine}.
+     */
+    @Bean
+    public NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine() {
+        return new NamespaceQuotaAnalysisEngine();
     }
 
     /**
