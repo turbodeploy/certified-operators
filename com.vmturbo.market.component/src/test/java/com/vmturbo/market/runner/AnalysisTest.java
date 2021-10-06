@@ -47,6 +47,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
@@ -73,6 +75,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
@@ -86,6 +90,7 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -152,6 +157,20 @@ public class AnalysisTest {
         .setDeprecatedImportance(0.0d)
         .setId(1234L).build();
 
+    private final Action namespaceResizeAction = Action.newBuilder()
+        .setInfo(ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(2222)
+                    .setType(EntityType.NAMESPACE_VALUE))))
+        .setExplanation(Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setDeprecatedStartUtilization(0)
+                .setDeprecatedEndUtilization(0)))
+        .setDeprecatedImportance(0)
+        .setId(2345L)
+        .build();
+
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
@@ -173,6 +192,13 @@ public class AnalysisTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
                      testSettingPolicyService);
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+        FeatureFlags.NAMESPACE_QUOTA_RESIZING);
 
     @Before
     public void before() {
@@ -233,14 +259,18 @@ public class AnalysisTest {
         when(wastedFilesAnalysis.getActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
         when(wastedFilesAnalysis.getMbReleasedOnProvider(anyLong())).thenReturn(OptionalLong.empty());
+        final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine =
+            mock(NamespaceQuotaAnalysisEngine.class);
+        when(namespaceQuotaAnalysisEngine.execute(any(), any(), any(), any()))
+            .thenReturn(Collections.singletonList(namespaceResizeAction));
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
-            listener, consistentScalingHelperFactory, initialPlacementFinder,
+            wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine,
+            tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
             new CommodityIdUpdater(), actionSavingsCalculatorFactory);
     }
@@ -706,6 +736,43 @@ public class AnalysisTest {
         assertEquals(PM2_ID, moveAction.get().getInfo().getMove()
                 .getChanges(0).getDestination().getId());
 
+    }
+
+    /**
+     * Test {@link Analysis#execute} with "namespaceQuotaResizing" feature flag enabled and
+     * corresponding namespace resize action will be generated.
+     */
+    @Test
+    public void testExecuteWithNamespaceQuotaResizingEnabled() {
+        featureFlagTestRule.enable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
+
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+            SuspensionsThrottlingConfig.DEFAULT,
+            Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
+            .setIncludeVDC(true)
+            .build();
+        final Analysis analysis = getAnalysis(analysisConfig);
+        analysis.execute();
+        assertTrue(analysis.getActionPlan().isPresent());
+        assertTrue(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
+    }
+    /**
+     * Test {@link Analysis#execute} with "namespaceQuotaResizing" feature flag disabled and
+     * namespaceQuotaAnalysisEngine won't be triggered which leads to no namespace resize action.
+     */
+    @Test
+    public void testExecuteWithNamespaceQuotaResizingDisabled() {
+        featureFlagTestRule.disable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
+
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+            SuspensionsThrottlingConfig.DEFAULT,
+            Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
+            .setIncludeVDC(true)
+            .build();
+        final Analysis analysis = getAnalysis(analysisConfig);
+        analysis.execute();
+        assertTrue(analysis.getActionPlan().isPresent());
+        assertFalse(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
     }
 
     /**

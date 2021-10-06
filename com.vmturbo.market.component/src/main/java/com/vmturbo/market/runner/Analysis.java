@@ -24,7 +24,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
 
@@ -67,6 +66,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -89,6 +89,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerClusterPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerSpecPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedEntityPostProcessor;
@@ -110,7 +111,6 @@ import com.vmturbo.market.topology.conversions.ShoppingListInfo;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
-import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculator;
 import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -277,6 +277,8 @@ public class Analysis {
     private final ReservedCapacityAnalysisEngine reservedCapacityAnalysisEngine
             = new ReservedCapacityAnalysisEngine();
 
+    private final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine;
+
     private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
 
     private final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory;
@@ -340,6 +342,7 @@ public class Analysis {
                     @Nonnull final MarketPriceTableFactory priceTableFactory,
                     @Nonnull final WastedFilesAnalysisEngine wastedFilesAnalysisEngine,
                     @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
+                    @Nonnull final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
@@ -364,6 +367,7 @@ public class Analysis {
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(
                 topologyDTOs.stream());
         this.wastedFilesAnalysisEngine = wastedFilesAnalysisEngine;
+        this.namespaceQuotaAnalysisEngine = namespaceQuotaAnalysisEngine;
         this.buyRIImpactAnalysisFactory = buyRIImpactAnalysisFactory;
         this.topologyCostCalculatorFactory = cloudCostCalculatorFactory;
         this.marketPriceTableFactory = priceTableFactory;
@@ -846,6 +850,15 @@ public class Analysis {
                             return false;
                         }
                     });
+
+                    if (FeatureFlags.NAMESPACE_QUOTA_RESIZING.isEnabled()) {
+                        try (TracingScope ignored = Tracing.trace("namespace_quota_resizing_analysis")) {
+                            final Collection<Action> namespaceResourceQuotaResizeActions =
+                                namespaceQuotaAnalysisEngine.execute(topologyInfo, topologyDTOs,
+                                    projectedEntities, actions);
+                            actionPlanBuilder.addAllAction(namespaceResourceQuotaResizeActions);
+                        }
+                    }
 
                     // add Buy RI impact analysis actions
                     buyRIAllocateActions.stream()
