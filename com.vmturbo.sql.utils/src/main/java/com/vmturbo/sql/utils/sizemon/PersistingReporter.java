@@ -32,6 +32,7 @@ public class PersistingReporter extends DbSizeReporter {
     private static final String SCHEMA_TOTAL_DESCRIPTION = "schema total";
     private final Supplier<DSLContext> dslSupplier;
     private Timestamp now;
+    private static final int DESCRIPTION_FIELD_LENGTH = 1000;
 
     /**
      * Create a new instance.
@@ -61,7 +62,12 @@ public class PersistingReporter extends DbSizeReporter {
                 .column(DESCRIPTION_FIELD, SQLDataType.VARCHAR(200))
                 .column(SIZE_FIELD, SQLDataType.BIGINT)
                 .execute();
-
+            // The description column was increased from varchar(200) to varchar(1000) in release 8.3.4.
+            // If column is already varchar(1000), the alter column operation is a noop.
+            dslSupplier.get().alterTable(DB_SIZE_TABLE)
+                    .alterColumn(DESCRIPTION_FIELD)
+                    .set(SQLDataType.VARCHAR(DESCRIPTION_FIELD_LENGTH))
+                    .execute();
         }
     }
 
@@ -71,9 +77,14 @@ public class PersistingReporter extends DbSizeReporter {
                 dslSupplier.get().insertInto(DB_SIZE_TABLE)
                         .columns(TIME_FIELD, TABLE_NAME_FIELD, GRANULARITY_FIELD,
                                 DESCRIPTION_FIELD, SIZE_FIELD);
-        report.getSizeItems(granularity).forEach(item ->
-                insert.values(now, report.getTable().getName(), item.getGranularity().name(),
-                        item.getDescription(), item.getSize()));
+        report.getSizeItems(granularity).forEach(item -> {
+            String description = item.getDescription();
+            if (description.length() > DESCRIPTION_FIELD_LENGTH) {
+                description = description.substring(0, DESCRIPTION_FIELD_LENGTH);
+            }
+            insert.values(now, report.getTable().getName(), item.getGranularity().name(),
+                    description, item.getSize());
+        });
         insert.execute();
     }
 
