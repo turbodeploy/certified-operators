@@ -190,6 +190,10 @@
     "Service" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "servicesByName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES:Container:PRODUCES:ApplicationComponent:PRODUCES",
+                "filterCategory": "entity", "filterType": "serviceByNamespace"},
+            {"inputType": "*", "elements": "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES:Container:PRODUCES:ApplicationComponent:PRODUCES",
+                "filterCategory": "entity", "filterType": "serviceByContainerPlatformCluster"},
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessApplication"},
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessTransaction"},
             {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "serviceByUserDefinedEntity", "loadOptions": true}
