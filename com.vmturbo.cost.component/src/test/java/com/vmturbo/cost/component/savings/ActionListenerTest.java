@@ -180,7 +180,7 @@ public class ActionListenerTest {
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         actionsService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         settingsService = SettingServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        EntitySavingsRetentionConfig config = new EntitySavingsRetentionConfig(settingsService);
+        EntitySavingsRetentionConfig config = new EntitySavingsRetentionConfig(settingsService, 1L);
         // Initialize ActionListener with a one hour action lifetime.
         actionListener = new ActionListener(store, actionsService,
                                             entityCostStore, projectedEntityCostStore,

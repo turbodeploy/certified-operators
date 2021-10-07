@@ -35,19 +35,23 @@ public class EntitySavingsRetentionConfig {
     private Long volumeDeleteRetentionMs;
     private Long previousActionRetentionMs;
     private Long previousVolumeDeleteRetentionMs;
+    private final long savingsAuditLogRetentionHours;
 
     /**
      * Constructor.
      *
      * @param settingServiceClient settings service client.
+     * @param auditLogRetentionHours How long to retain audit events.
      */
-    public EntitySavingsRetentionConfig(SettingServiceGrpc.SettingServiceBlockingStub settingServiceClient) {
+    public EntitySavingsRetentionConfig(SettingServiceGrpc.SettingServiceBlockingStub settingServiceClient,
+            long auditLogRetentionHours) {
         this.settingServiceClient = settingServiceClient;
         this.actionRetentionMs = getDefaultSetting(GlobalSettingSpecs.CloudSavingsActionRetention);
         this.volumeDeleteRetentionMs =
                 getDefaultSetting(GlobalSettingSpecs.CloudSavingsDeleteVolumeRetention);
         previousActionRetentionMs = null;
         previousVolumeDeleteRetentionMs = null;
+        this.savingsAuditLogRetentionHours = auditLogRetentionHours;
     }
 
     /**
@@ -139,7 +143,7 @@ public class EntitySavingsRetentionConfig {
         try {
             Iterator<Setting> settings = settingServiceClient.getMultipleGlobalSettings(
                     builder.build());
-            return DataRetentionSettings.valueOf(settings);
+            return DataRetentionSettings.valueOf(settings, savingsAuditLogRetentionHours);
         } catch (io.grpc.StatusRuntimeException | IllegalArgumentException e) {
             logger.warn("Unable to fetch stats retention settings.", e);
         }
@@ -157,7 +161,6 @@ public class EntitySavingsRetentionConfig {
         private final long monthlyStatsRetentionInHours;
 
         private static final Set<GlobalSettingSpecs> requiredSettings = ImmutableSet.of(
-                GlobalSettingSpecs.AuditLogRetentionDays,
                 GlobalSettingSpecs.StatsRetentionHours,
                 GlobalSettingSpecs.StatsRetentionDays,
                 GlobalSettingSpecs.StatsRetentionMonths);
@@ -165,14 +168,14 @@ public class EntitySavingsRetentionConfig {
         /**
          * Creates a new instance with given values.
          *
-         * @param auditLogRetentionDays Audit retention duration in days.
+         * @param auditLogRetentionHours Audit retention duration in hours.
          * @param hourlyStatsRetentionInHours Hourly stats table retention in hours.
          * @param dailyStatsRetentionInDays Daily stats table retention in days.
          * @param monthlyStatsRetentionInMonths Monthly stats table retention in months.
          */
-        DataRetentionSettings(long auditLogRetentionDays, long hourlyStatsRetentionInHours,
+        DataRetentionSettings(long auditLogRetentionHours, long hourlyStatsRetentionInHours,
                 long dailyStatsRetentionInDays, long monthlyStatsRetentionInMonths) {
-            this.auditLogRetentionInHours = auditLogRetentionDays * 24;
+            this.auditLogRetentionInHours = auditLogRetentionHours;
             this.hourlyStatsRetentionInHours = hourlyStatsRetentionInHours;
             this.dailyStatsRetentionInHours = dailyStatsRetentionInDays * 24;
             this.monthlyStatsRetentionInHours = monthlyStatsRetentionInMonths * 730;
@@ -182,10 +185,12 @@ public class EntitySavingsRetentionConfig {
          * Reads values from settings read from SettingsManager.
          *
          * @param settings Settings containing values.
+         * @param auditLogRetentionHours How long to retain audit events.
          * @return Instance with filled in values, defaults used where value not present.
          * @throws IllegalArgumentException When required settings are not found.
          */
-        public static DataRetentionSettings valueOf(@Nullable final Iterator<Setting> settings)
+        public static DataRetentionSettings valueOf(@Nullable final Iterator<Setting> settings,
+                long auditLogRetentionHours)
                 throws IllegalArgumentException {
             if (settings == null) {
                 throw new IllegalArgumentException("No retention settings available.");
@@ -205,7 +210,7 @@ public class EntitySavingsRetentionConfig {
                             + spec.getSettingName());
                 }
             }
-            return new DataRetentionSettings(values.get(GlobalSettingSpecs.AuditLogRetentionDays),
+            return new DataRetentionSettings(auditLogRetentionHours,
                     values.get(GlobalSettingSpecs.StatsRetentionHours),
                     values.get(GlobalSettingSpecs.StatsRetentionDays),
                     values.get(GlobalSettingSpecs.StatsRetentionMonths));

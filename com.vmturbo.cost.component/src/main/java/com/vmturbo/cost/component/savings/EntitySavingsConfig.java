@@ -96,10 +96,10 @@ public class EntitySavingsConfig {
     private boolean enableEntitySavings;
 
     /**
-     * The amount of time to retain state in the internal savings event log.
+     * How long to retain events in audit events DB table - default 1 month max.
      */
-    @Value("${entitySavingsEventLogRetentionHours:2400}")
-    private Long entitySavingsEventLogRetentionHours;
+    @Value("${entitySavingsAuditLogRetentionHours:730}")
+    private Long entitySavingsAuditLogRetentionHours;
 
     /**
      * Real-Time Context Id.
@@ -165,7 +165,8 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntitySavingsRetentionConfig getEntitySavingsRetentionConfig() {
-        return new EntitySavingsRetentionConfig(settingServiceClient());
+        return new EntitySavingsRetentionConfig(settingServiceClient(),
+                entitySavingsAuditLogRetentionHours);
     }
 
     /**
