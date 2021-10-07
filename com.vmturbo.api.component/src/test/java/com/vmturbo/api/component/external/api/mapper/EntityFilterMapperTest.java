@@ -91,11 +91,13 @@ public class EntityFilterMapperTest {
     private static final String FOO = "foo";
     private static final String BAR = "bar";
     private static final String VM_TYPE = "VirtualMachine";
-    private static final String SERVICE_TYPE = "ServiceType";
+    private static final String SERVICE_TYPE = "Service";
     private static final String PM_TYPE = "PhysicalMachine";
     private static final String DS_TYPE = "Storage";
     private static final String DISK_ARRAY_TYPE = "DiskArray";
     private static final String VDC_TYPE = "VirtualDataCenter";
+    private static final String CONTAINER_CLUSTER_TYPE = "ContainerPlatformCluster";
+    private static final String NAMESPACE_TYPE = "Namespace";
     private static final SearchFilter DISPLAYNAME_IS_FOO =
                     SearchProtoUtil.searchFilterProperty(SearchProtoUtil.nameFilterExact(FOO));
     private static final SearchFilter DISPLAYNAME_IS_BAR =
@@ -108,12 +110,18 @@ public class EntityFilterMapperTest {
     private static final PropertyFilter TYPE_IS_DISK_ARRAY =
                     SearchProtoUtil.entityTypeFilter(DISK_ARRAY_TYPE);
     private static final PropertyFilter TYPE_IS_VDC = SearchProtoUtil.entityTypeFilter(VDC_TYPE);
+    private static final PropertyFilter TYPE_IS_CONTAINER_CLUSTER =
+                    SearchProtoUtil.entityTypeFilter(CONTAINER_CLUSTER_TYPE);
+    private static final PropertyFilter TYPE_IS_NAMESPACE =
+                    SearchProtoUtil.entityTypeFilter(NAMESPACE_TYPE);
     private static final SearchFilter PRODUCES_VMS = SearchProtoUtil.searchFilterTraversal(
                     SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, VM_TYPE));
     private static final SearchFilter PRODUCES_ONE_HOP = SearchProtoUtil.searchFilterTraversal(
                     SearchProtoUtil.numberOfHops(TraversalDirection.PRODUCES, 1));
     private static final SearchFilter PRODUCES_ST = SearchProtoUtil.searchFilterTraversal(
                     SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, DS_TYPE));
+    private static final SearchFilter PRODUCES_SVC = SearchProtoUtil.searchFilterTraversal(
+                    SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, SERVICE_TYPE));
 
     /**
      * Verify that a simple byName criterion is converted properly.
@@ -630,6 +638,34 @@ public class EntityFilterMapperTest {
         assertEquals(DISPLAYNAME_IS_BAR, byDSName.getSearchFilter(0));
         assertEquals(PRODUCES_ONE_HOP, byDSName.getSearchFilter(1));
         assertEquals(TYPE_IS_VM, byDSName.getSearchFilter(2).getPropertyFilter());
+    }
+
+    /**
+     * Verify that a serviceByContainerPlatformCluster criterion combined with a serviceByNamespace
+     * criterion start at proper entity types with a series of traversal filters that stop at
+     * Service type.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
+     */
+    @Test
+    public void testServiceByContainerClusterAndNamespace() throws OperationFailedException {
+        GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE,
+            filterDTO(EntityFilterMapper.EQUAL, FOO, "serviceByContainerPlatformCluster"),
+            filterDTO(EntityFilterMapper.EQUAL, BAR, "serviceByNamespace"));
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+                inputDTO.getCriteriaList(), inputDTO.getClassName());
+        assertEquals(2, parameters.size());
+        final Iterator<SearchParameters> it = parameters.iterator();
+        SearchParameters byContainerCluster = it.next();
+        assertEquals(TYPE_IS_CONTAINER_CLUSTER, byContainerCluster.getStartingFilter());
+        assertEquals(7, byContainerCluster.getSearchFilterCount());
+        assertEquals(DISPLAYNAME_IS_FOO, byContainerCluster.getSearchFilter(0));
+        assertEquals(PRODUCES_SVC, byContainerCluster.getSearchFilter(6));
+        SearchParameters byNamespace = it.next();
+        assertEquals(TYPE_IS_NAMESPACE, byNamespace.getStartingFilter());
+        assertEquals(6, byNamespace.getSearchFilterCount());
+        assertEquals(DISPLAYNAME_IS_BAR, byNamespace.getSearchFilter(0));
+        assertEquals(PRODUCES_SVC, byNamespace.getSearchFilter(5));
     }
 
     /**
