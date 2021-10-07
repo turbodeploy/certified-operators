@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -53,7 +54,7 @@ public class SettingsUpdatesReceiver extends ComponentNotificationReceiver<Setti
      */
     @Override
     protected void processMessage(@Nonnull final SettingNotification message,
-                                  @Nonnull final SpanContext tracingContext)
+                                  @Nullable final SpanContext tracingContext)
             throws ApiClientException, InterruptedException {
         logger.debug("Settings have been updated. BroadCast a Settings Updated Notification");
         doWithListeners(listener -> listener.onSettingsUpdated(message), message);

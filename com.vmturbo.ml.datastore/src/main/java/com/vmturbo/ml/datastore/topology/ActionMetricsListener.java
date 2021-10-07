@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -82,7 +83,7 @@ public class ActionMetricsListener implements com.vmturbo.action.orchestrator.ap
 
     @Override
     public void onActionsReceived(@Nonnull final ActionDTO.ActionPlan actionPlan,
-                                  @Nonnull final SpanContext tracingContext) {
+                                  @Nullable final SpanContext tracingContext) {
         final Map<String, Long> actionsStatistics = new HashMap<>();
         if (ActionDTOUtil.getActionPlanType(actionPlan.getInfo()) != ActionPlanType.MARKET) {
             // We only care about actions.

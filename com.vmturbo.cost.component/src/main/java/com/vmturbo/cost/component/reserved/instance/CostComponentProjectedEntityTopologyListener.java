@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import io.opentracing.SpanContext;
@@ -57,7 +58,7 @@ public class CostComponentProjectedEntityTopologyListener implements
     public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity>
                                                     projectedTopo,
-                                            @Nonnull final SpanContext tracingContext) {
+                                            @Nullable final SpanContext tracingContext) {
         final long projectedTopologyId = metadata.getProjectedTopologyId();
         logger.info("Received projected entities for topologyId {}", projectedTopologyId);
         try {
@@ -73,7 +74,7 @@ public class CostComponentProjectedEntityTopologyListener implements
                                                     TopologyInfo originalTopologyInfo,
                                                     @Nonnull final RemoteIterator<ProjectedTopologyEntity>
                                                             projectedTopo,
-                                                    @Nonnull final SpanContext tracingContext)
+                                                    @Nullable final SpanContext tracingContext)
             throws CommunicationException, InterruptedException {
         updateLatestKnownProjectedTopologyId(projectedTopologyId);
 

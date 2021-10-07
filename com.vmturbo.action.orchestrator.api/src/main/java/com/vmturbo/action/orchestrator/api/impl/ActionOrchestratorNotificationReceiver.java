@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.api.impl;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -31,7 +32,7 @@ public class ActionOrchestratorNotificationReceiver extends
 
     @Override
     protected void processMessage(@Nonnull final ActionOrchestratorNotification message,
-                                  @Nonnull final SpanContext tracingContext)
+                                  @Nullable final SpanContext tracingContext)
             throws ApiClientException {
         switch (message.getTypeCase()) {
             case ACTION_PLAN: // DEPRECATED

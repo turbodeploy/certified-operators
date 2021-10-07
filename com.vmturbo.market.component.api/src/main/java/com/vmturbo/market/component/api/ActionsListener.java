@@ -1,6 +1,7 @@
 package com.vmturbo.market.component.api;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -20,6 +21,6 @@ public interface ActionsListener {
      * @throws InterruptedException if thread has been interrupted
      */
     void onActionsReceived(@Nonnull final ActionPlan actionPlan,
-                           @Nonnull final SpanContext tracingContext) throws InterruptedException;
+                           @Nullable final SpanContext tracingContext) throws InterruptedException;
 
 }

@@ -94,7 +94,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(TopologyInfo topologyInfo,
                                        @Nonnull final RemoteIterator<DataSegment> entityIterator,
-                                       @Nonnull final SpanContext tracingContext) {
+                                       @Nullable final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         final FlyweightTopologyProto flyweights = new FlyweightTopologyProto();

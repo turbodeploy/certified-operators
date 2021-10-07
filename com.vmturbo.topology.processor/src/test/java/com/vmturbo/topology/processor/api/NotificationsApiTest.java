@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
@@ -580,7 +581,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
                 @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs,
-                @Nonnull final SpanContext tracingContext) {
+                @Nullable final SpanContext tracingContext) {
             try {
                 while (topologyDTOs.hasNext()) {
                     result.addAll(topologyDTOs.nextChunk().stream().filter(

@@ -55,7 +55,7 @@ public class TopologyReceiver {
         @Nonnull ChunkingReceiver<TopologyDTO.Topology.DataSegment> receiver,
         @Nonnull final Topology topology,
         @Nonnull Runnable commitCommand,
-        @Nonnull final SpanContext tracingContext) {
+        @Nullable final SpanContext tracingContext) {
         logger.trace("Received {} segment for topology broadcast {}", topology::getSegmentCase,
                      topology::getTopologyId);
         switch (topology.getSegmentCase()) {
@@ -80,7 +80,7 @@ public class TopologyReceiver {
 
     private Collection<Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>>>
     createEntityConsumers(@Nonnull final TopologyInfo topologyInfo,
-                          @Nonnull final SpanContext tracingContext) {
+                          @Nullable final SpanContext tracingContext) {
         logger.info("TopologyInfo : " + topologyInfo.getAllFields());
         return listeners.stream().map(listener -> {
             final Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>> consumer =

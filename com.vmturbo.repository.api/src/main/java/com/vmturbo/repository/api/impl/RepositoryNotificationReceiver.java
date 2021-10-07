@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -32,7 +33,7 @@ public class RepositoryNotificationReceiver extends
 
     @Override
     protected void processMessage(@Nonnull RepositoryNotification message,
-                                  @Nonnull final SpanContext tracingContext) throws ApiClientException {
+                                  @Nullable final SpanContext tracingContext) throws ApiClientException {
         getLogger().debug("Received message {} of type {}", message.getBroadcastId(),
                 message.getTypeCase());
         switch (message.getTypeCase()) {

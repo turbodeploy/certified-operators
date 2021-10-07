@@ -82,6 +82,17 @@ public class BaseVmtComponentConfig {
      */
     public static final String ENABLE_EXTERNAL_SECRETS_FLAG = "enableExternalSecrets";
 
+
+    /**
+     * Configure whether always-on tracing is enabled. This enables distributed tracing
+     * (Jaeger tracing) for topology broadcasts. Off by default.
+     */
+    @Value("${enableAlwaysOnTracing:false}")
+    public void setAlwaysOnTracingEnabled(boolean enableAlwaysOnTracing) {
+        TracingManager.setAlwaysOnTracerEnabled(enableAlwaysOnTracing);
+    }
+
+
     /**
      * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
      * private/public key pairs). If false, this data will be read from (legacy) persistent volumes.

@@ -10,6 +10,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -102,7 +103,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
                                        @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
-                                       @Nonnull final SpanContext tracingContext) {
+                                       @Nullable final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         final long timeMs = topologyInfo.getCreationTime();

@@ -25,11 +25,14 @@ public class DelegatingTracer implements Tracer {
     /**
      * Package-level visibility because it should only be used by {@link TracingManager}.
      */
-    synchronized void updateDelegate(@Nonnull final Tracer tracer) {
+    synchronized void updateDelegate(@Nonnull final Tracer tracer,
+                                     final boolean closeOld) {
         final Tracer oldDelegate = delegate;
         delegate = tracer;
 
-        oldDelegate.close();
+        if (closeOld) {
+            oldDelegate.close();
+        }
     }
 
     @Override
@@ -65,5 +68,9 @@ public class DelegatingTracer implements Tracer {
     @Override
     public void close() {
         delegate.close();
+    }
+
+    Tracer getDelegate() {
+        return delegate;
     }
 }

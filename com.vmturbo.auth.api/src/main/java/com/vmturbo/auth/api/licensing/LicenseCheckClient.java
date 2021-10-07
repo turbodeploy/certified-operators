@@ -254,7 +254,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
 
     @Override
     protected void processMessage(@Nonnull final LicenseSummary message,
-                                  @Nonnull final SpanContext tracingContext) {
+                                  @Nullable final SpanContext tracingContext) {
         try (TracingScope scope = Tracing.trace("license_update")) {
             updateLicenseSummary(message);
         }

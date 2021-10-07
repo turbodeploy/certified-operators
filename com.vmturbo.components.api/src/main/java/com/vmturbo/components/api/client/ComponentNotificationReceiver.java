@@ -63,7 +63,7 @@ public abstract class ComponentNotificationReceiver<RecvMsg extends AbstractMess
      *                       notification publishers to receivers.
      */
     protected abstract void processMessage(@Nonnull final RecvMsg message,
-                                           @Nonnull final SpanContext tracingContext)
+                                           @Nullable final SpanContext tracingContext)
             throws ApiClientException, InterruptedException;
 
     protected ExecutorService getExecutorService() {

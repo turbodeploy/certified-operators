@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -90,7 +91,7 @@ public class ActionAuditService implements RequiresDataInitialization, TargetLis
     }
 
     private void onNewEvent(@Nonnull ActionEvent event, @Nonnull Runnable commit,
-                            @Nonnull final SpanContext tracingContext) {
+                            @Nullable final SpanContext tracingContext) {
         if (!event.getActionRequest().hasTargetId()) {
             logger.error("Action event {} does not have target associated",
                     event.getActionRequest().getActionId());

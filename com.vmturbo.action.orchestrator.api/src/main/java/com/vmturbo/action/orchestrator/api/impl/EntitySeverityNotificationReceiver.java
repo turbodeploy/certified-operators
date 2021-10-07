@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.api.impl;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -24,7 +25,7 @@ public class EntitySeverityNotificationReceiver extends MulticastNotificationRec
 
     @Override
     protected void processMessage(@Nonnull final EntitySeverityNotification message,
-            @Nonnull final SpanContext tracingContext) {
+            @Nullable final SpanContext tracingContext) {
         if (message.getFullRefresh()) {
             invokeListeners(listener -> {
                 listener.entitySeveritiesRefresh(message.getEntitiesWithSeverityList(),

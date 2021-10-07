@@ -3,6 +3,7 @@ package com.vmturbo.sample.api.impl;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -38,7 +39,7 @@ public class SampleComponentNotificationReceiver
 
     @Override
     protected void processMessage(@Nonnull final SampleNotification message,
-                                  @Nonnull final SpanContext tracingContext)
+                                  @Nullable final SpanContext tracingContext)
             throws ApiClientException {
         switch (message.getTypeCase()) {
             case ECHO_RESPONSE:

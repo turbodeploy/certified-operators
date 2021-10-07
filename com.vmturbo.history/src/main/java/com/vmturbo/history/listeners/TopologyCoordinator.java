@@ -16,6 +16,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -195,7 +196,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
     @Override
     public void onTopologyNotification(@Nonnull TopologyInfo info,
                                        @Nonnull RemoteIterator<Topology.DataSegment> topology,
-                                       @Nonnull final SpanContext tracingContext) {
+                                       @Nullable final SpanContext tracingContext) {
         awaitStartup();
         try (TracingScope tracingScope = Tracing.trace("history_on_topology_notification", tracingContext)) {
             if (info.getTopologyType() == TopologyType.REALTIME) {
@@ -241,7 +242,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
     public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity>
                                                 topology,
-                                            @Nonnull final SpanContext tracingContext) {
+                                            @Nullable final SpanContext tracingContext) {
         final TopologyInfo info = metadata.getSourceTopologyInfo();
         awaitStartup();
         try (TracingScope scope = Tracing.trace("history_on_projected_topology", tracingContext)) {

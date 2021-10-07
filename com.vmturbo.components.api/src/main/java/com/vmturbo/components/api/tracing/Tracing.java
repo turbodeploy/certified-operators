@@ -306,10 +306,12 @@ public class Tracing {
      */
     @Nonnull
     public static TracingScope trace(@Nonnull final String name,
-                                     @Nonnull final SpanContext tracingContext) {
+                                     @Nullable final SpanContext tracingContext) {
         final SpanBuilder spanBuilder = tracer()
-            .buildSpan(name)
-            .asChildOf(tracingContext);
+            .buildSpan(name);
+        if (tracingContext != null) {
+            spanBuilder.asChildOf(tracingContext);
+        }
         // Because we're building a new span just for this scope, we want to finish
         // the span when the scope is closed.
         final Span span = spanBuilder.start();
