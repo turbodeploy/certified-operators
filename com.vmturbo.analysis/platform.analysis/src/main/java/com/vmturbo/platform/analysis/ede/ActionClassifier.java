@@ -2,13 +2,19 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table.Cell;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,9 +28,11 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
@@ -229,22 +237,96 @@ public class ActionClassifier {
     }
 
     /**
-     * Mark resize ups as executable
+     * Mark resize ups that are within rawMaterial headroom as executable.
      *
      * @param actions The list of actions to be classified.
      */
     private void markResizeUpsExecutable(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof Resize).forEach(a -> {
+        Map<String, ConsistentScalingResizeActionsGroup> csgResizeUpMapping = new HashMap<>();
+        actions.stream().filter(Resize.class::isInstance)
+                .map(Resize.class::cast)
+                .filter(r -> r.getNewCapacity() > r.getOldCapacity())
+                .forEach(r -> {
+                    // cache all the resizeUPs for a scalingGroup
+                    if (r.getActionTarget().isInScalingGroup(economy_)) {
+                        String key = r.getActionTarget().getScalingGroupId()
+                                + r.getResizedCommoditySpec().getBaseType();
+                        csgResizeUpMapping
+                            .computeIfAbsent(key, k -> new ConsistentScalingResizeActionsGroup())
+                            .addResize(r);
+                    }
+                    try {
+                        Trader targetCopy = r.getActionTarget() != null
+                                ? lookupTraderInSimulationEconomy(r.getActionTarget())
+                                : null;
+                        // mark action as non-executable if targetEntityCopy is NULL
+                        boolean executable = targetCopy != null &&
+                                checkAndMarkResizeUp(r, targetCopy);
+                        if (executable) {
+                            // update usage on rawMaterial in the simulation economy
+                            Resizer.resizeDependentCommodities(simulationEconomy_, targetCopy,
+                                    targetCopy.getCommoditiesSold().get(r.getSoldIndex()),
+                                    r.getSoldIndex(), r.getNewCapacity(),
+                                    r.getResizedCommodity().isHistoricalQuantitySet(), false);
+                            r.setExecutable(true);
+                        }
+                    } catch (Exception ex) {
+                        r.setExecutable(false);
+                        printLogMessageInDebugForExecutableFlag(r, ex);
+                    }
+                });
+
+
+        // iterate over the stored resize UP actions one group at a time and check if all the
+        // actions for a group are executable.
+        for (ConsistentScalingResizeActionsGroup resizeGroup : csgResizeUpMapping.values()) {
             try {
-                Resize r = (Resize)a;
-                if (r.getNewCapacity() > r.getOldCapacity()) {
-                    r.setExecutable(true);
+                if (resizeGroup.canExecuteActionsOnScalingGroup()) {
+                    // update usage on rawMaterial in the simulation economy
+                    resizeGroup.getResizes().stream().forEach(r -> {
+                        Trader targetCopy = r.getActionTarget() != null
+                            ? lookupTraderInSimulationEconomy(r.getActionTarget())
+                            : null;
+                        Resizer.resizeDependentCommodities(simulationEconomy_, targetCopy,
+                            targetCopy.getCommoditiesSold().get(r.getSoldIndex()), r.getSoldIndex(),
+                            r.getNewCapacity(), r.getResizedCommodity().isHistoricalQuantitySet(),
+                    false);
+                        r.setExecutable(true);
+                    });
+                } else {
+                    resizeGroup.getResizes().stream().forEach(r -> r.setExecutable(false));
                 }
             } catch (Exception ex) {
-                a.setExecutable(true);
-                printLogMessageInDebugForExecutableFlag(a, ex);
+                resizeGroup.getResizes().stream().forEach(r -> {
+                    r.setExecutable(false);
+                    printLogMessageInDebugForExecutableFlag(r, ex);
+                });
             }
-        });
+        }
+    }
+
+    /**
+     * Mark resize ups as that are within rawMaterial headroom as executable and update rawMaterial.
+     *
+     * @param r Resize action to classify.
+     * @param targetEntityCopy is the trader in the simulation economy that is resizing.
+     *
+     * @return true if the resize UP is executable.
+     */
+    boolean checkAndMarkResizeUp(Resize r, Trader targetEntityCopy) {
+        Map<CommoditySold, Trader> rawMaterialMapping =
+                RawMaterials.findSellerCommodityAndSupplier(simulationEconomy_,
+                        targetEntityCopy, r.getResizedCommoditySpec());
+        double capacityChange = r.getNewCapacity() - r.getOldCapacity();
+        for (Map.Entry<CommoditySold, Trader> rawMaterialEntry : rawMaterialMapping.entrySet()) {
+            CommoditySold rawMaterial = rawMaterialEntry.getKey();
+            if (rawMaterial.getQuantity() + capacityChange >
+                    rawMaterial.getEffectiveCapacity()) {
+                r.setExecutable(false);
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -425,7 +507,8 @@ public class ActionClassifier {
                 // Log a warn message when targetCopy is null. Using warn instead of error here is
                 // because there're some unsupported cases we need to discuss further, for example
                 // moving volumes of provisioned VMs.
-                logger.warn("Cannot find move target for {}", move.getActionTarget().getDebugInfoNeverUseInCode());
+                logger.warn("Cannot find move target for {}",
+                        move.getActionTarget().getDebugInfoNeverUseInCode());
                 move.setExecutable(false);
                 return;
             }
@@ -512,7 +595,8 @@ public class ActionClassifier {
      * @param targetCopy  The target shopping list.
      * @return if it is a move to a reconfigured addition trader.
      */
-    private boolean isMoveToReconfiguredAdditionTrader(Trader newSupplierCopy, ShoppingList targetCopy) {
+    private boolean isMoveToReconfiguredAdditionTrader(Trader newSupplierCopy,
+            ShoppingList targetCopy) {
         if (!newSupplierCopy.getBasketSold().stream()
                 .filter(commSpec -> economy_.getSettings()
                     .getReconfigureableCommodities()
@@ -528,5 +612,72 @@ public class ActionClassifier {
             return true;
         }
         return false;
+    }
+
+    /**
+     * This ScalingGroup has all the Resizes as a collection. It constructs a mapping of how the
+     * rawMaterial commodity needs to be updated for the group.
+     *
+     */
+    public class ConsistentScalingResizeActionsGroup {
+        List<Resize> resizes = new ArrayList<>();
+        boolean considerForClassification = true;
+        Map<CommoditySold, Double> incrementMapping = new HashMap<>();
+
+        public ConsistentScalingResizeActionsGroup() {}
+
+        /**
+         * Add resizeIP to actions list.
+         * populate incrementMap with the increase in rawMaterial usage.
+         *
+         * @param r resize UP to add.
+         */
+        public void addResize(Resize r) {
+            resizes.add(r);
+            Trader targetEntityCopy = r.getActionTarget() != null
+                    ? lookupTraderInSimulationEconomy(r.getActionTarget())
+                    : null;
+            if (targetEntityCopy != null) {
+                Map<CommoditySold, Trader> rawMaterialMapping =
+                        RawMaterials.findSellerCommodityAndSupplier(simulationEconomy_,
+                                targetEntityCopy, r.getResizedCommoditySpec());
+
+                double capacityChange = r.getNewCapacity() - r.getOldCapacity();
+
+                rawMaterialMapping.keySet().stream().forEach(commSold -> incrementMapping
+                        .compute(commSold, (cs, change) -> change == null
+                                ? capacityChange : change + capacityChange));
+            } else {
+                considerForClassification = false;
+            }
+        }
+
+        /**
+         * Check if the usage increase on the rawMaterial does not violate the rawMaterial headroom.
+         *
+         * @return true if the action execution will not violate rawMaterial headroom.
+         */
+        public boolean canExecuteActionsOnScalingGroup() {
+            if (!considerForClassification) {
+                return false;
+            }
+            for (Map.Entry<CommoditySold, Double> entry : incrementMapping.entrySet()) {
+                CommoditySold rawMaterial = entry.getKey();
+                double capacityChange = entry.getValue();
+                if (rawMaterial.getQuantity() + capacityChange >
+                        rawMaterial.getEffectiveCapacity()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         *
+         * @return resize actions generated for scaling group.
+         */
+        public List<Resize> getResizes() {
+            return resizes;
+        }
     }
 }

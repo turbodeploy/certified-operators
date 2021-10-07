@@ -114,14 +114,15 @@ public class RawMaterials implements Serializable {
      *
      * @param economy The Economy.
      * @param buyer The Buyer of the commodity in the Economy.
-     * @param commoditySoldIndex The index of commodity for which we need to find the raw materials.
+     * @param resizingCommSpec The {@link CommoditySpecification} of commodity for which we need to
+     * find the raw materials.
      * @return List of Pairs containing the commodity sold and its supplier
      */
-    public static Map<CommoditySold, Trader>
-                            findSellerCommodityAndSupplier(@NonNull Economy economy,
-                                                           @NonNull Trader buyer, int commoditySoldIndex) {
-        RawMaterials typeOfCommsBought = economy.getAllRawMaterials(buyer.getBasketSold()
-                .get(commoditySoldIndex).getBaseType());
+    public static Map<CommoditySold, Trader> findSellerCommodityAndSupplier(
+            @NonNull Economy economy,
+            @NonNull Trader buyer,
+            CommoditySpecification resizingCommSpec) {
+        RawMaterials typeOfCommsBought = economy.getAllRawMaterials(resizingCommSpec.getBaseType());
         Map<CommoditySold, Trader> rawMaterialToSupplier = new HashMap<>();
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
 

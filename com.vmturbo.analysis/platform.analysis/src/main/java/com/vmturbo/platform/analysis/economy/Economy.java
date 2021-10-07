@@ -934,8 +934,11 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         for (Trader trader : getTraders()) {
             clone.addTrader(trader.getType(), trader.getState(), new Basket(trader.getBasketSold()));
         }
-        getTraders().stream()
-            .forEach(clone::simulationCloneTrader);
+        getTraders().forEach(clone::simulationCloneTrader);
+        clone.getModifiableRawCommodityMap().putAll(getModifiableRawCommodityMap());
+        clone.getModifiableByProductMap().putAll(getModifiableByProductMap());
+        clone.getModifiableCommodityResizeDependencyMap()
+                .putAll(getModifiableCommodityResizeDependencyMap());
         clone.populateMarketsWithSellersAndMergeConsumerCoverage();
         simulationEconomy = clone;
         return clone;
@@ -988,6 +991,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             cloneCommSold.setQuantity(commSold.getQuantity());
             cloneCommSold.setPeakQuantity(commSold.getPeakQuantity());
             cloneCommSoldSettings.setPriceFunction(commSoldSettings.getPriceFunction())
+                .setResold(commSoldSettings.isResold())
+                .setCapacityIncrement(commSoldSettings.getCapacityIncrement())
                 .setUpdatingFunction(commSoldSettings.getUpdatingFunction())
                 .setUtilizationUpperBound(commSoldSettings.getUtilizationUpperBound());
         }

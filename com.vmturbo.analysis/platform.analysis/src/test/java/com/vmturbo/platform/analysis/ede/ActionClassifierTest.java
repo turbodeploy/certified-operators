@@ -25,21 +25,28 @@ import org.junit.Test;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 
 public class ActionClassifierTest {
 
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
+    private static final CommoditySpecification VCPU = new CommoditySpecification(6);
+    private static final Basket VMtoPod = new Basket(VCPU);
     private static final Basket VMtoPM = new Basket(CPU,
                             new CommoditySpecification(1), // MEM
                             new CommoditySpecification(2), // Datastore commodity with key 1
@@ -51,7 +58,7 @@ public class ActionClassifierTest {
     private @NonNull Economy first;
     private @NonNull Economy second;
     private @NonNull Topology firstTopology;
-    private @NonNull Trader vm;
+    private @NonNull Trader vm1, vm2;
     private @NonNull Trader pm1;
     private @NonNull Trader pm2;
     private @NonNull Trader app1;
@@ -65,12 +72,15 @@ public class ActionClassifierTest {
         firstTopology = new Topology();
         first = firstTopology.getEconomyForTesting();
 
-        vm = firstTopology.addTrader(1L, 0, TraderState.ACTIVE, new Basket(),
+        vm1 = firstTopology.addTrader(1L, 0, TraderState.ACTIVE, VMtoPod,
+                                        Collections.emptyList());
+        vm2 = firstTopology.addTrader(6L, 0, TraderState.ACTIVE, VMtoPod,
                                         Collections.emptyList());
         final ShoppingList[] shoppingLists = {
-            firstTopology.addBasketBought(100, vm, VMtoPM),
-            firstTopology.addBasketBought(101, vm, VMtoST),
-            firstTopology.addBasketBought(102, vm, VMtoST)
+            firstTopology.addBasketBought(100, vm1, VMtoPM),
+            firstTopology.addBasketBought(101, vm1, VMtoST),
+            firstTopology.addBasketBought(102, vm1, VMtoST),
+            firstTopology.addBasketBought(103, vm2, VMtoPM)
         };
         pm1 = firstTopology.addTrader(2L, 1, TraderState.ACTIVE, VMtoPM,
                                         Collections.singletonList(0L));
@@ -81,9 +91,14 @@ public class ActionClassifierTest {
         final Trader st2 = firstTopology.addTrader(5L, 2, TraderState.ACTIVE, VMtoST,
                                         Collections.singletonList(0L));
 
-        vm.setDebugInfoNeverUseInCode("VirtualMachine|1");
-        pm1.setDebugInfoNeverUseInCode("PhysicalMachine|2");
-        pm2.setDebugInfoNeverUseInCode("PhysicalMachine|3");
+        first.getModifiableRawCommodityMap().put(VCPU.getBaseType(),
+                new RawMaterials(Collections.singletonList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(CPU.getBaseType()).build())));
+
+        vm1.setDebugInfoNeverUseInCode("VirtualMachine|1").getSettings().setSuspendable(false);
+        vm2.setDebugInfoNeverUseInCode("VirtualMachine|2").getSettings().setSuspendable(false);
+        pm1.setDebugInfoNeverUseInCode("PhysicalMachine|1");
+        pm2.setDebugInfoNeverUseInCode("PhysicalMachine|2");
         st1.setDebugInfoNeverUseInCode("Storage|4");
         st2.setDebugInfoNeverUseInCode("Storage|5");
 
@@ -112,15 +127,41 @@ public class ActionClassifierTest {
         shoppingLists[2].setPeakQuantity(0, 1);
         shoppingLists[2].setMovable(true);
 
-        pm1.getCommoditySold(CPU).setCapacity(100);
-        pm1.getCommoditySold(CPU).setCapacity(100);
-        first.getCommodityBought(shoppingLists[0], CPU).setQuantity(42);
+        shoppingLists[3].move(pm1);
+        shoppingLists[3].setQuantity(0, 42);
+        shoppingLists[3].setPeakQuantity(0, 42);
+        shoppingLists[3].setQuantity(1, 100);
+        shoppingLists[3].setPeakQuantity(1, 100);
+        shoppingLists[3].setQuantity(2, 1);
+        shoppingLists[3].setPeakQuantity(2, 1);
+        shoppingLists[3].setQuantity(3, 1);
+        shoppingLists[3].setPeakQuantity(3, 1);
+        shoppingLists[3].setMovable(false);
+
+        pm1.getCommoditySold(CPU).setCapacity(100).setQuantity(84);
+        first.getCommodityBought(shoppingLists[0], CPU).setQuantity(84);
 
         pm1.getSettings().setCanAcceptNewCustomers(true);
         pm2.getSettings().setCanAcceptNewCustomers(true);
         st1.getSettings().setCanAcceptNewCustomers(true);
         st2.getSettings().setCanAcceptNewCustomers(true);
 
+        vm1.getCommoditiesSold().get(0)
+            .setQuantity(10)
+            .setCapacity(100)
+            .setPeakQuantity(10)
+            .getSettings()
+            .setCapacityIncrement(20)
+            .setUpdatingFunction(UpdatingFunctionFactory.ADD_COMM)
+            .setResizable(true);
+        vm2.getCommoditiesSold().get(0)
+            .setQuantity(90)
+            .setCapacity(100)
+            .setPeakQuantity(90)
+            .getSettings()
+            .setCapacityIncrement(20)
+            .setUpdatingFunction(UpdatingFunctionFactory.ADD_COMM)
+            .setResizable(true);
         // Deactivating pm1 for replay suspension test
         // Make sure suspendable is true on it
         pm1.getSettings().setSuspendable(true);
@@ -155,6 +196,26 @@ public class ActionClassifierTest {
     }
 
     /**
+     * This test validates that the 2nd resize UP that was possible due to a preceding resize DOWN
+     * is marked non-executable.
+     *
+     */
+    @Test
+    public void testClassifyResize() {
+
+        List<Action> actions = new LinkedList<>();
+        // VM1 scaling from 100 -> 60
+        actions.add(new Resize(first, vm1, VCPU, 60).take());
+        // VM2 scaling from 100 -> 140
+        actions.add(new Resize(first, vm2, VCPU, 140).take());
+        classifier.classify(actions, first);
+
+        assertTrue(actions.get(0).isExecutable());
+        assertFalse(actions.get(1).isExecutable());
+
+    }
+
+    /**
      * This test captures https://vmturbo.atlassian.net/browse/OM-15496
      * where a host was being deactivated while there were VMs on it.
      * Initially VM vm is buying CPU from pm1. Move from pm1 to pm2 and
@@ -166,13 +227,19 @@ public class ActionClassifierTest {
     @Test
     public void testClassifySuspension() {
         List<Action> actions = new LinkedList<>();
-        ShoppingList pmShoppingList =
-            first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
+        ShoppingList pmShoppingList1 =
+            first.getMarketsAsBuyer(vm1).keySet().toArray(new ShoppingList[3])[0];
 
-        pmShoppingList.setMovable(true);
-        Move move = new Move(first, pmShoppingList, pm2);
-        actions.add(move);
-        Deactivate deactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
+        ShoppingList pmShoppingList2 =
+                first.getMarketsAsBuyer(vm2).keySet().toArray(new ShoppingList[1])[0];
+
+        pmShoppingList1.setMovable(true);
+        Move move1 = new Move(first, pmShoppingList1, pm2);
+        actions.add(move1);
+        pmShoppingList2.setMovable(true);
+        Move move2 = new Move(first, pmShoppingList2, pm2);
+        actions.add(move2);
+        Deactivate deactivate = new Deactivate(first, pm1, pmShoppingList1.getBasket());
         actions.add(deactivate);
         actions.add(new Deactivate(first, app1, app1.getBasketSold()));
         actions.add(new Deactivate(first, container1, container1.getBasketSold()));
@@ -180,15 +247,17 @@ public class ActionClassifierTest {
 
         classifier.classify(actions, first);
         assertTrue(actions.get(0).isExecutable());
-        assertFalse(actions.get(1).isExecutable());
-        assertFalse(actions.get(2).isExecutable());  // app1 suspend
-        assertFalse(actions.get(3).isExecutable());  // container1 suspend
-        assertTrue(actions.get(4).isExecutable());   // pod1 suspend
-        move.take();
+        assertTrue(actions.get(1).isExecutable());
+        assertFalse(actions.get(2).isExecutable());
+        assertFalse(actions.get(3).isExecutable());  // app1 suspend
+        assertFalse(actions.get(4).isExecutable());  // container1 suspend
+        assertTrue(actions.get(5).isExecutable());   // pod1 suspend
+        move1.take();
+        move2.take();
         try {
             @NonNull
             Economy third = cloneEconomy(first);
-            Deactivate thirdDeactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
+            Deactivate thirdDeactivate = new Deactivate(first, pm1, pmShoppingList1.getBasket());
             third.populateMarketsWithSellersAndMergeConsumerCoverage();
             ReplayActions thirdReplayActions = new ReplayActions(ImmutableList.of(),
                                                                  ImmutableList.of(thirdDeactivate));
@@ -214,14 +283,14 @@ public class ActionClassifierTest {
 
     @Test
     public void testTranslateTrader() {
-        Trader newVm = ReplayActions.mapTrader(vm, second.getTopology());
-        assertEquals(vm.getEconomyIndex(), newVm.getEconomyIndex());
+        Trader newVm = ReplayActions.mapTrader(vm1, second.getTopology());
+        assertEquals(vm1.getEconomyIndex(), newVm.getEconomyIndex());
     }
 
     @Test
     public void testTranslateMarket() {
-        Trader newVm = ReplayActions.mapTrader(vm, second.getTopology());
-        Map<ShoppingList, Market> buying = first.getMarketsAsBuyer(vm);
+        Trader newVm = ReplayActions.mapTrader(vm1, second.getTopology());
+        Map<ShoppingList, Market> buying = first.getMarketsAsBuyer(vm1);
         Map<ShoppingList, Market> newBuying = first.getMarketsAsBuyer(newVm);
         assertEquals(buying.keySet().size(), newBuying.keySet().size());
     }

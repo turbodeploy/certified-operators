@@ -112,8 +112,10 @@ public class Resizer {
                             // Set the raw materials or continue to next commodity if missing.
                             if ((engage && incomeStatement.getExpenses() > 0) || consistentResizing) {
                                 rawMaterialMapping =
-                                        RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
-                                rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
+                                    RawMaterials.findSellerCommodityAndSupplier(economy, seller,
+                                            resizedCommodity);
+                                rawMaterials = (rawMaterialMapping != null) ?
+                                        rawMaterialMapping.keySet() : null;
 
                                 // If raw rawMaterialDescriptor can't be found and raw rawMaterialDescriptor is required, don't resize.
                                 // TODO: There may be some issue with consistent scaling. For example:
