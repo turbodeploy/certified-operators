@@ -33,7 +33,7 @@ import com.vmturbo.common.protobuf.logging.Logging.TracingConfiguration;
  * tracing configuration is requested (via
  * {@link TracingManager#refreshTracingConfiguration(TracingConfiguration)}), the
  * {@link TracingManager} is responsible for creating the appropriate
- * {@link Tracer} and calling {@link DelegatingTracer#updateDelegate(Tracer)}.
+ * {@link Tracer} and calling {@link DelegatingTracer#updateDelegate(Tracer, boolean)}.
  * <p/>
  * Disable the AlwaysOnTracer via ALWAYS_ON_TRACER_ENABLED environment flag.
  */
@@ -44,8 +44,6 @@ public class TracingManager {
     private static final String DEFAULT_JAEGER_ENDPOINT = EnvironmentUtils
         .getOptionalEnvProperty("JAEGER_ENDPOINT")
         .orElse("http://jaeger-collector:14268");
-
-    private static final boolean ALWAYS_ON_TRACER_ENABLED = isAlwaysOnTracerEnabled();
 
     private static final TracingConfiguration DEFAULT_CONFIG = TracingConfiguration.newBuilder()
         .setJaegerEndpoint(DEFAULT_JAEGER_ENDPOINT)
@@ -68,6 +66,8 @@ public class TracingManager {
 
     @GuardedBy("this")
     private TracingConfiguration lastTracingConfig = TracingConfiguration.getDefaultInstance();
+
+    private static boolean alwaysOnTracerEnabled = false;
 
     private static final TracingManager INSTANCE = new TracingManager();
 
@@ -113,6 +113,32 @@ public class TracingManager {
     }
 
     /**
+     * Set whether the always on tracer is enabled. The always-on tracer
+     * is used for things like topology broadcasts even when tracing is not
+     * turned on for the whole component. If set to a different value than
+     * previous, the always-on tracer configuration may be refreshed.
+     *
+     * @param isEnabled Whether to enable the always-on tracer.
+     */
+    public static void setAlwaysOnTracerEnabled(final boolean isEnabled) {
+        final boolean previousValue = alwaysOnTracerEnabled;
+        alwaysOnTracerEnabled = isEnabled;
+
+        if (previousValue != isEnabled) {
+            get().refreshTracingConfiguration(INSTANCE.lastTracingConfig);
+        }
+    }
+
+    /**
+     * Check whether the always-on tracer is enabled.
+     *
+     * @return whether the always-on tracer is enabled.
+     */
+    public static boolean isAlwaysOnTracerEnabled() {
+        return alwaysOnTracerEnabled;
+    }
+
+    /**
      * Update the tracing configuration in this component to reflect the input
      * {@link TracingConfiguration}.
      *
@@ -141,25 +167,30 @@ public class TracingManager {
         }
 
         final TracingConfiguration updatedConfig = updatedConfigBldr.build();
+        final boolean usingAlwaysOnTracer = alwaysOnTracer.getDelegate() != delegatingTracer.getDelegate();
+        final boolean configDiffers = !updatedConfig.equals(lastTracingConfig);
 
-        if (!updatedConfig.equals(lastTracingConfig)) {
+        if (configDiffers) {
             logger.info("Refreshing tracing manager with configuration: {}", newConfig);
             final Tracer newTracer = newJaegerTracer(updatedConfig);
-            delegatingTracer.updateDelegate(newTracer);
+            delegatingTracer.updateDelegate(newTracer, true);
             logger.info("Successfully refreshed global tracing configuration.");
-
-            if (ALWAYS_ON_TRACER_ENABLED) {
-                final Tracer newAlwaysOnTracer = newAlwaysOnTracer(updatedConfig);
-                alwaysOnTracer.updateDelegate(newAlwaysOnTracer);
-                logger.info("Successfully refreshed always-on tracing configuration.");
-            } else {
-                // If ALWAYS_ON_TRACER is not enabled, delegate to the regular global tracer.
-                logger.info("AlwaysOnTracer disabled. Setting AlwaysOnTracer to match global tracer.");
-                alwaysOnTracer.updateDelegate(newTracer);
-            }
 
             lastTracingConfig = updatedConfig;
         }
+
+        if (configDiffers || usingAlwaysOnTracer != isAlwaysOnTracerEnabled()) {
+            if (isAlwaysOnTracerEnabled()) {
+                final Tracer newAlwaysOnTracer = newAlwaysOnTracer(updatedConfig);
+                alwaysOnTracer.updateDelegate(newAlwaysOnTracer, usingAlwaysOnTracer);
+                logger.info("Successfully refreshed always-on tracing configuration.");
+            } else {
+                // If the always-on tracer is not enabled, delegate to the regular global tracer.
+                logger.info("Always-on tracing disabled. Setting always-on tracer to match global tracer.");
+                alwaysOnTracer.updateDelegate(delegatingTracer.getDelegate(), usingAlwaysOnTracer);
+            }
+        }
+
         return lastTracingConfig;
     }
 
@@ -228,23 +259,5 @@ public class TracingManager {
         }
 
         return samplerConfig;
-    }
-
-    /**
-     * Check if the environment flag to control whether the always on tracer is enabled has been set
-     * and return its value. If no value is set, return a default.
-     *
-     * @return Value of the ALWAYS_ON_TRACER_ENABLED flag.
-     */
-    private static boolean isAlwaysOnTracerEnabled() {
-        try {
-            return EnvironmentUtils
-                .getOptionalEnvProperty("ALWAYS_ON_TRACER_ENABLED")
-                .map(Boolean::parseBoolean)
-                .orElse(false);
-        } catch (Exception e) {
-            logger.error("Unable to check ALWAYS_ON_TRACER_ENABLED. Defaulting to false ", e);
-            return false;
-        }
     }
 }

@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
@@ -122,7 +123,7 @@ public class MarketRunner {
     @Nonnull
     public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                      @Nonnull final Collection<TopologyEntityDTO> topologyDTOs,
-                                     @Nonnull final SpanContext tracingContext,
+                                     @Nullable final SpanContext tracingContext,
                                      final boolean includeVDC,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,
                                      final boolean useQuoteCacheDuringSNM,

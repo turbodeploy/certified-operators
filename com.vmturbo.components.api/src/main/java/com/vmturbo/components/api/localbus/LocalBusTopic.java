@@ -12,10 +12,9 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
-import com.google.common.base.Function;
 
 import io.opentracing.SpanContext;
 
@@ -130,13 +129,18 @@ class LocalBusTopic<T> {
          * @param serverMsg The message.
          */
         public void sendMessage(final T serverMsg) {
-            final Function<String, TracingScope> tracingFunc = Tracing.isKafkaTracingEnabled()
-                ? Tracing::trace
-                : Tracing::noop;
-            try (TracingScope tracingScope = tracingFunc.apply(topicName + "/message-" + messageIndex.getAndIncrement())) {
-                final MessageContext<T> msg = new MessageContext<>(serverMsg, tracingScope.spanContext());
-                queue.add(msg);
+            final MessageContext<T> msg;
+
+            if (Tracing.isKafkaTracingEnabled()) {
+                try (TracingScope tracingScope = Tracing.trace(topicName + "/message-" + messageIndex.getAndIncrement())) {
+                    msg = new MessageContext<>(serverMsg, tracingScope.spanContext());
+
+                }
+            } else {
+                msg = new MessageContext<>(serverMsg, null);
             }
+
+            queue.add(msg);
         }
 
         /**
@@ -178,9 +182,9 @@ class LocalBusTopic<T> {
              * @param tracingContext The distributed tracing context for the message.
              */
             private MessageContext(@Nonnull final MessageT message,
-                                  @Nonnull final SpanContext tracingContext) {
+                                   @Nullable final SpanContext tracingContext) {
                 this.message = Objects.requireNonNull(message);
-                this.tracingContext = Objects.requireNonNull(tracingContext);
+                this.tracingContext = tracingContext;
             }
         }
     }

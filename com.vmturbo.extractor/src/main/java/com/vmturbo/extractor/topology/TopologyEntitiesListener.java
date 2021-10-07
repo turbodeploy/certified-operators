@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -95,7 +96,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
             @Nonnull final RemoteIterator<DataSegment> entityIterator,
-            @Nonnull final SpanContext tracingContext) {
+            @Nullable final SpanContext tracingContext) {
         final String label = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
         logger.info("Received topology {}", label);
         if (busy.compareAndSet(false, true)) {

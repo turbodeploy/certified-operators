@@ -1052,7 +1052,7 @@ public class PlacementPolicySysTest {
 
         @Override
         public void onActionsReceived(@Nonnull final ActionPlan actionPlan,
-                                      @Nonnull final SpanContext tracingContext) {
+                                      @Nullable final SpanContext tracingContext) {
             this.actionPlan = Objects.requireNonNull(actionPlan);
 
             if (isComplete()) {

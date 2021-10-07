@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -48,5 +49,5 @@ public interface EntitiesListener {
      */
     void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
                                 @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs,
-                                @Nonnull SpanContext tracingContext);
+                                @Nullable SpanContext tracingContext);
 }

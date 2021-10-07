@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.arangodb.ArangoDBException;
@@ -63,7 +64,7 @@ public class MarketTopologyListener implements
     @Override
     public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo,
-                @Nonnull final SpanContext tracingContext) {
+                @Nullable final SpanContext tracingContext) {
         final TopologyInfo originalTopologyInfo = metadata.getSourceTopologyInfo();
         final long projectedTopologyId = metadata.getProjectedTopologyId();
         try {
@@ -116,7 +117,7 @@ public class MarketTopologyListener implements
     private void onProjectedTopologyReceivedInternal(long projectedTopologyId,
             TopologyInfo originalTopologyInfo,
             @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo,
-            @Nonnull final SpanContext tracingContext)
+            @Nullable final SpanContext tracingContext)
             throws CommunicationException, InterruptedException {
         if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
             updateLatestKnownProjectedTopologyId(projectedTopologyId);

@@ -1,6 +1,7 @@
 package com.vmturbo.market.component.api;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -24,5 +25,5 @@ public interface ProjectedTopologyListener {
      */
     void onProjectedTopologyReceived(@Nonnull final ProjectedTopology.Metadata metadata,
                                  @Nonnull final RemoteIterator<ProjectedTopologyEntity> topology,
-                                 @Nonnull SpanContext tracingContext);
+                                 @Nullable SpanContext tracingContext);
 }

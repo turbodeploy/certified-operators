@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.arangodb.ArangoDBException;
@@ -126,7 +127,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     @Override
     public void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
                                        @Nonnull RemoteIterator<DataSegment> entityIterator,
-                                       @Nonnull final SpanContext tracingContext) {
+                                       @Nullable final SpanContext tracingContext) {
         String topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
         try {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
@@ -143,7 +144,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
 
     private void onTopologyNotificationInternal(TopologyInfo topologyInfo,
                                                 final RemoteIterator<DataSegment> entityIterator,
-                                                @Nonnull final SpanContext tracingContext)
+                                                @Nullable final SpanContext tracingContext)
         throws CommunicationException, InterruptedException {
         final long topologyId = topologyInfo.getTopologyId();
         final long topologyContextId = topologyInfo.getTopologyContextId();
@@ -197,7 +198,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
 
     private void onPlanAnalysisTopologyReceivedInternal(TopologyInfo topologyInfo,
                 @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
-                @Nonnull final SpanContext tracingContext)
+                @Nullable final SpanContext tracingContext)
         throws CommunicationException, InterruptedException {
 
         try (TracingScope tracingScope = Tracing.trace("repository_handle_src_plan_topology", tracingContext)) {

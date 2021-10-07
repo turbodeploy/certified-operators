@@ -11,6 +11,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.grpc.stub.StreamObserver;
 import io.opentracing.SpanContext;
@@ -264,7 +265,7 @@ public class MarketPerformanceTest {
 
         @Override
         public void onActionsReceived(@Nonnull final ActionPlan actionPlan,
-                                      @Nonnull final SpanContext tracingContext) {
+                                      @Nullable final SpanContext tracingContext) {
             actionPlanFuture.complete(actionPlan);
         }
     }

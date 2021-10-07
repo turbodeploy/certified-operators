@@ -125,7 +125,7 @@ public class MulticastNotificationReceiver<MSG_TYPE extends AbstractMessage, LIS
 
     @Override
     protected void processMessage(@Nonnull final MSG_TYPE message,
-                                  @Nonnull final SpanContext tracingContext) throws ApiClientException, InterruptedException {
+                                  @Nullable final SpanContext tracingContext) throws ApiClientException, InterruptedException {
         try (TracingScope tracingScope = Tracing.trace("Notification handler for "
             + message.getClass().getSimpleName(), tracingContext)) {
             // the default implementation consumes the base message type. Override this if you want to

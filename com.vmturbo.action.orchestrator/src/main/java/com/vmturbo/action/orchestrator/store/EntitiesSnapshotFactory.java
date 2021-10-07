@@ -259,7 +259,7 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
     @Override
     public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
             @Nonnull final RemoteIterator<ProjectedTopologyEntity> topology,
-            @Nonnull final SpanContext tracingContext) {
+            @Nullable final SpanContext tracingContext) {
         final TopologyInfo sourceTopologyInfo = metadata.getSourceTopologyInfo();
         // We don't care about realtime projected topologies.
         if (sourceTopologyInfo.getTopologyContextId() == realtimeTopologyContextId) {

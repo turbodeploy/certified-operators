@@ -76,7 +76,7 @@ public class PlanTopologyEntitiesListener implements EntitiesListener {
     public void onTopologyNotification(
                 @Nonnull final TopologyInfo topologyInfo,
                 @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
-                @Nonnull final SpanContext tracingContext) {
+                @Nullable final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         try (TracingScope tracingScope = Tracing.trace("cost_plan_topology", tracingContext)) {
             if (topologyContextId == realtimeTopologyContextId) {

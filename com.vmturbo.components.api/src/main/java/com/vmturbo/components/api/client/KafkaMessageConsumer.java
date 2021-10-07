@@ -24,6 +24,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.Collections2;
@@ -463,7 +464,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
          *                       kafka producers to consumers.
          */
         private void pushNextMessage(@Nonnull byte[] buffer, @Nonnull TopicPartition partition,
-                long offset, @Nonnull final SpanContext tracingContext) {
+                long offset, @Nullable final SpanContext tracingContext) {
             try {
                 // set the Protobuf message size limit to its max
                 final CodedInputStream inputStream = CodedInputStream.newInstance(buffer);
@@ -594,7 +595,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
         private final SpanContext tracingContext;
 
         public ReceivedMessage(@Nonnull T message, @Nonnull TopicPartition partition,
-                               long offset, @Nonnull final SpanContext tracingContext) {
+                               long offset, @Nullable final SpanContext tracingContext) {
             this.message = Objects.requireNonNull(message);
             this.partition = Objects.requireNonNull(partition);
             this.offset = offset;

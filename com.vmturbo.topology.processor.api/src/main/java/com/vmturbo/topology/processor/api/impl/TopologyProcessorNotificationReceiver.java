@@ -110,7 +110,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     private void onTopologySummary(@Nonnull final TopologySummary topologySummary,
                                    @Nonnull Runnable commitCommand,
-                                   @Nonnull final SpanContext tracingContext) {
+                                   @Nullable final SpanContext tracingContext) {
         getLogger().debug("Received topology summary for context {} id {} creation time {}",
                 topologySummary.getTopologyInfo().getTopologyContextId(),
                 topologySummary.getTopologyInfo().getTopologyId(),
@@ -121,7 +121,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     private void onEntitiesWithNewStatedNotification(final EntitiesWithNewState entitiesWithNewState,
                                                      final Runnable commitCommand,
-                                                     @Nonnull final SpanContext tracingContext) {
+                                                     @Nullable final SpanContext tracingContext) {
         getLogger().debug("EntitiesWithNewState message received{}", entitiesWithNewState);
         doWithListeners(entitiesWithNewStateListeners, l -> l.onEntitiesWithNewState(entitiesWithNewState));
         commitCommand.run();
@@ -193,7 +193,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     private void onPlanExportNotification(@Nonnull final PlanExportNotification message,
                                           final Runnable commitCommand,
-                                          @Nonnull final SpanContext tracingContext) {
+                                          @Nullable final SpanContext tracingContext) {
         getLogger().trace("Processing message {}", message);
 
         try {
@@ -231,7 +231,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     @Override
     protected void processMessage(@Nonnull final TopologyProcessorNotification message,
-                                  @Nonnull final SpanContext tracingContext) throws ApiClientException {
+                                  @Nullable final SpanContext tracingContext) throws ApiClientException {
         getLogger().trace("Processing message {} with id {}", message.getTypeCase(),
                 message.getBroadcastId());
         switch (message.getTypeCase()) {

@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -127,7 +128,7 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
 
     @Override
     public void onActionsReceived(@Nonnull final ActionPlan orderedActions,
-                                  @Nonnull final SpanContext tracingContext) {
+                                  @Nullable final SpanContext tracingContext) {
         if (logger.isDebugEnabled()) {
             orderedActions.getActionList().forEach(action -> logger.debug("Received action: " + action));
         }

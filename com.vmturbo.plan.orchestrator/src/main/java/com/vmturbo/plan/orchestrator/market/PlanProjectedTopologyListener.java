@@ -6,6 +6,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
 
@@ -56,7 +57,7 @@ public class PlanProjectedTopologyListener implements ProjectedTopologyListener 
     @Override
     public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity> topology,
-                                            @Nonnull final SpanContext tracingContext) {
+                                            @Nullable final SpanContext tracingContext) {
         final TopologyInfo sourceTopologyInfo = metadata.getSourceTopologyInfo();
         final Set<ProjectedTopologyProcessor> appliesTo = registeredProcessors.stream()
             .filter(processor -> processor.appliesTo(sourceTopologyInfo))

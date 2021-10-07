@@ -182,7 +182,7 @@ public class MarketComponentNotificationReceiver extends
 
     @Override
     protected void processMessage(@Nonnull final ActionPlan actions,
-                                  @Nonnull final SpanContext tracingContext)
+                                  @Nullable final SpanContext tracingContext)
             throws ApiClientException, InterruptedException {
         for (final ActionsListener listener : actionsListenersSet) {
             listener.onActionsReceived(actions, tracingContext);
@@ -198,7 +198,7 @@ public class MarketComponentNotificationReceiver extends
      */
     private void processProjectedTopology(@Nonnull final ProjectedTopology topology,
                                           @Nonnull Runnable commitCommand,
-                                          @Nonnull final SpanContext tracingContext) {
+                                          @Nullable final SpanContext tracingContext) {
         final long topologyId = topology.getTopologyId();
         switch (topology.getSegmentCase()) {
             case METADATA:
@@ -230,7 +230,7 @@ public class MarketComponentNotificationReceiver extends
      */
     private void processProjectedEntityCosts(@Nonnull final ProjectedEntityCosts projectedCostsSegment,
                                              @Nonnull final Runnable commitCommand,
-                                             @Nonnull final SpanContext tracingContext) {
+                                             @Nullable final SpanContext tracingContext) {
         final long topologyId = projectedCostsSegment.getProjectedTopologyId();
         switch (projectedCostsSegment.getSegmentCase()) {
             case START:
@@ -266,7 +266,7 @@ public class MarketComponentNotificationReceiver extends
     private void processProjectedEntityRiCoverage(
                     @Nonnull final ProjectedEntityReservedInstanceCoverage projectedCoverageSegment,
                     @Nonnull final Runnable commitCommand,
-                    @Nonnull final SpanContext tracingContext) {
+                    @Nullable final SpanContext tracingContext) {
         final long topologyId = projectedCoverageSegment.getProjectedTopologyId();
         switch (projectedCoverageSegment.getSegmentCase()) {
             case START:
@@ -293,7 +293,7 @@ public class MarketComponentNotificationReceiver extends
     }
 
     private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
-            final Metadata metadata, final SpanContext tracingContext) {
+            final Metadata metadata, @Nullable final SpanContext tracingContext) {
         return projectedTopologyListenersSet.stream().map(listener -> {
             final Consumer<RemoteIterator<ProjectedTopologyEntity>> consumer =
                     iterator -> listener.onProjectedTopologyReceived(metadata, iterator, tracingContext);

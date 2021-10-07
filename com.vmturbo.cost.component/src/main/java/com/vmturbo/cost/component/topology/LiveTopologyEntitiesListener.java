@@ -14,6 +14,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -84,7 +85,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
                                        @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
-                                       @Nonnull final SpanContext tracingContext) {
+                                       @Nullable final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
 
