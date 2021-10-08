@@ -80,6 +80,8 @@ message WorkflowInfo {
         optional string username = 6;
         // request headers
         repeated RequestHeader headers = 7;
+        // oAuth data
+        optional OAuthData oAuth = 8;
 
         // the type of http method made to webhook
         enum HttpMethod {
@@ -101,6 +103,23 @@ message WorkflowInfo {
             optional string name = 1;
             // The header value
             optional string value = 2;
+        }
+
+        // Encapsulate the oAuth data that can be sent over.
+        message OAuthData {
+            // The client ID
+            optional string clientId = 1;
+            // The token URL
+            optional string authorizationServerUrl = 2;
+            // The scope
+            optional string scope = 3;
+            // The grant type
+            optional GrantType grantType = 4;
+        }
+
+        // The oAuth grant type values
+        enum GrantType {
+            CLIENT_CREDENTIALS = 1;
         }
     }
 }
