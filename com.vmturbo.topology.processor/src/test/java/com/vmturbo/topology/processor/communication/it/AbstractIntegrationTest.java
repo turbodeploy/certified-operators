@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -63,6 +63,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 public abstract class AbstractIntegrationTest {
 
     protected static final long TIMEOUT = TestConstants.TIMEOUT;
+    private static final AtomicInteger jmxCounter = new AtomicInteger();
 
     private ExecutorService threadPool;
 
@@ -82,20 +83,37 @@ public abstract class AbstractIntegrationTest {
     private final Collection<SdkContainer> containers = new ArrayList<>();
 
     private Logger logger = LogManager.getLogger();
+    /**
+     * Rule which provides information about currently executing test name.
+     */
     @Rule
     public TestName testName = new TestName();
+    /**
+     * Rule which provides temporary folder that can be used by tests.
+     */
     @Rule
     public TemporaryFolder tmpFolder = new TemporaryFolder();
-    private AtomicInteger instanceCounter;
-    private static AtomicInteger jmxCounter = new AtomicInteger();
+    /**
+     * Adjusts thread names where tests are going to be run.
+     */
     @Rule
     public ThreadNaming threadNaming = new ThreadNaming();
+    private AtomicInteger instanceCounter;
 
+    /**
+     * Configuration that is going to be used by tests.
+     */
     @Configuration
     @Import({BaseVmtComponentConfig.class, MediationComponentConfig.class})
     @Component("theComponent")
     static class ContextConfiguration extends MediationComponentMain {
 
+        /**
+         * Creates {@link Optional} wrap around mock of {@link MigrationFramework} instance.
+         *
+         * @return {@link Optional} wrap around mock of {@link MigrationFramework}
+         *                 instance.
+         */
         @Primary
         @Bean
         public Optional<MigrationFramework> migrationFramework() {
@@ -104,6 +122,11 @@ public abstract class AbstractIntegrationTest {
         }
     }
 
+    /**
+     * Initializes all resources required by tests.
+     *
+     * @throws Exception in case of any error during initialization.
+     */
     @Before
     public final void init() throws Exception {
         logger = LogManager.getLogger(getClass().getName() + "." + testName.getMethodName());
@@ -115,6 +138,11 @@ public abstract class AbstractIntegrationTest {
         logger.debug("end @before");
     }
 
+    /**
+     * Clears all resources occupied by tests.
+     *
+     * @throws Exception in case of failure during clean up.
+     */
     @After
     public final void stopAllServers() throws Exception {
         logger.debug("start @after");
@@ -185,19 +213,34 @@ public abstract class AbstractIntegrationTest {
         }
     }
 
+    /**
+     * Creates {@link SdkContainer} which contains {@link SdkProbe} instance.
+     *
+     * @param probe that is going to be run inside of the result container.
+     * @return instance of the {@link SdkContainer} with the running probe inside of it.
+     * @throws Exception in case of failure while creating container.
+     */
     protected SdkContainer startSdkComponent(SdkProbe probe) throws Exception {
         final SdkContainer container = new SdkContainer(probe);
         containers.add(container);
         return container;
     }
 
-    protected SdkProbe createSdkProbe(IntegrationTestProbeConfiguration probeConfig, String probeType)
-                    throws Exception {
+    /**
+     * Creates {@link SdkProbe} instance with specified configuration and type.
+     *
+     * @param probeConfig probe configuration
+     * @param probeType type of the probe
+     * @return instance of {@link SdkProbe} that has configuration and type.
+     * @throws Exception in case of failure while creating a probe.
+     */
+    protected SdkProbe createSdkProbe(IntegrationTestProbeConfiguration probeConfig,
+                    String probeType) throws Exception {
         return createSdkProbe(probeConfig, probeType, true);
     }
 
-    protected SdkProbe createSdkProbe(IntegrationTestProbeConfiguration probeConfig, String probeType,
-                                      boolean awaitRegistered) throws Exception {
+    private SdkProbe createSdkProbe(IntegrationTestProbeConfiguration probeConfig, String probeType,
+                    boolean awaitRegistered) throws Exception {
         final SdkProbe probe = new SdkProbe(probeConfig, probeType);
         final SdkContainer container = startSdkComponent(probe);
         if (awaitRegistered) {
@@ -226,7 +269,7 @@ public abstract class AbstractIntegrationTest {
      */
     private static void writeSpringConfigForProbe(File destFile, IntegrationTestProbeConfiguration probeConfig)
                     throws IOException {
-        try (final Writer writer = new FileWriter(destFile)) {
+        try (Writer writer = new FileWriter(destFile)) {
             writer.write("<beans xmlns=\"http://www.springframework.org/schema/beans\"\n");
             writer.write("xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
             writer.write("xmlns:context=\"http://www.springframework.org/schema/context\"\n");

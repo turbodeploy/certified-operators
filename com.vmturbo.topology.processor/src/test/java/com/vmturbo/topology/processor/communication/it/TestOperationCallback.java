@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

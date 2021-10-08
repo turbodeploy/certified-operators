@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,11 +46,17 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
     private Collection<SdkTarget> registeredTargets;
     private Collection<SdkContainer> registeredContainers;
 
+    /**
+     * Helps to check that functionality is going to throw predictable exception instances.
+     */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    /**
+     * Initializes all resources required by tests.
+     */
     @Before
-    public void createDefaultMediationContainer() throws Exception {
+    public void createDefaultMediationContainer() {
         validator = new ProbeValidator(getRemoteMediationInterface(), getThreadPool());
         registeredTargets = new ArrayList<>();
         registeredContainers = new ArrayList<>();
@@ -114,6 +120,11 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
         checkTargetIdentifiers();
     }
 
+    /**
+     * Checks that probe will not be registered in case it has no supply chain definition.
+     *
+     * @throws Exception in case of error while registering the probe.
+     */
     @Test
     public void testNullSupplyChain() throws Exception {
         final SdkProbe probe = registerProbe(new NotValidatableProbe(NullSupplyChainProbe.class),
@@ -186,7 +197,7 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
     }
 
     /**
-     * Tests mediation container is shut down during validation request processing
+     * Tests mediation container is shut down during validation request processing.
      *
      * @throws Exception on exception occurred
      */
@@ -210,7 +221,7 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
     }
 
     /**
-     * Tests mediation container is shut down during discovery request processing
+     * Tests mediation container is shut down during discovery request processing.
      *
      * @throws Exception on exception occurred
      */
@@ -232,28 +243,6 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
                         .map(ErrorDTO::getDescription)
                         .collect(Collectors.toList()));
     }
-
-    /**
-     * Method expects, that one of its causes identify that connection has been closed.
-     *
-     * @param exception exception to examine
-     */
-    private void assertConnectionClosed(final Exception exception) {
-        int causeLevel = 0;
-        Throwable nextException = exception;
-        while (nextException != null) {
-            if (nextException.getMessage()
-                    .contains("Communication transport to remote probe closed")) {
-                return;
-            }
-            nextException = nextException.getCause();
-            if (causeLevel++ > 100) {
-                Assert.fail("Expected 'transport closed' exception");
-            }
-        }
-        Assert.fail("Expected 'transport closed' exception");
-    }
-
 
     // TODO: skiped tests here are:
     // testProbeWithProperties

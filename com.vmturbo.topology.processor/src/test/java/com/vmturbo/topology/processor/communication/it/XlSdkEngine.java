@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,7 +37,6 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.common.ComponentStatusNotifierConfig;
 import com.vmturbo.components.common.ConsulRegistrationConfig;
-import com.vmturbo.mediation.client.it.AbstractIntegrationTest.ContextConfiguration;
 import com.vmturbo.mediation.common.ProbeInstanceRegistry;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.ISdkContainer;
@@ -49,6 +48,7 @@ import com.vmturbo.mediation.common.tests.util.WebsocketServer;
 import com.vmturbo.sdk.server.common.CentralizedPropertiesProvider;
 import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
+import com.vmturbo.topology.processor.communication.it.AbstractIntegrationTest.ContextConfiguration;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
 /**

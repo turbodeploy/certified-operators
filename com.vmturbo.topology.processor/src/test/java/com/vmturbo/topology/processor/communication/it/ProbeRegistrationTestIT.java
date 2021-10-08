@@ -1,15 +1,15 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 import com.vmturbo.mediation.common.tests.util.ProbeConfig;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;

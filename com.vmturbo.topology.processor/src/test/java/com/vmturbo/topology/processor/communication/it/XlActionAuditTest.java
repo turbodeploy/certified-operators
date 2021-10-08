@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.client.it;
+package com.vmturbo.topology.processor.communication.it;
 
 import com.vmturbo.mediation.common.integration.tests.ActionAuditTest;
 import com.vmturbo.mediation.common.tests.util.ISdkEngine;
