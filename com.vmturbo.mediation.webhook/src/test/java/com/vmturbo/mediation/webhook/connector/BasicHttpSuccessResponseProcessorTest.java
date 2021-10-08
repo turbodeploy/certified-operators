@@ -12,14 +12,16 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.mediation.connector.common.HttpConnectorException;
-import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookResponse;
+import com.vmturbo.mediation.webhook.http.BasicHttpResponse;
+import com.vmturbo.mediation.webhook.http.BasicHttpSuccessResponseProcessor;
 
 /**
- * Verify {@link WebhookSuccessResponseProcessor}.
+ * Verify {@link BasicHttpSuccessResponseProcessor}.
  */
-public class WebhookSuccessResponseProcessorTest {
+public class BasicHttpSuccessResponseProcessorTest {
 
-    private WebhookSuccessResponseProcessor webhookSuccessResponseProcessor = new WebhookSuccessResponseProcessor();
+    private BasicHttpSuccessResponseProcessor
+            basicHttpSuccessResponseProcessor = new BasicHttpSuccessResponseProcessor();
 
     /**
      * No HttpEntity should not throw an exception.
@@ -33,8 +35,8 @@ public class WebhookSuccessResponseProcessorTest {
         StatusLine statusLine = mock(StatusLine.class);
         when(response.getStatusLine()).thenReturn(statusLine);
         when(statusLine.getStatusCode()).thenReturn(200);
-        WebhookResponse webhookResponse = webhookSuccessResponseProcessor.process(null, response, null);
-        Assert.assertEquals("", webhookResponse.getResponseBody());
+        BasicHttpResponse httpResponse = basicHttpSuccessResponseProcessor.process(null, response, null);
+        Assert.assertEquals("", httpResponse.getResponseBody());
     }
 
     /**
@@ -52,7 +54,7 @@ public class WebhookSuccessResponseProcessorTest {
         when(response.getStatusLine()).thenReturn(statusLine);
         when(statusLine.getStatusCode()).thenReturn(200);
         // should throw HttpConnectorException
-        webhookSuccessResponseProcessor.process(null, response, null);
+        basicHttpSuccessResponseProcessor.process(null, response, null);
     }
 
 }

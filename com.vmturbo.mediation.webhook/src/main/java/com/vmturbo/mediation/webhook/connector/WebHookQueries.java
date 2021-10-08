@@ -5,13 +5,12 @@ import java.util.Collections;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
 
 import org.apache.http.Header;
 
 import com.vmturbo.mediation.connector.common.HttpMethodType;
-import com.vmturbo.mediation.connector.common.Response;
 import com.vmturbo.mediation.connector.common.http.AbstractHttpBodyAwareQuery;
+import com.vmturbo.mediation.webhook.http.BasicHttpResponse;
 
 /**
  * All objects related to Webhook queries and responses.
@@ -24,7 +23,7 @@ public class WebHookQueries {
     /**
      * Query converted by webhook connector into a http request.
      */
-    public static class WebhookQuery extends AbstractHttpBodyAwareQuery<WebhookResponse, WebhookBody> {
+    public static class WebhookQuery extends AbstractHttpBodyAwareQuery<BasicHttpResponse, WebhookBody> {
 
         /**
          * Creates the query to send to the webhook endpoint.
@@ -42,45 +41,7 @@ public class WebHookQueries {
                     Collections.emptyMap(), // not used because we overrode the query converter
                     body, // not used because we overrode the query converter
                     headers,
-                    WebhookResponse.class);
-        }
-    }
-
-    /**
-     * Contains whether or not the webhook request succeeded.
-     */
-    @Immutable
-    public static class WebhookResponse implements Response {
-        private final int responseCode;
-        private final String responseBody;
-
-        /**
-         * Creates a web hook response object.
-         *
-         * @param responseCode the http status code.
-         * @param responseBody the body of the response.
-         */
-        public WebhookResponse(int responseCode, String responseBody) {
-            this.responseCode = responseCode;
-            this.responseBody = responseBody;
-        }
-
-        /**
-         * Return result of executing a webhook query.
-         *
-         * @return true if a webhook was executed successfully, otherwise false.
-         */
-        public String getResponseBody() {
-            return responseBody;
-        }
-
-        /**
-         * Returns the status code for the response code.
-         *
-         * @return the status code for the response code.
-         */
-        public int getResponseCode() {
-            return responseCode;
+                    BasicHttpResponse.class);
         }
     }
 }
