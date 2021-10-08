@@ -51,7 +51,8 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
  */
 public class SetCommodityMaxQuantityPostStitchingOperationTest {
 
-    private static final TopologyDTO.CommodityType VCPU = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).build();
+    private static final TopologyDTO.CommodityType VCPU_NO_KEY = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).build();
+    private static final TopologyDTO.CommodityType VCPU_EMPTY_KEY = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).setKey("").build();
     private static final long maxValuesBackgroundLoadFreqMins = 1;
     private static final double DELTA = 1e-5;
 
@@ -107,8 +108,8 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
     @Test
     public void testMaxChangesWithBroadcasts() {
         //broadcast 1
-        TopologyEntity vm1 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1L, ImmutableList.of(commoditySoldDTO(VCPU, 100)));
-        TopologyEntity cont1 = topologyEntity(EntityType.CONTAINER_VALUE, 101L, ImmutableList.of(commoditySoldDTO(VCPU, 300)));
+        TopologyEntity vm1 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 100)));
+        TopologyEntity cont1 = topologyEntity(EntityType.CONTAINER_VALUE, 101L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 300)));
         List<TopologyEntity> entities = ImmutableList.of(vm1, cont1);
         setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
@@ -143,9 +144,9 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
     @Test
     public void testBackgroundTask() {
         // First do a broadcast so that we have oids which we want to query for
-        TopologyEntity vm1 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1L, ImmutableList.of(commoditySoldDTO(VCPU, 100)));
-        TopologyEntity vm2 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 2L, ImmutableList.of(commoditySoldDTO(VCPU, 100)));
-        TopologyEntity cont1 = topologyEntity(EntityType.CONTAINER_VALUE, 101L, ImmutableList.of(commoditySoldDTO(VCPU, 300)));
+        TopologyEntity vm1 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 100)));
+        TopologyEntity vm2 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 2L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 100)));
+        TopologyEntity cont1 = topologyEntity(EntityType.CONTAINER_VALUE, 101L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 300)));
         List<TopologyEntity> entities = ImmutableList.of(vm1, vm2, cont1);
         setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
@@ -155,8 +156,8 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
 
         // Setup the response from GRPC call
         List<EntityCommoditiesMaxValues> response = ImmutableList.of(
-                entityCommoditiesMaxValues(1L, commodityMaxValue(VCPU, 101)),
-                entityCommoditiesMaxValues(2L, commodityMaxValue(VCPU, 102)));
+                entityCommoditiesMaxValues(1L, commodityMaxValue(VCPU_EMPTY_KEY, 101)),
+                entityCommoditiesMaxValues(2L, commodityMaxValue(VCPU_EMPTY_KEY, 102)));
         when(statsHistoryServiceMole.getEntityCommoditiesMaxValues(any())).thenReturn(response);
 
         // Run the background task. This will fetch new higher max values for VMs.

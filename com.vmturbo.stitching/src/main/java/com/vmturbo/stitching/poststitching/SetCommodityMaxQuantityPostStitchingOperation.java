@@ -24,6 +24,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.math.DoubleMath;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
@@ -235,13 +236,13 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                                         .addAllUuids(oids)
                                         .build();
                         Iterator<EntityCommoditiesMaxValues> response = statsHistoryClient.getEntityCommoditiesMaxValues(request);
-                        watch.stop();
-                        logger.info("Received max for {} in {} seconds", EntityType.forNumber(entityType).toString(),
-                                watch.elapsed(TimeUnit.SECONDS));
                         updateEntityCommodityToMaxQuantitiesMap(response);
+                        watch.stop();
+                        logger.info("Received and processed max for {} {}s in {} ms", oids.size(),
+                                EntityType.forNumber(entityType).toString(), watch.elapsed(TimeUnit.MILLISECONDS));
                     });
                     double loadTime = loadDurationTimer.observe();
-                    logger.info("Size of maxValues map after background load: {}. Load time: {}",
+                    logger.info("Size of maxValues map after background load: {}. Load time: {} seconds",
                                 entityCommodityToMaxQuantitiesMap.size(), loadTime);
                 }
             } catch (Throwable t) {
@@ -396,8 +397,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             entityCommodityMaxValues.getCommodityMaxValuesList()
                 .forEach(dbMaxValue -> {
                     EntityCommodityReference key =
-                        createEntityCommodityKey(entityCommodityMaxValues.getOid(),
-                            dbMaxValue.getCommodityType());
+                        createEntityCommodityKey(entityCommodityMaxValues.getOid(), dbMaxValue.getCommodityType());
                     // Atomically set the values as the background thread may be concurrently mutating the map.
                     CommodityMaxValue currentMax =
                         entityCommodityToMaxQuantitiesMap
@@ -425,6 +425,15 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         });
     }
 
+    /**
+     * Recreates commodity type and always sets the key even if it does not have a key.
+     * @param commodityType commodityType to recreate with key
+     * @return CommodityType with key
+     */
+    private TopologyDTO.CommodityType commodityWithKey(TopologyDTO.CommodityType commodityType) {
+        return TopologyDTO.CommodityType.newBuilder().setType(commodityType.getType()).setKey(commodityType.getKey()).build();
+    }
+
     private float calculateMapOccupancyPercentage(long commoditiesCount) {
         if (entityCommodityToMaxQuantitiesMap.size() == 0) return 0f;
 
@@ -433,7 +442,12 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     }
 
     private EntityCommodityReference createEntityCommodityKey(long entityOid, TopologyDTO.CommodityType commodityType) {
-        return new EntityCommodityReference(entityOid, commodityType, null);
+        // CommodityType returned from history component will always have a key - even for commodities like VCPU the key
+        // is an empty string. But the commodityType of commodities like VCPU in the broadcast will not have a key
+        // (hasKey() will evaluate to false). Because of this difference, the 2 commodityTypes are
+        // not treated equal according to the protobuf definition of equals and hence will become 2 separate entries in
+        // entityCommodityToMaxQuantitiesMap. To normalize this, we recreate the commodityType and always set the key.
+        return new EntityCommodityReference(entityOid, commodityWithKey(commodityType), null);
     }
 
     private CommodityMaxValue createCommodityMaxValue(ValueSource valSource, double maxValue) {
@@ -454,13 +468,15 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     /**
      * Don't compare objects of this type for equality.
      */
-    private class CommodityMaxValue {
+    class CommodityMaxValue {
 
         private final ValueSource valueSource;
 
         private final double maxValue;
 
         private final long insertTime;
+
+        private final Double DELTA = 0.0001;
 
         CommodityMaxValue(ValueSource valSource, double maxValue) {
             this.valueSource = valSource;
@@ -497,12 +513,13 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
 
         @Override
         public boolean equals(final Object obj) {
+            if (this == obj) {
+                return true;
+            }
             if (obj instanceof CommodityMaxValue) {
                 final CommodityMaxValue other = (CommodityMaxValue) obj;
                 return (valueSource == other.getValueSource()
-                            // should add an epsilon bounds check instead of
-                            // checking for pure equality.
-                            && (Double.compare(maxValue, other.maxValue) == 0)
+                            && (DoubleMath.fuzzyEquals(maxValue, other.maxValue, DELTA))
                             && insertTime == other.insertTime);
             } else {
                 return false;
