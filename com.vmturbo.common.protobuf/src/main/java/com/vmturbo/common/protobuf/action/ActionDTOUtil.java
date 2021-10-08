@@ -273,6 +273,25 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Get all the entities targeted by a specific action.
+     *
+     * @return The ActionEntity of the entity targeted by the action.
+     */
+    public static Set<Long> getInvolvedEntitiesAssociatedWithNodePool(@Nonnull final Action action) {
+        switch (action.getInfo().getActionTypeCase()) {
+            case MOVE:
+                try {
+                    return getInvolvedEntityIds(action);
+                } catch (UnsupportedActionException ex) {
+                    return new HashSet<>();
+                }
+            default:
+                return new HashSet<>();
+        }
+    }
+
+
+    /**
      * Get the "main" entity targeted by a specific action.
      * This will be one of the entities involved in the action. It can be thought of as the entity
      * that the action is acting upon.

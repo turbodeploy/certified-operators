@@ -103,7 +103,7 @@ public class ActionTest {
 
 
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
-
+        when(entitySettingsCache.getNodePoolForEntity(anyLong())).thenReturn(Optional.empty());
         setEntitiesOIDs();
         moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         moveAction.getActionTranslation().setPassthroughTranslationSuccess();

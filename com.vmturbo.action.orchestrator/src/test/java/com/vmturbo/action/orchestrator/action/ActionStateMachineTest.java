@@ -81,6 +81,8 @@ public class ActionStateMachineTest {
     public void setup() {
         entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(entitySettingsCache.getNodePoolForEntity(anyLong())).thenReturn(Optional.empty());
+
     }
 
     private void setEntitiesOIDs() {

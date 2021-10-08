@@ -523,7 +523,7 @@ public class Action implements ActionView {
                         getAssociatedPolicies(entitiesSnapshot, primaryEntity);
                 associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
                 associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
-                associatedNodePoolId = entitiesSnapshot.getNodePoolForEntity(primaryEntity);
+                associatedNodePoolId = getAssociatedNodePool(recommendation, entitiesSnapshot, primaryEntity);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
                 // if it was unsupported.
@@ -623,6 +623,27 @@ public class Action implements ActionView {
             }
         }
         return policiesAssociatedWithAction;
+    }
+
+    @Nonnull
+    private Optional<Long> getAssociatedNodePool(@Nonnull final ActionDTO.Action action,
+                                                 @Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                 long primaryEntity ) {
+        // Get node pool using the primary action entity
+        Optional<Long> nodePoolId = entitiesSnapshot.getNodePoolForEntity(primaryEntity);
+        if (nodePoolId.isPresent()) {
+            return nodePoolId;
+        }
+
+        // Use other involved entities to find associated node pool
+        Set<Long> involvedEntityIds = ActionDTOUtil.getInvolvedEntitiesAssociatedWithNodePool(action);
+        for (Long id : involvedEntityIds) {
+            Optional<Long> poolId = entitiesSnapshot.getNodePoolForEntity(id);
+            if (poolId.isPresent()) {
+                return poolId;
+            }
+        }
+        return Optional.empty();
     }
 
     /**
