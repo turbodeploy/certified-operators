@@ -8,7 +8,7 @@ import "tag/Tag.proto";
 
 // User defined tags for entities. These are aimed to persist into the entity_custom_tags db.
 message EntityCustomTags {
-    // The entity uuid
+    // The entity oid
     optional int64 entity_id = 1;
 
     // The tags DTO is a list of tags in the form "key = [v1, v2, ...]".
@@ -17,7 +17,7 @@ message EntityCustomTags {
 
 // Request to create tags.
 message EntityCustomTagsCreateRequest {
-    // The entity uuid
+    // The entity oid
     optional int64 entity_id = 1;
 
     // The tags DTO is a list of tags
@@ -27,8 +27,35 @@ message EntityCustomTagsCreateRequest {
 // Response for the rpc call is the object of entity tags created.
 message EntityCustomTagsCreateResponse {}
 
+// Request to get tags.
+message GetEntityCustomTagsRequest {
+    // The entity oid
+    optional int64 entity_id = 1;
+}
+
+// Response for the get tags request is the tags.
+message GetEntityCustomTagsResponse {
+    // The tags DTO is a list of tags
+    optional .tag.Tags tags = 2;
+}
+
+// Request to get all tags.
+message GetAllEntityCustomTagsRequest {}
+
+// Response to get all tags.
+message GetAllEntityCustomTagsResponse {
+    // List of tags along with entity id.
+    repeated EntityCustomTags entity_custom_tags = 1;
+}
+
 // The rpc service to manage user defined entity tags
 service EntityCustomTagsService {
-    // The rpc call to create tags based.
+    // The rpc call to create tags based on entity oid.
     rpc CreateTags(EntityCustomTagsCreateRequest) returns (EntityCustomTagsCreateResponse) {}
+
+    // The rpc call to get tags based on entity oid.
+    rpc GetTags(GetEntityCustomTagsRequest) returns (GetEntityCustomTagsResponse) {}
+
+    // The rpc call to get all tags.
+    rpc GetAllTags(GetAllEntityCustomTagsRequest) returns (GetAllEntityCustomTagsResponse) {}
 }

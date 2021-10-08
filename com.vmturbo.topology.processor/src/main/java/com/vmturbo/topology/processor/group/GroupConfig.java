@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
@@ -194,5 +196,14 @@ public class GroupConfig {
     @Bean
     public DiscoveredClusterConstraintCache discoveredClusterConstraintCache() {
         return new DiscoveredClusterConstraintCache(entityConfig.entityStore());
+    }
+
+    /**
+     *
+     * @return Blocking Entity Custom Service client.
+     */
+    @Bean
+    public EntityCustomTagsServiceBlockingStub entityCustomTagsService() {
+        return EntityCustomTagsServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 }

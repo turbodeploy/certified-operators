@@ -278,6 +278,7 @@ public class TopologyConfig {
                 ReservationServiceGrpc.newStub(planClientConfig.planOrchestratorChannel()),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
                 groupConfig.groupScopeResolver(),
+                entityConfig.entityCustomTagsMerger(groupConfig.entityCustomTagsService()),
                 supplyChainValidationFrequency,
                 stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
         );

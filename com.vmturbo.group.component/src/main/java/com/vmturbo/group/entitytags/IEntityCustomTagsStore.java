@@ -1,7 +1,10 @@
 package com.vmturbo.group.entitytags;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTags;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.service.StoreOperationException;
 
@@ -21,4 +24,19 @@ public interface IEntityCustomTagsStore {
      * @throws StoreOperationException if there are duplicate tags in the tag list.
      */
     int insertTags(long entityId, @Nonnull Tags tags) throws StoreOperationException;
+
+    /**
+     * Get the list of user defined tags for an entity.
+     *
+     * @param entityId is the oid of the entity whose tags will be fetched.
+     * @return the tags of the specified entity.
+     */
+    Tags getTags(long entityId);
+
+    /**
+     * Get the list of user defined entity tags.
+     *
+     * @return the tags of all entities.
+     */
+    List<EntityCustomTags> getAllTags();
 }

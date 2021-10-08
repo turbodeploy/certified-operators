@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 
 import jersey.repackaged.com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.EntityInfoREST;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -95,4 +96,8 @@ public class EntityConfig {
         return new EntityInfoREST.EntityServiceController(entityInfoRpcService());
     }
 
+    @Bean
+    public EntityCustomTagsMerger entityCustomTagsMerger(EntityCustomTagsServiceBlockingStub entityCustomTagsService) {
+        return new EntityCustomTagsMerger(entityCustomTagsService);
+    }
 }

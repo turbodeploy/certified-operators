@@ -26,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -82,6 +83,7 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
+import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
@@ -96,6 +98,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
+import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.GenerateConstraintMap;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
@@ -622,6 +625,32 @@ public class Stages {
             final CachedTopologyResult result = resultCache.getTopology();
             return StageResult.withResult(result.getEntities())
                 .andStatus(Status.success(result.toString()));
+        }
+    }
+
+    /**
+     * This stage merges the user defined tags to the entity topology map.
+     * We only do this for the live topology.
+     */
+    public static class MergeEntityCustomTagsStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
+
+        private final EntityCustomTagsMerger entityCustomTagsMerger;
+
+        MergeEntityCustomTagsStage(
+                @Nonnull final EntityCustomTagsMerger entityCustomTagsMerger) {
+            this.entityCustomTagsMerger = entityCustomTagsMerger;
+        }
+
+        @NotNull
+        @Nonnull
+        @Override
+        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            try {
+                entityCustomTagsMerger.mergeEntityCustomTags(input);
+            } catch(OperationFailedException e) {
+                return Status.withWarnings("Failed merging entity custom tags: " + e);
+            }
+            return Status.success();
         }
     }
 

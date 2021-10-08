@@ -884,7 +884,6 @@ public class GroupRpcService extends GroupServiceImplBase {
                      .build());
          });
          return tagsBldr.build();
-
     }
 
     @Override
