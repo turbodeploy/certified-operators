@@ -14,7 +14,6 @@
     <packaging>jar</packaging>
 
     <properties>
-        <pre-integration-test-phase>pre-integration-test</pre-integration-test-phase>
         <integration-test-phase>integration-test</integration-test-phase>
         <dockerImageName>turbonomic/robot-docker</dockerImageName>
         <dockerImageVersion>1.0.0</dockerImageVersion>
@@ -103,48 +102,7 @@
                     <maxHeap>512</maxHeap>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <configuration>
-                    <skip>${skipTests}</skip>
-                    <environmentVariables>
-                        <DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
-                    </environmentVariables>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>integration-test</id>
-                        <phase>${integration-test-phase}</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <executable>docker</executable>
-                            <arguments>
-                                <argument>run</argument>
-                                <!-- Mount the container's root filesystem as read only -->
-                                <argument>--read-only</argument>
-                                <!-- Automatically remove the container when it exits -->
-                                <argument>--rm</argument>
-                                <!-- Set environment variables -->
-                                <argument>--env</argument>
-                                <argument>PROJECT_VERSION=${project.version}</argument>
-                                <!-- Bind mount a volume -->
-                                <argument>--volume</argument>
-                                <argument>${project.basedir}:/usr/src/project</argument>
-                                <!-- The image to run -->
-                                <argument>${dockerRobotImage}</argument>
-                                <argument>/bin/bash</argument>
-                                <argument>-c</argument>
-                                <argument>'${robotCommand}'</argument>
-                                <workingDirectory>${project.basedir}</workingDirectory>
-                                <includeScope>compile</includeScope>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -164,6 +122,50 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>integration-tests</id>
+            <activation>
+                <os>
+                    <family>!windows</family>
+                </os>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <skip>${skipTests}</skip>
+                            <environmentVariables>
+                                <DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+                            </environmentVariables>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>integration-test</id>
+                                <phase>${integration-test-phase}</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/src/it/execute.sh</argument>
+                                        <argument>${project.version}</argument>
+                                        <argument>${project.basedir}</argument>
+                                        <argument>${dockerRobotImage}</argument>
+                                        <argument>'${robotCommand}'</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <dependencies>
         <!-- Logging -->
