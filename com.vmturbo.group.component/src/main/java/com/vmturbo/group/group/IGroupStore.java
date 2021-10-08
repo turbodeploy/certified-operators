@@ -282,6 +282,25 @@ public interface IGroupStore {
     int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException;
 
     /**
+     * Delete a user defined group tag for group.
+     *
+     * @param groupId is the entity oid to attach the tag.
+     * @param tagKey tag key
+     *
+     * @throws StoreOperationException if the tag with key could not be deleted.
+     */
+    void deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException;
+
+    /**
+     * Delete a list of user defined group tags for group.
+     *
+     * @param groupId is the entity oid to attach the tags.
+     *
+     * @throws StoreOperationException if the tags for the group could not to be deleted.
+     */
+    void deleteTags(long groupId) throws StoreOperationException;
+
+    /**
      * Returns direct static members of the specified group. Method does not perform any
      * recursion. Only direct static members are returned. If group is a dynamic group or
      * it does not have any members, this method returns empty set.

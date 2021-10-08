@@ -9,6 +9,10 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTags;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
@@ -65,6 +69,61 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
         }
 
         responseObserver.onNext(EntityCustomTagsCreateResponse.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteTags(DeleteEntityCustomTagsRequest request,
+            StreamObserver<DeleteEntityCustomTagsResponse> responseObserver) {
+        if (!request.hasEntityOid()) {
+            final String errMsg =
+                    "Incoming EntityCustomTags delete request does not contain entity id: "
+                            + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+        try {
+            entityCustomTagsStore.deleteTags(request.getEntityOid());
+        } catch (StoreOperationException e) {
+            logger.error("Could not delete tags for Entity: '" + request.getEntityOid() + "'");
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+            return;
+        }
+
+        responseObserver.onNext(DeleteEntityCustomTagsResponse.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteTag(DeleteEntityCustomTagRequest request,
+                          StreamObserver<DeleteEntityCustomTagResponse> responseObserver) {
+        if (!request.hasEntityOid()) {
+            final String errMsg =
+                    "Incoming EntityCustomTags delete request does not contain entity id: "
+                            + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+        if (!request.hasTagKey()) {
+            final String errMsg =
+                    "Incoming EntityCustomTags delete request does not contain tag key: "
+                            + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+        try {
+            logger.error("Could not delete tags for Entity: '" + request.getEntityOid() + "' and Key: '"
+                    + request.getTagKey());
+            entityCustomTagsStore.deleteTag(request.getEntityOid(), request.getTagKey());
+        } catch (StoreOperationException e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+            return;
+        }
+
+        responseObserver.onNext(DeleteEntityCustomTagResponse.newBuilder().build());
         responseObserver.onCompleted();
     }
 

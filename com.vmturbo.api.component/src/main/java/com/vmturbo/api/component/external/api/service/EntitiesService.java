@@ -101,6 +101,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.RiskUtil;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -1055,13 +1057,33 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public void deleteTagByEntityUuid(final String s, final String s1) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public void deleteTagByEntityUuid(final String uuid, final String tagKey) throws Exception {
+        if(org.apache.commons.lang.StringUtils.isEmpty(tagKey)) {
+            throw new OperationFailedException("TagKey cannot be empty");
+        }
+        final long oid = getEntityOidFromString(uuid);
+        final DeleteEntityCustomTagRequest request = DeleteEntityCustomTagRequest.newBuilder()
+                .setEntityOid(oid)
+                .setTagKey(tagKey)
+                .build();
+        try {
+            entityCustomTagsService.deleteTag(request);
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException(
+                    "Unable to delete tag for Entity: '" + uuid + "' with key: '" + tagKey + "'", e);
+        }
     }
 
     @Override
-    public void deleteTagsByEntityUuid(final String s) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public void deleteTagsByEntityUuid(final String uuid) throws Exception {
+        final long oid = getEntityOidFromString(uuid);
+        final DeleteEntityCustomTagsRequest request =
+                DeleteEntityCustomTagsRequest.newBuilder().setEntityOid(oid).build();
+        try {
+            entityCustomTagsService.deleteTags(request);
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException("Unable to delete tag for Entity: '" + uuid + "'", e);
+        }
     }
 
     @Override
@@ -1347,6 +1369,9 @@ public class EntitiesService implements IEntitiesService {
      */
     private long getEntityOidFromString(@Nonnull final String uuid)
             throws OperationFailedException {
+        if(org.apache.commons.lang.StringUtils.isEmpty(uuid)) {
+            throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
+        }
         ApiId apiId = uuidMapper.fromUuid(uuid);
         if (!apiId.isEntity()) {
             throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));

@@ -27,6 +27,27 @@ message EntityCustomTagsCreateRequest {
 // Response for the rpc call is the object of entity tags created.
 message EntityCustomTagsCreateResponse {}
 
+// Request to delete tags for entity.
+message DeleteEntityCustomTagsRequest {
+    // The entity oid
+    optional int64 entity_oid = 1;
+}
+
+// Response to the tags deleted.
+message DeleteEntityCustomTagsResponse {}
+
+// Request to delete tag for entity.
+message DeleteEntityCustomTagRequest {
+    // The entity oid
+    optional int64 entity_oid = 1;
+
+    // The tag key uuid
+    optional string tag_key = 2;
+}
+
+// Response to the tag deleted.
+message DeleteEntityCustomTagResponse {}
+
 // Request to get tags.
 message GetEntityCustomTagsRequest {
     // The entity oid
@@ -52,6 +73,11 @@ message GetAllEntityCustomTagsResponse {
 service EntityCustomTagsService {
     // The rpc call to create tags based on entity oid.
     rpc CreateTags(EntityCustomTagsCreateRequest) returns (EntityCustomTagsCreateResponse) {}
+
+    // The rpc call to delete tags.
+    rpc DeleteTags(DeleteEntityCustomTagsRequest) returns (DeleteEntityCustomTagsResponse) {}
+    // The rpc call to delete tag.
+    rpc DeleteTag(DeleteEntityCustomTagRequest) returns (DeleteEntityCustomTagResponse) {}
 
     // The rpc call to get tags based on entity oid.
     rpc GetTags(GetEntityCustomTagsRequest) returns (GetEntityCustomTagsResponse) {}

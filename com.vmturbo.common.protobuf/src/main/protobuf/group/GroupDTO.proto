@@ -535,6 +535,26 @@ message CreateTagsRequest {
 // Response to the tags created
 message CreateTagsResponse {}
 
+// Request to delete tags for a group
+message DeleteTagsRequest {
+    // The group oid
+    optional int64 group_oid = 1;
+}
+
+// Response to the tags deleted
+message DeleteTagsResponse {}
+
+// Request to delete tags for a group
+message DeleteTagRequest {
+    // The group oid
+    optional int64 group_oid = 1;
+    // The tag key to delete
+    optional string tag_key = 2;
+}
+
+// Response to the tags deleted
+message DeleteTagResponse {}
+
 // Request owners for groups
 message GetOwnersRequest {
     // The groupType to get owners for. If not specified, query will not distinguish between group types.
@@ -614,6 +634,12 @@ service GroupService {
 
     // The rpc call to create tags based on the group id.
     rpc CreateTags(CreateTagsRequest) returns (CreateTagsResponse);
+
+    // The rpc call to delete tags for the group id.
+    rpc DeleteTags(DeleteTagsRequest) returns (DeleteTagsResponse);
+
+    // The rpc call to delete tag for the group id.
+    rpc DeleteTag(DeleteTagRequest) returns (DeleteTagResponse);
 
     // Returns distinct tag values.
     // This is different from GetTags because it does not return per-group tags. Instead, it returns

@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -74,6 +75,10 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.EntityCustomTagsMoles.EntityCustomTagsServiceMole;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
@@ -713,6 +718,80 @@ public class EntitiesServiceTest {
 
         // call service
         service.createTagsByEntityUuid(Long.toString(VM_ID), tags);
+    }
+
+    /**
+     * Delete tags using entity oid.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testDeleteTagsEntityOid() throws Exception {
+        final DeleteEntityCustomTagsRequest request = DeleteEntityCustomTagsRequest.newBuilder()
+                .setEntityOid(VM_ID)
+                .build();
+
+        final DeleteEntityCustomTagsResponse response = DeleteEntityCustomTagsResponse.newBuilder().build();
+
+        when(entityCustomTagsService.deleteTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+        service.deleteTagsByEntityUuid(Long.toString(VM_ID));
+    }
+
+    /**
+     * Delete tags with empty key.
+     *
+     * @throws IllegalArgumentException should be thrown.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testDeleteTagsEmptyKey() throws Exception {
+        service.deleteTagsByEntityUuid("");
+    }
+
+    /**
+     * Delete tags using entity oid and key.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testDeleteTagEntityOidAndKey() throws Exception {
+        final DeleteEntityCustomTagRequest request = DeleteEntityCustomTagRequest.newBuilder()
+                .setEntityOid(VM_ID)
+                .setTagKey(TAG_KEY)
+                .build();
+
+        final DeleteEntityCustomTagResponse response = DeleteEntityCustomTagResponse.newBuilder().build();
+
+        when(entityCustomTagsService.deleteTag(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        service.deleteTagByEntityUuid(Long.toString(VM_ID), TAG_KEY);
+    }
+
+    /**
+     * Delete tag with empty key.
+     *
+     * @throws OperationFailedException should be thrown.
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testDeleteTagEmptyKey() throws Exception {
+        service.deleteTagByEntityUuid(Long.toString(VM_ID), "");
+    }
+
+    /**
+     * Delete tag with empty group oid.
+     *
+     * @throws OperationFailedException should be thrown.
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testDeleteTagEmptyGroupOid() throws Exception {
+        service.deleteTagByEntityUuid("", "");
     }
 
     /**

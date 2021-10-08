@@ -470,8 +470,28 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Override
-    public int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException {
+    public void deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException {
+        try {
+            dslContext.deleteFrom(GROUP_TAGS).where(GROUP_TAGS.GROUP_ID.eq(groupId),
+                GROUP_TAGS.TAG_KEY.eq(tagKey)).execute();
+        } catch (DataAccessException e) {
+            throw new StoreOperationException(Status.INTERNAL,
+                    "Could not delete tags for Group: '" + groupId + "' and key: '" + tagKey + "'");
+        }
+    }
 
+    @Override
+    public void deleteTags(long groupId) throws StoreOperationException {
+        try {
+            dslContext.deleteFrom(GROUP_TAGS).where(GROUP_TAGS.GROUP_ID.eq(groupId)).execute();
+        } catch (DataAccessException e) {
+            throw new StoreOperationException(Status.INTERNAL,
+                    "Could not delete tags for Group: '" + groupId + "'");
+        }
+    }
+
+    @Override
+    public int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException {
         Collection<Query> queries = insertCustomTags(dslContext, tags, groupId,
                 TagOrigin.USER_CREATED);
         return Arrays.stream(dslContext.batch(queries).execute()).sum();
