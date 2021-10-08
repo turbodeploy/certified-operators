@@ -127,6 +127,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
@@ -1278,13 +1280,30 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public void deleteTagByGroupUuid(final String s, final String s1) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public void deleteTagByGroupUuid(final String uuid, final String tagKey) throws Exception {
+        if(StringUtils.isEmpty(tagKey)) {
+            throw new OperationFailedException("TagKey cannot be empty");
+        }
+        final long oid = getGroupOidFromString(uuid);
+        final DeleteTagRequest request = DeleteTagRequest.newBuilder().setGroupOid(oid).setTagKey(
+                tagKey).build();
+        try {
+            groupServiceRpc.deleteTag(request);
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException(
+                    "Unable to delete tag for Group: '" + uuid + "' with key: '" + tagKey + "'", e);
+        }
     }
 
     @Override
-    public void deleteTagsByGroupUuid(final String s) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public void deleteTagsByGroupUuid(final String uuid) throws Exception {
+        final long oid = getGroupOidFromString(uuid);
+        final DeleteTagsRequest request = DeleteTagsRequest.newBuilder().setGroupOid(oid).build();
+        try {
+            groupServiceRpc.deleteTags(request);
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException("Unable to delete tag for Group: '" + uuid + "'", e);
+        }
     }
 
     /**
@@ -2057,6 +2076,9 @@ public class GroupsService implements IGroupsService {
      */
     private long getGroupOidFromString(@Nonnull final String uuid)
             throws OperationFailedException {
+        if(StringUtils.isEmpty(uuid)) {
+            throw new IllegalArgumentException(String.format(ILLEGAL_GROUP_UUID_MESSAGE, uuid));
+        }
         ApiId apiId = uuidMapper.fromUuid(uuid);
         if (!apiId.isGroup()) {
             throw new IllegalArgumentException(String.format(ILLEGAL_GROUP_UUID_MESSAGE, uuid));

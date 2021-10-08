@@ -124,6 +124,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -2670,4 +2674,79 @@ public class GroupsServiceTest {
         // call service
         groupsService.createTagsByGroupUuid(Long.toString(VM_ID), tags);
     }
+
+    /**
+     * Delete tags using group oid.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testDeleteTagsGroupOid() throws Exception {
+        final DeleteTagsRequest request = DeleteTagsRequest.newBuilder()
+                .setGroupOid(VM_ID)
+                .build();
+
+        final DeleteTagsResponse response = DeleteTagsResponse.newBuilder().build();
+
+        when(groupServiceSpyMole.deleteTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+        groupsService.deleteTagsByGroupUuid(Long.toString(VM_ID));
+    }
+
+    /**
+     * Delete tags with empty key.
+     *
+     * @throws IllegalArgumentException should be thrown.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testDeleteTagsEmptyKey() throws Exception {
+        groupsService.deleteTagsByGroupUuid("");
+    }
+
+    /**
+     * Delete tags using group oid and key.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testDeleteTagGroupOidAndKey() throws Exception {
+        final DeleteTagRequest request = DeleteTagRequest.newBuilder()
+                .setGroupOid(VM_ID)
+                .setTagKey(TAG_KEY)
+                .build();
+
+        final DeleteTagResponse response = DeleteTagResponse.newBuilder().build();
+
+        when(groupServiceSpyMole.deleteTag(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        groupsService.deleteTagByGroupUuid(Long.toString(VM_ID), TAG_KEY);
+    }
+
+    /**
+     * Delete tag with empty group oid.
+     *
+     * @throws OperationFailedException should be thrown.
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testDeleteTagEmptyGroupOid() throws Exception {
+        groupsService.deleteTagByGroupUuid("", "");
+    }
+
+    /**
+     * Delete tag with empty key.
+     *
+     * @throws OperationFailedException should be thrown.
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testDeleteTagEmptyKey() throws Exception {
+        groupsService.deleteTagByGroupUuid(Long.toString(VM_ID), "");
+    }
+
 }

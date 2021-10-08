@@ -16,10 +16,9 @@ import javax.annotation.Nonnull;
 
 import io.grpc.Status;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Query;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
@@ -35,8 +34,6 @@ import com.vmturbo.group.service.StoreOperationException;
  */
 public class EntityCustomTagsStore implements IEntityCustomTagsStore {
 
-    private final Logger logger = LogManager.getLogger();
-
     // The transactional DB context.
     private final DSLContext dslContext;
 
@@ -50,8 +47,30 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
     }
 
     @Override
-    public int insertTags(long entityId, @Nonnull Tags tags) throws StoreOperationException {
+    public void deleteTag(long entityId, @Nonnull String tagKey) throws StoreOperationException {
+        try {
+            dslContext.deleteFrom(ENTITY_CUSTOM_TAGS).where(ENTITY_CUSTOM_TAGS.ENTITY_ID.eq(entityId),
+                    ENTITY_CUSTOM_TAGS.TAG_KEY.eq(tagKey)).execute();
+        } catch (DataAccessException e) {
+            throw new StoreOperationException(Status.INTERNAL,
+                    "Could not delete tags for Entity: '" + entityId + "' and key: '" + tagKey + "'");
+        }
+    }
 
+    @Override
+    public void deleteTags(long entityId) throws StoreOperationException {
+        try {
+            dslContext.deleteFrom(ENTITY_CUSTOM_TAGS)
+                    .where(ENTITY_CUSTOM_TAGS.ENTITY_ID.eq(entityId))
+                    .execute();
+        } catch (DataAccessException e) {
+            throw new StoreOperationException(Status.INTERNAL,
+                    "Could not delete tags for Entity: '" + entityId + "'");
+        }
+    }
+
+    @Override
+    public int insertTags(long entityId, @Nonnull Tags tags) throws StoreOperationException {
         Collection<Query> queries = insertTags(dslContext, tags, entityId);
         return Arrays.stream(dslContext.batch(queries).execute()).sum();
     }

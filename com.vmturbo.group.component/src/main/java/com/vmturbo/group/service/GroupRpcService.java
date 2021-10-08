@@ -55,6 +55,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.DeleteTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
@@ -928,6 +932,64 @@ public class GroupRpcService extends GroupServiceImplBase {
         });
     }
 
+    @Override
+    public void deleteTag(DeleteTagRequest request,
+            StreamObserver<DeleteTagResponse> responseObserver) {
+        if (!request.hasGroupOid()) {
+            final String errMsg =
+                    "Incoming custom group tags delete request does not contain group id: "
+                            + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        if (!request.hasTagKey()) {
+            final String errMsg =
+                    "Incoming custom group tag delete request does not contain tag key: " + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            try {
+                stores.getGroupStore().deleteTag(request.getGroupOid(), request.getTagKey());
+            } catch (StoreOperationException e) {
+                logger.error("Could not delete tags for Group: '" + request.getGroupOid() + "'"
+                        + request.getTagKey());
+                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+                return;
+            }
+            responseObserver.onNext(DeleteTagResponse.newBuilder().build());
+            responseObserver.onCompleted();
+        });
+    }
+
+    @Override
+    public void deleteTags(DeleteTagsRequest request,
+            StreamObserver<DeleteTagsResponse> responseObserver) {
+        if (!request.hasGroupOid()) {
+            final String errMsg =
+                    "Incoming custom group tags delete request does not contain group id: "
+                            + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            try {
+                stores.getGroupStore().deleteTags(request.getGroupOid());
+            } catch (StoreOperationException e) {
+                logger.error("Could not delete tags for Group: '" + request.getGroupOid() + "'");
+                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+                return;
+            }
+            responseObserver.onNext(DeleteTagsResponse.newBuilder().build());
+            responseObserver.onCompleted();
+        });
+    }
 
     @Override
     public void getOwnersOfGroups(GetOwnersRequest request,
@@ -944,7 +1006,6 @@ public class GroupRpcService extends GroupServiceImplBase {
             responseObserver.onCompleted();
         });
     }
-
 
     /**
      * Given a group, transform any dynamic filters based on group properties it contains into StringFilters
