@@ -37,6 +37,7 @@ import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
@@ -202,6 +203,7 @@ public class TopologyPipelineFactoryTest {
             reservationServiceStub,
             mock(GroupResolverSearchFilterResolver.class),
             mock(GroupScopeResolver.class),
+            mock(EntityCustomTagsMerger.class),
             10,
             true);
     }

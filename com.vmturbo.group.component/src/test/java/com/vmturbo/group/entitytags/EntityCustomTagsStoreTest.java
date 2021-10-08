@@ -2,9 +2,12 @@ package com.vmturbo.group.entitytags;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -13,6 +16,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTags;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.GroupComponent;
@@ -106,5 +110,54 @@ public class EntityCustomTagsStoreTest {
         final Tags tags = Tags.newBuilder().build();
         int result = entityCustomTagsStore.insertTags(ENTITY_ID, tags);
         assertThat(result, is(0));
+    }
+
+    /**
+     * Test the case of getting tags that where just inserted.
+     *
+     * @throws StoreOperationException should not happen.
+     */
+    @Test
+    public void getTagsTest() throws StoreOperationException {
+        final Tags tags1 = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue1, tagValue2)).build()).build();
+        entityCustomTagsStore.insertTags(ENTITY_ID, tags1);
+
+        Map<String, TagValuesDTO> tags = entityCustomTagsStore.getTags(ENTITY_ID).getTagsMap();
+        TagValuesDTO values = tags.get(tagName1);
+        assertThat(values, is(notNullValue()));
+        assertThat(values.getValuesList().get(0), is(tagValue1));
+        assertThat(values.getValuesList().get(1), is(tagValue2));
+    }
+
+    /**
+     * Test the case of getting all tags that where just inserted.
+     *
+     * @throws StoreOperationException should not happen.
+     */
+    @Test
+    public void getAllTagsTest() throws StoreOperationException {
+        final Tags tags1 = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue1, tagValue2)).build()).build();
+        final Tags tags2 = Tags.newBuilder().putTags(tagName2, TagValuesDTO.newBuilder()
+                .addAllValues(Collections.singletonList(tagValue1)).build()).build();
+        entityCustomTagsStore.insertTags(ENTITY_ID, tags2);
+        entityCustomTagsStore.insertTags(ENTITY_ID, tags1);
+
+        List<EntityCustomTags> allTags = entityCustomTagsStore.getAllTags();
+        assertThat(allTags.get(0).getEntityId(), is(ENTITY_ID));
+
+        Map<String, TagValuesDTO> tags = allTags.get(0).getTags().getTagsMap();
+
+        TagValuesDTO values = tags.get(tagName1);
+        assertThat(values, is(notNullValue()));
+        assertThat(values.getValuesList().get(0), is(tagValue1));
+        assertThat(values.getValuesList().get(1), is(tagValue2));
+
+        values = tags.get(tagName2);
+        assertThat(values, is(notNullValue()));
+        assertThat(values.getValuesList().get(0), is(tagValue1));
     }
 }

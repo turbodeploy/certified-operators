@@ -3,8 +3,10 @@ package com.vmturbo.group.service;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import io.grpc.stub.StreamObserver;
 
@@ -107,5 +109,59 @@ public class EntityCustomTagsRpcServiceTest {
         entityCustomTagsService.createTags(request, mockObserver);
 
         Mockito.verify(mockObserver).onError(Matchers.any(IllegalArgumentException.class));
+    }
+
+    /**
+     * Tests the getting of tags by entity id using the gRPC service.
+     */
+    @Test
+    public void testGetTags() {
+
+        final EntityCustomTagsOuterClass.GetEntityCustomTagsRequest request =
+                EntityCustomTagsOuterClass.GetEntityCustomTagsRequest.newBuilder().setEntityId(
+                        ENTITY_ID).build();
+        final StreamObserver<EntityCustomTagsOuterClass.GetEntityCustomTagsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        when(entityCustomTagsStore.getTags(ENTITY_ID)).thenReturn(tags);
+
+        entityCustomTagsService.getTags(request, mockObserver);
+
+        verify(mockObserver).onNext(
+                EntityCustomTagsOuterClass.GetEntityCustomTagsResponse.newBuilder()
+                        .setTags(tags)
+                        .build()
+        );
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the getting of all tags using the gRPC service.
+     */
+    @Test
+    public void testGetAllTags() {
+
+        final EntityCustomTagsOuterClass.GetAllEntityCustomTagsRequest request =
+                EntityCustomTagsOuterClass.GetAllEntityCustomTagsRequest.newBuilder().build();
+        final StreamObserver<EntityCustomTagsOuterClass.GetAllEntityCustomTagsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        List<EntityCustomTagsOuterClass.EntityCustomTags> list = new ArrayList<>();
+        EntityCustomTagsOuterClass.EntityCustomTags tag =
+                EntityCustomTagsOuterClass.EntityCustomTags.newBuilder()
+                        .setEntityId(ENTITY_ID)
+                        .setTags(tags)
+                        .build();
+        list.add(tag);
+
+        when(entityCustomTagsStore.getAllTags()).thenReturn(list);
+        entityCustomTagsService.getAllTags(request, mockObserver);
+
+        verify(mockObserver).onNext(
+                EntityCustomTagsOuterClass.GetAllEntityCustomTagsResponse.newBuilder()
+                        .addEntityCustomTags(tag)
+                        .build()
+        );
+        verify(mockObserver).onCompleted();
     }
 }

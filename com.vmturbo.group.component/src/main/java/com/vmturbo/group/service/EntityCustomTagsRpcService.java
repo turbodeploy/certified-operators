@@ -1,5 +1,6 @@
 package com.vmturbo.group.service;
 
+import java.util.List;
 import java.util.Objects;
 
 import io.grpc.Status;
@@ -8,8 +9,13 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTags;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetAllEntityCustomTagsRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetAllEntityCustomTagsResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetEntityCustomTagsRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetEntityCustomTagsResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceImplBase;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.entitytags.EntityCustomTagsStore;
@@ -59,6 +65,37 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
         }
 
         responseObserver.onNext(EntityCustomTagsCreateResponse.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getTags(final GetEntityCustomTagsRequest request,
+            final StreamObserver<GetEntityCustomTagsResponse> responseObserver) {
+        if (!request.hasEntityId()) {
+            final String errMsg = "Incoming EntityCustomTags get request does not contain entity id: "
+                    + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        Tags tags = entityCustomTagsStore.getTags(request.getEntityId());
+
+        responseObserver.onNext(GetEntityCustomTagsResponse.newBuilder().setTags(tags).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getAllTags(final GetAllEntityCustomTagsRequest request,
+            final StreamObserver<GetAllEntityCustomTagsResponse> responseObserver) {
+        List<EntityCustomTags> tags = entityCustomTagsStore.getAllTags();
+
+        GetAllEntityCustomTagsResponse.Builder response = GetAllEntityCustomTagsResponse.newBuilder();
+        tags.forEach(
+                tag -> response.addEntityCustomTags(tag)
+        );
+
+        responseObserver.onNext(response.build());
         responseObserver.onCompleted();
     }
 }

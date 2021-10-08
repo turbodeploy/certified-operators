@@ -26,6 +26,7 @@ import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
+import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
@@ -66,6 +67,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStag
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoryAggregationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.InitializeTopologyEntitiesStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.MergeEntityCustomTagsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
@@ -167,6 +169,8 @@ public class LivePipelineFactory {
 
     private final GroupScopeResolver groupScopeResolver;
 
+    private final EntityCustomTagsMerger entityCustomTagsMerger;
+
     private final int supplyChainValidationFrequency;
 
     private final boolean enableConsistentScalingOnHeterogeneousProviders;
@@ -207,6 +211,7 @@ public class LivePipelineFactory {
             @Nonnull final ReservationServiceStub reservationService,
             @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
             @Nonnull final GroupScopeResolver groupScopeResolver,
+            @Nonnull final EntityCustomTagsMerger entityCustomTagsMerger,
             final int supplyChainValidationFrequency,
             final boolean enableConsistentScalingOnHeterogeneousProviders) {
         this.topoBroadcastManager = topoBroadcastManager;
@@ -245,6 +250,7 @@ public class LivePipelineFactory {
         this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
         this.supplyChainValidationFrequency = supplyChainValidationFrequency;
         this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
+        this.entityCustomTagsMerger = entityCustomTagsMerger;
     }
 
     /**
@@ -340,6 +346,7 @@ public class LivePipelineFactory {
                 .addStage(new StitchingGroupAnalyzerStage(discoveredGroupUploader))
                 .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new InitializeTopologyEntitiesStage())
+                .addStage(new MergeEntityCustomTagsStage(entityCustomTagsMerger))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))

@@ -5,8 +5,12 @@ import static com.vmturbo.group.db.tables.EntityCustomTags.ENTITY_CUSTOM_TAGS;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -17,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.common.Truncator;
@@ -83,5 +88,60 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
             }
         }
         return result;
+    }
+
+    @Override
+    public Tags getTags(long entityId) {
+        List<? extends EntityCustomTagsRecord> tagRecords = dslContext.selectFrom(ENTITY_CUSTOM_TAGS).where(
+                ENTITY_CUSTOM_TAGS.ENTITY_ID.eq(entityId)).fetch();
+
+        Map<String, TagValuesDTO.Builder> items = new HashMap<>();
+        for (EntityCustomTagsRecord tagRecord : tagRecords) {
+            items.computeIfAbsent(tagRecord.getTagKey(),
+                    k -> TagValuesDTO.newBuilder()).addValues(tagRecord.getTagValue());
+        }
+
+        return Tags.newBuilder().putAllTags(
+                items.entrySet().stream().collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().build()
+                ))
+        ).build();
+    }
+
+    @Override
+    public List<EntityCustomTagsOuterClass.EntityCustomTags> getAllTags() {
+        List<? extends EntityCustomTagsRecord> tagRecords =
+                dslContext.selectFrom(ENTITY_CUSTOM_TAGS).fetch();
+
+        // Prepare the map of tags from the record. This is needed so that same tags keys for the
+        // same entity to unify it's values into a new set fo values.
+        Map<Long, Map<String, TagValuesDTO.Builder>> tagsMap = new HashMap<>();
+        for (EntityCustomTagsRecord tagRecord : tagRecords) {
+
+            tagsMap.computeIfAbsent(tagRecord.getEntityId(), id -> new HashMap<>())
+                    .computeIfAbsent(tagRecord.getTagKey(),
+                            k -> TagValuesDTO.newBuilder()).addValues(tagRecord.getTagValue());
+        }
+
+        // Create the final list of EntityCustomTags, which is basically the mapping from entity oid
+        // to the Tags attached to it.
+        List<EntityCustomTagsOuterClass.EntityCustomTags> tags = new ArrayList<>();
+        for (Map.Entry<Long, Map<String, TagValuesDTO.Builder>> entry : tagsMap.entrySet()) {
+            tags.add(
+                EntityCustomTagsOuterClass.EntityCustomTags.newBuilder()
+                        .setTags(
+                            Tags.newBuilder().putAllTags(
+                                    entry.getValue().entrySet().stream().collect(Collectors.toMap(
+                                            Map.Entry::getKey,
+                                            e -> e.getValue().build()
+                                    ))).build()
+                        )
+                        .setEntityId(entry.getKey())
+                        .build()
+            );
+        }
+
+        return tags;
     }
 }
