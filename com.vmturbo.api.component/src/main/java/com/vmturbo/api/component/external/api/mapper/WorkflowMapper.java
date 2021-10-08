@@ -11,6 +11,8 @@ import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.AuthenticationMethod;
 import com.vmturbo.api.dto.workflow.HttpMethod;
+import com.vmturbo.api.dto.workflow.OAuthDataApiDTO;
+import com.vmturbo.api.dto.workflow.OAuthGrantType;
 import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
@@ -20,6 +22,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo.OAuthData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -90,6 +93,16 @@ public class WorkflowMapper {
                         .stream()
                         .map(el -> new RequestHeader(el.getName(), el.getValue()))
                         .collect(Collectors.toList()));
+            }
+            if (webhookInfo.hasOAuth()) {
+                OAuthData oAuthData = webhookInfo.getOAuth();
+                webhookApiDTO.setOAuthData(
+                        new OAuthDataApiDTO(
+                                oAuthData.getClientId(),
+                                "",
+                                oAuthData.getAuthorizationServerUrl(),
+                                oAuthData.getScope(),
+                                OAuthGrantType.valueOf(oAuthData.getGrantType().name())));
             }
             webhookApiDTO.setTrustSelfSignedCertificates(webhookInfo.getTrustSelfSignedCertificates());
             answer.setTypeSpecificDetails(webhookApiDTO);
@@ -163,6 +176,21 @@ public class WorkflowMapper {
                                 header.getName()).setValue(header.getValue()).build()));
 
             }
+            final OAuthDataApiDTO oAuthData = webhookApiDTO.getOAuthData();
+            if (oAuthData != null) {
+                OAuthData.Builder oAuthDataBuilder = WebhookInfo.OAuthData.newBuilder()
+                        .setClientId(oAuthData.getClientId())
+                        .setAuthorizationServerUrl(oAuthData.getAuthorizationServerUrl())
+                        .setGrantType(WebhookInfo.GrantType.valueOf(oAuthData.getGrantType().name()));
+
+                final String scope = oAuthData.getScope();
+                if (scope != null) {
+                    oAuthDataBuilder.setScope(scope);
+                }
+
+                builder.setOAuth(oAuthDataBuilder);
+            }
+
             workflowInfo.setWebhookInfo(builder);
         }
 

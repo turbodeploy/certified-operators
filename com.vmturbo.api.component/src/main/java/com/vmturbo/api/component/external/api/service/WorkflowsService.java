@@ -27,6 +27,7 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.workflow.AuthenticationMethod;
+import com.vmturbo.api.dto.workflow.OAuthDataApiDTO;
 import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
@@ -316,8 +317,8 @@ public class WorkflowsService implements IWorkflowsService {
             }
             final WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
 
-            if (!webhookApiDTO.getUrl().startsWith("http://")
-                  && !webhookApiDTO.getUrl().startsWith("https://") ) {
+            if (!webhookApiDTO.getUrl().toLowerCase().startsWith("http://")
+                  && !webhookApiDTO.getUrl().toLowerCase().startsWith("https://") ) {
                 throw new IllegalArgumentException("The \"url\" field should start with \"http://\" or "
                     + " \"https://\".");
             }
@@ -338,6 +339,16 @@ public class WorkflowsService implements IWorkflowsService {
             if (webhookApiDTO.getHeaders() != null) {
                 for (RequestHeader header : webhookApiDTO.getHeaders()) {
                     validateRequestHeader(header);
+                }
+            }
+
+            // Validate webhook oAuth data if present
+            if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.OAUTH) {
+                OAuthDataApiDTO oAuthData = webhookApiDTO.getOAuthData();
+                if (oAuthData != null) {
+                    validateOAuthData(oAuthData);
+                } else {
+                    throw new IllegalArgumentException("The input oAuth data is invalid.");
                 }
             }
         }
@@ -382,6 +393,36 @@ public class WorkflowsService implements IWorkflowsService {
             throw new IllegalArgumentException("Header " + headerFieldTypeName
                     + " must be a sequence of printable ASCII characters. \"" + headerField
                     + "\" is wrong header " + headerFieldTypeName);
+        }
+    }
+
+    /**
+     * Validate the oAuth data.
+     *
+     * @param oAuthData The input oAuth data.
+     */
+    private static void validateOAuthData(@Nonnull OAuthDataApiDTO oAuthData) {
+        final String clientId = oAuthData.getClientId();
+        final String clientSecret = oAuthData.getClientSecret();
+        final String authorizationServerUrl = oAuthData.getAuthorizationServerUrl();
+        final String scope = oAuthData.getScope();
+
+        if (StringUtils.isBlank(clientId)) {
+            throw new IllegalArgumentException("The client ID cannot be empty.");
+        }
+
+        if (StringUtils.isBlank(clientSecret)) {
+            throw new IllegalArgumentException("The client secret cannot be empty.");
+        }
+
+        if (StringUtils.isBlank(authorizationServerUrl)) {
+            throw new IllegalArgumentException("The authorization server URL cannot be empty.");
+        }
+
+        if (!authorizationServerUrl.toLowerCase().startsWith("http://")
+            && !authorizationServerUrl.toLowerCase().startsWith("https://") ) {
+            throw new IllegalArgumentException("The \"authorization server Url\" must start with \"http://\" or "
+                    + " \"https://\".");
         }
     }
 
