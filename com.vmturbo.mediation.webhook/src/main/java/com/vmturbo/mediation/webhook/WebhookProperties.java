@@ -19,7 +19,7 @@ public class WebhookProperties {
     /**
      * Connection timeout.
      */
-    /*pkg*/ static final IProbePropertySpec<Integer> CONNECTION_TIMEOUT_MSEC = new PropertySpec<>(
+    public static final IProbePropertySpec<Integer> CONNECTION_TIMEOUT_MSEC = new PropertySpec<>(
             "connection_timeout", Integer::valueOf, 30000);
 
     /**

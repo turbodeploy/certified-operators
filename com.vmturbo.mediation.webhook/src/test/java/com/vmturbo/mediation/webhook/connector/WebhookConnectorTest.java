@@ -15,7 +15,7 @@ import com.vmturbo.mediation.connector.common.HttpConnectorFactory;
 import com.vmturbo.mediation.connector.common.HttpConnectorSettings;
 import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
-import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookResponse;
+import com.vmturbo.mediation.webhook.http.BasicHttpResponse;
 import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 
 /**
@@ -35,7 +35,9 @@ public class WebhookConnectorTest {
     @Before
     public void init() {
         webhookCredentials = new WebhookCredentials("http://fake_webhook:142/endpoint",
-                HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null, false);
+                HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null,
+                null, false, null, null, null,
+                null, null);
         connectorFactory = Mockito.spy(WebhookConnector.createConnectorFactoryBuilder(30000,
                 webhookCredentials).build());
         webhookConnector = new WebhookConnector(webhookCredentials, connectorFactory);
@@ -68,14 +70,14 @@ public class WebhookConnectorTest {
     public void testSuccessWebhookResponse() throws Exception {
         // ARRANGE
         Mockito.when(connectorFactory.getConnector(webhookCredentials)).thenReturn(httpConnector);
-        Mockito.when(httpConnector.execute(Mockito.any())).thenReturn(new WebhookResponse(200,
+        Mockito.when(httpConnector.execute(Mockito.any())).thenReturn(new BasicHttpResponse(200,
                 "This is the response body"));
 
         // ACT
-        final WebhookResponse webhookResponse = webhookConnector.execute(webhookPostQuery);
+        final BasicHttpResponse httpResponse = webhookConnector.execute(webhookPostQuery);
 
         // ASSERT
-        Assert.assertEquals("This is the response body", webhookResponse.getResponseBody());
+        Assert.assertEquals("This is the response body", httpResponse.getResponseBody());
     }
 
     /**

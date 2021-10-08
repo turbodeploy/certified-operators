@@ -15,6 +15,7 @@ import com.vmturbo.mediation.connector.common.credentials.PortAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.SecureAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.TargetAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.TimeoutAwareCredentials;
+import com.vmturbo.mediation.webhook.oauth.GrantType;
 
 /**
  * Webhook credentials.
@@ -24,40 +25,57 @@ public class WebhookCredentials
 
     private static final Pattern HOST_PATTERN = Pattern.compile("(https?://[^/]*)(?:/.*|$)");
 
-    private final String url;
+    private final String webhookUrl;
     private final String methodType;
     private final long timeout;
     private final AuthenticationMethod authenticationMethod;
     private final String userName;
     private final String password;
     private final boolean trustSelfSignedCertificates;
+    private final String oAuthUrl;
+    private final String clientID;
+    private final String clientSecret;
+    private final GrantType grantType;
+    private final String scope;
 
     /**
      * Creates a {@link WebhookCredentials} instance.
      *
-     * @param url - webhook url
+     * @param webhookUrl - webhook url
      * @param httpMethodType - http method type used for sending webhook request
      * @param timeout - timeout value which will restrict time to interconnect with server.
      * @param authenticationMethod the method used to authenticate to the endpoint.
      * @param userName the username for authentication.
      * @param password the password for authentication.
      * @param trustSelfSignedCertificates true, if the user has indicated that this webhook should
-     *        trust self-signed certificates when connecting
+     * trust self-signed certificates when connecting.
+     * @param oAuthUrl the oAuth endpoint.
+     * @param clientID the oAuth clientId.
+     * @param clientSecret the oAuth client secret.
+     * @param grantType the grant type used for the oauth request.
+     * @param scope the scope.
      */
-    public WebhookCredentials(@Nonnull String url, @Nonnull String httpMethodType, long timeout,
+    public WebhookCredentials(@Nonnull String webhookUrl, @Nonnull String httpMethodType, long timeout,
                               @Nonnull AuthenticationMethod authenticationMethod, @Nullable String userName,
-                              @Nullable String password, boolean trustSelfSignedCertificates) {
-        this.url = Objects.requireNonNull(url);
+                              @Nullable String password, boolean trustSelfSignedCertificates, @Nullable String oAuthUrl,
+                              @Nullable String clientID, @Nullable String clientSecret, @Nullable GrantType grantType,
+                              @Nullable String scope) {
+        this.webhookUrl = Objects.requireNonNull(webhookUrl);
         this.methodType = Objects.requireNonNull(httpMethodType);
         this.timeout = timeout;
         this.authenticationMethod = Objects.requireNonNull(authenticationMethod);
         this.userName = userName;
         this.password = password;
         this.trustSelfSignedCertificates = trustSelfSignedCertificates;
+        this.oAuthUrl = oAuthUrl;
+        this.clientID = clientID;
+        this.clientSecret = clientSecret;
+        this.grantType = grantType;
+        this.scope = scope;
     }
 
-    public String getUrl() {
-        return url;
+    public String getWebhookUrl() {
+        return webhookUrl;
     }
 
     public String getMethod() {
@@ -87,7 +105,7 @@ public class WebhookCredentials
     @Nonnull
     @Override
     public String getNameOrAddress() {
-        return getUrl();
+        return getWebhookUrl();
     }
 
     /**
@@ -165,12 +183,37 @@ public class WebhookCredentials
      * @return the url without the path section.
      */
     public String getUrlWithoutPath() {
-        Matcher matcher = HOST_PATTERN.matcher(url);
+        Matcher matcher = HOST_PATTERN.matcher(webhookUrl);
 
         if (matcher.matches()) {
             return matcher.group(1);
         } else {
-            return url;
+            return webhookUrl;
         }
+    }
+
+    @Nullable
+    public String getOAuthUrl() {
+        return oAuthUrl;
+    }
+
+    @Nullable
+    public String getClientID() {
+        return clientID;
+    }
+
+    @Nullable
+    public String getClientSecret() {
+        return clientSecret;
+    }
+
+    @Nullable
+    public GrantType getGrantType() {
+        return grantType;
+    }
+
+    @Nullable
+    public String getScope() {
+        return scope;
     }
 }

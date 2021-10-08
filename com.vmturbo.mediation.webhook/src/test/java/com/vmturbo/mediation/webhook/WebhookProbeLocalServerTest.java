@@ -470,6 +470,34 @@ public class WebhookProbeLocalServerTest {
     }
 
     /**
+     * Tests a post call with a templated message to an endpoint setting trustSelfSignedCertificate.
+     *
+     * @throws InterruptedException if something goes wrong.
+     */
+    @Test
+    public void testSuccessfulPostRequestWithATemplatedBodyWithTrustSelfSignedCertificate() throws InterruptedException {
+        // ARRANGE
+        final String address = "/";
+        final String payload = "{\"id\": \"144151046183109\", \"type\": \"RESIZE\", \"commodity\":"
+                + " \"$VCPU\", \"to\": \"3.0\"}";
+        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
+                createWorkflow(new WebhookPropertiesBuilder()
+                        .setUrl("http://localhost:28121" + address)
+                        .setHttpMethod(HttpMethodType.POST.name())
+                        .setTemplatedActionBody(payload)
+                        .setTrustSelfSignedCertificate("true")
+                        .build()))
+                .build();
+
+        // ACT
+        ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
+
+        // ASSERT
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.POST.name(), address,
+                payload, Collections.emptyList());
+    }
+
+    /**
      * Tests a put call with a templated message to an templated url endpoint.
      *
      * @throws InterruptedException if something goes wrong.

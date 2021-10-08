@@ -1,4 +1,4 @@
-package com.vmturbo.mediation.webhook.connector;
+package com.vmturbo.mediation.webhook.http;
 
 import java.io.IOException;
 
@@ -13,26 +13,25 @@ import com.vmturbo.mediation.connector.common.HttpConnectorSettings;
 import com.vmturbo.mediation.connector.common.HttpQuery;
 import com.vmturbo.mediation.connector.common.Response;
 import com.vmturbo.mediation.connector.common.http.response.processor.HttpResponseProcessor;
-import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookResponse;
 
 /**
  * The class is responsible for handling HTTP response in case of success HTTP code (eg. 200).
  */
-public class WebhookSuccessResponseProcessor implements
+public class BasicHttpSuccessResponseProcessor implements
         HttpResponseProcessor<HttpConnectorSettings, HttpQuery<?>, Response, HttpConnectorException> {
 
     @Nonnull
     @Override
-    public WebhookResponse process(
+    public BasicHttpResponse process(
             @Nonnull HttpQuery<?> httpQuery,
             @Nonnull CloseableHttpResponse response,
             @Nonnull HttpConnectorSettings settings) throws HttpConnectorException {
         try {
             final HttpEntity entity = response.getEntity();
             if (entity == null) {
-                return new WebhookResponse(response.getStatusLine().getStatusCode(), "");
+                return new BasicHttpResponse(response.getStatusLine().getStatusCode(), "");
             } else {
-                return new WebhookResponse(response.getStatusLine().getStatusCode(),
+                return new BasicHttpResponse(response.getStatusLine().getStatusCode(),
                         EntityUtils.toString(response.getEntity(), "UTF-8"));
             }
         } catch (IOException e) {

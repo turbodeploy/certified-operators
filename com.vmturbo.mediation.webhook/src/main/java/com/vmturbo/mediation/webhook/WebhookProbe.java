@@ -1,9 +1,14 @@
 package com.vmturbo.mediation.webhook;
 
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHENTICATION_METHOD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHORIZATION_SERVER_URL;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.CLIENT_ID;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.CLIENT_SECRET;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.GRANT_TYPE;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.SCOPE;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
@@ -27,11 +32,14 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
-import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookResponse;
 import com.vmturbo.mediation.webhook.connector.WebhookBody;
 import com.vmturbo.mediation.webhook.connector.WebhookConnector;
 import com.vmturbo.mediation.webhook.connector.WebhookCredentials;
 import com.vmturbo.mediation.webhook.connector.WebhookException;
+import com.vmturbo.mediation.webhook.http.BasicHttpResponse;
+import com.vmturbo.mediation.webhook.oauth.AccessTokenResponse;
+import com.vmturbo.mediation.webhook.oauth.GrantType;
+import com.vmturbo.mediation.webhook.oauth.TokenManager;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -60,6 +68,8 @@ import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 public class WebhookProbe
         implements IDiscoveryProbe<WebhookAccount>, IActionExecutor<WebhookAccount>,
         IActionAudit<WebhookAccount> {
+
+    private static final TokenManager tokenManager = new TokenManager();
 
     private WebhookProperties webhookProperties;
 
@@ -252,9 +262,35 @@ public class WebhookProbe
                 .map(Boolean::parseBoolean)
                 .orElse(false);
 
+        // oAuth related fields
+        String oAuthUrl = null;
+        String clientId = null;
+        String clientSecret = null;
+        GrantType grantType = null;
+        final String scope = getWebhookPropertyValue(SCOPE, webhookProperties).orElse(null);
+
+        if (authenticationMethod == AuthenticationMethod.OAUTH) {
+            oAuthUrl = getWebhookPropertyValue(AUTHORIZATION_SERVER_URL,
+                    webhookProperties).orElseThrow(() -> new WebhookException(
+                    "Missing required oAuth field: 'Authorization Server URL'."));
+
+            clientId = getWebhookPropertyValue(CLIENT_ID, webhookProperties).orElseThrow(
+                    () -> new WebhookException(
+                            "Missing required oAuth field: 'Client ID'."));
+
+            clientSecret = getWebhookPropertyValue(CLIENT_SECRET, webhookProperties).orElseThrow(
+                    () -> new WebhookException(
+                            "Missing or could not find required oAuth field: 'Client Secret'."));
+
+            grantType = getWebhookPropertyValue(GRANT_TYPE, webhookProperties).map(
+                    GrantType::valueOf).orElseThrow(() -> new WebhookException(
+                    "Missing or could not find required oAuth field: 'Grant Type'."));
+        }
+
         return new WebhookCredentials(webhookUrl, webhookHttpMethodType.get(),
                 this.webhookProperties.getConnectionTimeout(), authenticationMethod, userName,
-                password, trustSelfSignedCertificates);
+                password, trustSelfSignedCertificates, oAuthUrl, clientId, clientSecret,
+                grantType, scope);
     }
 
     private Optional<String> getWebhookPropertyValue(@Nonnull final String webhookPropertyName,
@@ -288,20 +324,22 @@ public class WebhookProbe
 
     private void prepareAndExecuteWebhookQuery(final ActionExecutionDTO actionExecutionDto)
             throws WebhookException, IOException, InterruptedException {
+        WebhookCredentials webhookCredentials = createWebhookCredentials(actionExecutionDto);
         try (WebhookConnector webhookConnector = new WebhookConnector(
-                createWebhookCredentials(actionExecutionDto),
-                webhookProperties)) {
-
+                webhookCredentials, webhookProperties)) {
+            if (webhookCredentials.getAuthenticationMethod() == AuthenticationMethod.OAUTH) {
+                // TODO OM-75917 will make use of the access token.
+                AccessTokenResponse accessTokenResponse = tokenManager.requestAccessToken(webhookCredentials);
+            }
             final WebhookBody body = getWebhookBody(actionExecutionDto);
             final List<Property> webhookProperties =
                     actionExecutionDto.getWorkflow().getPropertyList();
             final WebhookQuery webhookQuery = new WebhookQuery(
                     getWebhookMethodType(webhookProperties), body,
                     getWebhookHeaders(webhookProperties));
-            final WebhookResponse webhookResponse = webhookConnector.execute(webhookQuery);
+            final BasicHttpResponse basicHttpResponse = webhookConnector.execute(webhookQuery);
             logger.info("The webhook call for action {} succeeded http status code {}.",
-                    actionExecutionDto.getActionOid(), webhookResponse.getResponseCode());
-            logger.trace("Response from webhook endpoint: {}", webhookResponse.getResponseBody());
+                    actionExecutionDto.getActionOid(), basicHttpResponse.getResponseCode());
         }
     }
 
