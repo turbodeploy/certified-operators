@@ -231,12 +231,21 @@ public class AccountPricingData<T> {
             return Optional.empty();
         }
 
-        final Optional<CurrencyAmount> price = licensePriceEntry.licensePrices()
+        final Optional<LicensePrice> licensePrice = licensePriceEntry.licensePrices()
                 .stream()
                 .filter(s -> s.getNumberOfCores() >= numCores)
-                .map(LicensePrice::getPrice)
-                .map(Price::getPriceAmount)
                 .findFirst();
+
+        final Optional<CurrencyAmount> price = licensePrice.map(catalogPrice -> {
+            final CurrencyAmount catalogRate = catalogPrice.getPrice().getPriceAmount();
+            if (catalogPrice.getIsPerCoreRate()) {
+                return catalogRate.toBuilder()
+                        .setAmount(catalogRate.getAmount() * numCores)
+                        .build();
+            } else {
+                return catalogRate;
+            }
+        });
 
         final Optional<CurrencyAmount> basePrice = licensePriceEntry.baseOSType()
                 .flatMap(baseOsType -> getLicensePrice(tierConfig, baseOsType, priceMapping, licenseOverrideMap));
