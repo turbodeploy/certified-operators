@@ -538,6 +538,11 @@ public class StringConstants {
     public static final String WEBHOOK_PASSWORD_SUBJECT = "webhook-password";
 
     /**
+     * Wehbhook key subject in the secure storage
+     */
+    public static final String WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT = "webhook-oauth-client-secret";
+
+    /**
      * Database Server Cluster Role entity property key.
      */
     public static final String CLUSTER_ROLE = "cluster_role";

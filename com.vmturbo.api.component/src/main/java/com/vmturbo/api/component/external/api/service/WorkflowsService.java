@@ -43,7 +43,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.TypeSpecificInfoCase;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
@@ -149,13 +152,9 @@ public class WorkflowsService implements IWorkflowsService {
                 + "\" cannot be added through API.");
         }
 
+        // We know this is a webhook because of the assertion made earlier in this method.
         final WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
-
-        // password must be selected given that the authentication method is also selected.
-        if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.BASIC
-                && StringUtils.isEmpty(webhookApiDTO.getPassword())) {
-            throw new IllegalArgumentException("The \"password\" must not be empty.");
-        }
+        validateWebhookAuthenticationData(webhookApiDTO);
 
         final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO,
                 UUID.randomUUID().toString());
@@ -166,16 +165,19 @@ public class WorkflowsService implements IWorkflowsService {
                 .build())
             .getWorkflow();
 
-        if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.BASIC) {
-            try {
-                secureStorageClient.updateValue(StringConstants.WEBHOOK_PASSWORD_SUBJECT,
-                        Long.toString(addedWorkflow.getId()), webhookApiDTO.getPassword());
-            } catch (CommunicationException e) {
-                logger.error("Failed to store webhook password credentials.", e);
-                workflowServiceRpc.deleteWorkflow(WorkflowDTO.DeleteWorkflowRequest.newBuilder()
-                        .setId(addedWorkflow.getId())
-                        .build());
-                throw new IllegalStateException("Failed to create workflow because of internal issue.");
+        // Store the secret portion of the credentials, depending on the type of authentication
+        // being used. The workflow ID assigned in the previous step will be used as the key.
+        if (webhookApiDTO.getAuthenticationMethod() != null) {
+            switch (webhookApiDTO.getAuthenticationMethod()) {
+                case BASIC:
+                    storeWebhookSecret(addedWorkflow.getId(), StringConstants.WEBHOOK_PASSWORD_SUBJECT,
+                            webhookApiDTO.getPassword());
+                    break;
+                case OAUTH:
+                    storeWebhookSecret(addedWorkflow.getId(), StringConstants.WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT,
+                            webhookApiDTO.getOAuthData().getClientSecret());
+                    break;
+                case NONE:
             }
         }
 
@@ -206,25 +208,25 @@ public class WorkflowsService implements IWorkflowsService {
                 .build())
             .getWorkflow();
 
+        // We know this is a webhook because of the assertion made earlier in this method.
         final WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
 
-        if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.BASIC
-                && webhookApiDTO.getPassword() != null) {
-            try {
-                secureStorageClient.updateValue(StringConstants.WEBHOOK_PASSWORD_SUBJECT,
-                        Long.toString(workflowId), webhookApiDTO.getPassword());
-            } catch (CommunicationException e) {
-                logger.error("Failed to store webhook password credentials, "
-                        + "reverting back to original workflow.", e);
-                workflowServiceRpc.updateWorkflow(
-                        WorkflowDTO.UpdateWorkflowRequest
-                                .newBuilder()
-                                .setId(workflowId)
-                                .setWorkflow(currentWorkflow)
-                                .build());
-                throw new IllegalStateException("Failed to update workflow because of internal issue.");
+        // Update the secret portion of the credentials, depending on the type of authentication
+        // being used. The workflow ID will be used as the key.
+        if (webhookApiDTO.getAuthenticationMethod() != null) {
+            switch (webhookApiDTO.getAuthenticationMethod()) {
+                case BASIC:
+                    editWebhookSecret(currentWorkflow, StringConstants.WEBHOOK_PASSWORD_SUBJECT,
+                            webhookApiDTO.getPassword());
+                    break;
+                case OAUTH:
+                    editWebhookSecret(currentWorkflow, StringConstants.WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT,
+                            webhookApiDTO.getOAuthData().getClientSecret());
+                    break;
+                case NONE:
             }
         }
+
         return workflowMapper.toWorkflowApiDTO(updatedWorkflow, new TargetApiDTO());
     }
 
@@ -252,11 +254,27 @@ public class WorkflowsService implements IWorkflowsService {
             .setId(workflowId)
             .build());
 
-        if (currentWorkflow.getWorkflowInfo().getTypeSpecificInfoCase() == TypeSpecificInfoCase.WEBHOOK_INFO) {
-            try {
-                secureStorageClient.deleteValue(StringConstants.WEBHOOK_PASSWORD_SUBJECT, Long.toString(workflowId));
-            } catch (CommunicationException e) {
-                logger.error("Failed to delete webhook password credentials.", e);
+        WorkflowInfo workflowInfo = currentWorkflow.getWorkflowInfo();
+        if (workflowInfo.getTypeSpecificInfoCase() == TypeSpecificInfoCase.WEBHOOK_INFO) {
+            WebhookInfo webhookInfo = workflowInfo.getWebhookInfo();
+            switch (webhookInfo.getAuthenticationMethod()) {
+                case BASIC:
+                    try {
+                        secureStorageClient.deleteValue(StringConstants.WEBHOOK_PASSWORD_SUBJECT, Long.toString(workflowId));
+                    } catch (CommunicationException e) {
+                        logger.error("Failed to delete webhook password credentials.", e);
+                    }
+                    break;
+                case OAUTH:
+                    try {
+                        secureStorageClient.deleteValue(
+                                StringConstants.WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT,
+                                Long.toString(workflowId));
+                    } catch (CommunicationException e) {
+                        logger.error("Failed to delete webhook client secret credentials.", e);
+                    }
+                    break;
+                case NONE:
             }
         }
     }
@@ -397,6 +415,47 @@ public class WorkflowsService implements IWorkflowsService {
     }
 
     /**
+     * Validates that the correct fields are populated based on the authentication method chosen.
+     *
+     * @param webhook the API DTO representation of the webhook to validate
+     */
+    private void validateWebhookAuthenticationData(WebhookApiDTO webhook) {
+        // Check that the webhook is not null
+        if (webhook == null) {
+            throw new IllegalArgumentException("The webhook type-specific workflow aspect data is"
+                    + " missing.");
+        }
+
+        // If authentication method is not provided, skip the validation (defaults to NONE)
+        if (webhook.getAuthenticationMethod() == null) {
+            return;
+        }
+
+        // Validate that the secret information has been provided depending on the authentication
+        // method that has been selected.
+        switch (webhook.getAuthenticationMethod()) {
+            case BASIC:
+                // password must be selected given that the authentication method is also selected.
+                if (StringUtils.isEmpty(webhook.getPassword())) {
+                    throw new IllegalArgumentException("The \"password\" field must not be empty "
+                            + "when basic authentication method is in use.");
+                }
+                break;
+            case OAUTH:
+                OAuthDataApiDTO oAuthData = webhook.getOAuthData();
+                if (oAuthData == null) {
+                    throw new IllegalArgumentException("The \"OAuthData\" object must not be "
+                            + "empty when OAuth authentication method is in use. ");
+                } else if(StringUtils.isEmpty(webhook.getOAuthData().getClientSecret())) {
+                    throw new IllegalArgumentException("The \"clientSecret\" field must not be "
+                            + "empty when OAuth authentication method is in use. ");
+                };
+                break;
+            case NONE:
+        }
+    }
+
+    /**
      * Validate the oAuth data.
      *
      * @param oAuthData The input oAuth data.
@@ -453,5 +512,40 @@ public class WorkflowsService implements IWorkflowsService {
             .addWorkflowId(workflowId)
             .build()).forEachRemaining(settingPolicies::add);
         return settingPolicies;
+    }
+
+    private void storeWebhookSecret(long workflowId,
+            String subject, String sensitiveData) {
+        try {
+            secureStorageClient.updateValue(subject, Long.toString(workflowId),
+                    sensitiveData);
+        } catch (CommunicationException e) {
+            logger.error("Failed to store webhook secret.", e);
+            workflowServiceRpc.deleteWorkflow(WorkflowDTO.DeleteWorkflowRequest.newBuilder()
+                    .setId(workflowId)
+                    .build());
+            throw new IllegalStateException("Failed to create workflow because of internal issue.");
+        }
+    }
+
+    private void editWebhookSecret(Workflow currentWorkflow,
+            String subject, String sensitiveData) {
+        long workflowId = currentWorkflow.getId();
+        try {
+            // Don't overwrite passwords that have not been modified as part of the edit
+            if (sensitiveData != null) {
+                secureStorageClient.updateValue(subject, Long.toString(workflowId), sensitiveData);
+            }
+        } catch (CommunicationException e) {
+            logger.error("Failed to store webhook secret, "
+                    + "reverting back to original workflow.", e);
+            workflowServiceRpc.updateWorkflow(
+                    WorkflowDTO.UpdateWorkflowRequest
+                            .newBuilder()
+                            .setId(workflowId)
+                            .setWorkflow(currentWorkflow)
+                            .build());
+            throw new IllegalStateException("Failed to update workflow because of internal issue.");
+        }
     }
 }

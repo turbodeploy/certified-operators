@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo.AuthenticationMethod;
 
 /**
  * Test the mapper from internal Workflow DTO to External API WorkflowApiDTO.
@@ -174,6 +175,7 @@ public class WorkflowMapperTest {
                 .setTrustSelfSignedCertificates(true)
                 .addHeaders(WebhookInfo.RequestHeader.newBuilder().setName(
                         WEBHOOK_REQUEST_HEADER).setValue(WEBHOOK_REQUEST_HEADER_VALUE).build())
+                .setAuthenticationMethod(AuthenticationMethod.NONE)
                 .build());
         if (populateName) {
             workflowInfo.setName(WORKFLOW_1_NAME);

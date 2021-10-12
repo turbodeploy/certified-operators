@@ -14,6 +14,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -35,6 +36,8 @@ import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.workflow.AuthenticationMethod;
+import com.vmturbo.api.dto.workflow.OAuthDataApiDTO;
+import com.vmturbo.api.dto.workflow.OAuthGrantType;
 import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
@@ -811,6 +814,113 @@ public class WorkflowsServiceTest {
             // first time to update work flow, second time to revert it.
             verify(workflowServiceMole, times(2)).updateWorkflow(any());
         }
+    }
+
+    /**
+     * Tests the call for creation of webhook workflow using oAuth.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws CommunicationException if something goes wrong.
+     */
+    @Test
+    public void testCreatingWebhookUsingOAuth()
+            throws InvalidOperationException, CommunicationException {
+        // ARRANGE
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.OAUTH);
+        OAuthDataApiDTO oAuthData = new OAuthDataApiDTO("123", "secretPassword", "testURL", null,
+                OAuthGrantType.CLIENT_CREDENTIALS);
+        webhookApiDTO.setOAuthData(oAuthData);
+        // ACT
+        workflowsService.addWorkflow(workflowApiDTO);
+        // ASSERT
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> password = ArgumentCaptor.forClass(String.class);
+        verify(secureStorageClient).updateValue(subject.capture(), Mockito.any(),
+                password.capture());
+        assertEquals(StringConstants.WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT, subject.getValue());
+        assertEquals(webhookApiDTO.getOAuthData().getClientSecret(), password.getValue());
+    }
+
+    /**
+     * Tests the call for creation of webhook workflow and assert that it fails when oAuth is
+     * selected and the client secret is missing.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreatingWebhookUsingOAuthMissingClientSecret() throws InvalidOperationException {
+        // ARRANGE
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.OAUTH);
+        OAuthDataApiDTO oAuthData = new OAuthDataApiDTO("123", null, "testURL", null,
+                OAuthGrantType.CLIENT_CREDENTIALS);
+        webhookApiDTO.setOAuthData(oAuthData);
+        // ACT
+        workflowsService.addWorkflow(workflowApiDTO);
+    }
+
+    /**
+     * Tests the call for editing a webhook workflow using oAuth.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws CommunicationException if something goes wrong.
+     * @throws UnknownObjectException if something goes wrong.
+     */
+    @Test
+    public void testEditWebhookUsingOAuth()
+            throws InvalidOperationException, CommunicationException, UnknownObjectException {
+        // ARRANGE
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.OAUTH);
+        OAuthDataApiDTO oAuthData = new OAuthDataApiDTO("123", "secretPassword", "testURL", null,
+                OAuthGrantType.CLIENT_CREDENTIALS);
+        webhookApiDTO.setOAuthData(oAuthData);
+        // ACT
+        FetchWorkflowResponse fetchWorkflowResponse =
+                FetchWorkflowResponse.newBuilder().setWorkflow(
+                        workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO, "test")).build();
+        when(workflowServiceMole.fetchWorkflow(any())).thenReturn(fetchWorkflowResponse);
+        workflowsService.editWorkflow(Long.toString(0L), workflowApiDTO);
+        // ASSERT
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> password = ArgumentCaptor.forClass(String.class);
+        verify(secureStorageClient).updateValue(subject.capture(), Mockito.any(),
+                password.capture());
+        assertEquals(StringConstants.WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT, subject.getValue());
+        assertEquals(webhookApiDTO.getOAuthData().getClientSecret(), password.getValue());
+    }
+
+    /**
+     * Tests the call for creation of webhook workflow and check to ensure that the existing
+     * secret is not overwritten when oAuth is selected and a new secret is not provided as part
+     * of an edit.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws UnknownObjectException if something goes wrong.
+     */
+    @Test
+    public void testEditWebhookUsingOAuthWithoutClientSecret()
+            throws InvalidOperationException, UnknownObjectException {
+        // ARRANGE
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.OAUTH);
+        OAuthDataApiDTO oAuthData = new OAuthDataApiDTO("123", null, "testURL", null,
+                OAuthGrantType.CLIENT_CREDENTIALS);
+        webhookApiDTO.setOAuthData(oAuthData);
+        // ACT
+        FetchWorkflowResponse fetchWorkflowResponse =
+                FetchWorkflowResponse.newBuilder().setWorkflow(
+                        workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO, "test")).build();
+        when(workflowServiceMole.fetchWorkflow(any())).thenReturn(fetchWorkflowResponse);
+        workflowsService.editWorkflow(Long.toString(0L), workflowApiDTO);
+        // VERIFY
+        // The secure storage client must not be called when the client secret is unchanged!
+        verifyNoMoreInteractions(secureStorageClient);
     }
 
     /**

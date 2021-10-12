@@ -99,7 +99,8 @@ public class WorkflowMapper {
                 webhookApiDTO.setOAuthData(
                         new OAuthDataApiDTO(
                                 oAuthData.getClientId(),
-                                "",
+                                // No need to pass sensitive data
+                                null,
                                 oAuthData.getAuthorizationServerUrl(),
                                 oAuthData.getScope(),
                                 OAuthGrantType.valueOf(oAuthData.getGrantType().name())));
@@ -161,6 +162,8 @@ public class WorkflowMapper {
             }
             if (webhookApiDTO.getAuthenticationMethod() != null) {
                 builder.setAuthenticationMethod(WebhookInfo.AuthenticationMethod.valueOf(webhookApiDTO.getAuthenticationMethod().name()));
+            } else {
+                builder.setAuthenticationMethod(WebhookInfo.AuthenticationMethod.NONE);
             }
             if (webhookApiDTO.getUsername() != null) {
                 builder.setUsername(webhookApiDTO.getUsername());
