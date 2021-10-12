@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
@@ -18,7 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -29,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -106,16 +108,16 @@ public class Resizer {
                             boolean consistentResizing = seller.isInScalingGroup(economy);
                             boolean engage = evaluateEngageCriteria(economy, seller, commoditySold,
                                     incomeStatement, resizedCommodity);
-                            Map<CommoditySold, Trader> rawMaterialMapping = null;
+                            Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialMapping = null;
                             Set<CommoditySold> rawMaterials = null;
                             Optional<RawMaterials> rawMaterialDescriptor = null;
                             // Set the raw materials or continue to next commodity if missing.
                             if ((engage && incomeStatement.getExpenses() > 0) || consistentResizing) {
                                 rawMaterialMapping =
-                                    RawMaterials.findSellerCommodityAndSupplier(economy, seller,
-                                            resizedCommodity);
+                                        RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
                                 rawMaterials = (rawMaterialMapping != null) ?
-                                        rawMaterialMapping.keySet() : null;
+                                        rawMaterialMapping.values().stream().map(pair -> pair.first)
+                                                .collect(Collectors.toSet()) : null;
 
                                 // If raw rawMaterialDescriptor can't be found and raw rawMaterialDescriptor is required, don't resize.
                                 // TODO: There may be some issue with consistent scaling. For example:
@@ -150,7 +152,7 @@ public class Resizer {
                                                 calculateDesiredCapacity(resizedCommodity, commoditySold, newRevenue, seller, economy);
                                         float rateOfResize = seller.getSettings().getRateOfResize();
                                         double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
-                                                resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
+                                                resizedCommodity, desiredCapacity, commoditySold, rawMaterialMapping, rateOfResize);
                                         boolean capacityChange = Double.compare(newEffectiveCapacity,
                                                 commoditySold.getEffectiveCapacity()) != 0;
                                         if (consistentResizing || capacityChange) {
@@ -244,8 +246,9 @@ public class Resizer {
                 // rollback dependent commodity resize
                 Lists.reverse(actions).stream().filter(Resize.class::isInstance)
                         .map(Resize.class::cast)
-                        .forEach(a -> resizeDependentCommodities(economy, a.getSellingTrader(), a.getResizedCommodity(),
-                                a.getSoldIndex(), a.getOldCapacity(), a.getResizedCommodity().isHistoricalQuantitySet(), true));
+                        .forEach(a -> resizeDependentCommodities(economy, a.getSellingTrader(),
+                                a.getResizedCommodity(), a.getSoldIndex(), a.getOldCapacity(),
+                                a.getResizedCommodity().isHistoricalQuantitySet(), true));
             }
             return actions;
         } catch (Exception e) {
@@ -264,7 +267,7 @@ public class Resizer {
      * @param resizeAction the Resize action to take/log and add to actions list
      */
     static void takeAndAddResizeAction(final List<@NonNull Action> actions,
-                                       final Resize resizeAction) {
+                       final Resize resizeAction) {
         resizeAction.take(resizeAction.getResizedCommodity().isHistoricalQuantitySet());
         actions.add(resizeAction);
         Trader trader = resizeAction.getSellingTrader();
@@ -299,11 +302,9 @@ public class Resizer {
      * @return The recommended new capacity.
      */
     private static double calculateEffectiveCapacity(Economy economy, Trader seller,
-                                                     CommoditySpecification commSpec,
-                                                     double desiredCapacity,
-                                                     @NonNull CommoditySold resizeCommodity,
-                                                     Set<CommoditySold> rawMaterials,
-                                                     float rateOfRightSize) {
+             CommoditySpecification commSpec, double desiredCapacity,
+             @NonNull CommoditySold resizeCommodity,
+             Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterials, float rateOfRightSize) {
         checkArgument(rateOfRightSize > 0, "Expected rateOfRightSize to be > 0", rateOfRightSize);
 
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
@@ -337,11 +338,9 @@ public class Resizer {
      * @return                  The recommended amount of increase for {@link CommoditySold commodity} being resized; always non-negative
      */
     private static double calculateResizeUpAmount(Economy economy, Trader seller, CommoditySpecification commSpec,
-                                                  double desiredAmount,
-                                                  @NonNull CommoditySold resizeCommodity,
-                                                  Set<CommoditySold> rawMaterials,
-                                                  double capacityIncrement,
-                                                  double rateOfRightSize) {
+            double desiredAmount, @NonNull CommoditySold resizeCommodity,
+            Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterials,
+            double capacityIncrement, double rateOfRightSize) {
         // If the current capacity is already above the raw material's capacity, do not resize up further.
         double finalDesiredIncrement = Double.MAX_VALUE;
         double capacityUpperBound = resizeCommodity.getSettings().getCapacityUpperBound();
@@ -370,7 +369,10 @@ public class Resizer {
             ? (int)Math.ceil(incrementsValue)
             : (int)Math.floor(incrementsValue);
 
-        for (CommoditySold rawMaterial : rawMaterials) {
+        for (Map.Entry<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialEntry :
+                rawMaterials.entrySet()) {
+            CommoditySold rawMaterial = rawMaterialEntry.getValue().first;
+            boolean proceedWithNonExecutableAxn = false;
             if (rawMaterial != null
                     && (resizeCommodity.getEffectiveCapacity() + capacityIncrement > rawMaterial.getEffectiveCapacity())) {
                 if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
@@ -379,18 +381,33 @@ public class Resizer {
                             commSpec.getDebugInfoNeverUseInCode(), resizeCommodity.getEffectiveCapacity(),
                             capacityIncrement, rawMaterial.getEffectiveCapacity());
                 }
-                return 0;
+                // return 0 when increment exceeds effectiveCapacity of a hard constraint.
+                if (rawMaterialEntry.getKey().isHardConstraint()) {
+                    return 0;
+                }
+                proceedWithNonExecutableAxn = true;
             }
 
             // make sure we don't exceed available headroom in seller
             double headroom = rawMaterial == null ? Double.MAX_VALUE :
                     resizeCommodity.getSettings().getUtilizationUpperBound()
                             * (rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity());
+
             // Need to consider capacity headroom as the comparison between the commodity to resize
             // and then provider's commodity (rawMaterial) as we can't generate a scale up to be higher
             // capacity than the seller's provider has.
             double capacityHeadroom = rawMaterial == null ? Double.MAX_VALUE :
                     rawMaterial.getEffectiveCapacity() - resizeCommodity.getEffectiveCapacity();
+
+            // proceed with generating a non-executable action that is unbounded by rawMaterial capacity
+            if (proceedWithNonExecutableAxn) {
+                if (headroom < capacityIncrement) {
+                    headroom = Double.MAX_VALUE;
+                }
+                if (capacityHeadroom < capacityIncrement) {
+                    capacityHeadroom = Double.MAX_VALUE;
+                }
+            }
             if (headroom > 0 && capacityHeadroom >= capacityIncrement) {
                 if (headroom < numIncrements * capacityIncrement) {
                     numIncrements = (int) Math.floor(headroom / capacityIncrement);
@@ -414,7 +431,8 @@ public class Resizer {
         // this check is different from the rawMaterial validation.
         // TODO: avoid duplicating the calculation of CapacityOnCoConsumersForResizeUp when there are multiple rawMaterials
         double totalCapOnConsumers = calculateTotalCapacityOnCoConsumersForResizeUp(economy, commSpec, seller);
-        for (CommoditySold rawMaterial : rawMaterials) {
+        for (Map.Entry<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialEntry : rawMaterials.entrySet()) {
+            CommoditySold rawMaterial = rawMaterialEntry.getValue().first;
             if (totalCapOnConsumers + finalDesiredIncrement > rawMaterial.getEffectiveCapacity()) {
                 logger.debug("The sum of the effCap sold by all the customers is {}. This is "
                                 + "much larger than the raw material {}'s effCap {} after resizing up by {} for {} on {}",
@@ -436,15 +454,16 @@ public class Resizer {
      * @return                  Total Capacity of commoditySold across all customers
      */
     private static double calculateTotalCapacityOnCoConsumersForResizeUp(Economy economy,
-                                                                                   CommoditySpecification commSpec,
-                                                                                   Trader seller) {
+           CommoditySpecification commSpec,
+           Trader seller) {
         // co-dependant commodity capacity validation
         // this means that there is a mapping for the commodity and the commodity is resizeUpAware
         double totalCap = 0;
         Optional<RawMaterials> rawMaterials = economy.getRawMaterials(commSpec.getBaseType());
         Set<ShoppingList> sls = economy.getMarketsAsBuyer(seller).keySet();
         if (rawMaterials.isPresent()) {
-            for (int baseCommType : rawMaterials.get().getMaterials()) {
+            for (RawMaterialMetadata rawMaterial : rawMaterials.get().getMaterials()) {
+                int baseCommType = rawMaterial.getMaterial();
                 // for dbMem scale up, vMem and dbCacheHitRate are in the rawMaterialsMap
                 // consider just the commodity that has an entry in the producesMap. Its just vMem that passes this
                 if (economy.getResizeProducesDependencyEntry(baseCommType) != null) {
@@ -538,11 +557,11 @@ public class Resizer {
      * @return the recommended amount of decrease for {@link CommoditySold commodity} being resized; always non-negative.
      */
     private static double calculateResizeDownAmount(Economy economy, Trader seller, CommoditySpecification commSpec,
-                                                    double desiredAmount,
-                                                    @NonNull CommoditySold resizeCommodity,
-                                                    Set<CommoditySold> rawMaterials,
-                                                    double capacityIncrement,
-                                                    double rateOfRightSize) {
+            double desiredAmount,
+            @NonNull CommoditySold resizeCommodity,
+            Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterials,
+            double capacityIncrement,
+            double rateOfRightSize) {
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
         if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
             logger.info("calculateResizeDownAmount for trader {}"
@@ -601,7 +620,8 @@ public class Resizer {
         // probably due to hyper-threading, then allow the new capacity after resize down to be greater
         // than its rawMaterial.
         double newCapacity = currentCapacity - amount;
-        for (CommoditySold rawMaterial : rawMaterials) {
+        for (Map.Entry<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialEntry : rawMaterials.entrySet()) {
+            CommoditySold rawMaterial = rawMaterialEntry.getValue().first;
             if (rawMaterial != null && resizeCommodity.getCapacity() < rawMaterial.getCapacity()
                     && newCapacity > rawMaterial.getEffectiveCapacity()) {
                 amount = 0;
@@ -799,6 +819,7 @@ public class Resizer {
                     if (boughtIndex < 0) {
                         continue;
                     }
+
                     CommoditySpecification specOfSold = basketBought.get(boughtIndex);
                     CommoditySold commSoldBySupplier = supplier.getCommoditySold(specOfSold);
                     double changeInCapacity = newCapacity - commoditySold.getCapacity();

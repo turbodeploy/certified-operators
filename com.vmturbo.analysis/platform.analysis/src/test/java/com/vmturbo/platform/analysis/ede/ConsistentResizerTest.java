@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.junit.Test;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterial;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
 import com.vmturbo.platform.analysis.actions.Action;
@@ -29,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldWithSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ConsistentResizer.ResizingGroup;
@@ -340,7 +342,7 @@ public class ConsistentResizerTest {
     public void testResizingGroupGenerateVMemResizeUpWithNamespaceQuota() {
         Optional<RawMaterials> rawMaterials = Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
             new RawMaterial(TestUtils.VMEM.getType(), false, false),
-            new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false)))
+            new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false, false)))
             .requiresConsistentScalingFactor(false)
             .build()));
 
@@ -352,7 +354,9 @@ public class ConsistentResizerTest {
             Collections.singletonList(TestUtils.VMEMLIMITQUOTA), new double[]{400}, false, false);
         sellerTrader.getSettings().setConsistentScalingFactor(0.2f);
         CommoditySold sellerCommSold = getCommoditySold(400, 100);
-        Map<CommoditySold, Trader> rawMaterialAndSupplier = ImmutableMap.of(sellerCommSold, sellerTrader);
+        RawMaterialMetadata metadataForQuota = new RawMaterialMetadata(TestUtils.VMEMLIMITQUOTA.getType(), true, false);
+        Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialAndSupplier =
+                ImmutableMap.of(metadataForQuota, new Pair(sellerCommSold, sellerTrader));
         rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
         rg.addResize(resize2, true, rawMaterialAndSupplier, rawMaterials);
 
@@ -375,7 +379,7 @@ public class ConsistentResizerTest {
     public void testResizingGroupGenerateVCPUNoResizeUpWithNamespaceQuota() {
         Optional<RawMaterials> rawMaterials = Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
             new RawMaterial(TestUtils.VCPU.getType(), false, false),
-            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false)))
+            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false, false)))
             .requiresConsistentScalingFactor(true)
             .build()));
 
@@ -387,7 +391,9 @@ public class ConsistentResizerTest {
             Collections.singletonList(TestUtils.VCPULIMITQUOTA), new double[]{400}, false, false);
         sellerTrader.getSettings().setConsistentScalingFactor(0.2f);
         CommoditySold sellerCommSold = getCommoditySold(400, 100);
-        Map<CommoditySold, Trader> rawMaterialAndSupplier = ImmutableMap.of(sellerCommSold, sellerTrader);
+        RawMaterialMetadata metadataForQuota = new RawMaterialMetadata(TestUtils.VCPULIMITQUOTA.getType(), true, false);
+        Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialAndSupplier =
+                ImmutableMap.of(metadataForQuota, new Pair(sellerCommSold, sellerTrader));
         rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
         rg.addResize(resize2, true, rawMaterialAndSupplier, rawMaterials);
 

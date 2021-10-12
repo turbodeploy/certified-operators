@@ -220,7 +220,7 @@ public class Resize extends ActionImpl {
     public @NonNull Resize take(boolean basedOnHistorical) {
         super.take();
         Resizer.resizeDependentCommodities(getEconomy(), getSellingTrader(), getResizedCommodity(),
-                                   getSoldIndex(), getNewCapacity(), basedOnHistorical, false);
+                getSoldIndex(), getNewCapacity(), basedOnHistorical, false);
         Resizer.updateByProducts(getEconomy(), getSellingTrader(), getResizedCommodity(),
                 getSoldIndex(), getNewCapacity());
         getSellingTrader().getCommoditySold(getResizedCommoditySpec()).setCapacity(getNewCapacity());
@@ -351,4 +351,5 @@ public class Resize extends ActionImpl {
     public ActionType getType() {
         return ActionType.RESIZE;
     }
+
 } // end Resize class

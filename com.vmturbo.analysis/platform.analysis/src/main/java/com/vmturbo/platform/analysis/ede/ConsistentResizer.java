@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import static com.vmturbo.platform.analysis.ede.ConsistentScalingNumber.fromNormalizedNumber;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,12 +15,14 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.PartialResize;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -41,7 +44,7 @@ public class ConsistentResizer {
      * @param rawMaterialDescriptor An optional descriptor of the raw materials for the resize.
      */
     void addResize(final Resize resize, final boolean engage,
-                   final Map<CommoditySold, Trader> pairs,
+                   final Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> pairs,
                    @Nonnull final Optional<RawMaterials> rawMaterialDescriptor) {
         String key = makeResizeKey(resize.getResizedCommoditySpec(), resize.getSellingTrader());
         ResizingGroup rg = resizingGroups.get(key);
@@ -92,6 +95,7 @@ public class ConsistentResizer {
         // availableHeadroom maps keeps a running total of the available headroom.
         private Map<CommoditySold, Integer> counts = new HashMap<>();
         private Map<CommoditySold, ConsistentScalingNumber> availableHeadroom = new HashMap<>();
+        private Map<CommoditySold, RawMaterialMetadata> rawMaterialToMetadataMapping = new HashMap<>();
         private ConsistentScalingNumber capacityIncrement;
 
         public ResizingGroup() {
@@ -105,11 +109,11 @@ public class ConsistentResizer {
          * @param resize Resize action to add
          * @param engage True if this Resize was initiated due to ROI calculations and the new
          *               capacity is different from the original capacity.
-         * @param pairs Pairs containing the raw material commodity and the supplying Trader
+         * @param pairs Map containing the raw material commodity and the supplying Trader
          * @param rawMaterialDescriptor An optional descriptor of the raw materials for the resize.
          */
         void addResize(final Resize resize, final boolean engage,
-                       final Map<CommoditySold, Trader> pairs,
+                       final Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> pairs,
                        @Nonnull final Optional<RawMaterials> rawMaterialDescriptor) {
             PartialResize pr = new PartialResize(resize, engage, pairs, rawMaterialDescriptor);
             // Ideally the capacityIncrement should be identical for all members of the scaling group.
@@ -165,15 +169,17 @@ public class ConsistentResizer {
                     // occurs, we abort all resizes in the scaling group.
                     maxOldCapacity = ConsistentScalingNumber.max(maxOldCapacity, oldCapacity);
                 }
-                Map<CommoditySold, Trader> commSoldMap = partial.getRawMaterials();
-                commSoldMap.forEach((commSold, seller) -> {
+
+                partial.getRawMaterials().forEach((rawMaterialInfo, rawMaterialCommMapping) -> {
+                    CommoditySold commSold = rawMaterialCommMapping.first;
+                    Trader seller = rawMaterialCommMapping.second;
                     // Need to identify entities that reside on the same supplier so that we don't reuse
                     // excess capacity.  Release the existing resources.  After the max capacity is known
                     // we will remove that amount and determine whether there are sufficient resources.
                     counts.merge(commSold, 1, Integer::sum);
                     availableHeadroom.compute(commSold, (k, v) -> {
                         if (v == null) {
-                            // New entry.  Since we want to keep track of the amount of headroom available
+                            // New entry. Since we want to keep track of the amount of headroom available
                             // in each rawMaterial, the initial entry in the map needs to add the current
                             // amount of headroom in the rawMaterial.  After that, we return the capacity
                             // of the resized commodity back to the rawMaterial.
@@ -187,7 +193,7 @@ public class ConsistentResizer {
                                 partial.getResize().getResizedCommodity().getSettings().getUtilizationUpperBound()
                                     * (commSold.getEffectiveCapacity() - commSold.getQuantity()),
                                     sellerConsistentScalingFactor);
-
+                            rawMaterialToMetadataMapping.put(commSold, rawMaterialInfo);
                             return headroom.plus(oldCapacity);
                         } else {
                             // Update existing entry
@@ -220,6 +226,7 @@ public class ConsistentResizer {
              * same raw material.
              */
             ConsistentScalingNumber maxCapacityAdjustment = ConsistentScalingNumber.ZERO;
+            ConsistentScalingNumber maxCapacityAdjustmentForNonExecutableAction = ConsistentScalingNumber.ZERO;
             for (Map.Entry<CommoditySold, ConsistentScalingNumber> e : availableHeadroom.entrySet()) {
                 int numConsumers = counts.get(e.getKey());
                 /* Determine how much headroom would be available if we scaled all members of the
@@ -244,7 +251,7 @@ public class ConsistentResizer {
                     availableHeadroom.get(e.getKey()).minus(
                         maxCapacity.timesFactor(numConsumers));
                 if (headroom.isLessThan(ConsistentScalingNumber.ZERO)) {
-                    // Need to adjust.  This will always be a negative number.  By maximum here, we
+                    // Need to adjust. This will always be a negative number.  By maximum here, we
                     // are referring to the largest amount that we will need to decrease the new
                     // capacity.
                     ConsistentScalingNumber availableHeadroomPerConsumer = headroom.dividedByFactor(numConsumers);
@@ -252,39 +259,61 @@ public class ConsistentResizer {
                         maxCapacityAdjustment = availableHeadroomPerConsumer;
                         congestedRawMaterial = e.getKey();
                     }
+                    // update capacityAdjustment for non-executable action generation.
+                    if (availableHeadroomPerConsumer
+                            .isLessThan(maxCapacityAdjustmentForNonExecutableAction)
+                            && rawMaterialToMetadataMapping.get(e.getKey()).isHardConstraint()) {
+                        maxCapacityAdjustmentForNonExecutableAction = availableHeadroomPerConsumer;
+                    }
                 }
             }
 
             ConsistentScalingNumber newCapacity = maxCapacity.plus(maxCapacityAdjustment);
+            ConsistentScalingNumber unboundedNewCapacity = maxCapacity
+                    .plus(maxCapacityAdjustmentForNonExecutableAction);
 
+            boolean isUnboundedCapDifferent = !newCapacity.approxEquals(unboundedNewCapacity);
             // if the newCapacity is lower than the maxLowerBound, stop generating an action.
             if (newCapacity.isLessThan(maxLowerBound)) {
-                logger.warn("Skipping resize generation for {} because the newCapacity of {} exceeds the maxlowerBound of {}.",
-                        resizes.get(0).getResize().getSellingTrader().getScalingGroupId(), newCapacity, maxLowerBound);
-                return;
+                if (isUnboundedCapDifferent && unboundedNewCapacity.isGreaterThan(maxLowerBound)) {
+                    newCapacity = unboundedNewCapacity;
+                } else {
+                    logger.warn("Skipping resize generation for {} because the newCapacity of "
+                                    + "{} exceeds the maxlowerBound of {}.",
+                            resizes.get(0).getResize().getSellingTrader().getScalingGroupId(),
+                            newCapacity, maxLowerBound);
+                    return;
+                }
+
             }
 
             if (maxOldCapacity.isGreaterThan(newCapacity)) {
-                // The consistent new capacity is less than one of the individual old capacities
-                // that needed to size up, so abort all resizes in the scaling group.
-                for (PartialResize pr : resizes) {
-                    Trader trader = pr.getResize().getSellingTrader();
-                    if (trader.isDebugEnabled() || logger.isTraceEnabled()) {
-                        logger.info(
-                            "Not resizing consistent scaling member {} due to insufficient {} on {}",
-                            trader.getDebugInfoNeverUseInCode(),
-                            pr.getResize().getResizedCommoditySpec().getDebugInfoNeverUseInCode(),
-                            pr.getRawMaterials().get(congestedRawMaterial).getDebugInfoNeverUseInCode());
+                // if we are unable to generate an executable scale UP, try generating a
+                // non-executable action that fits the bounds.
+                if (isUnboundedCapDifferent && maxOldCapacity.isLessThan(unboundedNewCapacity)) {
+                    newCapacity = unboundedNewCapacity;
+                } else {
+                    // The consistent new capacity is less than one of the individual old capacities
+                    // that needed to size up, so abort all resizes in the scaling group.
+                    for (PartialResize pr : resizes) {
+                        Trader trader = pr.getResize().getSellingTrader();
+                        if (trader.isDebugEnabled() || logger.isTraceEnabled()) {
+                            logger.info(
+                                    "Not resizing consistent scaling member {} due to insufficient {} on {}",
+                                    trader.getDebugInfoNeverUseInCode(),
+                                    pr.getResize().getResizedCommoditySpec().getDebugInfoNeverUseInCode(),
+                                    pr.getRawMaterialToSellerMapping().get(congestedRawMaterial).getDebugInfoNeverUseInCode());
+                        }
                     }
+                    return;
                 }
-                return;
             }
-
+            ConsistentScalingNumber tempNewCapacity = newCapacity;
             final List<PartialResize> newResizes = resizes.stream()
                 // Drop Resize if the capacity difference is less than the configured
                 // capacity increment
                 .filter(pr -> pr.getConsistentScalingOldCapacity()
-                    .minus(newCapacity)
+                    .minus(tempNewCapacity)
                     .abs()
                     .isGreaterThanOrApproxEqual(capacityIncrement))
                 .collect(Collectors.toList());

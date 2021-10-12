@@ -13,14 +13,12 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table.Cell;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -32,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -314,12 +313,12 @@ public class ActionClassifier {
      * @return true if the resize UP is executable.
      */
     boolean checkAndMarkResizeUp(Resize r, Trader targetEntityCopy) {
-        Map<CommoditySold, Trader> rawMaterialMapping =
+        Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialMapping =
                 RawMaterials.findSellerCommodityAndSupplier(simulationEconomy_,
-                        targetEntityCopy, r.getResizedCommoditySpec());
+                        targetEntityCopy, r.getSoldIndex());
         double capacityChange = r.getNewCapacity() - r.getOldCapacity();
-        for (Map.Entry<CommoditySold, Trader> rawMaterialEntry : rawMaterialMapping.entrySet()) {
-            CommoditySold rawMaterial = rawMaterialEntry.getKey();
+        for (Pair<CommoditySold, Trader> rawMaterialEntry : rawMaterialMapping.values()) {
+            CommoditySold rawMaterial = rawMaterialEntry.first;
             if (rawMaterial.getQuantity() + capacityChange >
                     rawMaterial.getEffectiveCapacity()) {
                 r.setExecutable(false);
@@ -638,13 +637,14 @@ public class ActionClassifier {
                     ? lookupTraderInSimulationEconomy(r.getActionTarget())
                     : null;
             if (targetEntityCopy != null) {
-                Map<CommoditySold, Trader> rawMaterialMapping =
+                Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialMapping =
                         RawMaterials.findSellerCommodityAndSupplier(simulationEconomy_,
-                                targetEntityCopy, r.getResizedCommoditySpec());
+                                targetEntityCopy, r.getSoldIndex());
 
                 double capacityChange = r.getNewCapacity() - r.getOldCapacity();
 
-                rawMaterialMapping.keySet().stream().forEach(commSold -> incrementMapping
+                rawMaterialMapping.values().stream().map(p -> p.first)
+                        .forEach(commSold -> incrementMapping
                         .compute(commSold, (cs, change) -> change == null
                                 ? capacityChange : change + capacityChange));
             } else {

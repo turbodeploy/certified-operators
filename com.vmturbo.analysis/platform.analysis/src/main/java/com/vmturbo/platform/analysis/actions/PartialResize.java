@@ -1,6 +1,8 @@
 package com.vmturbo.platform.analysis.actions;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ConsistentScalingNumber;
@@ -14,7 +16,7 @@ import javax.annotation.Nonnull;
 public class PartialResize {
     private final Resize resize_;
     private final boolean resizeDueToROI_;
-    private final Map<CommoditySold, Trader> rawMaterialsMap_ = new HashMap<>();
+    private final Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialsMap_ = new HashMap<>();
 
     private final boolean requiresConsistentScalingFactor;
     private final double consistentScalingFactor;
@@ -22,8 +24,8 @@ public class PartialResize {
     private ConsistentScalingNumber consistentScalingOldCapacity = null;
 
     public PartialResize(Resize resize, final boolean resizeDueToROI,
-                         Map<CommoditySold, Trader> rawMaterialAndSupplier,
-                         @Nonnull final Optional<RawMaterials> rawMaterialDescriptor) {
+            Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialAndSupplier,
+            @Nonnull final Optional<RawMaterials> rawMaterialDescriptor) {
         this.resize_ = resize;
         this.resizeDueToROI_ = resizeDueToROI;
         rawMaterialsMap_.putAll(rawMaterialAndSupplier);
@@ -47,10 +49,15 @@ public class PartialResize {
         return resizeDueToROI_;
     }
 
-    public Map<CommoditySold, Trader> getRawMaterials() {
+    public Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> getRawMaterials() {
         return rawMaterialsMap_;
     }
 
+    public Map<CommoditySold, Trader> getRawMaterialToSellerMapping() {
+        Map<CommoditySold, Trader> rawMaterialToSeller = new HashMap<>();
+        rawMaterialsMap_.values().stream().forEach(p -> rawMaterialToSeller.put(p.first, p.second));
+        return rawMaterialToSeller;
+    }
     /**
      * Return true if the commodity associated with this PartialResize requires the use of
      * consistentScalingFactor.
@@ -120,8 +127,8 @@ public class PartialResize {
         final int resizeCommBaseType = resize_.getResizedCommoditySpec().getBaseType();
         return rawMaterialsMap_.entrySet().stream()
             .filter(entry -> {
-                final CommoditySold rawMaterial = entry.getKey();
-                final Trader provider = entry.getValue();
+                final CommoditySold rawMaterial = entry.getValue().first;
+                final Trader provider = entry.getValue().second;
                 final int indexSold = provider.getCommoditiesSold().indexOf(rawMaterial);
                 if (indexSold >= 0) {
                     final int rawMaterialBaseType = provider.getBasketSold().get(indexSold).getBaseType();
@@ -131,7 +138,7 @@ public class PartialResize {
                 return false;
             }).findAny()
             // If no appropriate raw material provider is found. Return the CSF of the old provider.
-            .map(entry -> (double)entry.getValue().getSettings().getConsistentScalingFactor())
+            .map(entry -> (double)entry.getValue().second.getSettings().getConsistentScalingFactor())
             .orElse(consistentScalingFactor);
     }
 
@@ -146,9 +153,9 @@ public class PartialResize {
      */
     private boolean hasCoMaterials(final int rawMaterialBaseType,
                                    @Nonnull final RawMaterials rawMaterials) {
-        for (int i = 0; i < rawMaterials.getMaterials().length; i++) {
-            if (rawMaterials.getMaterials()[i] == rawMaterialBaseType) {
-                return rawMaterials.getCoMaterials()[i];
+        for (RawMaterialMetadata rawMaterial : rawMaterials.getMaterials()) {
+            if (rawMaterial.getMaterial() == rawMaterialBaseType) {
+                return rawMaterial.hasCoMaterial();
             }
         }
         return false;

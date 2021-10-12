@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import junitparams.JUnitParamsRunner;
@@ -15,6 +16,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterial;
+import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Resize;
@@ -34,6 +37,8 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+
+import com.google.common.collect.ImmutableList;
 
 @RunWith(JUnitParamsRunner.class)
 public class ResizerTest {
@@ -1052,14 +1057,13 @@ public class ResizerTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: ResizeDecisionsForContainersTest({0}, {1}, {2}, {3}, {4}, {5})")
-    public final void testResizeDecisionsForContainers(double nsAndPodVmemLimitCapacity,
+    @TestCaseName("Test #{index}: ResizeDecisionsForContainersTest({0}, {1}, {2}, {3}, {4})")
+    public final void testResizeDecisionsForContainersNotDrivenByNS(double nsAndPodVmemLimitCapacity,
                                                        double contVmemCapacity,
                                                        double vmemUsedByApp,
                                                        double vmemUsedByCont,
                                                        double vmemLimitUsedByPod,
-                                                       double numActions,
-                                                       double up) {
+                                                       double numActions) {
         Economy economy = new Economy();
         setupContainerTopologyForResizeTest(economy, nsAndPodVmemLimitCapacity, contVmemCapacity,
                 vmemUsedByApp, vmemUsedByCont, vmemLimitUsedByPod, 0.65, 0.75,
@@ -1067,16 +1071,6 @@ public class ResizerTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertTrue(numActions == actions.size());
-        if (numActions == 1) {
-            double change = ((Resize) actions.get(0)).getNewCapacity() - ((Resize) actions.get(0)).getOldCapacity();
-            assertTrue(change * up > 0);
-            // make sure the namespaceQnty increased by the change observed while resizing up
-            if (up == 1) {
-                assertEquals(change, namespace.getCommoditiesSold().get(0).getQuantity() - vmemLimitUsedByPod, 0);
-            } else if (up == -1) {
-                assertEquals(((Resize) actions.get(0)).getNewCapacity(), namespace.getCommoditiesSold().get(0).getQuantity(), 0);
-            }
-        }
     }
 
     /**
@@ -1232,6 +1226,17 @@ public class ResizerTest {
         final double nsCommSoldQuantityBeforeResize = namespace.getCommoditiesSold()
             .get(namespace.getBasketSold().indexOf(quotaCommodity)).getQuantity();
         TestUtils.setupRawCommodityMap(economy);
+        Map<Integer, RawMaterials> rawMaterialsMap = economy.getModifiableRawCommodityMap();
+        rawMaterialsMap.put(TestUtils.VCPU.getType(), new RawMaterials(RawMaterialInfo.newBuilder(
+            ImmutableList.of(
+                new RawMaterial(TestUtils.CPU.getType(), false, false),
+                new RawMaterial(TestUtils.VCPU.getType(), true, false),
+                new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false, true)))
+                    .requiresConsistentScalingFactor(true)
+                    .build()));
+        rawMaterialsMap.put(TestUtils.VMEM.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
+                new RawMaterial(TestUtils.MEM.getType(), false, false),
+                new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false, true)))));
         ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
@@ -1291,16 +1296,13 @@ public class ResizerTest {
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestResizeDecisionsForContainers() {
+    private static Object[] parametersForTestResizeDecisionsForContainersNotDrivenByNS() {
         return new Object[][] {
-                // no resize up even with high usage on container because the container is over VM capacity
-                {100, 101, 101, 80, 80, 0, 0},
-                // high usage on container and hence resize up
-                {100, 80, 70, 80, 80, 1, 1},
-                // low usage on container and hence resize down
-                {100, 80, 20, 80, 80, 1, -1},
-                // high usage on container but cant resize up because of unavailability of capacity on VM
-                {100, 80, 70, 80, 97, 0, 0}
+                // No resize action on container since congested NS wont drive a scaling decision
+                {100, 101, 101, 80, 80, 0},
+                {100, 80, 70, 80, 80, 0},
+                {100, 80, 20, 80, 80, 0},
+                {100, 80, 70, 80, 97, 0}
         };
     }
 

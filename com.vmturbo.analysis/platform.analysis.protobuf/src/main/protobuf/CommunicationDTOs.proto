@@ -94,6 +94,7 @@ message EndDiscoveredTopology {
     message RawMaterial {
         optional int32 commodityType = 1;
         optional bool hasCoMaterial_ = 2 [default = false];
+        optional bool isHardConstraint_ = 3 [default = true];
     }
 
     message ResizeProducesDependancyEntry {

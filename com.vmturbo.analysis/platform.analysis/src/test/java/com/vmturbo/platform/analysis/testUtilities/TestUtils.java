@@ -565,12 +565,12 @@ public class TestUtils {
         rawMap.put(TestUtils.VCPU.getType(), new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
             new RawMaterial(TestUtils.CPU.getType(), false, false),
             new RawMaterial(TestUtils.VCPU.getType(), true, false),
-            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false)))
+            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false, false)))
             .requiresConsistentScalingFactor(true)
             .build()));
         rawMap.put(TestUtils.VMEM.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
             new RawMaterial(TestUtils.MEM.getType(), false, false),
-            new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false)))));
+            new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false, false)))));
         rawMap.put(TestUtils.DBMEM.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
             new RawMaterial(TestUtils.VMEM.getType(), false, false)))));
         rawMap.put(TestUtils.HEAP.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(

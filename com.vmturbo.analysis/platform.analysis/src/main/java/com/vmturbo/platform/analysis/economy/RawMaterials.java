@@ -25,8 +25,7 @@ public class RawMaterials implements Serializable {
 
     static final Logger logger = LogManager.getLogger(RawMaterials.class);
 
-    private int @NonNull [] materials_;
-    private boolean @NonNull [] hasCoMaterial_;
+    private RawMaterialMetadata @NonNull [] materials_;
     private boolean isFakeRawMaterial;
     private final boolean requiresConsistentScalingFactor;
 
@@ -37,13 +36,12 @@ public class RawMaterials implements Serializable {
      */
     public RawMaterials(@NonNull List<CommunicationDTOs.EndDiscoveredTopology.RawMaterial> materials) {
         int size = materials.size();
-        materials_ = new int[size];
-        hasCoMaterial_  = new boolean[size];
+        materials_ = new RawMaterialMetadata[size];
         requiresConsistentScalingFactor = false;
         int index = 0;
         for (CommunicationDTOs.EndDiscoveredTopology.RawMaterial material : materials) {
-            materials_[index] = material.getCommodityType();
-            hasCoMaterial_[index] = material.getHasCoMaterial();
+            materials_[index] = new RawMaterialMetadata(material.getCommodityType(),
+                    material.getHasCoMaterial(), material.getIsHardConstraint());
             index++;
         }
     }
@@ -57,12 +55,11 @@ public class RawMaterials implements Serializable {
         isFakeRawMaterial = materialInfo.isFakeRawMaterial();
         requiresConsistentScalingFactor = materialInfo.requiresConsistentScalingFactor();
         int size = materialInfo.getRawMaterials().size();
-        materials_ = new int[size];
-        hasCoMaterial_  = new boolean[size];
+        materials_ = new RawMaterialMetadata[size];
         int index = 0;
         for (RawMaterial material : materialInfo.getRawMaterials()) {
-            materials_[index] = material.getRawMaterial();
-            hasCoMaterial_[index] = material.hasCoMaterial();
+            materials_[index] = new RawMaterialMetadata(material.getRawMaterial(),
+                    material.hasCoMaterial(), material.isHardConstraint());
             index++;
         }
     }
@@ -94,19 +91,8 @@ public class RawMaterials implements Serializable {
      * @return array of commodity base-types.
      */
     @Pure
-    public @PolyRead int @NonNull [] getMaterials(@PolyRead RawMaterials this) {
+    public @PolyRead RawMaterialMetadata @NonNull [] getMaterials(@PolyRead RawMaterials this) {
         return materials_;
-    }
-
-    /**
-     * Returns the vector specifying if rawMaterial commodities have coMaterials.
-     *
-     * <p>This array contains a boolean that specifies if the commodity hat the index has a co-rawMaterial.</p>
-     * @return array of booleans corresponding to commodity base-types.
-     */
-    @Pure
-    public @PolyRead boolean @NonNull [] getCoMaterials(@PolyRead RawMaterials this) {
-        return hasCoMaterial_;
     }
 
     /**
@@ -114,16 +100,15 @@ public class RawMaterials implements Serializable {
      *
      * @param economy The Economy.
      * @param buyer The Buyer of the commodity in the Economy.
-     * @param resizingCommSpec The {@link CommoditySpecification} of commodity for which we need to
-     * find the raw materials.
-     * @return List of Pairs containing the commodity sold and its supplier
+     * @param commoditySoldIndex The index of commodity for which we need to find the raw materials.
+     * @return A mapping from rawMaterialMetadata to the Commodity and the associated trader.
      */
-    public static Map<CommoditySold, Trader> findSellerCommodityAndSupplier(
-            @NonNull Economy economy,
-            @NonNull Trader buyer,
-            CommoditySpecification resizingCommSpec) {
-        RawMaterials typeOfCommsBought = economy.getAllRawMaterials(resizingCommSpec.getBaseType());
-        Map<CommoditySold, Trader> rawMaterialToSupplier = new HashMap<>();
+    public static Map<RawMaterialMetadata, Pair<CommoditySold, Trader>>
+                            findSellerCommodityAndSupplier(@NonNull Economy economy,
+                                                           @NonNull Trader buyer, int commoditySoldIndex) {
+        RawMaterials rawMaterials = economy.getAllRawMaterials(buyer.getBasketSold()
+                .get(commoditySoldIndex).getBaseType());
+        Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialToSupplier = new HashMap<>();
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
 
             Trader supplier = shoppingList.getSupplier();
@@ -132,8 +117,9 @@ public class RawMaterials implements Serializable {
                 continue;
             }
             Basket basketBought = shoppingList.getBasket();
-            for (int index = 0; index < typeOfCommsBought.getMaterials().length; index++) {
-                int boughtIndex = basketBought.indexOfBaseType(typeOfCommsBought.getMaterials()[index]);
+            for (RawMaterialMetadata rawMaterial : rawMaterials.getMaterials()) {
+                int rawMaterialType = rawMaterial.getMaterial();
+                int boughtIndex = basketBought.indexOfBaseType(rawMaterialType);
                 if (boughtIndex < 0) {
                     continue;
                 }
@@ -154,12 +140,12 @@ public class RawMaterials implements Serializable {
                     Pair<CommoditySold, Trader> resource = findResoldRawMaterialOnSeller(economy, supplier,
                             basketBought.get(boughtIndex));
                     if (resource.first != null) {
-                        rawMaterialToSupplier.put(resource.first, resource.second);
+                        rawMaterialToSupplier.put(rawMaterial, new Pair(resource.first, resource.second));
                     }
                 } else {
-                    rawMaterialToSupplier.put(commSoldBySeller, supplier);
+                    rawMaterialToSupplier.put(rawMaterial, new Pair(commSoldBySeller, supplier));
                 }
-                if (!typeOfCommsBought.getCoMaterials()[index]) {
+                if (!rawMaterial.hasCoMaterial()) {
                     break;
                 }
             }

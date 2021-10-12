@@ -31,6 +31,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -487,7 +488,7 @@ public class Ledger {
             if (!rawMaterials.isPresent()) {
                 continue;
             }
-            int[] typeOfCommsBought = rawMaterials.get().getMaterials();
+            RawMaterialMetadata[] rawMaterialsMetadata = rawMaterials.get().getMaterials();
             boolean relevantShoppingListProcessed = false;
             for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
 
@@ -503,11 +504,15 @@ public class Ledger {
                 // TODO: make indexOf return 2 values minIndex and the maxIndex.
                 // All comm's btw these indices will be of this type
                 // (needed when we have 2 commodities of same type bought)
-                boolean commBoughtExists = Arrays.stream(typeOfCommsBought)
-                        .anyMatch(commType -> basketBought.indexOfBaseType(commType) != -1);
-                for (Integer typeOfCommBought : typeOfCommsBought) {
-
-                    int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
+                boolean commBoughtExists = Arrays.stream(rawMaterialsMetadata)
+                        .anyMatch(material -> basketBought.indexOfBaseType(material.getMaterial()) != -1);
+                for (RawMaterialMetadata rawMaterial : rawMaterialsMetadata) {
+                    // do not consider soft constraints for expense.
+                    if (!rawMaterial.isHardConstraint()) {
+                        continue;
+                    }
+                    int typeOfCommBought = rawMaterial.getMaterial();
+                    int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought);
 
                     // if the required commodity is not in the shoppingList, set small constant
                     // expenses and skip the list, unless it is a related commodity in the rawMaterialsMap
@@ -524,7 +529,7 @@ public class Ledger {
                         if (commBoughtExists && buyer.getBasketSold()
                                 .get(commSoldIndex).getBaseType() != typeOfCommBought) {
                             Basket basketSold = buyer.getBasketSold();
-                            final int index = basketSold.indexOfBaseType(typeOfCommBought.intValue());
+                            final int index = basketSold.indexOfBaseType(typeOfCommBought);
                             if (index >= 0) {
                                 // There are entities such as containers that can be hosted by
                                 // different entities.  In this case, the raw materials
@@ -597,9 +602,9 @@ public class Ledger {
                     }
 
                     // find the right provider comm and use it to compute the expenses
-                    Pair<CommoditySold, Trader> rawMaterial = RawMaterials.findResoldRawMaterialOnSeller(economy,
+                    Pair<CommoditySold, Trader> rawMaterialPair = RawMaterials.findResoldRawMaterialOnSeller(economy,
                             supplier, basketBought.get(boughtIndex));
-                    CommoditySold commSoldBySeller = rawMaterial.first;
+                    CommoditySold commSoldBySeller = rawMaterialPair.first;
                     String commBoughtInformationForLogs = basketBought.get(boughtIndex).getDebugInfoNeverUseInCode();
                     if (commSoldBySeller == null) {
                         logger.warn("Trying to set expenses for commodity sold " + commSoldInformationForLogs
