@@ -14,7 +14,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
@@ -4695,9 +4694,10 @@ public class TopologyConverter {
             final int tierComodityType =
                     (commTypeMap != null && commTypeMap.containsKey(commTypeValue)) ?
                             commTypeMap.get(commTypeValue) : commTypeValue;
-            Optional<CommoditySoldDTO> tierSoldDTO = marketTier.getTier()
-                    .getCommoditySoldListList().stream().filter(commoditySoldDTO ->
-                            commoditySoldDTO.getCommodityType().getType() == tierComodityType).findFirst();
+            Optional<CommoditySoldDTO> tierSoldDTO =
+                    marketTier.getTier().getCommoditySoldListList().stream().filter(
+                            commoditySoldDTO -> commoditySoldDTO.getCommodityType().getType() == tierComodityType
+                                    && compareKeys(commoditySoldDTO.getCommodityType(), commType)).findFirst();
             if (tierSoldDTO.isPresent() && tierSoldDTO.get().hasCapacity()) {
                 return (float)tierSoldDTO.get().getCapacity();
             } else {
@@ -4709,6 +4709,22 @@ public class TopologyConverter {
             capacity = calculateVCPUResizeCapacityForVM(traderOid, reverseScaledCapacity, scalingFactor);
         }
         return capacity;
+    }
+
+    /**
+     * Compare 2 commodity keys.
+     * If both keys are missed we consider that as match.
+     * If one of the keys are missed we consider that as mismatch.
+     * If both keys are present - we compare keys.
+     *
+     * @param dest destination commodity key
+     * @param orig sold commodity key
+     * @return true is keys match
+     */
+    @VisibleForTesting
+    static boolean compareKeys(CommodityType dest, CommodityType orig) {
+        return (!dest.hasKey() && !orig.hasKey()) || (dest.hasKey() && orig.hasKey()
+                && dest.getKey().equals(orig.getKey()));
     }
 
     /**
