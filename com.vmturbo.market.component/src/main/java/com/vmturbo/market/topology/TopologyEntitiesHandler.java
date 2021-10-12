@@ -33,7 +33,6 @@ import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.tracing.ClassicTracer;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -53,7 +52,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
-import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -512,21 +510,6 @@ public class TopologyEntitiesHandler {
     public static void populateRawMaterialsMap(Topology topology) {
         for (Map.Entry<Integer, RawMaterialInfo> entry : RawMaterialsMap.rawMaterialsMap.entrySet()) {
             topology.getModifiableRawCommodityMap().put(entry.getKey(), new RawMaterials(entry.getValue()));
-        }
-        // If enableNamespaceQuotaResizing flag is true, update modifiableRawCommodityMap by setting
-        // hasConstraint as false based on rawMaterialsMapWithSoftConstraints.
-        if (FeatureFlags.NAMESPACE_QUOTA_RESIZING.isEnabled()) {
-            for (Map.Entry<Integer, Integer> entry : RawMaterialsMap.rawMaterialsMapWithSoftConstraints.entrySet()) {
-                RawMaterials rawMaterials = topology.getModifiableRawCommodityMap().get(entry.getKey());
-                if (rawMaterials == null) {
-                    continue;
-                }
-                for (RawMaterialMetadata rawMaterialMetadata : rawMaterials.getMaterials()) {
-                    if (rawMaterialMetadata.getMaterial() == entry.getValue()) {
-                        rawMaterialMetadata.setHardConstraint(false);
-                    }
-                }
-            }
         }
     }
 
