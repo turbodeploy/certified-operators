@@ -1,9 +1,15 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT;
 import static com.vmturbo.common.protobuf.utils.StringConstants.WEBHOOK_PASSWORD_SUBJECT;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHENTICATION_METHOD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHORIZATION_SERVER_URL;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.CLIENT_ID;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.CLIENT_SECRET;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.GRANT_TYPE;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.SCOPE;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
 
@@ -17,6 +23,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo.AuthenticationMethod;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo.OAuthData;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Property;
@@ -94,6 +101,51 @@ public class WebhookContext {
             webhookProperties.add(Workflow.Property.newBuilder()
                     .setName(PASSWORD)
                     .setValue(password)
+                    .build());
+        } else if (webhookInfo.getAuthenticationMethod() == AuthenticationMethod.OAUTH) {
+            if (!webhookInfo.hasOAuth()) {
+                throw new ContextCreationException(
+                        "The OAuth data is required for Webhook workflows using OAuth "
+                                + "authentication method.");
+            }
+            final OAuthData oAuthData = webhookInfo.getOAuth();
+            final String clientSecret;
+            try {
+                clientSecret = secureStorageClient.getValue(WEBHOOK_OAUTH_CLIENT_SECRET_SUBJECT,
+                        Long.toString(workflow.getId())).orElseThrow(
+                        () -> new IllegalStateException(
+                                "Cannot retrieve the clientSecret for workflow " + workflow.getId()));
+            } catch (CommunicationException e) {
+                throw new ContextCreationException(
+                        "Cannot get the clientSecret from the secure storage for"
+                                + " webhook workflow with ID" + workflow.getId(), e);
+            }
+
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(CLIENT_ID)
+                    .setValue(oAuthData.getClientId())
+                    .build());
+
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(CLIENT_SECRET)
+                    .setValue(clientSecret)
+                    .build());
+
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(AUTHORIZATION_SERVER_URL)
+                    .setValue(oAuthData.getAuthorizationServerUrl())
+                    .build());
+
+            if (oAuthData.hasScope()) {
+                webhookProperties.add(Workflow.Property.newBuilder()
+                        .setName(SCOPE)
+                        .setValue(oAuthData.getScope())
+                        .build());
+            }
+
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(GRANT_TYPE)
+                    .setValue(oAuthData.getGrantType().name())
                     .build());
         }
 
