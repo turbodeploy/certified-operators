@@ -4,13 +4,17 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -131,16 +135,19 @@ public class TopologyEventsPoller {
                                            TopologyEventFilter.ALL);
 
         final Map<Long, TopologyEventLedger> topologyEventLedgers = topologyEvents.ledgers();
-        topologyEventLedgers.entrySet().forEach(entry -> {
-            final long entityId = entry.getKey();
-            final TopologyEventLedger entityTopologyEventLedger = entry.getValue();
+        final List<SavingsEvent> events = new ArrayList<>();
+        topologyEventLedgers.forEach((key, entityTopologyEventLedger) -> {
+            final long entityId = key;
             for (TopologyEvent entityEvent : entityTopologyEventLedger.events()) {
-                final SavingsEvent savingsEvent = createSavingsEvent(entityId, entityEvent);
-                entityEventsJournal.addEvent(savingsEvent);
+                events.add(createSavingsEvent(entityId, entityEvent));
                 logger.debug("Added a topology event for {}, of type {}", entityId,
-                             entityEvent.getType());
+                        entityEvent.getType());
             }
         });
+        final Stopwatch topologyWatch = Stopwatch.createStarted();
+        entityEventsJournal.addEvents(events);
+        logger.info("Addition of {} topology events took {} ms.",
+                events.size(), topologyWatch.elapsed(TimeUnit.MILLISECONDS));
     }
 
     /**
