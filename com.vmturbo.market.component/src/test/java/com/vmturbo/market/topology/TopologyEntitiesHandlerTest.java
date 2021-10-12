@@ -44,8 +44,11 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.commons.analysis.ByProductMap;
+import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -53,6 +56,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -161,6 +165,13 @@ public class TopologyEntitiesHandlerTest {
             mock(ConsistentScalingHelperFactory.class);
     private ReversibilitySettingFetcher reversibilitySettingFetcher =
             mock(ReversibilitySettingFetcher.class);
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+        FeatureFlags.NAMESPACE_QUOTA_RESIZING);
 
     @Before
     public void setup() {
@@ -1328,6 +1339,27 @@ public class TopologyEntitiesHandlerTest {
         assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,
                  RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).getRawMaterials().size());
 
+    }
+
+    /**
+     * Testing that the rawMaterial map gets populated with corresponding isHardConstraint updated to
+     * false when feature flag NAMESPACE_QUOTA_RESIZING is nabled.
+     */
+    @Test
+    public void testPopulateRawMaterialsMapWithNamespaceQuotaResizingEnabled() {
+        featureFlagTestRule.enable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
+
+        Topology topology = new Topology();
+        TopologyEntitiesHandler.populateRawMaterialsMap(topology);
+        Economy e = (Economy)topology.getEconomy();
+        assertEquals(e.getModifiableRawCommodityMap().size(), RawMaterialsMap.rawMaterialsMap.size());
+        // check if the VCPULimitQuota rawMaterial has isHardConstraint as false when feature flag is
+        // enabled.
+        Optional<RawMaterialMetadata> rawMaterialMetadata = Arrays.stream(e.getModifiableRawCommodityMap().get(CommodityType.VCPU_VALUE).getMaterials())
+            .filter(rawMaterial -> rawMaterial.getMaterial() == CommodityType.VCPU_LIMIT_QUOTA_VALUE)
+            .findAny();
+        assertTrue(rawMaterialMetadata.isPresent());
+        assertFalse(rawMaterialMetadata.get().isHardConstraint());
     }
 
     /**
