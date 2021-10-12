@@ -106,6 +106,9 @@ LABEL name="grafana" \
       summary="grafana" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
 
+# Copy Turbo license file.
+COPY licenses /licenses
+
 ARG grafana_versions
 ARG grafana_img_renderer_version
 ARG grafana_user
