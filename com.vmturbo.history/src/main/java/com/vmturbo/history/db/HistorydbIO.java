@@ -1625,19 +1625,6 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * This method will prepare creating the temporary table sql statement.
-     *
-     * @param tempTableName the name of the temp table on which to operate
-     * @return a SQL string used to create a temp table
-     */
-    @Nonnull
-    private static String prepareTempTableNameStatement(@Nonnull String tempTableName) {
-        return String.format("CREATE TEMPORARY TABLE %s ( %s varchar(%d), "
-                        + "primary key (%s)) engine=memory;",
-                tempTableName, StringConstants.TARGET_OBJECT_UUID, 80, StringConstants.TARGET_OBJECT_UUID);
-    }
-
-    /**
      * The variables and code immediately below are carried-over directly from Classic code
      */
     @VisibleForTesting protected static final int FAST_SQL_SIZE = 256;
@@ -1728,7 +1715,13 @@ public class HistorydbIO extends BasedbIO {
         }
         final String tempTableName = String.format("Tmp_%s",
                 java.util.UUID.randomUUID().toString().replace("-", ""));
-        execute(prepareTempTableNameStatement(tempTableName), connection);
+        // The collation of this temp table should be unicode because the monthly and the daily stats tables have
+        // unicode collation. If the collation does not match, there could be a problem executing joins with this
+        // temp table.
+        final String query = String.format("CREATE TEMPORARY TABLE %s ( %s varchar(%d), "
+                        + "primary key (%s)) COLLATE=utf8_unicode_ci engine=memory;",
+                tempTableName, StringConstants.TARGET_OBJECT_UUID, 80, StringConstants.TARGET_OBJECT_UUID);
+        execute(query, connection);
         try {
             final Collection<String> uuidStrings = uuids.stream()
                     .map(uuid -> uuid.toString())
