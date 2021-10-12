@@ -70,11 +70,6 @@ public class VersionDiagnosable implements StringDiagnosable {
             logger.error("Error fetching production version: ", e);
         }
 
-        // Collect telemetry only if user has enabled telemetry.
-        if (clusterService.isTelemetryEnabled()) {
-            // Collect telemetry metrics to Prometheus before writing out the Prometheus metrics.
-            collectTelemetryMetrics(versionDTO);
-        }
         for (String string: versionInfo(versionDTO)) {
             appender.appendString(string);
         }
@@ -92,36 +87,6 @@ public class VersionDiagnosable implements StringDiagnosable {
         return Arrays.asList(versionDTO.getVersionInfo() + "\n",
             "Updates: " + versionDTO.getUpdates(),
             "Market version: " + versionDTO.getMarketVersion());
-    }
-
-    private void collectTelemetryMetrics(@Nonnull final ProductVersionDTO versionDTO) {
-        final VersionAndRevision versionAndRevision = new VersionAndRevision(versionDTO.getVersionInfo());
-        TelemetryMetricDefinitions.setTurbonomicVersionAndRevision(
-            versionAndRevision.version, versionAndRevision.revision);
-
-        // Disabling this call as it makes an rpc call to repository. If
-        // repository is slow, api diag dump will be blocked for a while.
-        //collectEntityCounts(versionAndRevision);
-    }
-
-    @VisibleForTesting
-    void collectEntityCounts(@Nonnull final VersionAndRevision versionAndRevision) {
-        try {
-            final SupplychainApiDTOFetcherBuilder supplyChainFetcher = this.supplyChainFetcherFactory
-                .newApiDtoFetcher()
-                .topologyContextId(liveTopologyContextId)
-                .addSeedUuids(Collections.emptyList())
-                .entityDetailType(null)
-                .includeHealthSummary(false);
-
-            final SupplychainApiDTO supplyChain = supplyChainFetcher.fetch();
-            supplyChain.getSeMap().forEach((entityType, entry) ->
-                // TODO: Add support for understanding target type
-                TelemetryMetricDefinitions.setServiceEntityCount(entityType, "", entry.getEntitiesCount(),
-                    versionAndRevision.version, versionAndRevision.revision));
-        } catch (Exception e) {
-            logger.error("Unable to collect supply chain entity counts.", e);
-        }
     }
 
     /**
