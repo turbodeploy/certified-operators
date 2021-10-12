@@ -96,10 +96,16 @@ public class EntitySavingsConfig {
     private boolean enableEntitySavings;
 
     /**
-     * How long to retain events in audit events DB table - default 1 month max.
+     * How long to retain events in audit events DB table - default 1/2 month max.
      */
-    @Value("${entitySavingsAuditLogRetentionHours:730}")
+    @Value("${entitySavingsAuditLogRetentionHours:365}")
     private Long entitySavingsAuditLogRetentionHours;
+
+    /**
+     * Whether audit events data needs to be written to DB or not.
+     */
+    @Value("${entitySavingsAuditLogEnabled:true}")
+    private boolean entitySavingsAuditLogEnabled;
 
     /**
      * Real-Time Context Id.
@@ -108,9 +114,9 @@ public class EntitySavingsConfig {
     private long realtimeTopologyContextId;
 
     /**
-     * How often to run the retention processor, default 24 hours.
+     * How often to run the retention processor, default 6 hours.
      */
-    @Value("${entitySavingsRetentionProcessorFrequencyHours:24}")
+    @Value("${entitySavingsRetentionProcessorFrequencyHours:6}")
     private Long retentionProcessorFrequencyHours;
 
     @Autowired
@@ -352,7 +358,7 @@ public class EntitySavingsConfig {
     @Bean
     public AuditLogWriter auditLogWriter() {
         return new SqlAuditLogWriter(getDslContext(), getClock(),
-                persistEntityCostChunkSize);
+                persistEntityCostChunkSize, entitySavingsAuditLogEnabled);
     }
 
     /**

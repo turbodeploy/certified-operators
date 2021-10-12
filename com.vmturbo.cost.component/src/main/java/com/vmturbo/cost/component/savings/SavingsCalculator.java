@@ -456,7 +456,8 @@ class SavingsCalculator {
                                        ActionEventType.SCALE_EXECUTION_SUCCESS,
                                        Optional.of(expirationTime));
         } else {
-            logger.warn("ProviderChange event for {} at {} is missing price data - skipping",
+            // This warning was polluting the logs, current there is no price info with provider change.
+            logger.debug("ProviderChange event for {} at {} is missing price data - skipping",
                     entityId, timestamp);
         }
         return null;

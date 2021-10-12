@@ -9,12 +9,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -189,7 +191,10 @@ public class EntitySavingsTracker {
             }
         } catch (Exception e) {
             // Add events back to the events journal.
+            final Stopwatch eventsBackWatch = Stopwatch.createStarted();
             entityEventsJournal.addEvents(events);
+            logger.info("Addition of {} processing events back took {} ms.",
+                    events.size(), eventsBackWatch.elapsed(TimeUnit.MILLISECONDS));
 
             // Catching any exceptions here. Not only catching EntitySavingsException because
             // we can get DataAccessException when a rollback happens in the transaction, which is

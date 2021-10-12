@@ -73,23 +73,42 @@ public class SqlAuditLogWriter implements AuditLogWriter {
     private static final Gson gson = createGson();
 
     /**
+     * Whether audit data should be written to DB or not.
+     */
+    private final boolean enabled;
+
+    /**
      * Create a new log writer.
      *
      * @param dsl DB access.
      * @param clock UTC clock.
      * @param chunkSize DB write chunk size.
+     * @param enabled Whether audit log writing is enabled as per config.
      */
     public SqlAuditLogWriter(@Nonnull final DSLContext dsl, @Nonnull final Clock clock,
-            final int chunkSize) {
+            final int chunkSize, boolean enabled) {
         this.dsl = Objects.requireNonNull(dsl);
         this.clock = Objects.requireNonNull(clock);
         this.chunkSize = chunkSize;
-        logger.info("Created new SQL Audit Log Writer with chunk size {} and clock {}.",
-                this.chunkSize, this.clock);
+        this.enabled = enabled;
+        if (enabled) {
+            logger.info("Created new SQL Audit Log Writer with chunk size {} and clock {}.",
+                    this.chunkSize, this.clock);
+        } else {
+            logger.info("SQL Audit Log Writer is disabled.");
+        }
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return enabled;
     }
 
     @Override
     public void write(@Nonnull List<SavingsEvent> events) {
+        if (!enabled) {
+            return;
+        }
         try {
             InsertReturningStep<EntitySavingsAuditEventsRecord> insert = dsl
                     .insertInto(ENTITY_SAVINGS_AUDIT_EVENTS)
@@ -132,6 +151,9 @@ public class SqlAuditLogWriter implements AuditLogWriter {
 
     @Override
     public int deleteOlderThan(long timestamp) {
+        if (!enabled) {
+            return 0;
+        }
         final LocalDateTime minDate = SavingsUtil.getLocalDateTime(timestamp, clock);
         return dsl.deleteFrom(ENTITY_SAVINGS_AUDIT_EVENTS)
                 .where(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_TIME.lt(minDate))

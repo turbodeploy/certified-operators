@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
@@ -483,7 +484,10 @@ public class ActionListener implements ActionsListener {
                          newActionInfo.getEntityType());
             }
         });
+        final Stopwatch pendingWatch = Stopwatch.createStarted();
         entityEventsJournal.addEvents(newPendingActionEvents);
+        logger.debug("Addition of {} pending recommendation events took {} ms.",
+            newPendingActionEvents.size(), pendingWatch.elapsed(TimeUnit.MILLISECONDS));
 
         // Add events related to stale actions.
         // entityIdsOnLeft represents entities with new actions, or those with a different new action
@@ -523,12 +527,18 @@ public class ActionListener implements ActionsListener {
                                  staleActionInfo.getDestinationOid(),
                                  staleActionInfo.getEntityType());
                 } else {
-                    logger.debug("Entity {} with old action {} has a different action {} this "
+                    logger.debug("Entity {} with old action has a different action {} this "
                                     + "cycle. No stale event generated",
                                  entityId, staleActionId);
                 }
             });
-            entityEventsJournal.addEvents(staleActionEvents);
+
+            if (!staleActionEvents.isEmpty()) {
+                final Stopwatch staleWatch = Stopwatch.createStarted();
+                entityEventsJournal.addEvents(staleActionEvents);
+                logger.debug("Addition of {} stale recommendation events took {} ms.",
+                        staleActionEvents.size(), staleWatch.elapsed(TimeUnit.MILLISECONDS));
+            }
 
             // Clear the old and save the latest set of new pending actions.
             existingActionsInfoToEntityId.clear();
@@ -755,7 +765,10 @@ public class ActionListener implements ActionsListener {
                              entityId);
             }
         }
-        logger.warn("ActionListener total number of entities with cost retrieval issues {}.", noOfEntitieswithError);
+        if (noOfEntitieswithError > 0) {
+            logger.warn("Total number of entities with cost retrieval issues {}.",
+                    noOfEntitieswithError);
+        }
     }
 
     private void recoverActions(Set<Long> entitiesWithActionsAfterRestart, long startTime, long currentTime) {
@@ -828,6 +841,7 @@ public class ActionListener implements ActionsListener {
             if (!entitiesWithActionsBeforeRestart.isEmpty()) {
                 Map<Long, EntityState> states =
                         entityStateStore.getEntityStates(entitiesWithActionsBeforeRestart);
+                final Stopwatch removalWatch = Stopwatch.createStarted();
                 states.values().forEach(s -> {
                     // Reconstruct the event. Use dummy values where needed. The algorithm
                     // only needs the time of the event and needs to know it is a
@@ -846,10 +860,12 @@ public class ActionListener implements ActionsListener {
                                     null,
                                     actionInfo, Optional.empty());
                     entityEventsJournal.addEvent(staleActionEvent);
-                    logger.info("Action recommendation for entity {} was removed when "
+                    logger.debug("Action recommendation for entity {} was removed when "
                                     + "cost component was off. Adding it back to event journal.",
                             s.getEntityId());
                 });
+                logger.info("Addition of {} recommendation removed events took {} ms.",
+                        states.values().size(), removalWatch.elapsed(TimeUnit.MILLISECONDS));
             }
         } catch (EntitySavingsException e) {
             logger.error("Error occurred when getting entities states from entity state store.", e);

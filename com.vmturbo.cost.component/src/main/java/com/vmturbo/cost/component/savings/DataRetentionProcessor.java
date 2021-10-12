@@ -7,6 +7,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -86,35 +88,43 @@ public class DataRetentionProcessor {
         }
         // Fetch latest settings values from SettingsManager.
         final DataRetentionSettings hourSettings = retentionConfig.fetchDataRetentionSettings();
-        if (hourSettings != null) {
-            logger.info("Starting {}. Frequency: {} hrs. Last ran: {}",
-                    hourSettings,
-                    this.runFrequencyHours,
-                    this.lastTimeRan == null ? "Never" : new Date(this.lastTimeRan));
-
-            // Delete audit records.
-            long timestamp = currentTimeMillis - hourSettings.getAuditLogRetentionInHours() * millisInHour;
-            int rowsDeleted = auditLogWriter.deleteOlderThan(timestamp);
-            logger.info("Deleted {} audit records older than {}.", rowsDeleted,
-                    new Date(timestamp));
-
-            // Delete stats records.
-            timestamp = currentTimeMillis - hourSettings.getHourlyStatsRetentionInHours() * millisInHour;
-            rowsDeleted = savingsStore.deleteOlderThanHourly(timestamp);
-            logger.info("Deleted {} hourly stats records older than {}.", rowsDeleted,
-                    new Date(timestamp));
-
-            timestamp = currentTimeMillis - hourSettings.getDailyStatsRetentionInHours() * millisInHour;
-            rowsDeleted = savingsStore.deleteOlderThanDaily(timestamp);
-            logger.info("Deleted {} daily stats records older than {}.", rowsDeleted,
-                    new Date(timestamp));
-
-            timestamp = currentTimeMillis - hourSettings.getMonthlyStatsRetentionInHours() * millisInHour;
-            rowsDeleted = savingsStore.deleteOlderThanMonthly(timestamp);
-            logger.info("Deleted {} monthly stats records older than {}.", rowsDeleted,
-                    new Date(timestamp));
-            this.lastTimeRan = currentTimeMillis;
+        if (hourSettings == null) {
+            logger.warn("Could not fetch latest retention settings. Skipping processing.");
+            return;
         }
+
+        final Stopwatch deletionWatch = Stopwatch.createStarted();
+        logger.info("Starting Cloud Savings cleanup. Settings: {}. Frequency: {} hrs. Last ran: {}",
+                hourSettings, this.runFrequencyHours,
+                this.lastTimeRan == null ? "Never" : new Date(this.lastTimeRan));
+        long timestamp;
+        int rowsDeleted;
+        // Delete audit records, but only if enabled.
+        if (auditLogWriter.isEnabled()) {
+            timestamp = currentTimeMillis - hourSettings.getAuditLogRetentionInHours() * millisInHour;
+            rowsDeleted = auditLogWriter.deleteOlderThan(timestamp);
+            logger.info("Deleted {} audit records older than {}.", rowsDeleted, new Date(timestamp));
+        }
+
+        // Delete stats records.
+        timestamp = currentTimeMillis - hourSettings.getHourlyStatsRetentionInHours() * millisInHour;
+        rowsDeleted = savingsStore.deleteOlderThanHourly(timestamp);
+        logger.info("Deleted {} hourly stats records older than {}.", rowsDeleted,
+                new Date(timestamp));
+
+        timestamp = currentTimeMillis - hourSettings.getDailyStatsRetentionInHours() * millisInHour;
+        rowsDeleted = savingsStore.deleteOlderThanDaily(timestamp);
+        logger.info("Deleted {} daily stats records older than {}.", rowsDeleted,
+                new Date(timestamp));
+
+        timestamp = currentTimeMillis - hourSettings.getMonthlyStatsRetentionInHours() * millisInHour;
+        rowsDeleted = savingsStore.deleteOlderThanMonthly(timestamp);
+        logger.info("Deleted {} monthly stats records older than {}.", rowsDeleted,
+                new Date(timestamp));
+        this.lastTimeRan = currentTimeMillis;
+
+        logger.info("Completed Cloud Savings cleanup in {} ms.",
+                deletionWatch.elapsed(TimeUnit.MILLISECONDS));
     }
 
     /**

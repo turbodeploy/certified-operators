@@ -11,6 +11,13 @@ import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
  */
 public interface AuditLogWriter {
     /**
+     * Whether audit log writing is enabled (via config).
+     *
+     * @return Whether enabled.
+     */
+    boolean isEnabled();
+
+    /**
      * Write events to disk.
      *
      * @param events Set of events to persist.
