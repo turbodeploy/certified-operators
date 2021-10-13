@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -166,6 +167,7 @@ public class SecureStorageClientTest {
      *
      * @throws CommunicationException if something goes wrong connecting to server.
      */
+    @Ignore("This test is failing once in the while. It is disabled until we figure out why (bug: OM-76350)")
     @Test
     public void testUpdateValue() throws CommunicationException {
         // ARRANGE
