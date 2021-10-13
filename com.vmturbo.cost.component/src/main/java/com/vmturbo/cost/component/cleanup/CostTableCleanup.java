@@ -1,14 +1,18 @@
 package com.vmturbo.cost.component.cleanup;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.immutables.value.Value;
+import org.immutables.value.Value.Default;
+import org.immutables.value.Value.Derived;
+import org.immutables.value.Value.Immutable;
 import org.jooq.Field;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
+
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**
  * Interface describing a Cost component table.
@@ -22,20 +26,12 @@ public interface CostTableCleanup {
         /**
          * Trims records from the table this writer is for.
          *
-         * @param trimToTime Earliest time allowed in the table. All records before this time will be deleted.
+         * @param trimTimeResolver Earliest time allowed in the table. All records before this time will be deleted.
          *
          * @throws DataAccessException A Data access exception
          */
-        void trim(@Nonnull LocalDateTime trimToTime) throws DataAccessException;
+        void trim(@Nonnull TrimTimeResolver trimTimeResolver) throws DataAccessException;
     }
-
-    /**
-     * Get the trim time of the table.
-     *
-     * @return A trim time representing the time for deletion of particular records prior.
-     */
-    @Nonnull
-    LocalDateTime getTrimTime();
 
     /**
      * Get the {@link Trimmer} to use for this table.
@@ -46,23 +42,30 @@ public interface CostTableCleanup {
     Trimmer writer();
 
     /**
-     * The {@link TableInfo} for this cleanup task.
-     * @return The {@link TableInfo}.
+     * The {@link TableCleanupInfo} for this cleanup task.
+     * @return The {@link TableCleanupInfo}.
      */
     @Nonnull
-    TableInfo tableInfo();
+    TableCleanupInfo tableInfo();
+
+    /**
+     * The {@link TrimTimeResolver} for this cleanup task.
+     * @return The {@link TrimTimeResolver} for this cleanup task.
+     */
+    TrimTimeResolver trimTimeResolver();
 
     /**
      * Interface describing the table information.
      */
-    @Value.Immutable
-    interface TableInfo {
+    @HiddenImmutableImplementation
+    @Immutable
+    interface TableCleanupInfo {
         /**
          * The {@link Table}.
          *
          * @return The table.
          */
-        Table table();
+        Table<?> table();
 
         /**
          * The time field in the table, used to filter against for record deletion.
@@ -72,13 +75,67 @@ public interface CostTableCleanup {
         Field<LocalDateTime> timeField();
 
         /**
-         * The short name of the table used for metrics. Not necessarily the name of the underlying
-         * table.
+         * The short name of the table used for metrics.
          *
          * @return The short table name.
          */
-        String shortTableName();
+        @Derived
+        default String shortTableName() {
+            return table().getName();
+        }
 
-        Optional<Integer> numRowsToBatchDelete();
+        @Default
+        default Duration cleanupRate() {
+            return Duration.ofHours(1);
+        }
+
+        @Default
+        default int retryLimit() {
+            return 3;
+        }
+
+        @Default
+        default Duration retryDelay() {
+            return Duration.ofMinutes(5);
+        }
+
+        @Default
+        default Duration longRunningDuration() {
+            return Duration.ofMinutes(10);
+        }
+
+        @Default
+        default int numRowsToBatchDelete() {
+            return 1000;
+        }
+
+        @Default
+        default boolean blockIngestionOnLongRunning() {
+            return false;
+        }
+
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for constructing immutable {@link TableCleanupInfo} instances.
+         */
+        class Builder extends ImmutableTableCleanupInfo.Builder {}
+    }
+
+    /**
+     * A resolver of the trim time for a given table.
+     */
+    interface TrimTimeResolver {
+
+        /**
+         * Get the trim time of the table.
+         *
+         * @return A trim time representing the time for deletion of particular records prior.
+         */
+        @Nonnull
+        LocalDateTime getTrimTime();
     }
 }

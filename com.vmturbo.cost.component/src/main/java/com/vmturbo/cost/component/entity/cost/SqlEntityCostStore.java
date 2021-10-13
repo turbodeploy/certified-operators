@@ -87,6 +87,7 @@ import com.vmturbo.cost.component.db.tables.records.EntityCostByDayRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByHourRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByMonthRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
+import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.CostGroupBy;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -122,11 +123,14 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
 
     private final InMemoryEntityCostStore latestEntityCostStore;
 
+    private final DataIngestionBouncer ingestionBouncer;
+
     public SqlEntityCostStore(@Nonnull final DSLContext dsl,
                               @Nonnull final Clock clock,
                               @Nonnull ExecutorService batchExecutorService,
                               final int chunkSize,
-                              @Nonnull InMemoryEntityCostStore inMemoryEntityCostStore) {
+                              @Nonnull InMemoryEntityCostStore inMemoryEntityCostStore,
+                              @Nonnull DataIngestionBouncer ingestionBouncer) {
         this.dsl = Objects.requireNonNull(dsl);
         this.clock = Objects.requireNonNull(clock);
         this.batchExecutorService = Objects.requireNonNull(batchExecutorService);
@@ -136,6 +140,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         this.entityCostsByDayDiagsHelper = new EntityCostsByDayDiagsHelper(dsl);
         this.entityCostsByHourDiagsHelper = new EntityCostsByHourDiagsHelper(dsl);
         this.latestEntityCostStore = inMemoryEntityCostStore;
+        this.ingestionBouncer = Objects.requireNonNull(ingestionBouncer);
     }
 
     @Override
@@ -156,23 +161,31 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                      CostJournal::toEntityCostProto).stream().collect(Collectors.toList());
             latestEntityCostStore.updateEntityCosts(entityCosts);
         }
-        final Optional<Long> planId = isPlan ? Optional.of(topologyCreationTimeOrContextId) : Optional.empty();
-        final CompletionService<Void> completionService = new ExecutorCompletionService(batchExecutorService);
-        final List<Future<Void>> insertTaskFutures = Streams.stream(Iterables.partition(costJournals.values(), chunkSize))
-                .map(chunk -> (Runnable)() -> batchInsertTask(cloudTopology, chunk, planId, createdTime))
-                .map(taskRunnable -> completionService.submit(taskRunnable, null))
-                .collect(ImmutableList.toImmutableList());
 
-        // wait for all tasks to complete
-        for (int i = 0; i < insertTaskFutures.size(); i++) {
-            try {
-                completionService.take().get();
-            } catch (ExecutionException|InterruptedException e) {
-                logger.error("Error during bulk entity cost insert. Canceling all remaining tasks", e);
+        if (isPlan || ingestionBouncer.isTableIngestible(ENTITY_COST)) {
+            final Optional<Long> planId =
+                    isPlan ? Optional.of(topologyCreationTimeOrContextId) : Optional.empty();
+            final CompletionService<Void> completionService = new ExecutorCompletionService(batchExecutorService);
+            final List<Future<Void>> insertTaskFutures = Streams.stream(Iterables.partition(costJournals.values(), chunkSize))
+                    .map(chunk -> (Runnable)() -> batchInsertTask(cloudTopology, chunk, planId, createdTime))
+                    .map(taskRunnable -> completionService.submit(taskRunnable, null))
+                    .collect(ImmutableList.toImmutableList());
+
+            // wait for all tasks to complete
+            for (int i = 0; i < insertTaskFutures.size(); i++) {
+                try {
+                    completionService.take().get();
+                } catch (ExecutionException | InterruptedException e) {
+                    logger.error(
+                            "Error during bulk entity cost insert. Canceling all remaining tasks", e);
+                }
             }
-        }
 
-        logger.info("Persisted {} entity cost journals in {}", costJournals::size, stopwatch::elapsed);
+            logger.info("Persisted {} entity cost journals in {}", costJournals::size, stopwatch::elapsed);
+
+        } else {
+            logger.warn("Skipping entity cost persistence for topology due to long running delete");
+        }
     }
 
     private boolean isInMemoryCostRequest(@Nonnull final CostFilter entityCostFilter) {

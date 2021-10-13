@@ -18,6 +18,7 @@ import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
+import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -52,6 +53,9 @@ public class EntityCostConfig {
     @Autowired
     private SupplyChainServiceConfig supplyChainServiceConfig;
 
+    @Autowired
+    private DataIngestionBouncer ingestionBouncer;
+
     @Value("${entityCost.concurrentPersistenceThreads:5}")
     private int concurrentEntityCostThreads;
 
@@ -78,7 +82,8 @@ public class EntityCostConfig {
                 Clock.systemUTC(),
                 bulkEntityCostExecutorService(),
                 persistEntityCostChunkSize,
-                latestEntityCostStore());
+                latestEntityCostStore(),
+                ingestionBouncer);
     }
 
     @Bean
