@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.entity.cost;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
 import static com.vmturbo.trax.Trax.trax;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -57,6 +58,7 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -142,6 +144,7 @@ public class SqlEntityCostStoreTest {
             .build();
 
     private InMemoryEntityCostStore inMemoryStore;
+    private DataIngestionBouncer ingestionBouncer;
     private SqlEntityCostStore store;
     private SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private GrpcTestServer testServer = GrpcTestServer.newServer(supplyChainServiceMole);
@@ -157,15 +160,19 @@ public class SqlEntityCostStoreTest {
     @Before
     public void setup() throws Exception {
         testServer.start();
-        RepositoryClient repositoryClient = Mockito.mock(RepositoryClient.class);
+        RepositoryClient repositoryClient = mock(RepositoryClient.class);
         final SupplyChainServiceBlockingStub supplyChainService = SupplyChainServiceGrpc.newBlockingStub(testServer.getChannel());
         when(repositoryClient.getEntitiesByTypePerScope(any(), any())).thenCallRealMethod();
         when(repositoryClient.parseSupplyChainResponseToEntityOidsMap(any())).thenCallRealMethod();
 
         inMemoryStore = new InMemoryEntityCostStore(repositoryClient, supplyChainService,
                 RT_TOPO_CONTEXT_ID);
+
+        ingestionBouncer = mock(DataIngestionBouncer.class);
+        when(ingestionBouncer.isTableIngestible(any())).thenReturn(true);
+
         store = new SqlEntityCostStore(dsl, clock, MoreExecutors.newDirectExecutorService(),
-                1, inMemoryStore);
+                1, inMemoryStore, ingestionBouncer);
     }
 
     @Test
@@ -553,7 +560,7 @@ public class SqlEntityCostStoreTest {
         final CostJournal<TopologyEntityDTO> journal1 =
                 mockCostJournalWithCostSources(ID1, ASSOCIATED_ENTITY_TYPE1,
                         categorySourceCostMap);
-        final CloudTopology<TopologyEntityDTO> topology = Mockito.mock(CloudTopology.class);
+        final CloudTopology<TopologyEntityDTO> topology = mock(CloudTopology.class);
         Mockito.when(topology.getOwner(org.mockito.Matchers.anyLong()))
                 .thenReturn(Optional.empty());
         Mockito.when(topology.getConnectedAvailabilityZone(org.mockito.Matchers.anyLong()))
@@ -834,7 +841,7 @@ public class SqlEntityCostStoreTest {
 
         final TopologyEntityDTO entity =
                 TopologyEntityDTO.newBuilder().setOid(entityId).setEntityType(entityType).build();
-        final CostJournal<TopologyEntityDTO> journal = Mockito.mock(CostJournal.class);
+        final CostJournal<TopologyEntityDTO> journal = mock(CostJournal.class);
         Mockito.when(journal.getEntity()).thenReturn(entity);
         Mockito.when(journal.getCategories()).thenReturn(costsByCategoryAndSource.keySet());
 
@@ -943,7 +950,7 @@ public class SqlEntityCostStoreTest {
                 .setOid(AZ2_ID)
                 .build();
 
-        final CloudTopology<TopologyEntityDTO> topology = Mockito.mock(CloudTopology.class);
+        final CloudTopology<TopologyEntityDTO> topology = mock(CloudTopology.class);
         Mockito.when(topology.getOwner(ID1)).thenReturn(Optional.of(account1EntityDTO));
         Mockito.when(topology.getConnectedAvailabilityZone(ID1))
                 .thenReturn(Optional.of(az1EntityDTO));
@@ -960,7 +967,7 @@ public class SqlEntityCostStoreTest {
     }
 
     private void saveCostsWithTwoTimeStamps() throws DbException {
-        final CloudTopology<TopologyEntityDTO> topology = Mockito.mock(CloudTopology.class);
+        final CloudTopology<TopologyEntityDTO> topology = mock(CloudTopology.class);
         Mockito.when(topology.getOwner(org.mockito.Matchers.anyLong()))
                 .thenReturn(Optional.empty());
         Mockito.when(topology.getConnectedAvailabilityZone(org.mockito.Matchers.anyLong()))

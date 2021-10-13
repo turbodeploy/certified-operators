@@ -26,7 +26,7 @@ public class CostStatDayTable extends AbstractStatTableCleanup {
      */
     public CostStatDayTable(@Nonnull final DSLContext dslContext,
                             @Nonnull final Clock clock,
-                            @Nonnull final TableInfo tableInfo,
+                            @Nonnull final TableCleanupInfo tableInfo,
                             @Nonnull RetentionPeriodFetcher retentionPeriodFetcher) {
         super(dslContext, clock, tableInfo, retentionPeriodFetcher);
     }

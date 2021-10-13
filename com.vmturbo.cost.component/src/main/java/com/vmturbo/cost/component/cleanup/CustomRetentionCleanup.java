@@ -34,7 +34,7 @@ public class CustomRetentionCleanup implements CostTableCleanup {
 
     private final Clock clock;
 
-    private final TableInfo tableInfo;
+    private final TableCleanupInfo tableInfo;
 
     private final RetentionDurationFetcher retentionDurationFetcher;
 
@@ -47,7 +47,7 @@ public class CustomRetentionCleanup implements CostTableCleanup {
      */
     public CustomRetentionCleanup(@Nonnull DSLContext dslContext,
                                   @Nonnull Clock clock,
-                                  @Nonnull TableInfo tableInfo,
+                                  @Nonnull TableCleanupInfo tableInfo,
                                   @Nonnull RetentionDurationFetcher retentionDurationFetcher) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.clock = Objects.requireNonNull(clock);
@@ -56,10 +56,10 @@ public class CustomRetentionCleanup implements CostTableCleanup {
     }
 
     /**
-     * {@inheritDoc}
+     * Resolves the appropriate trim time for this cleanup.
+     * @return The trim time, based on retention settings.
      */
     @Nonnull
-    @Override
     public LocalDateTime getTrimTime() {
 
         final BoundedDuration retentionDuration = retentionDurationFetcher.getRetentionDuration();
@@ -88,8 +88,13 @@ public class CustomRetentionCleanup implements CostTableCleanup {
      */
     @Nonnull
     @Override
-    public TableInfo tableInfo() {
+    public TableCleanupInfo tableInfo() {
         return tableInfo;
+    }
+
+    @Override
+    public TrimTimeResolver trimTimeResolver() {
+        return this::getTrimTime;
     }
 
     @Nonnull

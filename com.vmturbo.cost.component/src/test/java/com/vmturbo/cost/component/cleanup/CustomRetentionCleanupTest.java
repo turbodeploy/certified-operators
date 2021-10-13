@@ -19,14 +19,13 @@ import org.junit.Test;
 
 import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableInfo;
+import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableCleanupInfo;
 
 public class CustomRetentionCleanupTest {
 
-    private final TableInfo tableInfo = ImmutableTableInfo.builder()
+    private final TableCleanupInfo tableInfo = TableCleanupInfo.builder()
             .table(ENTITY_COST)
             .timeField(ENTITY_COST.CREATED_TIME)
-            .shortTableName("entity_cost")
             .build();
 
     private final DSLContext dslContext = mock(DSLContext.class);

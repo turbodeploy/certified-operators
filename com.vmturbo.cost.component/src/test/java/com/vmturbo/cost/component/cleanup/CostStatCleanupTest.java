@@ -20,7 +20,7 @@ import org.junit.Test;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
-import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableInfo;
+import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableCleanupInfo;
 
 /**
  * This class tests all of the cost stat cleanup tables (e.g. CostStatDayTable, CostStatHourTable, etc)
@@ -33,10 +33,9 @@ public class CostStatCleanupTest {
     private final Instant invocationTime = Instant.ofEpochMilli(Duration.ofDays(daysSinceEpoch).toMillis());
     private final Clock clock = new MutableFixedClock(invocationTime.toEpochMilli());
 
-    private final TableInfo tableInfo = ImmutableTableInfo.builder()
+    private final TableCleanupInfo tableInfo = TableCleanupInfo.builder()
             .table(ENTITY_COST)
             .timeField(ENTITY_COST.CREATED_TIME)
-            .shortTableName("entity_cost")
             .build();
 
     private final RetentionPeriodFetcher retentionPeriodFetcher = mock(RetentionPeriodFetcher.class);

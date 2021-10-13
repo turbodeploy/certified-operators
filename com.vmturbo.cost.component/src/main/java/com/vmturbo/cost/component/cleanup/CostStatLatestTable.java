@@ -26,7 +26,7 @@ public class CostStatLatestTable extends AbstractStatTableCleanup {
      */
     public CostStatLatestTable(@Nonnull DSLContext context,
                                @Nonnull Clock clock,
-                               @Nonnull TableInfo tableInfo,
+                               @Nonnull TableCleanupInfo tableInfo,
                                @Nonnull RetentionPeriodFetcher retentionPeriodFetcher) {
         super(context, clock, tableInfo, retentionPeriodFetcher);
     }

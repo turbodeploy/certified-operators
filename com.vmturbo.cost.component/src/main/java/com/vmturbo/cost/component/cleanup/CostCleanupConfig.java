@@ -18,9 +18,7 @@ import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION
 import java.time.Clock;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -28,6 +26,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +46,11 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableCleanupInfo;
+import com.vmturbo.cost.component.cleanup.TableCleanupWorker.TableCleanupWorkerFactory;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
+import com.vmturbo.cost.component.persistence.DataIngestionBouncer.DataIngestionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 
 /**
@@ -78,11 +83,41 @@ public class CostCleanupConfig {
     @Value("${tableCleanup.executorQueueSize:10}")
     private int cleanupExecutorQueueSize;
 
+    @Value("${tableCleanup.taskSchedulerPoolSize:5}")
+    private int taskSchedulerPoolSize;
+
     @Value("${tableCleanup.cleanupIntervalSeconds:3600}")
     private int cleanupIntervalSeconds;
 
     @Value("${tableCleanup.entityCostBatchDelete:1000}")
     private int entityCostBatchDelete;
+
+    @Value("${tableCleanup.entityCostLatest.deleteInterval:PT1H}")
+    private String entityCostLatestDeleteInterval;
+
+    @Value("${tableCleanup.entityCostLatest.longRunningDuration:PT10M}")
+    private String entityCostLatestLongRunningDuration;
+
+    @Value("${tableCleanup.entityCostLatest.blockIngestionOnLongDelete:true}")
+    private boolean entityCostBlockIngestionOnLongDelete;
+
+    @Value("${tableCleanup.riCoverageBatchDelete:1000}")
+    private int riCoverageBatchDelete;
+
+    @Value("${tableCleanup.riCoverageLatest.deleteInterval:PT1H}")
+    private String riCoverageLatestDeleteInterval;
+
+    @Value("${tableCleanup.riUtilizationBatchDelete:1000}")
+    private int riUtilizationBatchDelete;
+
+    @Value("${tableCleanup.riUtilizationLatest.deleteInterval:PT1H}")
+    private String riUtilizationLatestDeleteInterval;
+
+    @Value("${tableCleanup.computeTierAllocationBatchDelete:1000}")
+    private int computeTierAllocationBatchDelete;
+
+    @Value("${tableCleanup.computeTierAllocation.deleteInterval:PT1H}")
+    private String computeTierAllocationDeleteInterval;
 
     @Autowired
     private CostDBConfig sqlDatabaseConfig;
@@ -92,6 +127,9 @@ public class CostCleanupConfig {
 
     @Autowired
     private CloudCommitmentAnalysisStoreConfig ccaStoreConfig;
+
+    @Autowired
+    private CostTableCleanupManager cleanupManager;
 
     /**
      * Get the instance of the clock.
@@ -123,23 +161,41 @@ public class CostCleanupConfig {
     }
 
     /**
-     * The {@link CostTableCleanupScheduler}.
-     * @return The {@link CostTableCleanupScheduler}.
+     * The {@link CostTableCleanupManager}.
+     * @param tableCleanups The table cleanups.
+     * @return The {@link CostTableCleanupManager}.
      */
     @Lazy(false)
     @Bean
-    public CostTableCleanupScheduler cleanupScheduler() {
-        final List<CostTableCleanup> tablesToBeCleanedUp = Arrays.asList(coverageDayStatTable(), coverageLatestStatTable(),
-                coverageHourStatTable(), coverageMonthlyStatTable(), utilizationDayStatTable(), utilizationHourStatTable(),
-                utilizationLatestTable(), utilizationMonthlyStatTable(), entityCostTable(), entityCostDayTable(),
-                entityCostHourTable(), entityCostMonthlyTable(), coverageHistoricalRiPerEntityTable(),
-                computeTierAllocationCleanup());
+    public CostTableCleanupManager cleanupManager(@Nonnull List<CostTableCleanup> tableCleanups) {
 
-        return new CostTableCleanupScheduler(
-                tablesToBeCleanedUp,
-                cleanupExecutorService(),
+        return new CostTableCleanupManager(
+                tableCleanupWorkerFactory(),
                 taskScheduler(),
-                Duration.ofSeconds(cleanupIntervalSeconds));
+                tableCleanups);
+    }
+
+    /**
+     * The {@link DataIngestionBouncer}.
+     * @param tableCleanups The configured table cleanups.
+     * @return The {@link DataIngestionBouncer}.
+     */
+    @Bean
+    public DataIngestionBouncer ingestionBouncer(@Nonnull List<CostTableCleanup> tableCleanups) {
+        return new DataIngestionBouncer(cleanupManager,
+                DataIngestionConfig.builder()
+                        .addAllCleanupInfoList(tableCleanups.stream()
+                                .map(CostTableCleanup::tableInfo)
+                                .collect(ImmutableList.toImmutableList()))
+                        .build());
+    }
+
+    /**
+     * The {@link TableCleanupWorkerFactory}.
+     * @return The {@link TableCleanupWorkerFactory}.
+     */
+    public TableCleanupWorkerFactory tableCleanupWorkerFactory() {
+        return new TableCleanupWorkerFactory(cleanupExecutorService());
     }
 
     /**
@@ -171,9 +227,10 @@ public class CostCleanupConfig {
         return new CostStatMonthlyTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_COVERAGE_BY_MONTH.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_COVERAGE_BY_MONTH).shortTableName("Coverage_monthly")
+                        .table(RESERVED_INSTANCE_COVERAGE_BY_MONTH)
+                        .numRowsToBatchDelete(riCoverageBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -187,9 +244,10 @@ public class CostCleanupConfig {
         return new CostStatHourTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_COVERAGE_BY_HOUR.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_COVERAGE_BY_HOUR).shortTableName("Coverage_hourly")
+                        .table(RESERVED_INSTANCE_COVERAGE_BY_HOUR)
+                        .numRowsToBatchDelete(riCoverageBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -203,10 +261,10 @@ public class CostCleanupConfig {
         return new CostStatDayTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_COVERAGE_BY_DAY.SNAPSHOT_TIME)
                         .table(RESERVED_INSTANCE_COVERAGE_BY_DAY)
-                        .shortTableName("Coverage_daily")
+                        .numRowsToBatchDelete(riCoverageBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -218,10 +276,11 @@ public class CostCleanupConfig {
     @Bean
     public CostStatLatestTable coverageLatestStatTable() {
         return new CostStatLatestTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME)
                         .table(RESERVED_INSTANCE_COVERAGE_LATEST)
-                        .shortTableName("Coverage_latest")
+                        .numRowsToBatchDelete(riCoverageBatchDelete)
+                        .cleanupRate(Duration.parse(riCoverageLatestDeleteInterval))
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -235,10 +294,10 @@ public class CostCleanupConfig {
         return new CostStatMonthlyTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_UTILIZATION_BY_MONTH.SNAPSHOT_TIME)
                         .table(RESERVED_INSTANCE_UTILIZATION_BY_MONTH)
-                        .shortTableName("Utilization_Monthly")
+                        .numRowsToBatchDelete(riUtilizationBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -252,10 +311,10 @@ public class CostCleanupConfig {
         return new CostStatHourTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_UTILIZATION_BY_HOUR.SNAPSHOT_TIME)
                         .table(RESERVED_INSTANCE_UTILIZATION_BY_HOUR)
-                        .shortTableName("Utilization_hourly")
+                        .numRowsToBatchDelete(riUtilizationBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -269,10 +328,10 @@ public class CostCleanupConfig {
         return new CostStatDayTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_UTILIZATION_BY_DAY.SNAPSHOT_TIME)
                         .table(RESERVED_INSTANCE_UTILIZATION_BY_DAY)
-                        .shortTableName("Utilization_daily")
+                        .numRowsToBatchDelete(riUtilizationBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -286,10 +345,11 @@ public class CostCleanupConfig {
         return new CostStatLatestTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME)
                         .table(RESERVED_INSTANCE_UTILIZATION_LATEST)
-                        .shortTableName("Utilization_Latest")
+                        .numRowsToBatchDelete(riUtilizationBatchDelete)
+                        .cleanupRate(Duration.parse(riUtilizationLatestDeleteInterval))
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -303,13 +363,13 @@ public class CostCleanupConfig {
         return new CostStatLatestTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(ENTITY_COST.CREATED_TIME)
                         .table(ENTITY_COST)
-                        .shortTableName("entity_cost")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
+                        .numRowsToBatchDelete(entityCostBatchDelete)
+                        .cleanupRate(Duration.parse(entityCostLatestDeleteInterval))
+                        .blockIngestionOnLongRunning(entityCostBlockIngestionOnLongDelete)
+                        .longRunningDuration(Duration.parse(entityCostLatestLongRunningDuration))
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -323,13 +383,10 @@ public class CostCleanupConfig {
         return new CostStatHourTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(ENTITY_COST_BY_HOUR.CREATED_TIME)
                         .table(ENTITY_COST_BY_HOUR)
-                        .shortTableName("entity_cost_by_hour")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
+                        .numRowsToBatchDelete(entityCostBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -343,13 +400,10 @@ public class CostCleanupConfig {
         return new CostStatDayTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(ENTITY_COST_BY_DAY.CREATED_TIME)
                         .table(ENTITY_COST_BY_DAY)
-                        .shortTableName("entity_cost_by_day")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
+                        .numRowsToBatchDelete(entityCostBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -363,13 +417,10 @@ public class CostCleanupConfig {
         return new CostStatMonthlyTable(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(ENTITY_COST_BY_MONTH.CREATED_TIME)
                         .table(ENTITY_COST_BY_MONTH)
-                        .shortTableName("entity_cost_by_month")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
+                        .numRowsToBatchDelete(entityCostBatchDelete)
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -383,10 +434,9 @@ public class CostCleanupConfig {
         return new CustomRetentionCleanup(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .timeField(HIST_ENTITY_RESERVED_INSTANCE_MAPPING.SNAPSHOT_TIME)
                         .table(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
-                        .shortTableName("Coverage_histRI")
                         .build(),
                 RetentionDurationFetcher.staticFetcher(histEntityRiCoverageRecordsRollingWindowDays, ChronoUnit.DAYS));
     }
@@ -400,10 +450,11 @@ public class CostCleanupConfig {
         return new CustomRetentionCleanup(
                 sqlDatabaseConfig.dsl(),
                 costClock(),
-                ImmutableTableInfo.builder()
+                TableCleanupInfo.builder()
                         .table(ENTITY_COMPUTE_TIER_ALLOCATION)
                         .timeField(ENTITY_COMPUTE_TIER_ALLOCATION.END_TIME)
-                        .shortTableName("entity_compute_tier_allocation")
+                        .numRowsToBatchDelete(computeTierAllocationBatchDelete)
+                        .cleanupRate(Duration.parse(computeTierAllocationDeleteInterval))
                         .build(),
                 new SettingsRetentionFetcher(
                         settingServiceClient(),
@@ -421,7 +472,7 @@ public class CostCleanupConfig {
     @Bean(destroyMethod = "shutdown")
     protected ThreadPoolTaskScheduler taskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(5);
+        scheduler.setPoolSize(taskSchedulerPoolSize);
         scheduler.setThreadFactory(threadFactory());
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
         scheduler.initialize();

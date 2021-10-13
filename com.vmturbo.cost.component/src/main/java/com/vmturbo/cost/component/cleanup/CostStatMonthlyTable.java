@@ -25,7 +25,7 @@ public class CostStatMonthlyTable extends AbstractStatTableCleanup {
      */
     public CostStatMonthlyTable(@Nonnull DSLContext context,
                                 @Nonnull Clock clock,
-                                @Nonnull TableInfo tableInfo,
+                                @Nonnull TableCleanupInfo tableInfo,
                                 @Nonnull RetentionPeriodFetcher retentionPeriodFetcher) {
         super(context, clock, tableInfo, retentionPeriodFetcher);
     }

@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.cleanup;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -16,7 +17,7 @@ public abstract class AbstractStatTableCleanup implements CostTableCleanup {
 
     protected final DSLContext dslContext;
     protected final Clock clock;
-    protected final TableInfo tableInfo;
+    protected final TableCleanupInfo tableInfo;
     protected final RetentionPeriodFetcher retentionPeriodFetcher;
 
     /**
@@ -29,7 +30,7 @@ public abstract class AbstractStatTableCleanup implements CostTableCleanup {
      */
     public AbstractStatTableCleanup(@Nonnull final DSLContext dslContext,
                                     @Nonnull final Clock clock,
-                                    @Nonnull final TableInfo tableInfo,
+                                    @Nonnull final TableCleanupInfo tableInfo,
                                     @Nonnull RetentionPeriodFetcher retentionPeriodFetcher) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.clock = Objects.requireNonNull(clock);
@@ -51,7 +52,19 @@ public abstract class AbstractStatTableCleanup implements CostTableCleanup {
      */
     @Nonnull
     @Override
-    public TableInfo tableInfo() {
+    public TableCleanupInfo tableInfo() {
         return tableInfo;
+    }
+
+    /**
+     * The trim time, based on current retention settings for the underlying data set.
+     * @return The trim time, based on current retention settings for the underlying data set.
+     */
+    @Nonnull
+    public abstract LocalDateTime getTrimTime();
+
+    @Override
+    public TrimTimeResolver trimTimeResolver() {
+        return this::getTrimTime;
     }
 }
