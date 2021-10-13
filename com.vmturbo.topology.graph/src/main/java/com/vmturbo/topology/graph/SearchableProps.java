@@ -158,6 +158,24 @@ public interface SearchableProps {
          * @return The number of VCPUs.
          */
         int getNumCpus();
+
+        /**
+         * Get the number of VM sockets.
+         *
+         * @return the number of sockets.
+         */
+        default int getNumberOfSockets() {
+            final int rawCps = getCoresPerSocket();
+            final double cps = rawCps <= 0 ? 1 : rawCps;
+            return (int)Math.ceil(getNumCpus() / cps);
+        }
+
+        /**
+         * Get the cores per socket ratio for the VM.
+         *
+         * @return the cores per socket ratio for the VM.
+         */
+        int getCoresPerSocket();
     }
 
     /**
