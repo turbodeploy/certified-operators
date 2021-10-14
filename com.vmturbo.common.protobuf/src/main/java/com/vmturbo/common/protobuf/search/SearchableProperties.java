@@ -63,6 +63,16 @@ public class SearchableProperties {
     public static final String CONTROLLER_TYPE = "controllerType";
 
     /**
+     * DTO containing service information.
+     */
+    public static final String SERVICE_INFO_REPO_DTO_PROPERTY_NAME = "serviceInfoRepoDTO";
+
+    /**
+     * Property name used for searching Services by kubernetes service type.
+     */
+    public static final String KUBERNETES_SERVICE_TYPE = "kubernetesServiceType";
+
+    /**
      * Other controller type property name used for searching WorkloadControllers by controller type.
      */
     public static final String OTHER_CONTROLLER_TYPE = "Other";

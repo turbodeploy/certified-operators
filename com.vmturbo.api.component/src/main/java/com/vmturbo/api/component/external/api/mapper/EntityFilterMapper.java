@@ -100,7 +100,9 @@ public class EntityFilterMapper {
     public static final String CONTAINER_POD_WORKLOAD_CONTROLLER_TYPE = "WorkloadController:" + WORKLOAD_CONTROLLER_TYPE + ":PRODUCES";
     /** key of the criteria to query ContainerSpec entities by controller types. */
     public static final String CONTAINER_SPEC_WORKLOAD_CONTROLLER_TYPE = "WorkloadController:" + WORKLOAD_CONTROLLER_TYPE + ":AGGREGATES";
-
+    /** Key of the criteria to query Services by kubernetes service types. */
+    public static final String KUBERNETES_SERVICE_TYPE = SearchableProperties.SERVICE_INFO_REPO_DTO_PROPERTY_NAME
+            + "." + SearchableProperties.KUBERNETES_SERVICE_TYPE;
     public static final String STATE = "state";
     public static final String USER_DEFINED_ENTITY = "UserDefinedEntity";
     public static final String NETWORKS = "networks";

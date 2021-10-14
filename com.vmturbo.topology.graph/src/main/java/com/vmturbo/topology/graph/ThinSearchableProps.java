@@ -2,17 +2,21 @@ package com.vmturbo.topology.graph;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.KubernetesServiceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -131,6 +135,8 @@ public class ThinSearchableProps implements SearchableProps {
                 return new ThinBusinessAccountProps(tagIndex, commodities, info);
             case DATABASE_SERVER:
                 return new ThinDatabaseServerProps(tagIndex, commodities, entity);
+            case SERVICE:
+                return new ThinServiceProps(tagIndex, commodities, info);
             default:
                 return new ThinSearchableProps(tagIndex, commodities);
         }
@@ -291,6 +297,34 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public boolean isDeletable() {
             return deletable;
+        }
+    }
+
+    /**
+     * Service properties.
+     */
+    public static class ThinServiceProps extends ThinSearchableProps implements ServiceProps {
+        private final TypeSpecificInfo typeSpecificInfo;
+
+        private ThinServiceProps(@Nonnull final TagIndex tagIndex,
+                                 @Nonnull final CommodityValueFetcher commodityValueFetcher,
+                                 @Nonnull final TypeSpecificInfo typeSpecificInfo) {
+            super(tagIndex, commodityValueFetcher);
+            this.typeSpecificInfo = typeSpecificInfo;
+        }
+
+        @Override
+        @Nullable
+        public String getKubernetesServiceType() {
+            return Optional.of(typeSpecificInfo)
+                    .filter(TypeSpecificInfo::hasService)
+                    .map(TypeSpecificInfo::getService)
+                    .filter(ServiceInfo::hasKubernetesServiceData)
+                    .map(ServiceInfo::getKubernetesServiceData)
+                    .filter(KubernetesServiceData::hasServiceType)
+                    .map(KubernetesServiceData::getServiceType)
+                    .map(Enum::name)
+                    .orElse(null);
         }
     }
 

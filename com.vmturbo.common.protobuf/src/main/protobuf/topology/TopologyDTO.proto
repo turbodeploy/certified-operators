@@ -45,6 +45,7 @@ message TypeSpecificInfo {
         ContainerPlatformClusterInfo container_platform_cluster = 82;
         ContainerInfo container = 83;
         ContainerPodInfo container_pod = 84;
+        ServiceInfo service = 85;
     }
 
     message ApplicationInfo {
@@ -438,7 +439,7 @@ message TypeSpecificInfo {
         }
     }
 
-     // specific data for a business user
+    // specific data for a business user
     message BusinessUserInfo {
 
         // Map of the VM id to the session duration
@@ -542,6 +543,13 @@ message TypeSpecificInfo {
         // more consistent for the application when stitched with APM probes or when the
         // application is reported without the cloud native entities.
         optional double hostingNodeCpuFrequency = 3;
+    }
+
+    message ServiceInfo {
+        // Platform specific service info
+        oneof service_info {
+            .common_dto.EntityDTO.KubernetesServiceData kubernetes_service_data = 1;
+        };
     }
 }
 
