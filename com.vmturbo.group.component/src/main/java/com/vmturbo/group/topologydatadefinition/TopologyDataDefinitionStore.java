@@ -710,6 +710,7 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
         return context.update(MANUAL_TOPO_DATA_DEFS)
                 .set(MANUAL_TOPO_DATA_DEFS.ENTITY_TYPE, manualDataDefPojo.getEntityType())
                 .set(MANUAL_TOPO_DATA_DEFS.NAME, manualDataDefPojo.getName())
+                .set(MANUAL_TOPO_DATA_DEFS.CONTEXT_BASED, manualDataDefPojo.getContextBased())
                 .where(MANUAL_TOPO_DATA_DEFS.ID.eq(manualDataDefPojo.getId()));
     }
 

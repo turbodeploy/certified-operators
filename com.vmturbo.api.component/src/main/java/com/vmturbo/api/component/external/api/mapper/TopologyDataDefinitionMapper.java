@@ -516,7 +516,12 @@ public class TopologyDataDefinitionMapper {
                 throw ex;
             }
         }
-        boolean isContextBased = definitionApiDTO instanceof TopoDataDefContextBasedApiDTO;
+        boolean isContextBased;
+         if (definitionApiDTO instanceof TopoDataDefContextBasedApiDTO) {
+             isContextBased = ((TopoDataDefContextBasedApiDTO) definitionApiDTO).getContextBased();
+        } else {
+             isContextBased = false;
+         }
         return TopologyDataDefinition.newBuilder()
                 .setManualEntityDefinition(ManualEntityDefinition.newBuilder()
                         .setEntityType(entityType)
