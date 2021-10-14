@@ -113,7 +113,7 @@ public class EntityCustomTagsStoreTest {
     }
 
     /**
-     * Test the case of getting tags that where just inserted.
+     * Test the case of getting tags of an entity that were just inserted.
      *
      * @throws StoreOperationException should not happen.
      */
@@ -132,7 +132,7 @@ public class EntityCustomTagsStoreTest {
     }
 
     /**
-     * Test the case of getting all tags that where just inserted.
+     * Test the case of getting all tags for all entities that were just inserted.
      *
      * @throws StoreOperationException should not happen.
      */

@@ -134,7 +134,7 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
                 dslContext.selectFrom(ENTITY_CUSTOM_TAGS).fetch();
 
         // Prepare the map of tags from the record. This is needed so that same tags keys for the
-        // same entity to unify it's values into a new set fo values.
+        // same entity to unify its values into a new set of values.
         Map<Long, Map<String, TagValuesDTO.Builder>> tagsMap = new HashMap<>();
         for (EntityCustomTagsRecord tagRecord : tagRecords) {
 
