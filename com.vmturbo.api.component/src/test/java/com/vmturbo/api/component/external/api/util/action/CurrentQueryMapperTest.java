@@ -673,7 +673,10 @@ public class CurrentQueryMapperTest {
             StringConstants.ACTION_TYPE,
             StringConstants.RISK,
             StringConstants.TARGET_TYPE,
-            StringConstants.REASON_COMMODITY));
+            StringConstants.REASON_COMMODITY,
+            StringConstants.CSP,
+            StringConstants.ENVIRONMENT_TYPE
+        ));
         GroupByExtractor groupByExtractor = new GroupByExtractor();
         final ActionStatsQuery actionStatsQuery = ImmutableActionStatsQuery.builder()
             .actionInput(inputDTO)
@@ -685,7 +688,10 @@ public class CurrentQueryMapperTest {
             GroupBy.ACTION_TYPE,
             GroupBy.ACTION_RELATED_RISK,
             GroupBy.TARGET_ENTITY_TYPE,
-            GroupBy.REASON_COMMODITY));
+            GroupBy.REASON_COMMODITY,
+            GroupBy.CSP,
+            GroupBy.ENVIRONMENT_TYPE
+        ));
     }
 
     @Test

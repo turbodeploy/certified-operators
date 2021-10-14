@@ -21,6 +21,7 @@ import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -169,5 +170,24 @@ public class GroupByFiltersTest {
         final StatFilterApiDTO filter = filters.get(0);
         assertThat(filter.getType(), is(StringConstants.TARGET_TYPE));
         assertThat(filter.getValue(), is("VirtualMachine"));
+    }
+
+    @Test
+    public void environmentTypeFilter() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(Collections.singletonList(StringConstants.ENVIRONMENT_TYPE));
+
+        final ActionStatsQuery query = mock(ActionStatsQuery.class);
+        when(query.actionInput()).thenReturn(inputDTO);
+        when(query.getCostType()).thenReturn(Optional.empty());
+
+        final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
+        groupByFilters.setEnvironmentType(EnvironmentType.CLOUD);
+
+        final List<StatFilterApiDTO> filters = groupByFilters.getFilters();
+        assertThat(filters.size(), is(1));
+        final StatFilterApiDTO filter = filters.get(0);
+        assertThat(filter.getType(), is(StringConstants.ENVIRONMENT_TYPE));
+        assertThat(filter.getValue(), is("CLOUD"));
     }
 }

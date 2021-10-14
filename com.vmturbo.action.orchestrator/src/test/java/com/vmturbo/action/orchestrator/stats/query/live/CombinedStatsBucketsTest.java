@@ -777,6 +777,61 @@ public class CombinedStatsBucketsTest {
                         .build()));
     }
 
+    @Test
+    public void testGroupByEnvironmentType() {
+        final QueryInfo queryInfo = mock(QueryInfo.class);
+        when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.newBuilder()
+                .addGroupBy(GroupBy.ENVIRONMENT_TYPE)
+                .build());
+        when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
+        final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
+        final SingleActionInfo reason1 = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setActivate(Activate.newBuilder().setTarget(CLOUD_VM)));
+                },
+                view -> {},
+                Sets.newHashSet(CLOUD_VM));
+        final SingleActionInfo reason2 = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setActivate(Activate.newBuilder()
+                                    .setTarget(ON_PREM_VM)));
+                },
+                view -> {},
+                Sets.newHashSet(ON_PREM_VM));
+        buckets.addActionInfo(reason1);
+        buckets.addActionInfo(reason2);
+        final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
+
+        final CurrentActionStat stat1 = CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder().setEnvironmentType(EnvironmentType.HYBRID))
+                .setActionCount(2)
+                .setEntityCount(2)
+                .setSavings(0.0)
+                .setInvestments(0.0)
+                .build();
+
+        final CurrentActionStat stat2 = CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder().setEnvironmentType(EnvironmentType.CLOUD))
+                .setActionCount(1)
+                .setEntityCount(1)
+                .setSavings(0.0)
+                .setInvestments(0.0)
+                .build();
+
+        final CurrentActionStat stat3 = CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder().setEnvironmentType(EnvironmentType.ON_PREM))
+                .setActionCount(1)
+                .setEntityCount(1)
+                .setSavings(0.0)
+                .setInvestments(0.0)
+                .build();
+
+        assertThat(stats, containsInAnyOrder(stat1, stat2, stat3));
+    }
+
     @Nonnull
     private SingleActionInfo actionInfo(@Nonnull final Consumer<Builder> actionCustomizer,
                                         @Nonnull final Consumer<ActionView> actionViewConsumer,

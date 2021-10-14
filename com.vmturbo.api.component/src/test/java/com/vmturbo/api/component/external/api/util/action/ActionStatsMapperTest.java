@@ -49,6 +49,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats.ActionStatSnapsh
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.MutableFixedClock;
 
@@ -489,5 +490,65 @@ public class ActionStatsMapperTest {
         assertThat(resourceImpactStat.getValues().getMax(), is(20.0f));
         assertThat(resourceImpactStat.getValues().getTotal(), is(20.0f));
         assertThat(resourceImpactStat.getUnits(), is("KB"));
+    }
+
+    @Test
+    public void testMapCurrentActionStatGroupByEnvironmentType() {
+
+        final CurrentActionStat stat1 = CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                        .setTargetEntityType(10)
+                        .setReasonCommodityBaseType(1)
+                        .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                        .setActionState(ActionState.READY)
+                        .setActionType(ActionType.ACTIVATE)
+                        .setCostType(ActionDTO.ActionCostType.SAVINGS)
+                        .setSeverity(ActionDTO.Severity.CRITICAL)
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .setActionRelatedRisk("VMem congestion")
+                        .setTargetEntityId(111))
+                .setActionCount(3)
+                .setEntityCount(4)
+                .build();
+
+        final ActionStatsQuery query = mock(ActionStatsQuery.class);
+        when(query.getCostType()).thenReturn(Optional.empty());
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        when(query.actionResourceImpactIdentifierSet()).thenReturn(null);
+
+        ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(Arrays.asList(StringConstants.ENVIRONMENT_TYPE));
+        when(query.actionInput()).thenReturn(inputDTO);
+
+        final GroupByFilters stat1Filters = mock(GroupByFilters.class);
+        final StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
+        statFilterApiDTO.setType(StringConstants.ENVIRONMENT_TYPE);
+        statFilterApiDTO.setValue("CLOUD");
+        final List<StatFilterApiDTO> stat1ApiFilters = Lists.newArrayList(statFilterApiDTO);
+        when(stat1Filters.getFilters()).thenReturn(stat1ApiFilters);
+
+        when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters);
+
+        final StatSnapshotApiDTO snapshots = new ActionStatsMapper(clock, groupByFiltersFactory)
+                .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
+
+        final Map<String, StatApiDTO> statsByName = snapshots.getStatistics().stream()
+                .collect(Collectors.toMap(StatApiDTO::getName, Function.identity()));
+
+        assertThat(statsByName.keySet(), containsInAnyOrder(StringConstants.NUM_ACTIONS,
+                StringConstants.NUM_ENTITIES));
+
+        final StatApiDTO actions = statsByName.get(StringConstants.NUM_ACTIONS);
+        assertThat(actions.getFilters(), is(stat1ApiFilters));
+        assertThat(actions.getName(), is(StringConstants.NUM_ACTIONS));
+        assertThat(actions.getValues().getAvg(), is(3.0f));
+        assertThat(actions.getValues().getMin(), is(3.0f));
+        assertThat(actions.getValues().getMax(), is(3.0f));
+        assertThat(actions.getValues().getTotal(), is(3.0f));
+
+        final Map<String, StatFilterApiDTO> statsFilterByType = actions.getFilters().stream()
+                .collect(Collectors.toMap(StatFilterApiDTO::getType, Function.identity()));
+        assertThat(statsFilterByType.keySet(), containsInAnyOrder(StringConstants.ENVIRONMENT_TYPE));
+        verify(stat1Filters).setEnvironmentType(EnvironmentType.CLOUD);
     }
 }

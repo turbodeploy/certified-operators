@@ -20,7 +20,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -167,6 +169,15 @@ public class GroupByFilters {
      */
     public void setCSP(final String cspType) {
         setValue(StringConstants.CSP, cspType);
+    }
+
+    /**
+     * Add a filter with particular environment type.
+     *
+     * @param environmentType the type of action target entity's environment
+     */
+    public void setEnvironmentType(final EnvironmentType environmentType) {
+        setValue(StringConstants.ENVIRONMENT_TYPE, EnvironmentTypeUtil.toApiString(environmentType));
     }
 
     @Nonnull
