@@ -6,6 +6,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import io.grpc.Status;
+import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -53,11 +54,29 @@ public class ExtractorSettingRpcService extends ExtractorSettingServiceImplBase 
     @Override
     public void updateRetentionSettings(UpdateRetentionSettingRequest request,
             StreamObserver<UpdateRetentionSettingResponse> responseObserver) {
+        try {
+            int tablesUpdated = updateRetentionSettings(request);
+            responseObserver.onNext(UpdateRetentionSettingResponse.newBuilder()
+                    .setUpdateCount(tablesUpdated).build());
+            responseObserver.onCompleted();
+        } catch (StatusException se) {
+            responseObserver.onError(se);
+        }
+    }
+
+    /**
+     * Refactored gRPC method above to enable it to be called from within extractor component as well.
+     * Updates retention setting days by calling the add policy DB function.
+     *
+     * @param request Request containing retention days requested.
+     * @return Number of DB tables for which the retention settings was updated.
+     * @throws StatusException Thrown on any errors during update.
+     */
+    public int updateRetentionSettings(UpdateRetentionSettingRequest request) throws StatusException {
         if (!request.hasRetentionDays() || request.getRetentionDays() < 0) {
-            responseObserver.onError(Status.ABORTED
+            throw Status.ABORTED
                     .withDescription("Invalid request retention days specified.")
-                    .asException());
-            return;
+                    .asException();
         }
         int retentionDays = request.getRetentionDays();
         if (hypertables == null) {
@@ -66,18 +85,16 @@ public class ExtractorSettingRpcService extends ExtractorSettingServiceImplBase 
                 // the DB endpoint would not be ready if we were to do this in constructor.
                 hypertables = RetentionUtils.getHypertables(ingestEndpoint);
             } catch (DataAccessException | UnsupportedDialectException | SQLException e) {
-                responseObserver.onError(Status.ABORTED.withCause(e)
+                throw Status.ABORTED.withCause(e)
                         .withDescription("Unable to fetch hyper table names.")
-                                .asException());
+                                .asException();
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                responseObserver.onError(Status.ABORTED.withCause(ie)
+                throw Status.ABORTED.withCause(ie)
                         .withDescription("Interrupted while trying to fetch hyper table names.")
-                        .asException());
+                        .asException();
             }
         }
-        logger.info("Updating retention setting to {} days for {} tables.", retentionDays,
-                hypertables.size());
         int updateCount = 0;
         for (String table : hypertables) {
             // Log any warnings in this loop, try and update all applicable hyper-tables.
@@ -94,13 +111,12 @@ public class ExtractorSettingRpcService extends ExtractorSettingServiceImplBase 
             }
         }
         if (updateCount < hypertables.size()) {
-            responseObserver.onError(Status.ABORTED.withDescription(
-                    String.format("Could only set retention period % days for %s tables out of %s",
-                            retentionDays, updateCount, hypertables.size())).asException());
-        } else {
-            responseObserver.onNext(UpdateRetentionSettingResponse.newBuilder()
-                    .setUpdateCount(updateCount).build());
-            responseObserver.onCompleted();
+            throw Status.ABORTED.withDescription(
+                    String.format("Could only set retention period (%s days) for %s tables out of %s.",
+                            retentionDays, updateCount, hypertables.size())).asException();
         }
+        logger.info("Successfully updated retention setting to {} days for {} tables.",
+                retentionDays, hypertables.size());
+        return updateCount;
     }
 }

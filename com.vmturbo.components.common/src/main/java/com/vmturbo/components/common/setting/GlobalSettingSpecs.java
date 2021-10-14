@@ -85,10 +85,6 @@ public enum GlobalSettingSpecs {
             numeric(30f/*min*/, 1000f/*max*/, 365f/*default*/),
             Collections.emptyList()),
 
-    ReportsRetentionDays("reportRetentionDays", "Saved reports [Days]",
-            numeric(15f/*min*/, 365f/*max*/, 30f/*default*/),
-            Collections.emptyList()),
-
     PlanRetentionDays("planRetentionDays", "Saved plans [Days]",
             numeric(1f/*min*/, 365f/*max*/, 14f/*default*/),
             Collections.emptyList()),
