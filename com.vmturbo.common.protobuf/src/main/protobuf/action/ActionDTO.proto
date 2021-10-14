@@ -1753,6 +1753,11 @@ message CurrentActionStatsQuery {
 
         // If non-empty, include all actions with savings amount between the min and max range.
         optional ActionSavingsAmountRangeFilter savings_amount_range = 13;
+
+        // If empty or HYBRID, include all actions
+        // If CLOUD, include all cloud actions
+        // If ONPREM, include all on-prem actions
+        optional .common.EnvironmentType environment_type = 14;
     }
 
     // The entities involved in an action must match this filter in order for the action to be
@@ -1855,6 +1860,9 @@ message CurrentActionStatsQuery {
         // All actions with no associated resource group will go into a single group with
         // an explicitly set "0" value for the node pool ID.
         NODE_POOL_ID = 14;
+
+        // Group by the environment type
+        ENVIRONMENT_TYPE = 15;
     }
 }
 
@@ -2112,6 +2120,9 @@ message CurrentActionStat {
         // May be explicitly set to "0" for a stat group representing actions that are not
         // associated with any node pools.
         optional int64 node_pool_id = 13;
+
+        // Environment type of the Action target entity used for the "group_by" "environmentType" query
+        optional .common.EnvironmentType environment_type = 14;
     }
 
     // The stat group this action stat is in.

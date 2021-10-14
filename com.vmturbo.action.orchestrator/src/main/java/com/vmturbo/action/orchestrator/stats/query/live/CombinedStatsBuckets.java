@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -39,6 +40,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 
 /**
  * Represents a set of "buckets", where each bucket contains stats for action groups that
@@ -60,6 +62,8 @@ class CombinedStatsBuckets {
 
     private final InvolvedEntityCalculation involvedEntityCalculation;
 
+    private final ActionGroupFilter actionGroupFilter;
+
     /**
      * Intentionally private. Use: {@link CombinedStatsBucketsFactory}.
      *
@@ -70,10 +74,12 @@ class CombinedStatsBuckets {
      */
     private CombinedStatsBuckets(@Nonnull final List<GroupBy> groupByCriteria,
                                  @Nonnull final Predicate<ActionEntity> entityPredicate,
-                                 @Nonnull final InvolvedEntityCalculation involvedEntityCalculation) {
+                                 @Nonnull final InvolvedEntityCalculation involvedEntityCalculation,
+                                 @Nonnull final ActionGroupFilter actionGroupFilter) {
         this.groupBy = groupByCriteria;
         this.entityPredicate = entityPredicate;
         this.involvedEntityCalculation = involvedEntityCalculation;
+        this.actionGroupFilter = actionGroupFilter;
     }
 
     /**
@@ -92,6 +98,7 @@ class CombinedStatsBuckets {
                 bucketKey.type().ifPresent(bldr::setActionType);
                 bucketKey.costType().ifPresent(bldr::setCostType);
                 bucketKey.csp().ifPresent(bldr::setCsp);
+                bucketKey.environmentType().ifPresent(bldr::setEnvironmentType);
                 bucketKey.severity().ifPresent(bldr::setSeverity);
                 bucketKey.targetEntityType().ifPresent(bldr::setTargetEntityType);
                 bucketKey.targetEntityId().ifPresent(bldr::setTargetEntityId);
@@ -177,6 +184,7 @@ class CombinedStatsBuckets {
         bucketKeys.add(keyBuilder.build());
         bucketKeys = groupByReasonCommodities(bucketKeys, action);
         bucketKeys = groupByActionRelatedRisk(bucketKeys, action);
+        bucketKeys = groupByEnvironmentType(bucketKeys, action);
 
         return bucketKeys.stream().collect(Collectors.toSet());
     }
@@ -246,6 +254,64 @@ class CombinedStatsBuckets {
     }
 
     /**
+     * Group by action target entity environmentType.
+     * Create a new bucket key for each combination of action target entity environmentType and an
+     * existing bucket key.
+     *
+     * EnvironmentType grouping accounts for action filters and returns Hybrid counts only if
+     * filter is Hybrid or undefined.
+     *
+     * @param bucketKeys existing bucket keys
+     * @param action the action to put into buckets
+     * @return a set of bucket keys
+     */
+    private Set<ImmutableGroupByBucketKey> groupByEnvironmentType(
+            @Nonnull final Set<ImmutableGroupByBucketKey> bucketKeys,
+            @Nonnull final Action action) {
+        if (!groupBy.contains(GroupBy.ENVIRONMENT_TYPE)) {
+            return bucketKeys;
+        }
+
+        final Set<ImmutableGroupByBucketKey> newBucketKeys = new HashSet<>(bucketKeys.size());
+        try {
+            EnvironmentType environmentType = ActionDTOUtil.getPrimaryEntity(action).getEnvironmentType();
+
+            // case 1 - filter is undefined or hybrid
+            if (!actionGroupFilter.hasEnvironmentType() || actionGroupFilter.getEnvironmentType().equals(EnvironmentType.HYBRID)) {
+                for (ImmutableGroupByBucketKey bucketKey : bucketKeys) {
+
+                    // if action target entity's environment type is not Hybrid, then add hybrid
+                    // to ensure grouping always contains Hybrid.
+                    // eg: if environmentType is ONPREM, then counts for both ONPREM and HYBRID will
+                    // be increased by 1.
+                    //
+                    // Hybrid will provide total number of actions at present in your environment.
+                    if (environmentType != EnvironmentType.HYBRID) {
+                        newBucketKeys.add(bucketKey.withEnvironmentType(EnvironmentType.HYBRID));
+                    }
+
+                    // add the specific environmentType.
+                    newBucketKeys.add(bucketKey.withEnvironmentType(environmentType));
+                }
+                return newBucketKeys;
+            }
+
+            // case 2 - filter is Cloud or OnPrem
+            for (ImmutableGroupByBucketKey bucketKey : bucketKeys) {
+                // only add the specific environmentType if it was requested.
+                if (actionGroupFilter.getEnvironmentType().equals(environmentType)) {
+                    newBucketKeys.add(bucketKey.withEnvironmentType(environmentType));
+                }
+            }
+        } catch (UnsupportedActionException e) {
+            logger.error("Failed to get the environment type of the primary entity of action: {}",
+                    e.getMessage());
+        }
+
+        return newBucketKeys;
+    }
+
+    /**
      * Identifies the "key" of a bucket used to group action stats.
      * The "key" is the unique combination of bucket identifiers.
      */
@@ -293,6 +359,13 @@ class CombinedStatsBuckets {
          * @return Value, or {@link Optional} if the requested group-by included the csp.
          */
         Optional<String> csp();
+
+        /**
+         * The target entity environment type for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the environment type.
+         */
+        Optional<EnvironmentType> environmentType();
 
         /**
          * The {@link Severity} for this bucket.
@@ -464,7 +537,8 @@ class CombinedStatsBuckets {
             return new CombinedStatsBuckets(
                 query.query().getGroupByList(),
                 query.entityPredicate(),
-                query.involvedEntityCalculation());
+                query.involvedEntityCalculation(),
+                query.query().getActionGroupFilter());
         }
     }
 

@@ -197,6 +197,10 @@ class ActionStatsMapper {
             groupByFilters.setReasonCommodity(actionStat.getStatGroup().getReasonCommodityBaseType());
         }
 
+        if (actionStat.getStatGroup().hasEnvironmentType()) {
+            groupByFilters.setEnvironmentType(actionStat.getStatGroup().getEnvironmentType());
+        }
+
         return groupByFilters;
     }
 

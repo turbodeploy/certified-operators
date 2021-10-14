@@ -32,6 +32,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecut
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSavingsAmountRangeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
@@ -199,6 +200,10 @@ class CurrentQueryMapper {
 
             if (query.actionInput().getCostType() != null) {
                 agFilterBldr.setCostType(ActionSpecMapper.mapApiCostTypeToXL(query.actionInput().getCostType()));
+            }
+
+            if (query.actionInput().getEnvironmentType() != null) {
+                agFilterBldr.setEnvironmentType(EnvironmentTypeMapper.fromApiToXL(query.actionInput().getEnvironmentType()));
             }
 
             return agFilterBldr.build();
@@ -452,6 +457,8 @@ class CurrentQueryMapper {
                             return Optional.of(GroupBy.NODE_POOL_ID);
                         case StringConstants.CSP:
                             return Optional.of(GroupBy.CSP);
+                        case StringConstants.ENVIRONMENT_TYPE:
+                            return Optional.of(GroupBy.ENVIRONMENT_TYPE);
                         default:
                             logger.error("Unhandled action stats group-by criteria: {}", groupByStr);
                             return Optional.<GroupBy>empty();
