@@ -40,7 +40,7 @@ public class ActionWriterFactory {
 
     private final Clock clock;
     private final ActionConverter actionConverter;
-    private final DbEndpoint ingesterEndpoint;
+    private final DbEndpoint reportsEndpoint;
     private final WriterConfig writerConfig;
     private final ExecutorService pool;
     private final DataProvider dataProvider;
@@ -56,28 +56,32 @@ public class ActionWriterFactory {
      * The interval for extracting actions and sending to Kafka.
      */
     private final long actionExtractionIntervalMillis;
+    private final DbEndpoint searchEndpoint;
 
     /**
      * Constructor.
      *
-     * @param clock clock
-     * @param actionConverter action converter
-     * @param ingesterEndpoint db endpoint
-     * @param actionWritingIntervalMillis interval for writing reporting actions
-     * @param writerConfig writer config
-     * @param pool thread pool
-     * @param dataProvider providing cached topology info
-     * @param extractorKafkaSender for sending actions to kafka
+     * @param clock                          clock
+     * @param actionConverter                action converter
+     * @param reportsEndpoint                db endpoint for reporting
+     * @param searchEndpoint                 db endpoint for search
+     * @param actionWritingIntervalMillis    interval for writing reporting actions
+     * @param writerConfig                   writer config
+     * @param pool                           thread pool
+     * @param dataProvider                   providing cached topology info
+     * @param extractorKafkaSender           for sending actions to kafka
      * @param actionExtractionIntervalMillis interval for extracting actions
      */
     public ActionWriterFactory(Clock clock, ActionConverter actionConverter,
-            DbEndpoint ingesterEndpoint, long actionWritingIntervalMillis,
+            DbEndpoint reportsEndpoint, DbEndpoint searchEndpoint,
+            long actionWritingIntervalMillis,
             WriterConfig writerConfig, ExecutorService pool,
             DataProvider dataProvider, ExtractorKafkaSender extractorKafkaSender,
             long actionExtractionIntervalMillis) {
         this.clock = clock;
         this.actionConverter = actionConverter;
-        this.ingesterEndpoint = ingesterEndpoint;
+        this.reportsEndpoint = reportsEndpoint;
+        this.searchEndpoint = searchEndpoint;
         this.writerConfig = writerConfig;
         this.pool = pool;
         this.dataProvider = dataProvider;
@@ -100,9 +104,9 @@ public class ActionWriterFactory {
         if (nextUpdateTime <= now) {
             TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
             if (topologyGraph != null) {
-                return Optional.of(new ReportPendingActionWriter(clock, pool, ingesterEndpoint,
-                    writerConfig, actionConverter, actionWritingIntervalMillis,
-                    actionPlanType, lastActionWrite));
+                return Optional.of(new ReportPendingActionWriter(clock, pool, reportsEndpoint,
+                        writerConfig, actionConverter, actionWritingIntervalMillis,
+                        actionPlanType, lastActionWrite));
             } else {
                 logger.error("Not writing reporting actions because no topology graph "
                     + "is available from ingestion.");
@@ -121,11 +125,11 @@ public class ActionWriterFactory {
      * @return SearchPendingActionWriter
      */
     public Optional<SearchPendingActionWriter> getSearchPendingActionWriter() {
-        if (dataProvider.getTopologyGraph() == null) {
-            logger.warn("Topology graph is not ready, skipping writing search actions for this cycle");
-            return Optional.empty();
-        }
-        return Optional.of(new SearchPendingActionWriter(dataProvider, ingesterEndpoint, writerConfig, pool));
+                if (dataProvider.getTopologyGraph() == null) {
+                    logger.warn("Topology graph is not ready, skipping writing search actions for this cycle");
+                    return Optional.empty();
+                }
+                return Optional.of(new SearchPendingActionWriter(dataProvider, searchEndpoint, writerConfig, pool));
     }
 
     /**

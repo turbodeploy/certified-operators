@@ -70,7 +70,7 @@ public class ActionWriterFactoryTest {
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         doReturn(mock(TopologyGraph.class)).when(dataProvider).getTopologyGraph();
         actionWriterFactory = new ActionWriterFactory(
-                clock, actionConverter, endpoint, ACTION_WRITING_INTERVAL_MS, writerConfig,
+                clock, actionConverter, endpoint, endpoint, ACTION_WRITING_INTERVAL_MS, writerConfig,
                 executorService, dataProvider, extractorKafkaSender,
                 ACTION_EXTRACTION_INTERVAL_MS);
     }

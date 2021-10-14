@@ -238,6 +238,7 @@ public class ActionConfig {
         return new ActionWriterFactory(
                 globalConfig.clock(),
                 actionConverter(),
+                extractorDbConfig.ingesterEndpoint(),
                 extractorDbConfig.ingesterMySqlEndpoint(),
                 TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins),
                 topologyListenerConfig.writerConfig(),
