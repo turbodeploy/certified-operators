@@ -156,17 +156,15 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                     TopologyGraphEntity::getOid
                 ));
             case SearchableProperties.ENTITY_TYPE:
-                return new PropertyFilter<>(intPredicate(
-                    (int) numericCriteria.getValue(),
-                    numericCriteria.getComparisonOperator(),
-                    TopologyGraphEntity::getEntityType
-                ));
+                final Predicate<E> typePredicate = intPredicate((int)numericCriteria.getValue(),
+                                numericCriteria.getComparisonOperator(),
+                                TopologyGraphEntity::getEntityType);
+                return new PropertyFilter<>(typePredicate);
             case SearchableProperties.ENTITY_STATE:
-                return new PropertyFilter<>(intPredicate(
-                        (int) numericCriteria.getValue(),
-                        numericCriteria.getComparisonOperator(),
-                        entity -> entity.getEntityState().getNumber()
-                ));
+                final Predicate<E> statePredicate = intPredicate((int)numericCriteria.getValue(),
+                                numericCriteria.getComparisonOperator(),
+                                entity -> entity.getEntityState().getNumber());
+                return new PropertyFilter<>(statePredicate);
             case SearchableProperties.ASSOCIATED_TARGET_ID:
                 return PropertyFilter.typeSpecificFilter(
                         BusinessAccountProps::hasAssociatedTargetId, BusinessAccountProps.class);
@@ -217,9 +215,13 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                             " doesn't match a known/valid entity state.");
                     }
                     // It's more efficient to compare the numeric value of the enum.
-                    return new PropertyFilter<>(intPredicate(targetState.toEntityState().getNumber(),
-                        stringCriteria.getPositiveMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
-                        entity -> entity.getEntityState().getNumber()));
+                    final Predicate<E> statePredicate =
+                                    intPredicate(targetState.toEntityState().getNumber(),
+                                                    stringCriteria.getPositiveMatch() ?
+                                                                    ComparisonOperator.EQ :
+                                                                    ComparisonOperator.NE,
+                                                    entity -> entity.getEntityState().getNumber());
+                    return new PropertyFilter<>(statePredicate);
                 } else {
                     // TODO (roman, May 16 2019): Should be able to convert to numeric.
                     return new PropertyFilter<>(stringOptionsPredicate(
@@ -269,9 +271,12 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                     }
 
                     // Get the numeric value, and filter based on that.
-                    return new PropertyFilter<>(intPredicate(entityType.typeNumber(),
-                        stringCriteria.getPositiveMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
-                        TopologyGraphEntity::getEntityType));
+                    final Predicate<E> typePredicate = intPredicate(entityType.typeNumber(),
+                                    stringCriteria.getPositiveMatch() ?
+                                                    ComparisonOperator.EQ :
+                                                    ComparisonOperator.NE,
+                                    TopologyGraphEntity::getEntityType);
+                    return new PropertyFilter<>(typePredicate);
                 } else {
                     // TODO (roman, May 16 2019): Should be able to convert to numeric.
                     return new PropertyFilter<>(stringOptionsPredicate(
@@ -529,14 +534,12 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         final Predicate<String> str = stringPredicate(filter.getStringFilter());
                         return PropertyFilter.typeSpecificFilter(vmProps ->
                                 str.test(vmProps.getGuestOsName()), VmProps.class);
+                    case SearchableProperties.VM_INFO_CORES_PER_SOCKET:
+                        return createVmPropsIntegerFilter(filter, VmProps::getCoresPerSocket);
+                    case SearchableProperties.VM_INFO_SOCKETS:
+                        return createVmPropsIntegerFilter(filter, VmProps::getNumberOfSockets);
                     case SearchableProperties.VM_INFO_NUM_CPUS:
-                        if (filter.getPropertyTypeCase() != PropertyTypeCase.NUMERIC_FILTER) {
-                            throw new IllegalArgumentException("Expecting NumericFilter for " +
-                                    filter.getPropertyName() + ", but got " + filter);
-                        }
-                        IntPredicate predicate = intPredicate(filter.getNumericFilter());
-                        return PropertyFilter.typeSpecificFilter(vmProps ->
-                                predicate.test(vmProps.getNumCpus()), VmProps.class);
+                        return createVmPropsIntegerFilter(filter, VmProps::getNumCpus);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                                 filter.getPropertyName() + " on " + propertyName);
@@ -677,6 +680,17 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
         }
     }
 
+    private static <E extends TopologyGraphSearchableEntity<E>> PropertyFilter<E> createVmPropsIntegerFilter(
+                    Search.PropertyFilter filter, Function<VmProps, Integer> propertyValueGetter) {
+        if (filter.getPropertyTypeCase() != PropertyTypeCase.NUMERIC_FILTER) {
+            throw new IllegalArgumentException("Expecting NumericFilter for " +
+                            filter.getPropertyName() + ", but got " + filter);
+        }
+        return PropertyFilter.typeSpecificFilter(
+                        vmProps -> intPredicate(filter.getNumericFilter()).test(
+                                        propertyValueGetter.apply(vmProps)), VmProps.class);
+    }
+
     /**
      * Compose a int-based predicate for use in a numeric filter based on a given comparison value,
      * operation, and lookup method.
@@ -687,20 +701,20 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
      * @return A predicate.
      */
     @Nonnull
-    private Predicate<E> intPredicate(final int comparisonValue,
-                                      @Nonnull final ComparisonOperator operator,
-                                      @Nonnull final ToIntFunction<E> propertyLookup) {
+    private static <S extends TopologyGraphSearchableEntity<S>> Predicate<S> intPredicate(
+                    final int comparisonValue, @Nonnull final ComparisonOperator operator,
+                    @Nonnull final ToIntFunction<S> propertyLookup) {
         Objects.requireNonNull(propertyLookup);
         IntPredicate intPredicate = intPredicate(comparisonValue, operator);
         return entity -> intPredicate.test(propertyLookup.applyAsInt(entity));
     }
 
-    private IntPredicate intPredicate(NumericFilter numericFilter) {
+    private static IntPredicate intPredicate(NumericFilter numericFilter) {
         return intPredicate((int)numericFilter.getValue(), numericFilter.getComparisonOperator());
     }
 
-    private IntPredicate intPredicate(final int comparisonValue,
-                                      @Nonnull final ComparisonOperator comparisonOperator) {
+    private static IntPredicate intPredicate(final int comparisonValue,
+                    @Nonnull final ComparisonOperator comparisonOperator) {
         return value -> {
             switch (comparisonOperator) {
                 case EQ:
@@ -815,8 +829,9 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
      * @param objectCriteria The filter criteria used to check if an object matches.
      * @return WorkloadController object filter that corresponds to the input criteria.
      */
-    private PropertyFilter<E> workloadControllerObjectFilter(@Nonnull final String propertyName,
-                                                             @Nonnull final Search.PropertyFilter.ObjectFilter objectCriteria) {
+    private static <E extends TopologyGraphSearchableEntity<E>> PropertyFilter<E> workloadControllerObjectFilter(
+                    @Nonnull final String propertyName,
+                    @Nonnull final Search.PropertyFilter.ObjectFilter objectCriteria) {
         List<Search.PropertyFilter> filters = objectCriteria.getFiltersList();
         if (filters.size() != 1) {
             throw new IllegalArgumentException("Expecting one PropertyFilter for "
@@ -848,7 +863,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
         }
     }
 
-    private Predicate<String> stringPredicate(StringFilter filter) {
+    private static Predicate<String> stringPredicate(StringFilter filter) {
         // Use options.
         final Set<String> expectedSet = filter.getOptionsList().stream()
                 .map(option -> filter.getCaseSensitive() ? option : option.toLowerCase())

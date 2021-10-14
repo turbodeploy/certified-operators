@@ -182,6 +182,11 @@ public class ThickSearchableProps implements SearchableProps {
         public int getNumCpus() {
             return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
         }
+
+        @Override
+        public int getCoresPerSocket() {
+            return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketRatio();
+        }
     }
 
     /**

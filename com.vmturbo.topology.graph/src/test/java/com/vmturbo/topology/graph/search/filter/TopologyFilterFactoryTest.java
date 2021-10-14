@@ -21,6 +21,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -28,6 +29,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -658,6 +661,85 @@ public class TopologyFilterFactoryTest {
     public void testSearchFilterHotAddCPU() {
         testAllCaseHotFiltersForVms(SearchableProperties.HOT_ADD_CPU, 26,
                 HotResizeInfo.Builder::setHotAddSupported);
+    }
+
+    /**
+     * Checks that cores per socket ratio value for VM correctly filtered.
+     */
+    @Test
+    public void testSearchFilterCoresPerSocket() {
+        checkObjectIntegerFilter(VirtualMachineInfo.Builder::setCoresPerSocketRatio,
+                        SearchableProperties.VM_INFO_CORES_PER_SOCKET);
+    }
+
+    /**
+     * Checks that number of CPUs value for VM correctly filtered.
+     */
+    @Test
+    public void testSearchFilterNumCpus() {
+        checkObjectIntegerFilter(VirtualMachineInfo.Builder::setNumCpus,
+                        SearchableProperties.VM_INFO_NUM_CPUS);
+    }
+
+    /**
+     * Checks that sockets value for VM correctly filtered.
+     */
+    @Test
+    public void testSearchFilterSockets() {
+        final int cpsr = 2;
+        checkObjectIntegerFilter((builder, value) -> builder.setCoresPerSocketRatio(cpsr)
+                        .setNumCpus(value * cpsr), SearchableProperties.VM_INFO_SOCKETS);
+    }
+
+    private void checkObjectIntegerFilter(
+                    BiFunction<VirtualMachineInfo.Builder, Integer, VirtualMachineInfo.Builder> builderConfigurator,
+                    String property) {
+        final TestGraphEntity vm1 = createVmWithProperty(1L, builderConfigurator, 1);
+        final TestGraphEntity vm2 = createVmWithProperty(2L, builderConfigurator, 2);
+        final TestGraphEntity vm3 = createVmWithProperty(3L, builderConfigurator, 3);
+        final ImmutableTable.Builder<ComparisonOperator, TestGraphEntity, Boolean> dataBuilder =
+                        ImmutableTable.builder();
+        dataBuilder.put(ComparisonOperator.EQ, vm1, false);
+        dataBuilder.put(ComparisonOperator.EQ, vm2, true);
+        dataBuilder.put(ComparisonOperator.EQ, vm3, false);
+        dataBuilder.put(ComparisonOperator.LT, vm1, true);
+        dataBuilder.put(ComparisonOperator.LT, vm2, false);
+        dataBuilder.put(ComparisonOperator.LT, vm3, false);
+        dataBuilder.put(ComparisonOperator.GT, vm1, false);
+        dataBuilder.put(ComparisonOperator.GT, vm2, false);
+        dataBuilder.put(ComparisonOperator.GT, vm3, true);
+        final Table<ComparisonOperator, TestGraphEntity, Boolean> data = dataBuilder.build();
+        data.rowMap().forEach((operator, entityToFilterResult) -> {
+            final SearchFilter searchFilter = createSearchFilterForVmIntegerProperty(property, operator);
+            final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+            assertTrue(filter instanceof PropertyFilter);
+            final PropertyFilter<TestGraphEntity> propertyFilter =
+                            (PropertyFilter<TestGraphEntity>)filter;
+            entityToFilterResult.forEach((entity, result) -> Assert.assertThat(
+                            propertyFilter.test(entity, graph), CoreMatchers.is(result)));
+        });
+    }
+
+    private static SearchFilter createSearchFilterForVmIntegerProperty(String property,
+                    ComparisonOperator operator) {
+        final Search.PropertyFilter numericPropertyFilter =
+                        Search.PropertyFilter.newBuilder().setPropertyName(property)
+                                        .setNumericFilter(NumericFilter.newBuilder()
+                                                        .setComparisonOperator(operator).setValue(2)
+                                                        .build()).build();
+        return SearchFilter.newBuilder().setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.VM_INFO_REPO_DTO_PROPERTY_NAME)
+                        .setObjectFilter(ObjectFilter.newBuilder().addFilters(numericPropertyFilter)
+                                        .build()).build()).build();
+    }
+
+    private static TestGraphEntity createVmWithProperty(long oid,
+                    @Nonnull BiFunction<VirtualMachineInfo.Builder, Integer, VirtualMachineInfo.Builder> propertySetter,
+                    int value) {
+        return TestGraphEntity.newBuilder(oid, ApiEntityType.VIRTUAL_MACHINE).setTypeSpecificInfo(
+                        TypeSpecificInfo.newBuilder().setVirtualMachine(
+                                        propertySetter.apply(VirtualMachineInfo.newBuilder(), value)
+                                                        .build()).build()).build();
     }
 
     /**

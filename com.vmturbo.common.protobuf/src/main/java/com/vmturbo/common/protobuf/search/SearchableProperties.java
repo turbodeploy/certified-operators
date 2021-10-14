@@ -30,6 +30,10 @@ public class SearchableProperties {
 
     public static final String VM_INFO_GUEST_OS_TYPE = "guestOsType";
 
+    public static final String VM_INFO_CORES_PER_SOCKET = "vmsByCoresPerSocket";
+
+    public static final String VM_INFO_SOCKETS = "vmsBySockets";
+
     public static final String VM_INFO_NUM_CPUS = "numCpus";
 
     public static final String PM_INFO_REPO_DTO_PROPERTY_NAME = "physicalMachineInfoRepoDTO";
