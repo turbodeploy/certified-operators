@@ -278,18 +278,20 @@ public class ConsistentScalingManager {
 
         /*
          * Now pre-populate the settings map. The EntitySettingsResolver populates a single
-         * SettingAndPolicyIdRecord map for each scaling group.  This function populates the
+         * SettingAndPolicyIdRecord map for each cloud scaling group.  This function populates the
          * map from OID to settings map with empty settings such that all members in each scaling
          * group point to the same settings map. This way, when the EntitySettingsResolver
          * resolves a setting is for any entity in a scaling group, that setting is automatically
-         * applied to all members of that group.
+         * applied to all members of that group. This merging is only performed for cloud groups.
          */
-        for (ScalingGroup group : groups.values()) {
-            Map<String, SettingAndPolicyIdRecord> records = new HashMap<>();
-            for (Long oid : group.getMemberList()) {
-                settings.put(oid, records);
-            }
-        }
+        groups.values().stream()
+                .filter(ScalingGroup::isCloud)
+                .forEach(group -> {
+                    Map<String, SettingAndPolicyIdRecord> records = new HashMap<>();
+                    for (Long oid : group.getMemberList()) {
+                        settings.put(oid, records);
+                    }
+                });
     }
 
     /**
@@ -341,6 +343,15 @@ public class ConsistentScalingManager {
          */
         public String getScalingGroupId() {
             return getContributingGroupsString();
+        }
+
+        /**
+         * Return whether the group is a cloud group.
+         *
+         * @return whether the group is a cloud group.
+         */
+        public boolean isCloud() {
+            return isCloud;
         }
     }
 }

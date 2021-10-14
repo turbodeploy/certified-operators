@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -84,13 +85,14 @@ public class ConsistentScalingManagerTest {
     private final SettingServiceMole testSettingService = spy(new SettingServiceMole());
     private GroupServiceBlockingStub groupServiceClient;
 
-    private void makeGrouping(long id, String name, Long... vmIds) {
+    private void makeGrouping(long id, String name, EnvironmentType environmentType, Long... vmIds) {
         StaticMembersByType members = StaticMembersByType.newBuilder()
             .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
             .addAllMembers(Arrays.asList(vmIds))
             .build();
         ResolvedGroup group = new ResolvedGroup(Grouping.newBuilder()
             .setId(id)
+            .setEnvironmentType(environmentType)
             .setDefinition(GroupDefinition.newBuilder()
                 .setDisplayName(name)
                 .setStaticGroupMembers(StaticMembers.newBuilder().addMembersByType(members)))
@@ -161,12 +163,15 @@ public class ConsistentScalingManagerTest {
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         Map<Long, Builder> topologyMap = new HashMap<>();
         topologyMap.put(100L, topologyEntity(100L, EntityType.PHYSICAL_MACHINE));
-        for (long vmNum = 1; vmNum <= 12; vmNum++) {
+        for (long vmNum = 1; vmNum <= 22; vmNum++) {
             TopologyEntity.Builder builder =
                 topologyEntityWithName(vmNum, EntityType.VIRTUAL_MACHINE,
                     "VM-" + Long.toString(vmNum), 100L);
-            // Make VMs 10 and above not controllable.
-            if (vmNum >= 10) {
+            // Make VMs 11 and 12 on-prem.  The rest are cloud
+            builder.getEntityBuilder().setEnvironmentType(
+                    // Make VMs 20 and above not controllable.
+                vmNum == 11 || vmNum == 12 ? EnvironmentType.ON_PREM : EnvironmentType.CLOUD);
+            if (vmNum >= 20) {
                 builder.getEntityBuilder().setAnalysisSettings(AnalysisSettings.newBuilder()
                     .setControllable(false));
             }
@@ -174,15 +179,16 @@ public class ConsistentScalingManagerTest {
         }
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         testGroups = new HashMap<>();
-        makeGrouping(101L, "Group-A", 1L, 2L, 3L);
-        makeGrouping(102L, "Group-B", 4L, 2L);  // The order ensures that group merge logic executes
-        makeGrouping(103L, "Group-C", 5L);
-        makeGrouping(104L, "DiscoveredGroup-A", 4L, 6L);
-        makeGrouping(105L, "DiscoveredGroup-B", 7L);
-        makeGrouping(106L, "One-VM-in-DiscoveredGroup-A", 6L);
+        makeGrouping(101L, "Group-A", EnvironmentType.CLOUD, 1L, 2L, 3L);
+        makeGrouping(102L, "Group-B", EnvironmentType.CLOUD, 4L, 2L);  // The order ensures that group merge logic executes
+        makeGrouping(103L, "Group-C", EnvironmentType.CLOUD, 5L);
+        makeGrouping(104L, "DiscoveredGroup-A", EnvironmentType.CLOUD, 4L, 6L);
+        makeGrouping(105L, "DiscoveredGroup-B", EnvironmentType.CLOUD, 7L);
+        makeGrouping(106L, "One-VM-in-DiscoveredGroup-A", EnvironmentType.CLOUD, 6L);
         // VMs 10, 11 and 12 are powered off
-        makeGrouping(109L, "One-VM-powered-off", 9L, 10L);
-        makeGrouping(111L, "All-VMs-powered-off", 11L, 12L);
+        makeGrouping(109L, "One-VM-powered-off", EnvironmentType.CLOUD, 9L, 20L);
+        makeGrouping(111L, "All-VMs-powered-off", EnvironmentType.CLOUD, 21L, 22L);
+        makeGrouping(112L, "On-prem-group", EnvironmentType.ON_PREM, 11L, 12L);
 
         // Create the consistent scaling setting policies
         makeSettingPolicy(1001L, 101L, true);
@@ -344,5 +350,9 @@ public class ConsistentScalingManagerTest {
         final Map<String, SettingAndPolicyIdRecord> m4 = settingsMaps.get(9L);  // Get settings map for VM-9
         Assert.assertNotNull(m4);
         Assert.assertEquals(1, settingsMaps.values().stream().filter(settings -> settings == m4).count());
+
+        // Ensure that on-prem scaling groups do not merge settings.
+        Assert.assertNull(settingsMaps.get(11L));
+        Assert.assertNull(settingsMaps.get(12L));
     }
 }
