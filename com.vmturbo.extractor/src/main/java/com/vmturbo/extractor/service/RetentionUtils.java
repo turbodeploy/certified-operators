@@ -7,8 +7,13 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.StatusRuntimeException;
+
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -61,5 +66,27 @@ public class RetentionUtils {
         }
         final PostgresSizeAdapter pgAdapter = (PostgresSizeAdapter)adapter;
         return pgAdapter.getHypertables();
+    }
+
+    /**
+     * Util method to fetch current retention setting days from group component.
+     *
+     * @param settingService Reference to settings service to request retention settings from.
+     * @return Number of days to retain extractor data for.
+     * @throws StatusRuntimeException Thrown on gRPC access error.
+     * @throws IllegalStateException Thrown if could not read retention setting in response.
+     */
+    public static int fetchRetentionPeriod(@Nonnull final SettingServiceBlockingStub settingService)
+            throws StatusRuntimeException, IllegalStateException {
+        final SettingProto.GetSingleGlobalSettingRequest request =
+                SettingProto.GetSingleGlobalSettingRequest.newBuilder()
+                        .setSettingSpecName(GlobalSettingSpecs.EmbeddedReportingRetentionDays
+                                .getSettingName())
+                        .build();
+        SettingProto.Setting setting = settingService.getGlobalSetting(request).getSetting();
+        if (setting.hasNumericSettingValue() && setting.getNumericSettingValue().hasValue()) {
+            return (int)setting.getNumericSettingValue().getValue();
+        }
+        throw new IllegalStateException("Could not find 'EmbeddedReportingRetentionDays' setting.");
     }
 }

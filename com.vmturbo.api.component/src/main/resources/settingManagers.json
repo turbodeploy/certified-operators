@@ -272,7 +272,6 @@
       "numRetainedDays",
       "numRetainedMonths",
       "auditLogRetentionDays",
-      "reportRetentionDays",
       "planRetentionDays",
       "embeddedReportingRetentionDays"
       ]

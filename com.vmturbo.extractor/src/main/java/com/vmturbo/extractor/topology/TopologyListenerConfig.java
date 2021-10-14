@@ -39,6 +39,9 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
@@ -214,8 +217,8 @@ public class TopologyListenerConfig {
      */
     @Bean
     public ActionCommodityDataRetriever actionCommodityDataRetriever() {
-        return new ActionCommodityDataRetriever(StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel()),
-                SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
+        return new ActionCommodityDataRetriever(statsHistoryServiceBlockingStub(),
+                settingPolicyServiceBlockingStub(),
                 getActionCommodityWhiteList());
     }
 
@@ -324,6 +327,26 @@ public class TopologyListenerConfig {
     @Bean
     public StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub() {
         return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
+    }
+
+    /**
+     * Creates settings policy service endpoint.
+     *
+     * @return Blocking stub endpoint to settings policy service.
+     */
+    @Bean
+    public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
+        return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    /**
+     * Creates settings service endpoint.
+     *
+     * @return Blocking stub endpoint to settings service.
+     */
+    @Bean
+    public SettingServiceBlockingStub settingServiceBlockingStub() {
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     /**
