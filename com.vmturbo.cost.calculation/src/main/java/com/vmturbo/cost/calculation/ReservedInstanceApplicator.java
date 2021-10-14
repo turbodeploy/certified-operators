@@ -20,7 +20,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.components.common.utils.FuzzyDoubleUtils;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
@@ -137,8 +136,11 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                         }
                     }).orElse(NO_COVERAGE);
         } else {
-            logger.warn("Skipping RI coverage application for entity {} due to non-positive capacity {}",
-                    entityId, totalRequired);
+            if (FuzzyDoubleUtils.isNegative(totalRequired.getValue())) {
+                logger.warn(
+                        "Skipping RI coverage application for entity {} due to non-positive capacity {}",
+                        entityId, totalRequired);
+            }
             return NO_COVERAGE;
         }
     }

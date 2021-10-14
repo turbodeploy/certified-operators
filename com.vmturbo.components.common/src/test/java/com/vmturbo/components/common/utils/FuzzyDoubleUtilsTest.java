@@ -23,4 +23,18 @@ public class FuzzyDoubleUtilsTest {
         assertTrue(FuzzyDoubleUtils.isPositive(Double.POSITIVE_INFINITY));
         assertFalse(FuzzyDoubleUtils.isPositive(Double.NEGATIVE_INFINITY));
     }
+
+    /**
+     * Tests {@link FuzzyDoubleUtils#isNegative(double)} (double)}.
+     */
+    @Test
+    public void testIsNegative() {
+
+        assertFalse(FuzzyDoubleUtils.isNegative(0.0001));
+        assertFalse(FuzzyDoubleUtils.isNegative(0.0));
+        assertTrue(FuzzyDoubleUtils.isNegative(-0.001));
+        assertFalse(FuzzyDoubleUtils.isNegative(Double.NaN));
+        assertFalse(FuzzyDoubleUtils.isNegative(Double.POSITIVE_INFINITY));
+        assertTrue(FuzzyDoubleUtils.isNegative(Double.NEGATIVE_INFINITY));
+    }
 }
