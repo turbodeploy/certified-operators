@@ -843,6 +843,17 @@ services:
       instance_id: mediation-jboss-1
     restart: always
 
+  mediation-ibmstorage-flashsystem-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.ibmstorage.flashsystem.component
+    environment:
+      consul_host: consul
+      component_type: mediation-ibmstorage-flashsystem
+      instance_id: mediation-ibmstorage-flashsystem-1
+    restart: always
+
   mediation-instana-prod:
     extends:
       file: common-services.yml

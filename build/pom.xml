@@ -439,6 +439,7 @@
                 <module>../com.vmturbo.mediation.websphere.component</module>
                 <module>../com.vmturbo.mediation.weblogic.component</module>
                 <module>../com.vmturbo.mediation.jboss.component</module>
+                <module>../com.vmturbo.mediation.ibmstorage.flashsystem.component</module>
                 <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
@@ -770,6 +771,13 @@
             <id>mediation-websphere</id>
             <modules>
                 <module>../com.vmturbo.mediation.websphere.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-ibmstorage-flashsystem</id>
+            <modules>
+                <module>../com.vmturbo.mediation.ibmstorage.flashsystem.component</module>
             </modules>
         </profile>
 
@@ -1326,6 +1334,7 @@
                 <module>../com.vmturbo.mediation.websphere.component</module>
                 <module>../com.vmturbo.mediation.weblogic.component</module>
                 <module>../com.vmturbo.mediation.jboss.component</module>
+                <module>../com.vmturbo.mediation.ibmstorage.flashsystem.component</module>
                 <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>

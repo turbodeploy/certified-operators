@@ -273,6 +273,10 @@ dependencies:
     repository: file://../probes/mediation-hyperv
     version: 0.1.0
     condition: hyperv.enabled
+  - name: mediation-ibmstorage-flashsystem
+    repository: file://../probes/mediation-ibmstorage-flashsystem
+    version: 0.1.0
+    condition: ibmstorage-flashsystem.enabled
   - name: mediation-instana
     repository: file://../probes/mediation-instana
     version: 0.1.0
