@@ -42,15 +42,15 @@ public class EntityActionDaoImp implements EntityActionDao {
 
     private final DSLContext dsl;
 
-    // For "in progress" or 'queued' move action records. if their last update time is older than this
-    // time threshold, they will be deleted from entity action tables. This try to handle the case that
-    // if Probe is down and can not send back action progress notification, they will be considered
-    // as time out actions and be cleaned up.
-    final int moveSucceedRecordExpiredSeconds;
-
     // For "succeed" move action records, if their last update time is older than this time threshold,
     // they will be deleted from entity action table. This makes succeed entities will not participate
     // Market analysis immediately, it will have some default cool down time.
+    final int moveSucceedRecordExpiredSeconds;
+
+    // For "in progress" or 'queued' action records. if their last update time is older than this
+    // time threshold, they will be deleted from entity action tables. This try to handle the case that
+    // if Probe is down and can not send back action progress notification, they will be considered
+    // as time out actions and be cleaned up.
     final int inProgressActionExpiredSeconds;
 
     // For "succeed" activate action records, if their last update time is older than this time threshold,

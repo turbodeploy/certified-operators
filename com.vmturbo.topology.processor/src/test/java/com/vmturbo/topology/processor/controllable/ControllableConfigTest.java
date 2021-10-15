@@ -16,6 +16,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 
@@ -23,7 +25,14 @@ import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
  * Test {@link ControllableConfig}.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@TestPropertySource(properties = {"dbPort=3306", "serverHttpPort=8080", "authRetryDelaySecs=10", "authHost=auth"})
+@TestPropertySource(properties = {
+        "dbPort=3306",
+        "serverHttpPort=8080",
+        "authRetryDelaySecs=10",
+        "authHost=auth",
+        "serverGrpcPort=8080",
+        "grpcPingIntervalSeconds=100"
+})
 @ContextConfiguration
 public class ControllableConfigTest {
 
@@ -35,11 +44,11 @@ public class ControllableConfigTest {
      */
     @Test
     public void testEntityActionDaoImp() {
-        assertEquals(1800, controllableConfig.entityActionDaoImp().moveSucceedRecordExpiredSeconds);
-        assertEquals(3600, controllableConfig.entityActionDaoImp().inProgressActionExpiredSeconds);
-        assertEquals(14400, controllableConfig.entityActionDaoImp().activateSucceedExpiredSeconds);
-        assertEquals(21600, controllableConfig.entityActionDaoImp().scaleSucceedRecordExpiredSeconds);
-        assertEquals(14400, controllableConfig.entityActionDaoImp().resizeSucceedRecordExpiredSeconds);
+        assertEquals(1800, controllableConfig.moveSucceedRecordExpiredSeconds);
+        assertEquals(3600, controllableConfig.inProgressActionExpiredSeconds);
+        assertEquals(14400, controllableConfig.activateSucceedRecordExpiredSeconds);
+        assertEquals(21600, controllableConfig.scaleSucceedRecordExpiredSeconds);
+        assertEquals(14400, controllableConfig.resizeSucceedRecordExpiredSeconds);
     }
 
     /**
@@ -59,6 +68,16 @@ public class ControllableConfigTest {
         @Bean
         public ProcessListClassifier processListClassifier() throws JsonProcessingException {
             return mock(ProcessListClassifier.class);
+        }
+
+        @Bean
+        public ActionOrchestratorClientConfig aoClientConfig() {
+            return mock(ActionOrchestratorClientConfig.class);
+        }
+
+        @Bean
+        public BaseKafkaConsumerConfig baseKafkaConsumerConfig() {
+            return mock(BaseKafkaConsumerConfig.class);
         }
 
         /**

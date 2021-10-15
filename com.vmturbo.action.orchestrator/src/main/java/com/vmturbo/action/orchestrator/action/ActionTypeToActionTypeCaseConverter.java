@@ -55,6 +55,6 @@ public class ActionTypeToActionTypeCaseConverter {
         if (actionTypeCase == null) {
             throw new IllegalArgumentException("Cannot resolve ActionTypeCase for ActionType " + actionType);
         }
-        return ACTION_TYPE_TO_ACTION_TYPE_CASE.get(actionType);
+        return actionTypeCase;
     }
 }

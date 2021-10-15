@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.action.orchestrator.execution.affected.entities.EntitiesInCoolDownPeriodCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +33,7 @@ import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
+import com.vmturbo.action.orchestrator.execution.affected.entities.AffectedEntitiesManager;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
@@ -154,6 +156,9 @@ public class ActionStoreConfig {
     @Value("${queryTimeWindowForLastExecutedActionsMins:60}")
     private int queryTimeWindowForLastExecutedActionsMins;
 
+    @Value("${entitiesInCoolDownPeriodCacheSizeInMins:1440}")
+    private int entitiesInCoolDownPeriodCacheSizeInMins;
+
     /**
      * Enable 'Scale for Performance' and 'Scale for Savings' settings.
      */
@@ -163,7 +168,9 @@ public class ActionStoreConfig {
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator(),
-                Arrays.asList(loggingActionEventListener()));
+                Arrays.asList(
+                        loggingActionEventListener(),
+                        affectedEntitiesManager()));
     }
 
     @Bean
@@ -431,5 +438,26 @@ public class ActionStoreConfig {
     @Bean
     public RejectedActionsDAO rejectedActionsStore() {
         return new RejectedActionsStore(databaseConfig.dsl());
+    }
+
+    @Bean
+    public EntitiesInCoolDownPeriodCache entitiesInCoolDownPeriodCache() {
+        return new EntitiesInCoolDownPeriodCache(
+                actionOrchestratorGlobalConfig.actionOrchestratorClock(),
+                entitiesInCoolDownPeriodCacheSizeInMins);
+    }
+
+    /**
+     * Returns manager responsible for affected entities.
+     *
+     * @return instance of {@link AffectedEntitiesManager}
+     */
+    @Bean
+    public AffectedEntitiesManager affectedEntitiesManager() {
+        return new AffectedEntitiesManager(
+                actionHistory(),
+                actionOrchestratorGlobalConfig.actionOrchestratorClock(),
+                entitiesInCoolDownPeriodCacheSizeInMins,
+                entitiesInCoolDownPeriodCache());
     }
 }
