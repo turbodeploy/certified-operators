@@ -206,6 +206,8 @@ hyperflex:
   enabled: false
 hyperv:
   enabled: false
+ibmstorage-flashsystem:
+  enabled: false
 instana:
   enabled: false
 intersight:

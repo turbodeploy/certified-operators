@@ -2304,3 +2304,25 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_GCPCOST_MEM_LIMIT_MB}M
+
+  mediation-ibmstorage-flashsystem:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.ibmstorage.flashsystem.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_IBMSTORAGE_FLASHSYSTEM_PORT}"
+      - "${MEDIATION_IBMSTORAGE_FLASHSYSTEM_DEBUG_PORT}"
+    environment:
+      component_type: mediation-ibmstorage-flashsystem
+      instance_id: mediation-ibmstorage-flashsystem-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_IBMSTORAGE_FLASHSYSTEM_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_IBMSTORAGE_FLASHSYSTEM_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_IBMSTORAGE_FLASHSYSTEM_MEM_LIMIT_MB}M
