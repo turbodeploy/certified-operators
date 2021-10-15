@@ -767,10 +767,10 @@ message Action {
     }
 
     // Defines if actions is disruptive.
-    optional bool disruptive = 9;
+    optional bool disruptive = 9 [default = false];
 
     // Defines if actions is reversible.
-    optional bool reversible = 10;
+    optional bool reversible = 10 [default = true];
 }
 
 // Auxiliary information for an action plan.
