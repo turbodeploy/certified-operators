@@ -45,7 +45,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]communication[/\\]RemoteMediationServer.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]communication[/\\]SdkServerConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]consistentscaling[/\\]ConsistentScalingConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]controllable[/\\]ControllableConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]controllable[/\\]ControllableManager.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]controllable[/\\]EntityActionDao.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]controllable[/\\]EntityActionDaoImp.java" />

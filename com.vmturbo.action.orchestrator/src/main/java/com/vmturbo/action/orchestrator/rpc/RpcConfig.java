@@ -127,6 +127,16 @@ public class RpcConfig {
     }
 
     /**
+     * Returns the object that implements protobuf AffectedEntitiesService.
+     *
+     * @return the object that implements protobuf AffectedEntitiesService.
+     */
+    @Bean
+    public AffectedEntitiesRpcService affectedEntitiesRpcService() {
+        return new AffectedEntitiesRpcService(actionStoreConfig.affectedEntitiesManager());
+    }
+
+    /**
      * Action approval manager - used to approve and execute actions requiring approval.
      *
      * @return the bean created

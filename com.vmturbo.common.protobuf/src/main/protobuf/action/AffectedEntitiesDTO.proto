@@ -1,0 +1,50 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+import "action/ActionDTO.proto";
+
+// Request to get affected entities.
+message GetAffectedEntitiesRequest {
+  // Key - number of the ActionEffectType, value - affection type details.
+  map<int32, AffectedEntitiesTimeoutConfig> requested_affections = 1;
+}
+
+// Affection type details which used to define the list of affected entities.
+message AffectedEntitiesTimeoutConfig {
+  // Timeout threshold to determine when succeeded actions don't affect involved entities.
+  optional int64 completed_action_cool_down_msec = 2;
+  // Timeout threshold to determine when in-progress actions don't affect involved entities.
+  // In the old TP controllable flow this property was used to handle the case when probe is down
+  // and action is frozen in in-progress state, so we need to have timeout threshold to clean it up.
+  // TODO: Remove this parameter when we implement timeout for action execution in AO (OM-75639),
+  // so we can be sure that there are no frozen in-progress actions.
+  optional int64 in_progress_action_cool_down_msec = 3;
+}
+
+// Affection type.
+enum ActionEffectType {
+  NON_CONTROLLABLE = 0;
+  NON_SUSPENDABLE = 1;
+  INELIGIBLE_SCALE = 2;
+  INELIGIBLE_RESIZE_DOWN = 3;
+}
+
+// Affected entities response contains the list of affected entities per affection type.
+message GetAffectedEntitiesResponse {
+  // Key - number of the ActionEffectType, value - affected entities.
+  map<int32, AffectedEntities> affected_entities = 1;
+
+  // Contains the ids of the affected entities.
+  message AffectedEntities {
+    repeated int64 entity_id = 1;
+  }
+}
+
+// This service provides RPCs to get information about entities affected by action executions.
+service AffectedEntitiesService {
+  // TODO: Should we provide a streamable interface since this could be all actions executed
+  //       in the last day?
+  rpc GetAffectedEntities (GetAffectedEntitiesRequest) returns (GetAffectedEntitiesResponse);
+}
