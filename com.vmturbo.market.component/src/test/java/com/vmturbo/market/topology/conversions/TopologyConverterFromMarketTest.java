@@ -164,6 +164,10 @@ public class TopologyConverterFromMarketTest {
     private static final double DELTA = 0.001d;
     private static final float THRUGHPUT_USED = 30;
     private static final double VMEM_USAGE = 10;
+    private static final int COMM_TYPE1 = 44;
+    private static final int COMM_TYPE2 = 45;
+    private static final String COMM_KEY1 = "key1";
+    private static final String COMM_KEY2 = "key2";
 
     private final CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
     private final CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
@@ -3243,5 +3247,26 @@ public class TopologyConverterFromMarketTest {
         assertEquals(1, projectedEntities.get(CLONE_VM_OID).getEntity().getCommoditiesBoughtFromProvidersList().size());
         // ProviderId is updated to cloned VM.
         assertEquals(CLOUD_COMPUTE_TIER_OID, projectedEntities.get(CLONE_VM_OID).getEntity().getCommoditiesBoughtFromProviders(0).getProviderId());
+    }
+
+    @Test
+    public void checkCommodityKeysComparison() {
+        CommodityType ctNoKey1 = CommodityType.newBuilder().setType(COMM_TYPE1).build();
+        CommodityType ctNoKey2 = CommodityType.newBuilder().setType(COMM_TYPE2).build();
+        //Both has no keys - we consider that as match. If we have 2 commodities without keys - we
+        // ignore keys and we will compare only commodity type
+        Assert.assertTrue(TopologyConverter.compareKeys(ctNoKey1, ctNoKey2));
+
+        CommodityType ctKey1 = CommodityType.newBuilder().setType(COMM_TYPE1).setKey(COMM_KEY1).build();
+        CommodityType ctKey2 = CommodityType.newBuilder().setType(COMM_TYPE1).setKey(COMM_KEY2).build();
+        //If one has key, and second doesn't have - that is mismatch
+        Assert.assertFalse(TopologyConverter.compareKeys(ctNoKey1, ctKey1));
+        Assert.assertFalse(TopologyConverter.compareKeys(ctKey1, ctNoKey2));
+        //Two different keys - mismatch
+        Assert.assertFalse(TopologyConverter.compareKeys(ctKey1, ctKey2));
+
+        CommodityType ctKey3 = CommodityType.newBuilder().setType(COMM_TYPE2).setKey(COMM_KEY1).build();
+        //Same keys  - match
+        Assert.assertTrue(TopologyConverter.compareKeys(ctKey1, ctKey3));
     }
 }
