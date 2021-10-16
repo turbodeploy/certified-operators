@@ -25,7 +25,6 @@ global:
 #              10.100.0.10 # eks DNS
 #              10.0.0.10 # aks DNS
 #              10.23.240.10 # gke DNS
-#  externalArangoDBName: xl-arangodb.us-east-1.elb.amazonaws.com
 #  externalConsul: xl-consul.ca-central-1.rds.amazonaws.com
 #  externalDBName: xl-hackaton.cmachd0izjog.ca-central-1.rds.amazonaws.com
 #  externalInfluxDBName: xl-influxdb.us-east-1.elb.amazonaws.com
