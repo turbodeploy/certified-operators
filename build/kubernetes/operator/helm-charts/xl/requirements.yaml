@@ -1,9 +1,5 @@
 dependencies:
 # Base dependencies
-  - name: arangodb
-    repository: file://../base/arangodb
-    version: 0.1.0
-    condition: control.enabled,platform.enabled
   - name: consul
     repository: file://../base/consul
     version: 0.1.0
