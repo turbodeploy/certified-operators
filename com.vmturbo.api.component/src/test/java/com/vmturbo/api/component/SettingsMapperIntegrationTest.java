@@ -105,7 +105,7 @@ public class SettingsMapperIntegrationTest {
                     ScheduleServiceGrpc.newBlockingStub(channel), new ScheduleMapper(),
                     ImmutableMap.of(
                             Feature.CloudScaleEnhancement, true,
-                            Feature.ApplicationMinMaxReplicas, true));
+                            Feature.ServiceHorizontalScale, true));
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),

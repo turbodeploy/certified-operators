@@ -121,9 +121,9 @@ public class SettingsMapper {
          */
         CloudScaleEnhancement,
         /**
-         * Application Min/Max Replicas feature.
+         * Service Horizontal Scale feature.
          */
-        ApplicationMinMaxReplicas
+        ServiceHorizontalScale
     }
 
     /**
@@ -140,12 +140,17 @@ public class SettingsMapper {
                             ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName()
                         )
                 ),
-            Feature.ApplicationMinMaxReplicas,
+            Feature.ServiceHorizontalScale,
                 ImmutableMap.of(
                     SettingsService.MARKETSETTINGS_MANAGER,
                         ImmutableSet.of(
                             EntitySettingSpecs.MinReplicas.getSettingName(),
                             EntitySettingSpecs.MaxReplicas.getSettingName()
+                        ),
+                    SettingsService.AUTOMATION_MANAGER,
+                        ImmutableSet.of(
+                            ConfigurableActionSettings.HorizontalScaleUp.getSettingName(),
+                            ConfigurableActionSettings.HorizontalScaleDown.getSettingName()
                         )
                 )
         );

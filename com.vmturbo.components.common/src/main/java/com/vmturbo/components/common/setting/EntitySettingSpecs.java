@@ -1485,6 +1485,6 @@ public enum EntitySettingSpecs {
         private static final String AGGRESSIVENESS = "Aggressiveness";
         private static final String MAX_OBSERVATION_PERIOD = "Max Observation Period";
         private static final Set<EntityType> MIN_MAX_REPLICAS_ENTITY_TYPES =
-                ImmutableSet.of(EntityType.APPLICATION_COMPONENT);
+                ImmutableSet.of(EntityType.APPLICATION_COMPONENT, EntityType.SERVICE);
     }
 }
