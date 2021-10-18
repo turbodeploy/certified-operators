@@ -100,7 +100,7 @@ public class AuthComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startContext(AuthComponent::createContext);
+        runComponent(AuthComponent::createContext);
     }
 
     @Nonnull

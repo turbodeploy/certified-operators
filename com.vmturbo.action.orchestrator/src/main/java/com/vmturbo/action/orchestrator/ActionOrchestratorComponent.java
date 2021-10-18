@@ -133,6 +133,6 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startComponent(ActionOrchestratorComponent.class);
+        runComponent(ActionOrchestratorComponent.class);
     }
 }

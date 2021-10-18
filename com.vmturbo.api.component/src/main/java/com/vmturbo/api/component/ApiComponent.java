@@ -98,7 +98,7 @@ public class ApiComponent extends BaseVmtComponent {
      */
     public static void main(String[] args) {
         logger.debug("ApiComponent main()");
-        startContext(ApiComponent::createContext);
+        runComponent(ApiComponent::createContext);
     }
 
     /**

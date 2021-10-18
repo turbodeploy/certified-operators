@@ -31,7 +31,7 @@ public class IntersightIntegrationComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startComponent(IntersightIntegrationComponent.class);
+        runComponent(IntersightIntegrationComponent.class);
     }
 
     @PostConstruct

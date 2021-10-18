@@ -75,6 +75,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.featureflags.FeatureFlagEnablementStore;
 import com.vmturbo.components.common.featureflags.FeatureFlagManager;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.featureflags.PropertiesLoaderFeatureFlagEnablementStore;
 import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
@@ -707,28 +708,29 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     /**
      * Start the component by starting its web server with Spring context, initialized from the
-     * given configuration class. Before that's done, feature flags are initialized with the
-     * needed {@link FeatureFlagEnablementStore}, so feature flags can be used in code used during
-     * context construction.
+     * given configuration class. Before that's done, feature flags are initialized with the needed
+     * {@link FeatureFlagEnablementStore}, so feature flags can be used in code used during context
+     * construction.
      *
      * @param configurationClass starting point for Spring context creation
      */
-    protected static void startComponent(@Nonnull Class<?> configurationClass) {
-        configureFeatureFlagStore();
-        startContext(configurationClass);
+    protected static void runComponent(@Nonnull Class<?> configurationClass) {
+        runComponent(servletContextHolder ->
+                attachSpringContext(servletContextHolder, configurationClass));
     }
 
     /**
-     * Starts web server with Spring context, initialized from the specified configuration class.
+     * Start the component by starting its web server with Spring context, initialized from the
+     * given configuration class. Before that's done, feature flags are initialized with the needed
+     * {@link FeatureFlagEnablementStore}, so feature flags can be used in code used during context
+     * construction.
      *
-     * @param configurationClass spring context configuration class
-     * @return Spring context initialized
+     * @param contextConfigurer configuration callback to perform some specific configuration on the
+     *                          servlet context
      */
-    @Nonnull
-    private static ConfigurableWebApplicationContext startContext(
-            @Nonnull Class<?> configurationClass) {
-        return startContext(servletContextHolder -> attachSpringContext(servletContextHolder,
-                configurationClass));
+    protected static void runComponent(ContextConfigurer contextConfigurer) {
+        configureFeatureFlagStore();
+        startContext(contextConfigurer);
     }
 
     private static void configureFeatureFlagStore() {

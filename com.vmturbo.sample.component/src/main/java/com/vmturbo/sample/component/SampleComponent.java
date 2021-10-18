@@ -55,7 +55,7 @@ public class SampleComponent extends BaseVmtComponent {
      * @param args Command-line arguments.
      */
     public static void main(String[] args) {
-        startComponent(SampleComponent.class);
+        runComponent(SampleComponent.class);
     }
 
     @Nonnull
