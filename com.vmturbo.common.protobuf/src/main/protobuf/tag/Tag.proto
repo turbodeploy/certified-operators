@@ -13,3 +13,18 @@ message Tags {
 message TagValuesDTO {
     repeated string values = 1;
 }
+
+// Request to delete tag list for entity or group
+message DeleteTagListRequest {
+    // The entity or group oid
+    optional int64 oid = 1;
+
+    // The tag key list to delete
+    repeated string tag_key = 2;
+}
+
+// Response to the tag deleted.
+message DeleteTagListResponse {
+    // The affected rows after the delete operation
+    optional int32 affected_rows = 1;
+}

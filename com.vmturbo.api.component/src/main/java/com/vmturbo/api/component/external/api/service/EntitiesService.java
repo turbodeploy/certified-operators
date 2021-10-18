@@ -132,6 +132,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPolicies
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -1081,6 +1082,21 @@ public class EntitiesService implements IEntitiesService {
                 DeleteEntityCustomTagsRequest.newBuilder().setEntityOid(oid).build();
         try {
             entityCustomTagsService.deleteTags(request);
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException("Unable to delete tag for Entity: '" + uuid + "'", e);
+        }
+    }
+
+    @Override
+    public void deleteTagsByEntityUuid(final String uuid, final List<String> tagKeys) throws Exception {
+        final long oid = getEntityOidFromString(uuid);
+        final DeleteTagListRequest request =
+                DeleteTagListRequest.newBuilder()
+                        .setOid(oid)
+                        .addAllTagKey(tagKeys)
+                        .build();
+        try {
+            entityCustomTagsService.deleteTagList(request);
         } catch (StatusRuntimeException e) {
             throw new OperationFailedException("Unable to delete tag for Entity: '" + uuid + "'", e);
         }

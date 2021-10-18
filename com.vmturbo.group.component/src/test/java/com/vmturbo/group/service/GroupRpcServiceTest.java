@@ -76,7 +76,6 @@ import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -126,6 +125,8 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListRequest;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListResponse;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
@@ -2239,6 +2240,39 @@ public class GroupRpcServiceTest {
         groupRpcService.createTags(request, mockObserver);
 
         Mockito.verify(mockObserver).onError(Matchers.any(IllegalArgumentException.class));
+    }
+
+    /**
+     * Tests the deletion of a tag list using the gRPC service.
+     *
+     * @throws StoreOperationException should not happen.
+     */
+    @Test
+    public void testDeleteTagList() throws StoreOperationException {
+
+        final String tagName1 = "tag1";
+        final String tagName2 = "tag2";
+        final long groupId = 42L;
+        final DeleteTagListRequest request =
+                DeleteTagListRequest.newBuilder()
+                        .setOid(groupId)
+                        .addTagKey(tagName1)
+                        .addTagKey(tagName2)
+                        .build();
+        final StreamObserver<DeleteTagListResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        final int affectedRows = 3;
+
+        when(groupStoreDAO.deleteTagList(groupId, Arrays.asList(tagName1, tagName2)))
+                .thenReturn(affectedRows);
+        groupRpcService.deleteTagList(request, mockObserver);
+
+        verify(mockObserver).onNext(
+               DeleteTagListResponse.newBuilder()
+                       .setAffectedRows(affectedRows).build()
+        );
+        verify(mockObserver).onCompleted();
     }
 
     /**

@@ -96,6 +96,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListRequest;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListResponse;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
@@ -999,6 +1001,37 @@ public class GroupRpcService extends GroupServiceImplBase {
                 return;
             }
             responseObserver.onNext(DeleteTagsResponse.newBuilder().build());
+            responseObserver.onCompleted();
+        });
+    }
+
+    @Override
+    public void deleteTagList(DeleteTagListRequest request,
+            StreamObserver<DeleteTagListResponse> responseObserver) {
+        if (!request.hasOid()) {
+            final String errMsg =
+                    "Incoming custom group tags delete request does not contain group id: "
+                            + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            int affectedRows;
+            try {
+                affectedRows = stores.getGroupStore().deleteTagList(request.getOid(),
+                        request.getTagKeyList());
+            } catch (StoreOperationException e) {
+                logger.error("Could not delete tags for Group: '" + request.getOid() + "'");
+                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+                return;
+            }
+            responseObserver.onNext(
+                    DeleteTagListResponse.newBuilder()
+                            .setAffectedRows(affectedRows)
+                            .build()
+            );
             responseObserver.onCompleted();
         });
     }
