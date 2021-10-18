@@ -163,7 +163,7 @@ public class ThinTargetCache implements TargetListener, ProbeListener {
 
     @Override
     public void onTargetChanged(@Nonnull final TargetInfo newInfo) {
-        logger.info("Target {} modified. Updating it in the cache.", newInfo.getId());
+        logger.trace("Target {} modified. Updating it in the cache.", newInfo.getId());
         getProbeInfo(newInfo.getProbeId())
             .map(probe -> toThinTargetInfo(newInfo, probe))
             .ifPresent(thinTargetInfo -> {

@@ -97,14 +97,8 @@ public class PriceTableMerge {
                 final PriceTable nextPriceTable = priceTableIterator.next();
                 final Map<Long, OnDemandPriceTable> srcOnDemandPriceTables = nextPriceTable.getOnDemandPriceByRegionIdMap();
                 srcOnDemandPriceTables.forEach((regionId, priceTable) -> {
-                    if (mergeBuilder.containsOnDemandPriceByRegionId(regionId)) {
-                        // This can happen if Azure EA is added and there are multiple price tables
-                        // containing overlapping region ids.
-                        //TODO Fix this when Azure Buy RI support is added
-                        logger.warn("Region {} exists in two separate price tables (for on " +
-                            "demand instances)! This means region ID assignment isn't working as " +
-                            "expected. Ignoring one of them.", regionId);
-                    } else {
+
+                    if (!mergeBuilder.containsOnDemandPriceByRegionId(regionId)) {
                         mergeBuilder.putOnDemandPriceByRegionId(regionId, priceTable);
                     }
                 });
