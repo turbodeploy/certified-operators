@@ -951,10 +951,10 @@ public class ActionModeCalculator {
                         cas = ConfigurableActionSettings.CloudDBScale;
                     break;
                     case EntityType.DATABASE_SERVER_VALUE:
-                        cas = ConfigurableActionSettings.CloudDBServerScale;
+                        cas = getScaleActionSetting(action, ConfigurableActionSettings.CloudDBServerScale);
                         break;
                     case EntityType.VIRTUAL_VOLUME_VALUE:
-                        cas = getVolumeScaleActionSetting(action);
+                        cas = getScaleActionSetting(action, ConfigurableActionSettings.CloudComputeScale);
                     break;
                     default:
                         cas = (enableCloudScaleEnhancement) ? getVmScaleActionSetting(action,
@@ -989,32 +989,32 @@ public class ActionModeCalculator {
         }
     }
 
-    private static ConfigurableActionSettings getVolumeScaleActionSetting(
-            @Nonnull final ActionDTO.Action action) {
+    private static ConfigurableActionSettings getScaleActionSetting(
+        @Nonnull final ActionDTO.Action action, @Nonnull final ConfigurableActionSettings defaultSetting) {
         // If probe provided information about disruptiveness/reversibility then use
         // appropriate settings.
         if (action.hasDisruptive() && action.hasReversible()) {
             final ConfigurableActionSettings result;
             if (action.getDisruptive()) {
                 result = action.getReversible()
-                        ? ConfigurableActionSettings.DisruptiveReversibleScaling
-                        : ConfigurableActionSettings.DisruptiveIrreversibleScaling;
+                    ? ConfigurableActionSettings.DisruptiveReversibleScaling
+                    : ConfigurableActionSettings.DisruptiveIrreversibleScaling;
             } else {
                 result = action.getReversible()
-                        ? ConfigurableActionSettings.NonDisruptiveReversibleScaling
-                        : ConfigurableActionSettings.NonDisruptiveIrreversibleScaling;
+                    ? ConfigurableActionSettings.NonDisruptiveReversibleScaling
+                    : ConfigurableActionSettings.NonDisruptiveIrreversibleScaling;
             }
 
             // Also check that disruptiveness/reversibility settings are applied to the given type.
             final EntityType entityType = EntityType.forNumber(action.getInfo().getScale()
-                    .getTarget().getType());
+                .getTarget().getType());
             if (result.getEntityTypeScope().contains(entityType)) {
                 return result;
             }
         }
 
         // By default use generic setting for Scale actions
-        return ConfigurableActionSettings.CloudComputeScale;
+        return defaultSetting;
     }
 
     /**

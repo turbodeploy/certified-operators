@@ -269,25 +269,25 @@ public enum ConfigurableActionSettings {
      * Automation mode for non-disruptive reversible actions.
      */
     NonDisruptiveReversibleScaling("nonDisruptiveReversibleScaling",
-        "Non-disruptive Reversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME)),
+        "Non-disruptive Reversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER)),
 
     /**
      * Automation mode for non-disruptive irreversible actions.
      */
     NonDisruptiveIrreversibleScaling("nonDisruptiveIrreversibleScaling",
-        "Non-disruptive Irreversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME)),
+        "Non-disruptive Irreversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER)),
 
     /**
      * Automation mode for disruptive reversible actions.
      */
     DisruptiveReversibleScaling("disruptiveReversibleScaling",
-        "Disruptive Reversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME)),
+        "Disruptive Reversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER)),
 
     /**
      * Automation mode for disruptive irreversible actions.
      */
     DisruptiveIrreversibleScaling("disruptiveIrreversibleScaling",
-        "Disruptive Irreversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME));
+        "Disruptive Irreversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER));
 
     private static final Map<String, ConfigurableActionSettings> SETTINGS_MAP;
 
