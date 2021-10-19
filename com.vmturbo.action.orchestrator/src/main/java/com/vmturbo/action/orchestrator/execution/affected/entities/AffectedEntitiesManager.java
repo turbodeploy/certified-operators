@@ -18,6 +18,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -262,6 +263,8 @@ public class AffectedEntitiesManager implements ActionStateMachine.ActionEventLi
     }
 
     private void initializeTheCache(final int entitiesInCoolDownPeriodCacheSizeInMins) {
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
         final List<ActionView> completedActions = actionHistoryDao.getActionHistoryByDate(
                 LocalDateTime.now(clock).minusMinutes(entitiesInCoolDownPeriodCacheSizeInMins),
                 LocalDateTime.now(clock));
@@ -276,5 +279,9 @@ public class AffectedEntitiesManager implements ActionStateMachine.ActionEventLi
                     action,
                     ActionState.SUCCEEDED,
                     action.getCurrentExecutableStep().get().getCompletionTime().get()));
+        stopWatch.stop();
+        logger.info("Finished initializeTheCache for {} completed actions in {}",
+                () -> completedActions.size(),
+                () -> stopWatch.toString());
     }
 }
