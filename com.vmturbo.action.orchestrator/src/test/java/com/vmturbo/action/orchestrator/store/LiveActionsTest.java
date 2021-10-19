@@ -904,7 +904,7 @@ public class LiveActionsTest {
         final SerializationState actionSerializedState =
                 new SerializationState(2L, recommendation, LocalDateTime.now(),
                         ActionDecision.getDefaultInstance(), null, actionState,
-                        new ActionTranslation(recommendation), null, null, null,
+                        new ActionTranslation(recommendation), null, null,
                         "Move VM action".getBytes(), 2244L);
         return ActionOrchestratorTestUtils.createActionFromSerializedState(actionSerializedState);
     }

@@ -169,11 +169,6 @@ class CombinedStatsBuckets {
                 actionInfo.action().getAssociatedResourceGroupId().orElse(0L));
         }
 
-        if (groupBy.contains(GroupBy.NODE_POOL_ID)) {
-            keyBuilder.nodePoolId(
-                    actionInfo.action().getAssociatedNodePoolId().orElse(0L));
-        }
-
         if (groupBy.contains(GroupBy.CSP)) {
             keyBuilder.csp(actionView.getAssociatedAccount()
                     // Use an explicit 0 for actions not associated with accounts.
@@ -185,6 +180,7 @@ class CombinedStatsBuckets {
         bucketKeys = groupByReasonCommodities(bucketKeys, action);
         bucketKeys = groupByActionRelatedRisk(bucketKeys, action);
         bucketKeys = groupByEnvironmentType(bucketKeys, action);
+        bucketKeys = groupByNodePoolIds(bucketKeys, actionView);
 
         return bucketKeys.stream().collect(Collectors.toSet());
     }
@@ -247,6 +243,30 @@ class CombinedStatsBuckets {
         for (ImmutableGroupByBucketKey bucketKey : bucketKeys) {
             for (String relatedRisk : relatedRisks) {
                 newBucketKeys.add(bucketKey.withRisk(relatedRisk));
+            }
+        }
+
+        return newBucketKeys;
+    }
+
+    private Set<ImmutableGroupByBucketKey> groupByNodePoolIds(
+            @Nonnull final Set<ImmutableGroupByBucketKey> bucketKeys,
+            @Nonnull final ActionView actionView) {
+        if (!groupBy.contains(GroupBy.NODE_POOL_ID)) {
+            return bucketKeys;
+        }
+
+
+        final Collection<Long> relatedNodePools = actionView.getAssociatedNodePoolIds();
+        if (relatedNodePools.isEmpty()) {
+            return bucketKeys;
+        }
+
+        final Set<ImmutableGroupByBucketKey> newBucketKeys =
+                new HashSet<>(bucketKeys.size() * relatedNodePools.size());
+        for (ImmutableGroupByBucketKey bucketKey : bucketKeys) {
+            for (Long nodePoolId : relatedNodePools) {
+                newBucketKeys.add(bucketKey.withNodePoolId(nodePoolId));
             }
         }
 

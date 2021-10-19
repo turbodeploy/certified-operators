@@ -265,12 +265,11 @@ public interface ActionView {
     Optional<Long> getAssociatedResourceGroupId();
 
     /**
-     * Get the OID of node pool this action is associated with. Node pool for
-     * "primaryEntity" involved in the action.
+     * Get the OID of node pools this action is associated with.
      *
-     * @return node pool OID.
+     * @return node pool OIDs.
      */
-    Optional<Long> getAssociatedNodePoolId();
+    Collection<Long> getAssociatedNodePoolIds();
 
 
     /**

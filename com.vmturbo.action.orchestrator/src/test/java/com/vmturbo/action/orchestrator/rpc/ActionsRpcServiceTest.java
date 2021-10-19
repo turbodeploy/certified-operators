@@ -469,7 +469,6 @@ public class ActionsRpcServiceTest {
             new ActionTranslation(action),
             ASSOCIATED_ID_ACCT,
             ASSOCIATED_RESOURCE_GROUP_ID,
-            null,
             actionDescription.getBytes(),
                 2244L);
         return spy(new Action(orchestratorAction, actionModeCalculator));

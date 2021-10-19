@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.action;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -179,7 +180,7 @@ public class Action implements ActionView {
 
     private Optional<Long> associatedResourceGroupId = Optional.empty();
 
-    private Optional<Long> associatedNodePoolId = Optional.empty();
+    private Collection<Long> associatedNodePoolIds = Collections.emptyList();
 
     private Collection<Long> associatedSettingsPolicies;
 
@@ -523,7 +524,7 @@ public class Action implements ActionView {
                         getAssociatedPolicies(entitiesSnapshot, primaryEntity);
                 associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
                 associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
-                associatedNodePoolId = getAssociatedNodePool(recommendation, entitiesSnapshot, primaryEntity);
+                associatedNodePoolIds = getAssociatedNodePool(recommendation, entitiesSnapshot, primaryEntity);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
                 // if it was unsupported.
@@ -626,13 +627,15 @@ public class Action implements ActionView {
     }
 
     @Nonnull
-    private Optional<Long> getAssociatedNodePool(@Nonnull final ActionDTO.Action action,
+    private List<Long> getAssociatedNodePool(@Nonnull final ActionDTO.Action action,
                                                  @Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
                                                  long primaryEntity ) {
+        List<Long> nodePools = new ArrayList<>();
         // Get node pool using the primary action entity
         Optional<Long> nodePoolId = entitiesSnapshot.getNodePoolForEntity(primaryEntity);
         if (nodePoolId.isPresent()) {
-            return nodePoolId;
+            nodePools.add(nodePoolId.get());
+            return nodePools;
         }
 
         // Use other involved entities to find associated node pool
@@ -640,10 +643,10 @@ public class Action implements ActionView {
         for (Long id : involvedEntityIds) {
             Optional<Long> poolId = entitiesSnapshot.getNodePoolForEntity(id);
             if (poolId.isPresent()) {
-                return poolId;
+                nodePools.add(poolId.get());
             }
         }
-        return Optional.empty();
+        return nodePools;
     }
 
     /**
@@ -809,8 +812,8 @@ public class Action implements ActionView {
     }
 
     @Override
-    public Optional<Long> getAssociatedNodePoolId() {
-        return associatedNodePoolId;
+    public Collection<Long> getAssociatedNodePoolIds() {
+        return associatedNodePoolIds;
     }
 
     @Nonnull
@@ -1412,11 +1415,6 @@ public class Action implements ActionView {
         }
 
         @Nullable
-        public Long getAssociatedNodePoolId() {
-            return associatedNodePoolId;
-        }
-
-        @Nullable
         public byte[] getActionDetailData() {
             return actionDetailData;
         }
@@ -1439,8 +1437,6 @@ public class Action implements ActionView {
         private final Long associatedAccountId;
 
         private final Long associatedResourceGroupId;
-
-        private final Long associatedNodePoolId;
 
         private final byte[] actionDetailData;
 
@@ -1472,7 +1468,6 @@ public class Action implements ActionView {
             this.actionCategory = action.getActionCategory();
             this.associatedAccountId = action.getAssociatedAccount().orElse(null);
             this.associatedResourceGroupId = action.getAssociatedResourceGroupId().orElse(null);
-            this.associatedNodePoolId = action.getAssociatedNodePoolId().orElse(null);
             this.actionDetailData = action.getDescription().getBytes(StandardCharsets.UTF_8);
             this.schedule = action.getSchedule().orElse(null);
             this.recommendationOid = action.getRecommendationOid();
@@ -1490,7 +1485,6 @@ public class Action implements ActionView {
          * @param actionTranslation actionTranslation from the database.
          * @param associatedAccountId associatedAccountId from the database.
          * @param associatedResourceGroupId associatedResourceGroupId from the database.
-         * @param associatedNodePoolId associatedNodePoolId from the database.
          * @param actionDetailData actionDetailData from the database.
          * @param recommendationOid recommendationOid from the database.
          */
@@ -1503,7 +1497,6 @@ public class Action implements ActionView {
                                   @Nonnull ActionTranslation actionTranslation,
                                   @Nullable Long associatedAccountId,
                                   @Nullable Long associatedResourceGroupId,
-                                  @Nullable Long associatedNodePoolId,
                                   @Nullable byte[] actionDetailData,
                                   @Nullable Long recommendationOid) {
             this.actionPlanId = actionPlanId;
@@ -1517,7 +1510,6 @@ public class Action implements ActionView {
                     ActionCategoryExtractor.assignActionCategory(recommendation);
             this.associatedAccountId = associatedAccountId;
             this.associatedResourceGroupId = associatedResourceGroupId;
-            this.associatedNodePoolId = associatedNodePoolId;
             this.actionDetailData = actionDetailData;
             this.schedule = null;
             this.recommendationOid = recommendationOid;
