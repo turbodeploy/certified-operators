@@ -56,7 +56,19 @@ public class ControllableConfig {
     @Value("${drsMaintenanceProtectionWindow:1800}")
     private int drsMaintenanceProtectionWindow;
 
-    @Value("${useAffectedEntitiesService:false}")
+    /**
+     * When false, ControllableManager uses the existing entity_action table to
+     * calculate the actions that should be suppressed. This old logic does not
+     * work correctly when an action has multiple steps since Topology Processor
+     * does not understand multi step actions. This bug is described in: OM-64720.
+     *
+     * <p>When true, ControllableManager makes a call to Action Orchestrator to
+     * determine the actions that should be suppressed. Action Orchestrator understands
+     * multi step actions and is able to correctly mark the action as succeeded
+     * or failed. This also has the added benefit of moving some responsibility
+     * out of the overloaded Topology Processor.</p>
+     */
+    @Value("${useAffectedEntitiesService:true}")
     private boolean useAffectedEntitiesService;
 
     @Autowired
