@@ -91,6 +91,8 @@ public interface CloudActionSavingsCalculator {
                             actionInfo.getScaleBuilder().setCloudSavingsDetails(savingsDetails);
                         } else if (actionInfo.hasAllocate()) {
                             actionInfo.getAllocateBuilder().setCloudSavingsDetails(savingsDetails);
+                        } else if (actionInfo.hasMove()) {
+                            actionInfo.getMoveBuilder().setCloudSavingsDetails(savingsDetails);
                         }
                     });
 

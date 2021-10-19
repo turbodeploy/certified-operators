@@ -2024,7 +2024,6 @@ public class ActionSpecMapper {
     public Map<String, ActionDetailsApiDTO> createActionDetailsApiDTO(
             final Collection<ActionOrchestratorAction> actions, Long topologyContextId) {
 
-        Map<String, Long> resizeCloudVMActionToVMUuidMap = new HashMap<>();
         Map<String, Long> scaleCloudVolumeActionToVolumeUuidMap = new HashMap<>();
 
         Map<String, ActionDetailsApiDTO> response = new HashMap<>();
@@ -2099,18 +2098,19 @@ public class ActionSpecMapper {
                 case MOVE:
                     // If we are moving across regions, as in cloud migration for example, then
                     // we need to show details. Otherwise, skip.
+                    final ActionDTO.Move move = info.getMove();
                     if (!TopologyDTOUtil.isMigrationAction(recommendation)) {
                         break;
-                    }  else {
+                    } else {
                         if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
                             // Scaling cloud volume action
                             scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, entityUuid);
-                        } else {
-                            // Scaling cloud VM/DB/DBS action
-                            resizeCloudVMActionToVMUuidMap.put(actionIdString, entityUuid);
                         }
-                        break;
+                        if (move.hasCloudSavingsDetails()) {
+                            response.put(actionIdString, cloudSavingsDetailsDtoConverter.convert(move.getCloudSavingsDetails()));
+                        }
                     }
+                    break;
                 case RESIZE:
                 case SCALE:
                     final Scale scale = info.getScale();
@@ -2135,13 +2135,9 @@ public class ActionSpecMapper {
             }
         }
 
-        if (scaleCloudVolumeActionToVolumeUuidMap.size() > 0 || resizeCloudVMActionToVMUuidMap.size() > 0) {
+        if (scaleCloudVolumeActionToVolumeUuidMap.size() > 0) {
             Map<Long, CloudResizeActionDetailsApiDTO> cloudResizeActionDetailMap =
-                    createCloudResizeActionDetailsDTO(resizeCloudVMActionToVMUuidMap.values(),
-                            scaleCloudVolumeActionToVolumeUuidMap.values(), topologyContextId);
-            resizeCloudVMActionToVMUuidMap.forEach((actionId, entityId) -> {
-                response.put(actionId, cloudResizeActionDetailMap.get(entityId));
-            });
+                    createCloudResizeActionDetailsDTO(scaleCloudVolumeActionToVolumeUuidMap.values(), topologyContextId);
             scaleCloudVolumeActionToVolumeUuidMap.forEach((actionId, volumeId) -> {
                 response.put(actionId, cloudResizeActionDetailMap.get(volumeId));
             });
@@ -2165,28 +2161,15 @@ public class ActionSpecMapper {
 
     /**
      * Create Cloud Resize Action Details DTOs for a list of entity ids.
-     * @param entityUuids - list of uuid of the action target entity
      * @param cloudVolumesToBeScaledUuids - list of uuid of action target entities which are cloud volumes.
      * @param topologyContextId - the topology context that the action corresponds to
      * @return dtoMap - A map that contains additional details about the actions
      * like on-demand rates, costs and RI coverage before/after the resize, indexed by entity id
      */
     @Nonnull
-    public Map<Long, CloudResizeActionDetailsApiDTO> createCloudResizeActionDetailsDTO(Collection<Long> entityUuids,
-                                                                                       Collection<Long> cloudVolumesToBeScaledUuids,
+    public Map<Long, CloudResizeActionDetailsApiDTO> createCloudResizeActionDetailsDTO(Collection<Long> cloudVolumesToBeScaledUuids,
                                                                                        Long topologyContextId) {
-        Set<Long> entityUuidSet = new HashSet<>(entityUuids);
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = entityUuidSet.stream().collect(Collectors.toMap(e -> e, e -> new CloudResizeActionDetailsApiDTO()));
-
-        // get on-demand costs
-        setOnDemandCosts(topologyContextId, dtoMap);
-
-        // get on-demand rates
-        setOnDemandRates(topologyContextId, dtoMap);
-
-        // get RI coverage before/after
-        setRiCoverage(topologyContextId, dtoMap);
-
+        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = new HashMap();
         if (!cloudVolumesToBeScaledUuids.isEmpty()) {
             Map<Long, CloudResizeActionDetailsApiDTO> volumeDTOMap
                     = cloudVolumesToBeScaledUuids.stream().collect(Collectors.toMap(e -> e, e -> new CloudResizeActionDetailsApiDTO()));
