@@ -130,7 +130,7 @@ public class ActionApprovalManagerTest {
             ACTION_RECOMMENDATION_OID);
         action.getActionTranslation().setTranslationSuccess(
             ActionDTO.Action.newBuilder().buildPartial());
-        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         // after accepting, the action should have transitioned from READY to IN_PROGRESS
         Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
     }
@@ -148,11 +148,11 @@ public class ActionApprovalManagerTest {
         action.getActionTranslation()
                 .setTranslationSuccess(ActionDTO.Action.newBuilder().buildPartial());
         when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
-        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
 
         try {
-            actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+            actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         } catch (ExecutionInitiationException ex) {
             Assert.assertThat(ex.getMessage(), Matchers.containsString(
                 "Only action with READY state can be accepted. Action " + ACTION_ID + " has "
@@ -160,7 +160,6 @@ public class ActionApprovalManagerTest {
             return;
         }
         fail("The call show have thrown an exception");
-
     }
 
     /**
@@ -189,7 +188,7 @@ public class ActionApprovalManagerTest {
                 .setTranslationSuccess(ActionDTO.Action.newBuilder().buildPartial());
         when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
 
-        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         Mockito.verify(action, Mockito.never()).receive(Mockito.eq(new QueuedEvent()));
         Assert.assertEquals(ActionState.ACCEPTED, action.getState());
     }
@@ -210,8 +209,8 @@ public class ActionApprovalManagerTest {
         action.getActionTranslation().setTranslationSuccess(
             ActionDTO.Action.newBuilder().buildPartial());
         when(action.getState()).thenReturn(ActionState.READY);
-        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
-        verify(actionExecutor, times(1)).execute(anyLong(), any(), any());
+        actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        verify(actionExecutor, times(1)).execute(anyLong(), any());
     }
 
     /**

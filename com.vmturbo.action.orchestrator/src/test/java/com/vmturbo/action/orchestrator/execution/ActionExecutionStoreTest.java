@@ -100,6 +100,18 @@ public class ActionExecutionStoreTest {
         Assert.assertFalse(store.getActionExecution(executionId).isPresent());
     }
 
+    /**
+     * Tests creating new action execution with empty action list.
+     */
+    @Test
+    public void testCreateEmptyExecution() {
+        final ActionExecutionStore store = new ActionExecutionStore();
+
+        final ActionExecution execution = store.createExecution(Collections.emptyList(),
+                Collections.emptyList());
+        Assert.assertFalse(store.getActionExecution(execution.getId()).isPresent());
+    }
+
     private static void checkThatExecutionIsStored(
             final ActionExecution execution,
             final ActionExecutionStore store) {

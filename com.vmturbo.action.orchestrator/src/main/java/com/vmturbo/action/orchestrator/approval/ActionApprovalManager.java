@@ -1,8 +1,14 @@
 package com.vmturbo.action.orchestrator.approval;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +30,7 @@ import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
+import com.vmturbo.action.orchestrator.execution.ActionWithWorkflow;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
@@ -115,76 +122,116 @@ public class ActionApprovalManager {
      * @throws ExecutionInitiationException if something goes wrong in the process of starting
      * the execution of the action.
      */
-    public void attemptAndExecute(@Nonnull ActionStore store,
-            @Nonnull String userNameAndUuid, @Nonnull Action action) throws ExecutionInitiationException {
+    public void attemptAcceptAndExecute(
+            @Nonnull final ActionStore store,
+            @Nonnull final String userNameAndUuid,
+            @Nonnull final Action action) throws ExecutionInitiationException {
         final ActionState actionState = action.getState();
         if (actionState != ActionState.READY) {
             throw new ExecutionInitiationException(
-                "Only action with READY state can be accepted. Action " + action.getId()
-                + " has " + actionState + " state.", Status.Code.INVALID_ARGUMENT);
+                    "Only action with READY state can be accepted. Action " + action.getId()
+                            + " has " + actionState + " state.", Status.Code.INVALID_ARGUMENT);
         }
+        attemptAcceptAndExecute(store, userNameAndUuid, Collections.singletonList(action));
+    }
 
-        attemptAcceptAndExecute(action, userNameAndUuid);
-        if (!action.isReady()) {
-            store.getEntitySeverityCache().ifPresent(severityCache ->
-                severityCache.refresh(action.getTranslationResultOrOriginal(), store));
+    /**
+     * Attempts executing the list of actions. It is implied that actions are in MANUAL
+     * action execution mode, so this method will trigger execution (perform manual approval of
+     * the action).
+     *
+     * @param store action store
+     * @param userNameAndUuid ID of a user accepting the action
+     * @param actionList the list of actions to accept
+     * @throws ExecutionInitiationException if something goes wrong in the process of starting
+     * the execution of the action.
+     */
+    public void attemptAcceptAndExecute(
+            @Nonnull final ActionStore store,
+            @Nonnull final String userNameAndUuid,
+            @Nonnull final List<Action> actionList) throws ExecutionInitiationException {
+        attemptAcceptAndExecute(actionList, userNameAndUuid);
+        for (final Action action : actionList) {
+            if (!action.isReady()) {
+                store.getEntitySeverityCache().ifPresent(severityCache ->
+                        severityCache.refresh(action.getTranslationResultOrOriginal(), store));
+            }
         }
     }
 
     /**
-     * Attempt to accept and execute the action.
+     * Attempt to accept and execute the list of actions.
      *
-     * @param action action to accept
+     * @param actionList action list to accept
      * @param userUuid user trying to accept
      * @throws ExecutionInitiationException if cannot initiate the action execution.
      */
-    private void attemptAcceptAndExecute(@Nonnull final Action action,
+    private void attemptAcceptAndExecute(
+            @Nonnull final List<Action> actionList,
             @Nonnull final String userUuid) throws ExecutionInitiationException {
-        long actionTargetId;
-        if (action.getSchedule().isPresent()) {
-            persistAcceptanceForActionWithSchedule(action, userUuid);
-        }
-        final ActionTargetInfo actionTargetInfo =
-                actionTargetSelector.getTargetForAction(action.getTranslationResultOrOriginal(),
-                        entitySettingsCache, action.getWorkflowExecutionTarget(workflowStore));
-        final Optional<String> validationError =
-                checkActionExecutionValidity(action, actionTargetInfo);
-        if (!validationError.isPresent()) {
-            actionTargetId = actionTargetInfo.targetId().get();
-        } else {
-            // persist attempt of accepting the action with details about why this action
-            // couldn't be accepted
-            AuditLog.newEntry(AuditAction.ACCEPT_ACTION, validationError.get(), false)
-                    .targetName(String.valueOf(action.getId()))
-                    .audit();
-            throw new ExecutionInitiationException(
-                    "Action cannot be executed by any target. Support level: "
-                            + actionTargetInfo.supportingLevel() + ". Action mode: "
-                            + action.getMode(), Code.FAILED_PRECONDITION);
+        for (final Action action : actionList) {
+            if (action.getSchedule().isPresent()) {
+                persistAcceptanceForActionWithSchedule(action, userUuid);
+            }
         }
 
-        if (action.receive(new ManualAcceptanceEvent(userUuid, actionTargetId))
-                .transitionNotTaken()) {
-            throw new ExecutionInitiationException("Action cannot be executed, because transition"
-                    + " was blocked by acceptance guard. Action mode:" + action.getMode(),
-                    Code.PERMISSION_DENIED);
+        // Validate actions and retrieve actions target
+        final Set<Long> targetIds = new HashSet<>();
+        for (final Action action : actionList) {
+            final ActionTargetInfo actionTargetInfo =
+                    actionTargetSelector.getTargetForAction(action.getTranslationResultOrOriginal(),
+                            entitySettingsCache, action.getWorkflowExecutionTarget(workflowStore));
+            final Optional<String> validationError =
+                    checkActionExecutionValidity(action, actionTargetInfo);
+            if (validationError.isPresent()) {
+                // persist attempt of accepting the action with details about why this action
+                // couldn't be accepted
+                AuditLog.newEntry(AuditAction.ACCEPT_ACTION, validationError.get(), false)
+                        .targetName(String.valueOf(action.getId()))
+                        .audit();
+                throw new ExecutionInitiationException(
+                        "Action cannot be executed by any target. Support level: "
+                                + actionTargetInfo.supportingLevel() + ". Action mode: "
+                                + action.getMode(), Code.FAILED_PRECONDITION);
+            }
+
+            final long actionTargetId = actionTargetInfo.targetId().get();
+            targetIds.add(actionTargetId);
+        }
+        if (targetIds.size() != 1) {
+            throw new ExecutionInitiationException("All actions in the list must be associated"
+                    + " with the same target. Got the following targets instead: " + targetIds,
+                    Code.FAILED_PRECONDITION);
+        }
+        final long targetId = targetIds.iterator().next();
+
+        for (final Action action : actionList) {
+            if (action.receive(new ManualAcceptanceEvent(userUuid, targetId))
+                    .transitionNotTaken()) {
+                throw new ExecutionInitiationException("Action cannot be executed, because transition"
+                        + " was blocked by acceptance guard. Action mode:" + action.getMode(),
+                        Code.PERMISSION_DENIED);
+            }
         }
 
-        if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveScheduleNow()) {
-            AuditLog.newEntry(AuditAction.ACCEPT_SCHEDULED_ACTION, action.getDescription(), true)
-                    .targetName(String.valueOf(action.getId()))
-                    .audit();
-            // postpone action execution, because action has related execution window
-            actionTranslator.translateToSpec(action);
-            return;
-        } else {
-            AuditLog.newEntry(AuditAction.ACCEPT_ACTION, action.getDescription(), true)
-                    .targetName(String.valueOf(action.getId()))
-                    .audit();
-            action.receive(new QueuedEvent());
+        final List<Action> actionsToExecute = new ArrayList<>(actionList.size());
+        for (final Action action : actionList) {
+            if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveScheduleNow()) {
+                AuditLog.newEntry(AuditAction.ACCEPT_SCHEDULED_ACTION, action.getDescription(), true)
+                        .targetName(String.valueOf(action.getId()))
+                        .audit();
+                // postpone action execution, because action has related execution window
+                actionTranslator.translateToSpec(action);
+            } else {
+                AuditLog.newEntry(AuditAction.ACCEPT_ACTION, action.getDescription(), true)
+                        .targetName(String.valueOf(action.getId()))
+                        .audit();
+                action.receive(new QueuedEvent());
+                actionsToExecute.add(action);
+            }
         }
 
-        attemptActionExecution(action, actionTargetId);
+        attemptActionExecution(actionsToExecute, targetId);
     }
 
     /**
@@ -212,30 +259,48 @@ public class ActionApprovalManager {
         return Optional.empty();
     }
 
-    private void attemptActionExecution(@Nonnull final Action action,
+    private void attemptActionExecution(
+            @Nonnull final List<Action> actionList,
             final long targetId) throws ExecutionInitiationException {
         try {
-            // Start action execution
-            action.receive(new BeginExecutionEvent());
-            final Optional<ActionDTO.Action> translatedRecommendation =
-                    action.getActionTranslation()
-                            .getTranslatedRecommendation();
-            if (translatedRecommendation.isPresent()) {
-                // execute the action, passing the workflow override (if any)
-                actionExecutor.execute(targetId, actionTranslator.translateToSpec(action),
-                        action.getWorkflow(workflowStore, action.getState()));
-                actionTranslator.translateToSpec(action);
-            } else {
-                final String errorMsg = String.format(
-                        "Failed to translate action %d for execution.", action.getId());
-                logger.error(errorMsg);
-                action.receive(new FailureEvent(errorMsg));
-                throw new ExecutionInitiationException(errorMsg, Status.Code.INTERNAL);
+            // Start action list execution
+            actionList.forEach(action -> action.receive(new BeginExecutionEvent()));
+            final List<ActionWithWorkflow> actionWithWorkflowList = new ArrayList<>(
+                    actionList.size());
+            for (final Action action : actionList) {
+                final Optional<ActionDTO.Action> translatedRecommendation =
+                        action.getActionTranslation()
+                                .getTranslatedRecommendation();
+                if (translatedRecommendation.isPresent()) {
+                    actionWithWorkflowList.add(new ActionWithWorkflow(
+                            actionTranslator.translateToSpec(action),
+                            action.getWorkflow(workflowStore, action.getState())));
+                } else {
+                    final String errorMsg = String.format(
+                            "Failed to translate action %d for execution.", action.getId());
+                    logger.error(errorMsg);
+                    // Fail all actions in the list
+                    actionList.forEach(a -> a.receive(new FailureEvent(errorMsg)));
+                    throw new ExecutionInitiationException(errorMsg, Status.Code.INTERNAL);
+                }
             }
+            actionExecutor.execute(targetId, actionWithWorkflowList);
+            actionList.forEach(actionTranslator::translateToSpec);
         } catch (ExecutionStartException | WorkflowStoreException e) {
-            logger.error("Failed to start action {} due to an error.", action.getId(), e);
-            executionListener.onActionFailure(ActionNotificationDTO.ActionFailure.newBuilder()
-              .setActionId(action.getId()).setErrorDescription(e.getMessage()).build());
+            final String actionIdsString = actionList.stream()
+                    .map(Action::getId)
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(", "));
+            logger.error("Failed to start actions {} due to an error.", actionIdsString, e);
+            // Report action failure for all actions in the list
+            actionList.stream()
+                    .map(Action::getId)
+                    .forEach(actionId ->
+                            executionListener.onActionFailure(ActionNotificationDTO.ActionFailure
+                                    .newBuilder()
+                                    .setActionId(actionId)
+                                    .setErrorDescription(e.getMessage())
+                                    .build()));
             throw new ExecutionInitiationException(e.toString(), e, Status.Code.INTERNAL);
         }
     }

@@ -43,10 +43,12 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
+import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
+import com.vmturbo.action.orchestrator.execution.ActionWithWorkflow;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
@@ -69,6 +71,7 @@ import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -128,6 +131,7 @@ public class ActionExecutionRpcTest {
 
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionExecutionStore actionExecutionStore = new ActionExecutionStore();
+    private final ActionCombiner actionCombiner = new ActionCombiner(mock(ActionTopologyStore.class));
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
@@ -201,6 +205,7 @@ public class ActionExecutionRpcTest {
             auditedActionsManager,
             actionAuditSender,
             actionExecutionStore,
+            actionCombiner,
             500,
             777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
@@ -488,7 +493,7 @@ public class ActionExecutionRpcTest {
                 .targetId(targetId)
                 .build());
         doThrow(new ExecutionStartException("ERROR!"))
-            .when(actionExecutor).execute(eq(targetId), any(), eq(EMPTY_WORKFLOW_OPTIONAL));
+            .when(actionExecutor).execute(eq(targetId), any());
 
         final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
                 createActionRequest());
@@ -532,7 +537,8 @@ public class ActionExecutionRpcTest {
                     rejectedActionsStore,
                     auditedActionsManager,
                     actionAuditSender,
-                        actionExecutionStore,
+                    actionExecutionStore,
+                    actionCombiner,
                     500,
                     777777L);
         final GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,

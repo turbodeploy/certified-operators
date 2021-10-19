@@ -49,6 +49,7 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
+import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -164,6 +165,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final ActionExecutionStore actionExecutionStore;
 
+    private final ActionCombiner actionCombiner;
+
     private final int actionPaginationMaxLimit;
 
     private final long realtimeTopologyContextId;
@@ -184,6 +187,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param auditedActionsManager object responsible for maintaining the book keeping
      * @param actionAuditSender receives and sends action events for audit
      * @param actionExecutionStore keeps track of action executions
+     * @param actionCombiner combines related actions together for a single execution
      * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
      * @param realtimeTopologyContextId the ID of the topology context for realtime market analysis
      */
@@ -200,6 +204,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final AuditedActionsManager auditedActionsManager,
             @Nonnull final ActionAuditSender actionAuditSender,
             @Nonnull final ActionExecutionStore actionExecutionStore,
+            @Nonnull final ActionCombiner actionCombiner,
             final int actionPaginationMaxLimit,
             final long realtimeTopologyContextId) {
         this.clock = clock;
@@ -215,6 +220,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
         this.actionExecutionStore = Objects.requireNonNull(actionExecutionStore);
+        this.actionCombiner = Objects.requireNonNull(actionCombiner);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
@@ -256,8 +262,14 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                 Status.Code.INVALID_ARGUMENT);
                     }
 
-                    final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
-                    actionApprovalManager.attemptAndExecute(store, userNameAndUuid, action);
+                    // Check action state
+                    final ActionState actionState = action.getState();
+                    if (actionState != ActionState.READY) {
+                        throw new ExecutionInitiationException(
+                                "Only action with READY state can be accepted. Action " + action.getId()
+                                        + " has " + actionState + " state.", Status.Code.INVALID_ARGUMENT);
+                    }
+
                     actions.add(action);
                 } catch (ExecutionInitiationException e) {
                     skippedActions.add(SkippedAction.newBuilder()
@@ -267,8 +279,35 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     logger.error("Failed to accept action with ID {}", actionId, e);
                 }
             }
+
+            final List<List<Action>> combinedActionList = actionCombiner.combineActions(actions);
+            final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
+            final List<Action> acceptedActions = new ArrayList<>(actions.size());
+            for (final List<Action> actionListToExecute : combinedActionList) {
+                if (actionListToExecute.isEmpty()) {
+                    continue;
+                }
+                try {
+                    actionApprovalManager.attemptAcceptAndExecute(store, userNameAndUuid,
+                            actionListToExecute);
+                    acceptedActions.addAll(actionListToExecute);
+                } catch (ExecutionInitiationException e) {
+                    for (final Action a : actionListToExecute) {
+                        skippedActions.add(SkippedAction.newBuilder()
+                                .setActionId(a.getRecommendationOid())
+                                .setReason(e.getMessage())
+                                .build());
+                    }
+                    final String actionIdsString = actions.stream()
+                            .map(Action::getId)
+                            .map(String::valueOf)
+                            .collect(Collectors.joining(", "));
+                    logger.error("Failed to accept actions: {}", actionIdsString, e);
+                }
+            }
+
             responseObserver.onNext(actionExecutionStore.createExecution(
-                    actions, skippedActions));
+                    acceptedActions, skippedActions));
             responseObserver.onCompleted();
         } catch (ExecutionInitiationException e) {
             responseObserver.onError(e.toStatus());

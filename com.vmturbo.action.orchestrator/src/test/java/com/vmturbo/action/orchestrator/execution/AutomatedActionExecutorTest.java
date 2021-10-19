@@ -49,6 +49,7 @@ import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.Conditiona
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitterTest.CountDownSubmitter;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
@@ -90,6 +91,9 @@ public class AutomatedActionExecutorTest {
 
     private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
 
+    private final ActionTopologyStore actionTopologyStore = Mockito.mock(ActionTopologyStore.class);
+    private final ActionCombiner actionCombiner = new ActionCombiner(actionTopologyStore);
+
     private final ScheduleServiceMole testScheduleService = spy(new ScheduleServiceMole());
 
     /**
@@ -117,8 +121,7 @@ public class AutomatedActionExecutorTest {
         when(actionStore.getActions()).thenReturn(actionMap);
         when(actionTranslator.translateToSpec(any()))
             .thenReturn(ActionDTO.ActionSpec.getDefaultInstance());
-        Mockito.doNothing().when(actionExecutor).executeSynchronously(anyLong(),
-                any(ActionDTO.ActionSpec.class), any(Optional.class));
+        Mockito.doNothing().when(actionExecutor).executeSynchronously(anyLong(), any());
         when(actionStore.allowsExecution()).thenReturn(true);
     }
 
@@ -128,8 +131,8 @@ public class AutomatedActionExecutorTest {
 
         CountDownSubmitter countDownSubmitter = new CountDownSubmitter(5, countDownLatch);
         AutomatedActionExecutor executor = new AutomatedActionExecutor(actionExecutor,
-                countDownSubmitter, workflowStore,
-                actionTargetSelector, entitySettingsCache, actionTranslator);
+                countDownSubmitter, workflowStore, actionTargetSelector, entitySettingsCache,
+                actionTranslator, actionCombiner);
 
         List<ConditionalFuture> result = executor.executeAutomatedFromStore(actionStore);
 
@@ -217,9 +220,7 @@ public class AutomatedActionExecutorTest {
                 Optional.empty());
         ActionDTO.ActionSpec actionSpec =
             ActionDTO.ActionSpec.newBuilder().setRecommendation(crossTargetRec).build();
-        when(actionTranslator.translateToSpec(crossTargetAction)).thenReturn(
-            actionSpec
-        );
+        when(actionTranslator.translateToSpec(crossTargetAction)).thenReturn(actionSpec);
 
         executeAndWaitForCompletion(1);
 
@@ -231,8 +232,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, actionSpec,
-            workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1,
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -369,11 +370,10 @@ public class AutomatedActionExecutorTest {
         when(failedExecuteAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
         ActionDTO.ActionSpec actionSpec =
             ActionDTO.ActionSpec.newBuilder().setRecommendation(rec).build();
-        when(actionTranslator.translateToSpec(failedExecuteAction)).thenReturn(
-            actionSpec
-        );
+        when(actionTranslator.translateToSpec(failedExecuteAction)).thenReturn(actionSpec);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!"))
-                .when(actionExecutor).executeSynchronously(targetId1, actionSpec, workflowOpt);
+                .when(actionExecutor).executeSynchronously(targetId1,
+                        Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
         executeAndWaitForCompletion(1);
 
         InOrder inOrder = Mockito.inOrder(failedExecuteAction);
@@ -390,7 +390,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, actionSpec, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1,
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -415,9 +416,7 @@ public class AutomatedActionExecutorTest {
         when(goodAction.getState()).thenReturn(ActionState.IN_PROGRESS);
         ActionDTO.ActionSpec actionSpec =
             ActionDTO.ActionSpec.newBuilder().setRecommendation(rec).build();
-        when(actionTranslator.translateToSpec(goodAction)).thenReturn(
-            actionSpec
-        );
+        when(actionTranslator.translateToSpec(goodAction)).thenReturn(actionSpec);
         executeAndWaitForCompletion(1);
 
         InOrder order = Mockito.inOrder(goodAction);
@@ -428,7 +427,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, actionSpec, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1,
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -487,7 +487,8 @@ public class AutomatedActionExecutorTest {
         setUpMocksForAutomaticAction(failedExecuteAction, execFailId, execFailRec);
         when(failedExecuteAction.getActionTranslation()).thenReturn(execFailTrans);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!!"))
-                .when(actionExecutor).executeSynchronously(targetId2, execFailedActionSpec, workflowOpt);
+                .when(actionExecutor).executeSynchronously(targetId2,
+                        Collections.singletonList(new ActionWithWorkflow(execFailedActionSpec, workflowOpt)));
 
         final Action goodAction = Mockito.mock(Action.class);
         final long goodId = 1L;
@@ -553,11 +554,11 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).allowsExecution();
         // This mapping happens once, for all actions
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, goodActionSpec, workflowOpt);
-        Mockito.verify(actionExecutor).executeSynchronously(targetId2, execFailedActionSpec,
-            workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1,
+                Collections.singletonList(new ActionWithWorkflow(goodActionSpec, workflowOpt)));
+        Mockito.verify(actionExecutor).executeSynchronously(targetId2,
+                Collections.singletonList(new ActionWithWorkflow(execFailedActionSpec, workflowOpt)));
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
-
     }
 
     @Test
@@ -568,7 +569,7 @@ public class AutomatedActionExecutorTest {
         ActionExecutor testActionExecutor = mock(ActionExecutor.class);
         final AutomatedActionExecutor automatedActionExecutor =
                 new AutomatedActionExecutor(testActionExecutor, submitter,
-                        workflowStore, actionTargetSelector, entitySettingsCache, actionTranslator);
+                        workflowStore, actionTargetSelector, entitySettingsCache, actionTranslator, actionCombiner);
         long actionId = 1L;
         ActionDTO.Action testRecommendation = makeRec(
                 TestActionBuilder.makeMoveInfo(targetId1, entityId1, pmType, entityId2, pmType),
@@ -632,9 +633,7 @@ public class AutomatedActionExecutorTest {
         when(actionSchedule.isActiveScheduleNow()).thenReturn(true);
         ActionDTO.ActionSpec actionSpec =
             ActionDTO.ActionSpec.newBuilder().setRecommendation(recommendation).build();
-        when(actionTranslator.translateToSpec(manualAcceptedAction)).thenReturn(
-            actionSpec
-        );
+        when(actionTranslator.translateToSpec(manualAcceptedAction)).thenReturn(actionSpec);
 
         executeAndWaitForCompletion(1);
 
@@ -646,7 +645,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, actionSpec, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1,
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 

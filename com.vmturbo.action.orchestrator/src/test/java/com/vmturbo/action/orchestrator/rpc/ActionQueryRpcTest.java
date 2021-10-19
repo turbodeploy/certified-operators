@@ -58,6 +58,8 @@ import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.execution.ActionCombiner;
+import com.vmturbo.action.orchestrator.execution.ActionCombinerTest;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -126,6 +128,7 @@ public class ActionQueryRpcTest {
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final ActionExecutionStore actionExecutionStore = mock(ActionExecutionStore.class);
+    private final ActionCombiner actionCombiner = mock(ActionCombiner.class);
 
     private final ActionTranslator actionTranslatorWithFailedTranslation =
         ActionOrchestratorTestUtils.passthroughTranslator();
@@ -170,6 +173,7 @@ public class ActionQueryRpcTest {
                 auditedActionsManager,
                 actionAuditSender,
                 actionExecutionStore,
+                actionCombiner,
                 500,
                 777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
@@ -189,6 +193,7 @@ public class ActionQueryRpcTest {
                 auditedActionsManager,
                 actionAuditSender,
                 actionExecutionStore,
+                actionCombiner,
                 500,
                 777777L);
         IdentityGenerator.initPrefix(0);

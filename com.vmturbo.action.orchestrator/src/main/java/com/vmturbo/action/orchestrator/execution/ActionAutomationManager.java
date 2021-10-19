@@ -65,12 +65,12 @@ public class ActionAutomationManager {
                 cancelActionsWithoutActiveExecutionWindow();
                 MutableInt removalCount = new MutableInt(0);
                 actionExecutionFutures.removeIf(future -> {
-                    Action action = future.getOriginalTask().getAction();
-                    ActionState state = action.getState();
-                    final boolean shouldRemove =  future.isDone()
-                            || state == ActionState.CLEARED
-                            || state == ActionState.FAILED
-                            || state == ActionState.SUCCEEDED;
+                    final boolean shouldRemove = future.isDone()
+                            || future.getOriginalTask().getActionList().stream()
+                            .map(Action::getState)
+                            .allMatch(state -> state == ActionState.CLEARED
+                                    || state == ActionState.FAILED
+                                    || state == ActionState.SUCCEEDED);
                     if (shouldRemove) {
                         removalCount.increment();
                     }
@@ -87,11 +87,11 @@ public class ActionAutomationManager {
                         byStatus.computeIfAbsent("Queued", k -> new MutableInt()).increment();
                     }
                 });
-                logger.info("{} completed actions cleared from execution queue." + " {} actions added. {}",
-                        removalCount.getAndDecrement(), newExecuted.size(),
+                logger.info("{} completed action lists cleared from execution queue. {} action "
+                        + "lists added. {}", removalCount.getAndDecrement(), newExecuted.size(),
                         actionExecutionFutures.isEmpty()
                             ? "Queue is empty."
-                            : FormattedString.format("Queue has {} total actions: {}.", actionExecutionFutures.size(), byStatus.entrySet()
+                            : FormattedString.format("Queue has {} total action lists: {}.", actionExecutionFutures.size(), byStatus.entrySet()
                                 .stream()
                                 .map(entry -> entry.getValue().getValue() + " " + entry.getKey())
                                 .collect(Collectors.joining(", "))));
@@ -112,19 +112,23 @@ public class ActionAutomationManager {
         logger.info("Cancelling all pending automated actions which are waiting to be executed");
         synchronized (actionExecutionFuturesLock) {
             int cancelledCount = actionExecutionFutures.stream()
-                    .filter(future -> future.getOriginalTask().getAction()
-                            .getState() == ActionState.QUEUED)
                     .map(future -> {
-                        Action action = future.getOriginalTask().getAction();
-                        future.cancel(false);
-                        action.receive(new NotRecommendedEvent(action.getId()));
-                        return 1;
+                        final List<Action> actionList = future.getOriginalTask().getActionList();
+                        if (actionList.stream().allMatch(action ->
+                                action.getState() == ActionState.QUEUED)) {
+                            future.cancel(false);
+                            actionList.forEach(action ->
+                                    action.receive(new NotRecommendedEvent(action.getId())));
+                            return 1;
+                        } else {
+                            return 0;
+                        }
                 })
                 .reduce(Integer::sum)
                 .orElse(0);
 
-            logger.info("Cancelled execution of {} queued automated actions. Total automated actions: {}",
-                cancelledCount, actionExecutionFutures.size());
+            logger.info("Cancelled execution of {} queued automated action lists. Total automated "
+                    + "action lists: {}", cancelledCount, actionExecutionFutures.size());
             actionExecutionFutures.clear();
             return cancelledCount;
         }
@@ -143,21 +147,23 @@ public class ActionAutomationManager {
         actionExecutionFutures.stream()
             .filter(actionTask -> !isActiveExecutionWindow(actionTask))
             .forEach(future -> {
-                    final Action action = future.getOriginalTask().getAction();
-                    final boolean isCanceled = future.cancel(false);
+                final boolean isCanceled = future.cancel(false);
                 if (isCanceled) {
-                    action.receive(new RollBackToAcceptedEvent());
+                    future.getOriginalTask().getActionList().forEach(action -> {
+                        action.receive(new RollBackToAcceptedEvent());
+                        cancelledRecommendationIds.add(action.getRecommendationOid());
+                    });
                     cancelledCount.getAndIncrement();
-                    cancelledRecommendationIds.add(action.getRecommendationOid());
                 }
             });
 
         if (cancelledCount.get() != 0) {
-            logger.info("Cancelled execution of {} queued actions which have no active execution "
-                + "windows.", cancelledCount.get());
+            logger.info("Cancelled execution of {} queued action lists which have no active "
+                    + "execution windows.", cancelledCount.get());
             if (logger.isDebugEnabled()) {
-                logger.debug("Cancelled execution of following actions with recommendation ids: {}",
-                    () -> StringUtils.join(cancelledRecommendationIds, ","));
+                logger.debug(
+                        "Cancelled execution of actions with the following recommendation ids: {}",
+                        () -> StringUtils.join(cancelledRecommendationIds, ","));
             }
         }
     }
@@ -169,10 +175,11 @@ public class ActionAutomationManager {
      * @return if execution window is active, otherwise false
      */
     private boolean isActiveExecutionWindow(@Nonnull ConditionalFuture future) {
-        final Action action = future.getOriginalTask().getAction();
-        if (action.getState() == ActionState.QUEUED && action.getSchedule().isPresent()) {
-            return action.getSchedule().get().isActiveScheduleNow();
-        }
-        return true;
+        return future.getOriginalTask().getActionList().stream().allMatch(action -> {
+            if (action.getState() == ActionState.QUEUED && action.getSchedule().isPresent()) {
+                return action.getSchedule().get().isActiveScheduleNow();
+            }
+            return true;
+        });
     }
 }

@@ -76,7 +76,7 @@ public class ExternalActionApprovalManagerTest {
         mgr = Mockito.mock(ActionApprovalManager.class);
         rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
         doThrow(new ExecutionInitiationException("Some error", Status.Code.INTERNAL))
-                .when(mgr).attemptAndExecute(Mockito.any(), Mockito.anyString(),
+                .when(mgr).attemptAcceptAndExecute(Mockito.any(), Mockito.anyString(),
                 Mockito.any(Action.class));
         actionStore = Mockito.mock(ActionStore.class);
         storehouse = Mockito.mock(ActionStorehouse.class);
@@ -134,13 +134,13 @@ public class ExternalActionApprovalManagerTest {
                 .build(), commit, Mockito.mock(SpanContext.class));
 
         Mockito.verify(mgr)
-                .attemptAndExecute(Mockito.eq(actionStore),
+                .attemptAcceptAndExecute(Mockito.eq(actionStore),
                         Mockito.eq(ExternalActionApprovalManager.USER_ID),
                         Mockito.eq(acceptedAction));
         Mockito.verify(mgr, Mockito.never())
-                .attemptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(readyAction));
+                .attemptAcceptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(readyAction));
         Mockito.verify(mgr, Mockito.never())
-                .attemptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(rejectedAction));
+                .attemptAcceptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(rejectedAction));
         Mockito.verify(rejectedActionsStore)
                 .persistRejectedAction(Mockito.eq(RECOMMENDATION_ID), Mockito.any(String.class),
                         Mockito.any(LocalDateTime.class), Mockito.any(String.class),
@@ -168,7 +168,7 @@ public class ExternalActionApprovalManagerTest {
             .build(), commit, Mockito.mock(SpanContext.class));
 
         Mockito.verify(mgr, Mockito.never())
-            .attemptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(readyAction));
+            .attemptAcceptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(readyAction));
         Mockito.verify(commit).run();
     }
 

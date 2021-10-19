@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.execution;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,8 +42,6 @@ public class ConditionalSubmitterTest {
     /**
      * Test that the tasks with the same condition are executed in the same
      * order as submitted.
-     *
-     * @throws Exception any test exception
      */
     @Test
     public void testExecutionOrder() {
@@ -117,7 +116,7 @@ public class ConditionalSubmitterTest {
     /**
      * Task that throws exception.
      */
-    private class ExceptionTask extends BaseTestTask implements ConditionalTask {
+    private static class ExceptionTask extends BaseTestTask implements ConditionalTask {
 
         ExceptionTask(int taskId, int conditionId) {
             super(taskId, conditionId);
@@ -134,15 +133,13 @@ public class ConditionalSubmitterTest {
         }
 
         @Override
-        public Action getAction() {
-            return null;
+        public List<Action> getActionList() {
+            return Collections.emptyList();
         }
     }
 
     /**
      * Execute multiple tasks with multiple conditions.
-     *
-     * @throws Exception any test exception
      */
     @Test
     public void testConditionalExecutorService() {
@@ -203,7 +200,7 @@ public class ConditionalSubmitterTest {
     /**
      * Test task with an integer condition.
      */
-    private class TimingTask extends BaseTestTask implements ConditionalTask {
+    private static class TimingTask extends BaseTestTask implements ConditionalTask {
 
         private Instant startTime;
         private Instant endTime;
@@ -220,7 +217,7 @@ public class ConditionalSubmitterTest {
         public TimingTask call() throws Exception {
             startTime = Instant.now();
             try {
-                Thread.sleep(30);
+                Thread.sleep(5);
             } catch (InterruptedException e) {
                 logger.error("Interrupted " + this, e);
                 throw new InterruptedException();
@@ -267,15 +264,15 @@ public class ConditionalSubmitterTest {
         }
 
         @Override
-        public Action getAction() {
-            return null;
+        public List<Action> getActionList() {
+            return Collections.emptyList();
         }
     }
 
     /**
      * Test task with an integer condition.
      */
-    private class BaseTestTask {
+    private static class BaseTestTask {
 
         private final int taskId;
         private final int conditionId;

@@ -17,9 +17,9 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -84,6 +84,7 @@ public class AutomatedActionExecutor {
      */
     private final WorkflowStore workflowStore;
     private final ActionTranslator actionTranslator;
+    private final ActionCombiner actionCombiner;
 
     /**
      * Creates a AutomatedActionExecutor that talks will all the provided services.
@@ -94,19 +95,22 @@ public class AutomatedActionExecutor {
      * @param actionTargetSelector to select which target/probe to execute each action against
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot.
      * @param actionTranslator the action translator.
+     * @param actionCombiner the bean to combine related actions for a single execution.
      */
     public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor,
             @Nonnull final Executor submitter,
             @Nonnull final WorkflowStore workflowStore,
             @Nonnull final ActionTargetSelector actionTargetSelector,
             @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
-            @Nonnull final ActionTranslator actionTranslator) {
+            @Nonnull final ActionTranslator actionTranslator,
+            @Nonnull final ActionCombiner actionCombiner) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.submitter = Objects.requireNonNull(submitter);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.actionCombiner = Objects.requireNonNull(actionCombiner);
     }
 
     /**
@@ -116,9 +120,9 @@ public class AutomatedActionExecutor {
      * @param allActions action objects
      * @return map of target id to the set of action ids directed at the target
      */
-    private Map<Long, Set<Long>> mapActionsToTarget(
+    private Map<Long, Set<ActionExecutionReadinessDetails>> mapActionsToTarget(
             Map<Long, ActionExecutionReadinessDetails> allActions) {
-        final Map<Long, Set<Long>> result = new HashMap<>();
+        final Map<Long, Set<ActionExecutionReadinessDetails>> result = new HashMap<>();
         final Map<Long, Long> workflowExecutionTargetsForActions =
                 getWorkflowExecutionTargetsForActions(allActions.values()
                         .stream()
@@ -132,9 +136,11 @@ public class AutomatedActionExecutor {
             final Long actionId = targetIdForActionEntry.getKey();
             final ActionTargetInfo targetInfo = targetIdForActionEntry.getValue();
             if (targetInfo.targetId().isPresent()) {
-                final Set<Long> targetActions = result.computeIfAbsent(targetInfo.targetId().get(), tgt -> new HashSet<>());
-                targetActions.add(actionId);
-                result.put(targetInfo.targetId().get(), targetActions);
+                final Long targetId = targetInfo.targetId().get();
+                final Set<ActionExecutionReadinessDetails> targetActions = result.computeIfAbsent(
+                        targetId, tgt -> new HashSet<>());
+                targetActions.add(allActions.get(actionId));
+                result.put(targetId, targetActions);
             }
         }
         return result;
@@ -172,12 +178,14 @@ public class AutomatedActionExecutor {
                 .filter(ActionExecutionReadinessDetails::isReadyForExecution)
                 .collect(Collectors.toMap(k -> k.getAction().getId(), v -> v));
 
-        final Map<Long, Set<Long>> actionsByTarget = mapActionsToTarget(autoActions);
+        final Map<Long, Set<ActionExecutionReadinessDetails>> actionsByTarget = mapActionsToTarget(autoActions);
 
         //remove any actions for which target retrieval failed
         List<Long> toRemove = new ArrayList<>();
         Set<Long> validActions = actionsByTarget.values().stream()
-                .flatMap(Set::stream).collect(Collectors.toSet());
+                .flatMap(Set::stream)
+                .map(a -> a.getAction().getId())
+                .collect(Collectors.toSet());
         autoActions.entrySet().stream()
                 .filter(entry -> !validActions.contains(entry.getKey()))
                 .map(Entry::getValue)
@@ -204,16 +212,17 @@ public class AutomatedActionExecutor {
         //      multiple times, taking one action id every time) and queue the actions.
 
         // Build up a map from (target id) -> (iterator over actions to execute for the target).
-        final Map<Long, Iterator<Long>> actionItsByTargetId = new HashMap<>();
-        actionsByTarget.forEach((targetId, actionSet) -> actionItsByTargetId.put(targetId, actionSet.iterator()));
+        final Map<Long, Iterator<Set<ActionExecutionReadinessDetails>>> actionItsByTargetId = new HashMap<>();
+        actionsByTarget.forEach((targetId, actionSet) ->
+                actionItsByTargetId.put(targetId, actionCombiner.combineActions(actionSet).iterator()));
 
         // Breadth-first traversal over the (target id) -> (iterator over action ids) map.
         while (!actionItsByTargetId.isEmpty()) {
-            final Iterator<Entry<Long, Iterator<Long>>> actionItsByTargetIdIt = actionItsByTargetId.entrySet().iterator();
+            final Iterator<Entry<Long, Iterator<Set<ActionExecutionReadinessDetails>>>> actionItsByTargetIdIt = actionItsByTargetId.entrySet().iterator();
             while (actionItsByTargetIdIt.hasNext()) {
-                final Entry<Long, Iterator<Long>> targetToActionIt = actionItsByTargetIdIt.next();
+                final Entry<Long, Iterator<Set<ActionExecutionReadinessDetails>>> targetToActionIt = actionItsByTargetIdIt.next();
                 final Long targetId = targetToActionIt.getKey();
-                final Iterator<Long> actionIt = targetToActionIt.getValue();
+                final Iterator<Set<ActionExecutionReadinessDetails>> actionIt = targetToActionIt.getValue();
                 if (!actionIt.hasNext()) {
                     // We're done processing all actions associated with this target.
                     // Remove the (target, iterator) entry from the outer map.
@@ -221,19 +230,21 @@ public class AutomatedActionExecutor {
                     continue;
                 }
 
-                // Process the action.
-                final Long actionId = actionIt.next();
-                final ActionExecutionReadinessDetails actionExecutionReadinessDetails = autoActions.get(actionId);
-                final Action action = actionExecutionReadinessDetails.getAction();
-                try {
-                    if (actionExecutionReadinessDetails.isAutomaticallyAccepted()) {
-                        action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+                final List<Action> actionList = new ArrayList<>();
+                for (final ActionExecutionReadinessDetails actionDetails : actionIt.next()) {
+                    final Long actionId = actionDetails.getAction().getId();
+                    final ActionExecutionReadinessDetails actionExecutionReadinessDetails = autoActions.get(actionId);
+                    final Action action = actionExecutionReadinessDetails.getAction();
+                    try {
+                        if (actionExecutionReadinessDetails.isAutomaticallyAccepted()) {
+                            action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+                        }
+                        action.receive(new QueuedEvent());
+                        actionList.add(action);
+                    } catch (UnexpectedEventException ex) {
+                        // log the error and continue with the execution of next action.
+                        logger.error("Illegal state transition for action {}", action, ex);
                     }
-                    action.receive(new QueuedEvent());
-                } catch (UnexpectedEventException ex) {
-                    // log the error and continue with the execution of next action.
-                    logger.error("Illegal state transition for action {}", action, ex);
-                    continue;
                 }
 
                 // We don't need to refresh severity cache because we will refresh it
@@ -244,11 +255,15 @@ public class AutomatedActionExecutor {
                 // to limit concurrent actions.
                 try {
                     ConditionalFuture future = new ConditionalFuture(
-                            new AutomatedActionTask(targetId, action));
+                            new AutomatedActionTask(targetId, actionList));
                     submitter.execute(future);
                     futures.add(future);
                 } catch (RejectedExecutionException ex) {
-                    logger.error("Failed to submit action {} to executor.", actionId, ex);
+                    final String actionIdsString = actionList.stream()
+                            .map(Action::getId)
+                            .map(String::valueOf)
+                            .collect(Collectors.joining(", "));
+                    logger.error("Failed to submit actions {} to executor.", actionIdsString, ex);
                 }
             }
         }
@@ -284,17 +299,17 @@ public class AutomatedActionExecutor {
     public class AutomatedActionTask implements ConditionalTask {
 
         private final Long targetId;
-        private final Action action;
+        private final List<Action> actionList;
 
         /**
          * Action task.
          *
          * @param targetId target ID
-         * @param action action
+         * @param actionList action list
          */
-        public AutomatedActionTask(@Nonnull Long targetId, @Nonnull Action action) {
+        public AutomatedActionTask(@Nonnull Long targetId, @Nonnull List<Action> actionList) {
             this.targetId = targetId;
-            this.action = action;
+            this.actionList = actionList;
         }
 
         /**
@@ -306,24 +321,18 @@ public class AutomatedActionExecutor {
          */
         @Override
         public int compareTo(ConditionalTask o) {
-            Long targetId1 = getMoveOrResizeActionTargetId();
-            if (targetId1 == null) {
-                return 1;
-            }
+            final Set<Long> targetIds1 = getMoveOrResizeActionTargetIds();
 
-            AutomatedActionTask otherTask = (AutomatedActionTask)o;
-            Long targetId2 = otherTask.getMoveOrResizeActionTargetId();
-            if (targetId2 == null) {
-                return 1;
-            }
+            final AutomatedActionTask otherTask = (AutomatedActionTask)o;
+            final Set<Long> targetIds2 = otherTask.getMoveOrResizeActionTargetIds();
 
-            int result = (int)(targetId1 - targetId2);
-
-            if (result == 0) {
+            if (!targetIds1.isEmpty() && !targetIds2.isEmpty()
+                    && !Sets.intersection(targetIds1, targetIds2).isEmpty()) {
                 logger.info("Matched condition for tasks: {} {}", this, otherTask);
+                return 0;
             }
 
-            return result;
+            return 1;
         }
 
         /**
@@ -332,49 +341,70 @@ public class AutomatedActionExecutor {
         @Override
         @Nonnull
         public AutomatedActionTask call() throws Exception {
-            if (!isExecutionWindowActive(action)) {
-                // rollback action from QUEUED to ACCEPTED state because of
-                // a missing execution window
-                logger.info("Action {} wasn't send for execution because "
-                        + "associated execution window is not active", action.getId());
-                action.receive(new RollBackToAcceptedEvent());
+            final List<Action> filteredActionList = new ArrayList<>(actionList.size());
+            for (final Action action : actionList) {
+                if (!isExecutionWindowActive(action)) {
+                    // rollback action from QUEUED to ACCEPTED state because of
+                    // a missing execution window
+                    logger.info("Action {} wasn't send for execution because "
+                            + "associated execution window is not active", action.getId());
+                    action.receive(new RollBackToAcceptedEvent());
+                    continue;
+                }
+
+                // A prepare event prepares the action for execution, and initiates
+                // a PRE workflow if one is associated with this action.
+                action.receive(new BeginExecutionEvent());
+                Optional<ActionDTO.Action> translated = action.getActionTranslation()
+                        .getTranslatedRecommendation();
+                if (!translated.isPresent()) {
+                    final String errorMsg = String.format(FAILED_TRANSFORM_MSG, action.getId());
+                    logger.error(errorMsg);
+                    action.receive(new FailureEvent(errorMsg));
+                    continue;
+                }
+
+                filteredActionList.add(action);
+            }
+
+            if (filteredActionList.isEmpty()) {
                 return this;
             }
 
-            // A prepare event prepares the action for execution, and initiates
-            // a PRE workflow if one is associated with this action.
-            action.receive(new BeginExecutionEvent());
-            Optional<ActionDTO.Action> translated = action.getActionTranslation()
-                    .getTranslatedRecommendation();
-            if (!translated.isPresent()) {
-                final String errorMsg = String.format(FAILED_TRANSFORM_MSG, action.getId());
-                logger.error(errorMsg);
-                action.receive(new FailureEvent(errorMsg));
-                return this;
-            }
-
+            final String actionIdsString = filteredActionList.stream()
+                    .map(Action::getId)
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(", "));
             try {
-                logger.info("Attempting to execute the automated action {}", action.getId());
-                // Fetch the Workflow, if any, that controls this Action
-                Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(workflowStore,
-                        action.getState());
-                ActionSpec actionSpec = actionTranslator.translateToSpec(action);
-                // Execute the Action on the given target, or the Workflow
-                // target if a Workflow is specified.
-                actionExecutor.executeSynchronously(targetId, actionSpec, workflowOpt);
-                logger.info("Completed executing the automated action {}", action.getId());
+                logger.info("Attempting to execute the automated actions: {}", actionIdsString);
+
+                final List<ActionWithWorkflow> actionWithWorkflowList = new ArrayList<>(
+                        filteredActionList.size());
+                for (final Action action : filteredActionList) {
+                    // Fetch the Workflow, if any, that controls this Action
+                    final Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(
+                            workflowStore, action.getState());
+                    final ActionSpec actionSpec = actionTranslator.translateToSpec(action);
+                    actionWithWorkflowList.add(new ActionWithWorkflow(actionSpec, workflowOpt));
+                }
+
+                actionExecutor.executeSynchronously(targetId, actionWithWorkflowList);
+
+                logger.info("Completed executing automated actions: {}", actionIdsString);
             } catch (ExecutionStartException e) {
-                final String errorMsg = String.format(EXECUTION_START_MSG, action.getId());
-                logger.error(errorMsg, e);
-                action.receive(new FailureEvent(errorMsg));
+                logger.error("Failed to start actions: " + actionIdsString, e);
+                for (final Action action : filteredActionList) {
+                    final String errorMsg = String.format(EXECUTION_START_MSG, action.getId());
+                    action.receive(new FailureEvent(errorMsg));
+                }
             } catch (SynchronousExecutionException e) {
-                logger.error(e.getFailure().getErrorDescription(), e);
-                // We don't need fail the action here because ActionStateUpdater
+                logger.error(e.getMessage(), e);
+                // We don't need failing the action here because ActionStateUpdater
                 // will do it for us.
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.error("Automated action execution interrupted", e);
-                // We don't need fail the action here because we don't know if
+                // We don't need failing the action here because we don't know if
                 // it actually failed or not. ActionStateUpdater will still
                 // change the action state if and when the action completes.
             }
@@ -387,43 +417,48 @@ public class AutomatedActionExecutor {
             return actionSchedule.map(ActionSchedule::isActiveScheduleNow).orElse(true);
         }
 
-        @Nullable
-        private Long getMoveOrResizeActionTargetId() {
-            ActionDTO.Action actionDto = getAction().getTranslationResultOrOriginal();
+        @Nonnull
+        private Set<Long> getMoveOrResizeActionTargetIds() {
+            final Set<Long> actionTargetIds = new HashSet<>();
 
-            if (actionDto == null) {
-                logger.warn("Action translation is missing: {}", this);
-                return null;
+            for (final Action action : actionList) {
+                final ActionDTO.Action actionDto = action.getTranslationResultOrOriginal();
+                if (actionDto == null) {
+                    logger.warn("Action translation is missing for action: {}", action.getId());
+                    continue;
+                }
+
+                final ActionInfo info = actionDto.getInfo();
+                if (info == null) {
+                    logger.warn("Action info is missing for action: {}", actionDto);
+                    continue;
+                }
+
+                if (info.hasMove()) {
+                    actionTargetIds.add(info.getMove().getTarget().getId());
+                }
+
+                if (info.hasResize()) {
+                    actionTargetIds.add(info.getResize().getTarget().getId());
+                }
             }
 
-            ActionInfo info = actionDto.getInfo();
-
-            if (info == null) {
-                logger.warn("Action info is missing: {}", actionDto);
-                return null;
-            }
-
-            if (info.hasMove()) {
-                return info.getMove().getTarget().getId();
-            }
-
-            if (info.hasResize()) {
-                return info.getResize().getTarget().getId();
-            }
-
-            return null;
+            return actionTargetIds;
         }
 
         @Override
         @Nonnull
-        public Action getAction() {
-            return action;
+        public List<Action> getActionList() {
+            return actionList;
         }
 
         @Override
         public String toString() {
-            return this.getClass().getSimpleName() + " [actionId=" + action.getId() + ", targetId="
-                    + targetId + ", description='" + action.getDescription() + "']";
+            final String actionsString = actionList.stream()
+                    .map(action -> String.format("[actionId=%s, targetId=%s, description='%s']",
+                            action.getId(), targetId, action.getDescription()))
+                    .collect(Collectors.joining(", "));
+            return String.format("%s (%s)", getClass().getSimpleName(), actionsString);
         }
     }
 
@@ -459,9 +494,9 @@ public class AutomatedActionExecutor {
      */
     public static class ActionExecutionReadinessDetails {
 
-        private Action action;
-        private boolean isReadyForExecution;
-        private boolean isAutomaticallyAccepted;
+        private final Action action;
+        private final boolean isReadyForExecution;
+        private final boolean isAutomaticallyAccepted;
 
         /**
          * Constructor of {@link ActionExecutionReadinessDetails}.
@@ -472,7 +507,7 @@ public class AutomatedActionExecutor {
          */
         public ActionExecutionReadinessDetails(@Nonnull Action action, boolean isReadyForExecution,
                 boolean isAutomaticallyAccepted) {
-            this.action = action;
+            this.action = Objects.requireNonNull(action);
             this.isReadyForExecution = isReadyForExecution;
             this.isAutomaticallyAccepted = isAutomaticallyAccepted;
         }
@@ -503,6 +538,23 @@ public class AutomatedActionExecutor {
          */
         public boolean isAutomaticallyAccepted() {
             return isAutomaticallyAccepted;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final ActionExecutionReadinessDetails that = (ActionExecutionReadinessDetails)o;
+            return action.getId() == that.action.getId();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(action.getId());
         }
 
         @Override

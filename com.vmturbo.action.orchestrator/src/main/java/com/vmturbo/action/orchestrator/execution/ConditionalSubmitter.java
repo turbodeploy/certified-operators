@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -89,7 +90,6 @@ public class ConditionalSubmitter implements Executor, Closeable {
      *
      * @throws RejectedExecutionException when executor rejected the future
      */
-    @Nonnull
     @Override
     public synchronized void execute(Runnable command)
             throws RejectedExecutionException {
@@ -195,7 +195,6 @@ public class ConditionalSubmitter implements Executor, Closeable {
      *
      * @return running futures count
      */
-    @Nonnull
     public synchronized int getRunningFuturesCount() {
         logger.debug("Running features: {}", runningFutures);
         return runningFutures.size();
@@ -206,7 +205,6 @@ public class ConditionalSubmitter implements Executor, Closeable {
      *
      * @return queued futures count
      */
-    @Nonnull
     public synchronized int getQueuedFuturesCount() {
         logger.debug("Queued features: {}", queuedFutures);
         return queuedFutures.size();
@@ -265,10 +263,10 @@ public class ConditionalSubmitter implements Executor, Closeable {
             extends Callable<ConditionalTask>, Comparable<ConditionalTask> {
 
         /**
-         * Get action.
+         * Get action list.
          *
-         * @return action
+         * @return action list.
          */
-        Action getAction();
+        List<Action> getActionList();
     }
 }

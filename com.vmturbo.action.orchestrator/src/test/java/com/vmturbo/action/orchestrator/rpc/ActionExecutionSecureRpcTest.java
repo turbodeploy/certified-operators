@@ -49,6 +49,7 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
+import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -73,6 +74,7 @@ import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -148,6 +150,7 @@ public class ActionExecutionSecureRpcTest {
     private final CurrentActionStatReader currentActionStatReader = mock(CurrentActionStatReader.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionExecutionStore actionExecutionStore = new ActionExecutionStore();
+    private final ActionCombiner actionCombiner = new ActionCombiner(mock(ActionTopologyStore.class));
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
@@ -192,7 +195,8 @@ public class ActionExecutionSecureRpcTest {
         rejectedActionsStore,
         auditedActionsManager,
         actionAuditSender,
-            actionExecutionStore,
+        actionExecutionStore,
+        actionCombiner,
         500,
         777777L);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
