@@ -70,6 +70,11 @@ public class ExportUtils {
     public static final String TARGETS_JSON_KEY_NAME = "targets";
 
     /**
+     * JSON key for partition map info in attrs.
+     */
+    public static final String PARTITION_MAP_JSON_KEY_NAME = "partition";
+
+    /**
      * Private constructor to avoid creating new instance.
      */
     private ExportUtils() {}

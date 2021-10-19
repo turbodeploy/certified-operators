@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.patchers;
 
+import static com.vmturbo.extractor.export.ExportUtils.PARTITION_MAP_JSON_KEY_NAME;
 import static com.vmturbo.extractor.export.ExportUtils.TAGS_JSON_KEY_NAME;
 import static com.vmturbo.extractor.export.ExportUtils.TARGETS_JSON_KEY_NAME;
 
@@ -22,6 +23,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.TargetsExtractor;
@@ -180,6 +182,13 @@ public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<Topology
         ListUtils.emptyIfNull(attrsMetadata).forEach(metadata ->
                 metadata.getTopoFieldFunction().apply(e).ifPresent(value ->
                         attrs.put(metadata.getJsonKeyName(), value)));
+
+        //TODO: Move to new search SearchMetadataMapping when map type is supported.
+        if (e.getTypeSpecificInfo().getTypeCase() == TypeCase.VIRTUAL_MACHINE
+                && !e.getTypeSpecificInfo().getVirtualMachine().getPartitionsMap().isEmpty()) {
+            attrs.put(PARTITION_MAP_JSON_KEY_NAME,
+                 e.getTypeSpecificInfo().getVirtualMachine().getPartitionsMap());
+        }
 
         // targets info
         if (targetsExtractor != null
