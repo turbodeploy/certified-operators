@@ -173,8 +173,11 @@ COPY defaults-*.ini /
 RUN for version in $grafana_versions; do \
         name=${version%:*}; \
         v=${version#*:}; \
-        ln -s -f /grafana/grafana-$v /grafana-$name; \
-        ln -s -f /defaults-$name.ini /grafana-$name/default.ini; \
+        # create a tree just like the downloaded tree, but with a carve-out for a symlink
+        # for conf/defaults.ini, so we can substitute our substited version of that file.
+        mkdir /grafana-$name; ln -s -f /grafana/grafana-$v/* /grafana-$name; \
+        rm /grafana-$name/conf; mkdir /grafana-$name/conf; ln -s /grafana/grafana-$v/conf/* /grafana-$name/conf; \
+        ln -s -f /defaults-$name.ini /grafana-$name/conf/defaults.ini; \
     done
 
 
