@@ -417,6 +417,8 @@ message Move {
 
     // scaling group ID
     optional string scaling_group_id = 3;
+
+    optional CloudSavingsDetails cloud_savings_details = 4;
 }
 
 // Scale an entity. Currently this action type is used to represent Cloud Move actions for

@@ -178,8 +178,13 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                 final Set<Long> vmOidsSet = cloudTopo.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
                         .map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
                 if (PlanProjectType.CLOUD_MIGRATION == topoInfo.getPlanInfo().getPlanProjectType()) {
-                    uptimeByOidMap = Maps.asMap(vmOidsSet, (oid) ->
-                        CostProtoUtil.UNKNOWN_DEFAULT_ALWAYS_ON);
+                    uptimeByOidMap = uptimeByOidMap.entrySet().stream()
+                            .filter(entry -> vmOidsSet.contains(entry.getKey()))
+                            .collect(
+                                    Collectors.toMap(Entry::getKey, e -> e.getValue()
+                                            .toBuilder()
+                                            .setUptimePercentage(CostProtoUtil.UNKNOWN_DEFAULT_ALWAYS_ON.getUptimePercentage())
+                                            .build()));
                 } else {
                     uptimeByOidMap = uptimeByOidMap.entrySet().stream()
                         .filter(entry -> vmOidsSet.contains(entry.getKey()))
