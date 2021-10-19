@@ -122,6 +122,7 @@ public class RpcConfig {
             auditCommunicationConfig.auditedActionsManager(),
             auditCommunicationConfig.actionAuditSender(),
             actionExecutionConfig.actionExecutionStore(),
+            actionStoreConfig.actionCombiner(),
             actionPaginationMaxLimit,
             topologyProcessorConfig.realtimeTopologyContextId());
     }

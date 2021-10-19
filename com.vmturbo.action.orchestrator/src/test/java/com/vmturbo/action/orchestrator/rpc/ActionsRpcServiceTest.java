@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.rpc;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -8,7 +7,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,6 +51,7 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
+import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -114,6 +113,7 @@ public class ActionsRpcServiceTest {
     private ActionAuditSender actionAuditSender;
     private AuditedActionsManager auditedActionsManager;
     private ActionExecutionStore actionExecutionStore;
+    private ActionCombiner actionCombiner;
 
     @Captor
     private ArgumentCaptor<Collection<? extends ActionView>> actionsCaptor;
@@ -137,6 +137,7 @@ public class ActionsRpcServiceTest {
         actionAuditSender = Mockito.mock(ActionAuditSender.class);
         auditedActionsManager = Mockito.mock(AuditedActionsManager.class);
         actionExecutionStore = new ActionExecutionStore();
+        actionCombiner = mock(ActionCombiner.class);
         actionsRpcService = new ActionsRpcService(
                 null,
                 actionStorehouse,
@@ -151,6 +152,7 @@ public class ActionsRpcServiceTest {
                 auditedActionsManager,
                 actionAuditSender,
                 actionExecutionStore,
+                actionCombiner,
                 10,
                 777777L);
         actionsByImpactOidRpcService = new ActionsRpcService(
@@ -167,6 +169,7 @@ public class ActionsRpcServiceTest {
                 auditedActionsManager,
                 actionAuditSender,
                 actionExecutionStore,
+                actionCombiner,
                 10,
                 777777L);
         when(actionStorehouse.getStore(CONTEXT_ID)).thenReturn(Optional.of(actionStore));
@@ -240,7 +243,7 @@ public class ActionsRpcServiceTest {
         when(actionStore.getAction(ACTION_LEGACY_INSTANCE_ID)).thenReturn(Optional.of(action));
 
         doThrow(new ExecutionInitiationException("test", Status.Code.INTERNAL))
-                .when(actionApprovalManager).attemptAndExecute(eq(actionStore), any(), eq(action));
+                .when(actionApprovalManager).attemptAcceptAndExecute(eq(actionStore), any(), eq(action));
         StreamObserver<ActionDTO.ActionExecution> observer = mock(StreamObserver.class);
 
         // ACT

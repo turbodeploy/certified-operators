@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -12,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,10 +33,12 @@ import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator
 import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator.ActionTemplateApplicationException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionListRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
@@ -61,7 +65,7 @@ public class ActionExecutor implements ActionExecutionListener {
     /**
      * Futures to track success or failure of actions that are executing synchronously
      * (i.e. via the
-     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.ActionSpec, Optional)}
+     * {@link ActionExecutor#executeSynchronously(long, List)}
      * method).
      */
     private final Map<Long, SynchronousExecutionState> inProgressSyncActions =
@@ -117,36 +121,37 @@ public class ActionExecutor implements ActionExecutionListener {
     }
 
     /**
-     * Schedule the given {@link ActionDTO.Action} for execution and wait for completion.
+     * Schedule the list of {@link ActionDTO.Action}s for execution and wait for completion.
      *
      * @param targetId the ID of the Target which should execute the action (unless there's a
      *                 Workflow specified - see below)
-     * @param action the Action to execute
-     * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
+     * @param actionList the Action list to execute
      * @throws ExecutionStartException if the Action fails to start
      * @throws InterruptedException if the "wait for completion" is interrupted
      * @throws SynchronousExecutionException any other execute exception
      */
-    public void executeSynchronously(final long targetId, @Nonnull final ActionDTO.ActionSpec action,
-                                     @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
+    public void executeSynchronously(
+            final long targetId,
+            @Nonnull final List<ActionWithWorkflow> actionList)
             throws ExecutionStartException, InterruptedException, SynchronousExecutionException {
-        Objects.requireNonNull(action);
-        Objects.requireNonNull(workflowOpt);
-        logger.info("Starting synchronous action {}", action.getRecommendation().getId());
-        execute(targetId, action, workflowOpt);
-        SynchronousExecutionState synchronousExecutionState = synchronousExecutionStateFactory.newState();
-        inProgressSyncActions.put(action.getRecommendation().getId(), synchronousExecutionState);
+        Objects.requireNonNull(actionList);
+        final String actionIdString = getActionIdsString(actionList);
+        logger.info("Starting synchronous actions: {}", actionIdString);
+        execute(targetId, actionList);
+        final SynchronousExecutionState synchronousExecutionState =
+                synchronousExecutionStateFactory.newState();
+        for (final ActionWithWorkflow actionWithWorkflow : actionList) {
+            final long actionId = actionWithWorkflow.getAction().getRecommendation().getId();
+            inProgressSyncActions.put(actionId, synchronousExecutionState);
+        }
         try {
             // TODO (roman, July 30 2019): OM-49081 - Handle TP restarts and dropped messages
             // without relying only on timeout.
             synchronousExecutionState.waitForActionCompletion(executionTimeout, executionTimeoutUnit);
-            logger.info("Completed synchronous action {}", action.getRecommendation().getId());
+            logger.info("Completed synchronous actions: {}", actionIdString);
         } catch (TimeoutException e) {
-            throw new SynchronousExecutionException(ActionFailure.newBuilder()
-                .setActionId(action.getRecommendation().getId())
-                .setErrorDescription("Action timed out after "
-                    + executionTimeout + " " + executionTimeoutUnit.toString())
-                .build());
+            throw new SynchronousExecutionException(String.format("Actions %s timed out after %s %s",
+                    actionIdString, executionTimeout, executionTimeoutUnit.toString()));
         }
     }
 
@@ -224,6 +229,33 @@ public class ActionExecutor implements ActionExecutionListener {
     }
 
     /**
+     * Creates execute action list request for sending to Topology Processor.
+     *
+     * @param targetId Target to execute action on.
+     * @param actionList Action list to execute.
+     * @throws ExecutionInitiationException If failed to process workflow.
+     * @return Request DTO to be sent to Topology Processor.
+     */
+    @Nonnull
+    public ExecuteActionListRequest createRequest(
+            final long targetId,
+            @Nonnull final List<ActionWithWorkflow> actionList)
+            throws ExecutionInitiationException {
+        Objects.requireNonNull(actionList);
+
+        final ExecuteActionListRequest.Builder request = ExecuteActionListRequest.newBuilder();
+
+        for (final ActionWithWorkflow actionWithWorkflow : actionList) {
+            final ActionSpec action = actionWithWorkflow.getAction();
+            final ExecuteActionRequest actionRequest = createRequest(targetId, action,
+                    actionWithWorkflow.getWorkflow(), null, action.getRecommendation().getId());
+            request.addActionRequest(actionRequest);
+        }
+
+        return request.build();
+    }
+
+    /**
      * Schedule execution of the given {@link ActionDTO.Action} and return immediately.
      *
      * @param targetId the ID of the Target which should execute the action (unless there's a
@@ -235,6 +267,19 @@ public class ActionExecutor implements ActionExecutionListener {
     public void execute(final long targetId, @Nonnull final ActionDTO.ActionSpec action,
                         @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
             throws ExecutionStartException {
+        execute(targetId, Collections.singletonList(new ActionWithWorkflow(action, workflowOpt)));
+    }
+
+    /**
+     * Schedule execution of the list of {@link ActionDTO.Action}s and return immediately.
+     *
+     * @param targetId the ID of the Target which should execute the action (unless there's a
+     *                 Workflow specified - see below)
+     * @param actionList the Action list to execute
+     * @throws ExecutionStartException if action execution failed to start or failed to process workflow
+     */
+    public void execute(final long targetId, @Nonnull final List<ActionWithWorkflow> actionList)
+            throws ExecutionStartException {
         // pjs: make sure a license is available when it's time to execute an action
         if (!licenseCheckClient.hasValidNonExpiredLicense()) {
             // no valid license detected!
@@ -242,21 +287,30 @@ public class ActionExecutor implements ActionExecutionListener {
             // component or this component could be in the middle of starting up.
             throw new ExecutionStartException("No valid license was detected. Will not execute the action.");
         }
+        final String actionIdString = getActionIdsString(actionList);
         try {
-            final ExecuteActionRequest request = createRequest(targetId, action, workflowOpt);
             // TODO (roman, July 30 2019): OM-49080 - persist the state of in-progress actions in
             // the database, so that we don't lose the information across restarts.
-            logger.info("Starting action {}", action.getRecommendation().getId());
-            actionExecutionService.executeAction(request);
-            logger.info("Action: {} started.", action.getRecommendation().getId());
+            logger.info("Starting actions: {}", actionIdString);
+            if (actionList.size() == 1) {
+                // Execute single action
+                final ActionWithWorkflow actionWithWorkflow = actionList.get(0);
+                final ExecuteActionRequest request = createRequest(targetId,
+                        actionWithWorkflow.getAction(), actionWithWorkflow.getWorkflow());
+                actionExecutionService.executeAction(request);
+            } else {
+                // Execute action list
+                final ExecuteActionListRequest request = createRequest(targetId, actionList);
+                actionExecutionService.executeActionList(request);
+            }
+            logger.info("Actions started: {}", actionIdString);
         } catch (StatusRuntimeException e) {
             throw new ExecutionStartException(
-                    "Action: " + action.getRecommendation().getId()
-                        + " failed to start. Failure status: " + e.getStatus(), e);
+                    "Actions " + actionIdString
+                            + " failed to start. Failure status: " + e.getStatus(), e);
         } catch (ExecutionInitiationException e) {
             throw new ExecutionStartException(
-                    "Action: " + action.getRecommendation().getId()
-                            + " failed to start.", e);
+                    "Actions " + actionIdString + " failed to start.", e);
         }
     }
 
@@ -277,7 +331,8 @@ public class ActionExecutor implements ActionExecutionListener {
         final SynchronousExecutionState futureForAction =
                 inProgressSyncActions.get(actionFailure.getActionId());
         if (futureForAction != null) {
-            futureForAction.complete(new SynchronousExecutionException(actionFailure));
+            futureForAction.complete(new SynchronousExecutionException(
+                    actionFailure.getErrorDescription()));
         } else {
             logger.warn("Cannot find action ID {} in inProgressSyncActions: {}",
                     actionFailure.getActionId(), inProgressSyncActions.keySet());
@@ -315,19 +370,20 @@ public class ActionExecutor implements ActionExecutionListener {
 
     /**
      * Exception thrown when an action executed via
-     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.ActionSpec, Optional)} fail
+     * {@link ActionExecutor#executeSynchronously(long, List)} fail
      * to complete.
      */
     public static class SynchronousExecutionException extends Exception {
-        private final ActionFailure actionFailure;
-
-        SynchronousExecutionException(@Nonnull final ActionFailure failure) {
-            this.actionFailure = Objects.requireNonNull(failure);
+        SynchronousExecutionException(@Nonnull final String message) {
+            super(message);
         }
+    }
 
-        public ActionFailure getFailure() {
-            return actionFailure;
-        }
+    private static String getActionIdsString(@Nonnull final List<ActionWithWorkflow> actionList) {
+        return actionList.stream()
+                .map(actionWithWorkflow -> actionWithWorkflow.getAction().getRecommendation().getId())
+                .map(String::valueOf)
+                .collect(Collectors.joining(", "));
     }
 
     /**

@@ -14,6 +14,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -91,6 +93,9 @@ public class ActionExecutorTest {
                 .buildMoveAction(targetEntityId, 2L, 1, 3L, 1))
         .build();
 
+    private final List<ActionWithWorkflow> actionList = Collections.singletonList(
+            new ActionWithWorkflow(testAction, workflowOpt));
+
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
     private final ActionTemplateApplicator actionTemplateApplicator = mock(ActionTemplateApplicator.class);
 
@@ -113,18 +118,15 @@ public class ActionExecutorTest {
      */
     @Test
     public void testExecutionStateError() throws Exception {
-        final ActionFailure actionFailure = ActionFailure.newBuilder()
-            .setErrorDescription("foo")
-            .setActionId(12)
-            .build();
+        final String message = "foo";
         final SynchronousExecutionState state = new DefaultSynchronousExecutionStateFactory(clock).newState();
-        state.complete(new SynchronousExecutionException(actionFailure));
+        state.complete(new SynchronousExecutionException(message));
 
         try {
             state.waitForActionCompletion(1, TimeUnit.MILLISECONDS);
             Assert.fail("Expected exception.");
         } catch (SynchronousExecutionException e) {
-            assertThat(e.getFailure(), is(actionFailure));
+            assertThat(e.getMessage(), is(message));
         }
     }
 
@@ -213,12 +215,10 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state);
 
         try {
-            actionExecutor.executeSynchronously(TARGET_ID, testAction, workflowOpt);
+            actionExecutor.executeSynchronously(TARGET_ID, actionList);
             Assert.fail("Expected synchronous execution exception.");
         } catch (SynchronousExecutionException e) {
-            Assert.assertEquals(testAction.getRecommendation().getId(),
-                e.getFailure().getActionId());
-            assertTrue(e.getFailure().getErrorDescription().contains("Action timed out"));
+            assertTrue(e.getMessage().contains("timed out"));
         }
     }
 
@@ -233,7 +233,7 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, testAction, workflowOpt);
+        actionExecutor.executeSynchronously(TARGET_ID, actionList);
 
         actionExecutor.onActionSuccess(ActionSuccess.newBuilder()
             .setActionId(testAction.getRecommendation().getId())
@@ -254,7 +254,7 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, testAction, workflowOpt);
+        actionExecutor.executeSynchronously(TARGET_ID, actionList);
 
         // Notify about the failure.
         ActionFailure failure = ActionFailure.newBuilder()
@@ -267,7 +267,7 @@ public class ActionExecutorTest {
         ArgumentCaptor<SynchronousExecutionException> exceptionCaptor = ArgumentCaptor.forClass(SynchronousExecutionException.class);
         verify(state).complete(exceptionCaptor.capture());
 
-        assertThat(exceptionCaptor.getValue().getFailure(), is(failure));
+        assertThat(exceptionCaptor.getValue().getMessage(), is("boo"));
     }
 
     /**
@@ -282,13 +282,15 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state1, state2);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, testAction, workflowOpt);
+        actionExecutor.executeSynchronously(TARGET_ID, actionList);
         // Fake-execute another action. We want to make sure this one DOESN'T get lost.
         ActionDTO.ActionSpec modifiedSpec = ActionDTO.ActionSpec.newBuilder()
             .setRecommendation(testAction.getRecommendation().toBuilder().setId(
                 testAction.getRecommendation().getId() + 1))
             .build();
-        actionExecutor.executeSynchronously(TARGET_ID, modifiedSpec, workflowOpt);
+        final List<ActionWithWorkflow> modifiedActionList = Collections.singletonList(
+                new ActionWithWorkflow(modifiedSpec, workflowOpt));
+        actionExecutor.executeSynchronously(TARGET_ID, modifiedActionList);
 
         final ActionsLost lost = ActionsLost.newBuilder()
             .setLostActionId(ActionIds.newBuilder()
@@ -300,10 +302,7 @@ public class ActionExecutorTest {
         ArgumentCaptor<SynchronousExecutionException> exceptionCaptor = ArgumentCaptor.forClass(SynchronousExecutionException.class);
         verify(state1).complete(exceptionCaptor.capture());
 
-        assertThat(exceptionCaptor.getValue().getFailure(), is(ActionFailure.newBuilder()
-            .setActionId(testAction.getRecommendation().getId())
-            .setErrorDescription("Topology Processor lost action state.")
-            .build()));
+        assertThat(exceptionCaptor.getValue().getMessage(), is("Topology Processor lost action state."));
 
         // The other action shouldn't have completed.
         verify(state2, never()).complete(any());
@@ -328,13 +327,15 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state1, state2);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, testAction, workflowOpt);
+        actionExecutor.executeSynchronously(TARGET_ID, actionList);
         // Fake-execute another action. We want to make sure this one DOESN'T get lost.
         ActionDTO.ActionSpec modifiedSpec = ActionDTO.ActionSpec.newBuilder()
             .setRecommendation(testAction.getRecommendation().toBuilder().setId(
                 testAction.getRecommendation().getId() + 1))
             .build();
-        actionExecutor.executeSynchronously(TARGET_ID, modifiedSpec, workflowOpt);
+        final List<ActionWithWorkflow> modifiedActionList = Collections.singletonList(
+                new ActionWithWorkflow(modifiedSpec, workflowOpt));
+        actionExecutor.executeSynchronously(TARGET_ID, modifiedActionList);
         actionExecutor.onActionsLost(lost);
 
         // We should find the state for the action that started before the time, and complete it.
@@ -342,10 +343,7 @@ public class ActionExecutorTest {
             ArgumentCaptor.forClass(SynchronousExecutionException.class);
         verify(state1).complete(exceptionCaptor.capture());
 
-        assertThat(exceptionCaptor.getValue().getFailure(), is(ActionFailure.newBuilder()
-            .setActionId(testAction.getRecommendation().getId())
-            .setErrorDescription("Topology Processor lost action state.")
-            .build()));
+        assertThat(exceptionCaptor.getValue().getMessage(), is("Topology Processor lost action state."));
 
         // The other action shouldn't have completed.
         verify(state2, never()).complete(any());

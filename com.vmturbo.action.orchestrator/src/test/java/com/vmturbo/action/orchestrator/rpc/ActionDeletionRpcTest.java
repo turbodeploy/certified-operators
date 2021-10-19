@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -74,6 +75,7 @@ public class ActionDeletionRpcTest {
         IdentityGenerator.initPrefix(0);
         final ActionApprovalManager approvalManager = Mockito.mock(ActionApprovalManager.class);
         final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
+        final ActionCombiner actionCombiner = mock(ActionCombiner.class);
         final ActionsRpcService actionsRpcService = new ActionsRpcService(
                 clock,
                 actionStorehouse,
@@ -88,6 +90,7 @@ public class ActionDeletionRpcTest {
                 auditedActionsManager,
                 actionAuditSender,
                 actionExecutionStore,
+                actionCombiner,
                 500,
                 777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);

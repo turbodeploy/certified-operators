@@ -461,6 +461,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final Map<Long, ActionExecutionState> actionMap = new HashMap<>();
         for (final ActionOperationRequest request : requestList) {
             final ActionExecutionDTO actionDto = request.getActionExecutionDTO();
+            actionListRequestBuilder.addActionExecution(actionDto);
             final long actionOid = actionDto.getActionOid();
             final ActionType actionType = actionDto.getActionType();
             actionMap.put(actionOid, new ActionExecutionState(actionOid, actionType));

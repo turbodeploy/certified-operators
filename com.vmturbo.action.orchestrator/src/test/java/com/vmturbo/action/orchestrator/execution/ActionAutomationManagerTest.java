@@ -12,9 +12,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 
+import com.google.common.collect.ImmutableList;
+
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
@@ -27,15 +28,15 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 
 /**
- * Tests for ActionAutomationManager.
+ * Tests for {@link ActionAutomationManager}.
  */
 public class ActionAutomationManagerTest {
 
-    private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
-    private final ActionApprovalSender actionApprovalSender = Mockito.mock(ActionApprovalSender.class);
+    private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
+    private final ActionApprovalSender actionApprovalSender = mock(ActionApprovalSender.class);
     private final ActionAutomationManager automationManager = new ActionAutomationManager(
         executor, actionApprovalSender);
-    private final ActionStore actionStore = Mockito.mock(ActionStore.class);
+    private final ActionStore actionStore = mock(ActionStore.class);
 
     /**
      * Setup.
@@ -53,12 +54,15 @@ public class ActionAutomationManagerTest {
      */
     @Test
     public void testCancelQueuedActions() throws InterruptedException {
-        Action action = mock(Action.class);
+        List<Action> actionList = ImmutableList.of(
+                mockAction(1),
+                mockAction(2),
+                mockAction(3));
         AutomatedActionTask actionTask = mock(AutomatedActionTask.class);
-        when(actionTask.getAction()).thenReturn(action);
+        when(actionTask.getActionList()).thenReturn(actionList);
         List<ConditionalFuture> actionExecutionTaskList = new ArrayList<>();
         actionExecutionTaskList.add(new FutureMock(actionTask));
-        when(action.getState()).thenReturn(ActionState.QUEUED);
+        actionList.forEach(action -> when(action.getState()).thenReturn(ActionState.QUEUED));
         when(executor.executeAutomatedFromStore(any()))
             .thenReturn(actionExecutionTaskList);
         automationManager.updateAutomation(actionStore);
@@ -84,22 +88,33 @@ public class ActionAutomationManagerTest {
      */
     @Test
     public void testCancelActionsWithNonActiveExecutionWindows() throws Exception {
-        final ActionSchedule nonActiveSchedule = Mockito.mock(ActionSchedule.class);
-        final Action action = mock(Action.class);
-        AutomatedActionTask actionTask = mock(AutomatedActionTask.class);
-        when(actionTask.getAction()).thenReturn(action);
+        final ActionSchedule nonActiveSchedule = mock(ActionSchedule.class);
+        final List<Action> actionList = ImmutableList.of(
+                mockAction(1),
+                mockAction(2),
+                mockAction(3));
+        final AutomatedActionTask actionTask = mock(AutomatedActionTask.class);
+        when(actionTask.getActionList()).thenReturn(actionList);
         final List<ConditionalFuture> actionExecutionTaskList = new ArrayList<>();
         actionExecutionTaskList.add(new FutureMock(actionTask));
-        Mockito.when(action.getState()).thenReturn(ActionState.QUEUED);
-        Mockito.when(executor.executeAutomatedFromStore(any())).thenReturn(actionExecutionTaskList);
+        actionList.forEach(action -> when(action.getState()).thenReturn(ActionState.QUEUED));
+        when(executor.executeAutomatedFromStore(any())).thenReturn(actionExecutionTaskList);
         automationManager.updateAutomation(actionStore);
 
-        Mockito.when(actionStore.getAction(action.getId())).thenReturn(Optional.of(action));
-        Mockito.when(action.getSchedule()).thenReturn(Optional.of(nonActiveSchedule));
-        Mockito.when(nonActiveSchedule.isActiveScheduleNow()).thenReturn(false);
+        actionList.forEach(action ->
+                when(action.getSchedule()).thenReturn(Optional.of(nonActiveSchedule)));
+        when(nonActiveSchedule.isActiveScheduleNow()).thenReturn(false);
         // emulate next market cycle
         automationManager.updateAutomation(actionStore);
-        Mockito.verify(action).receive(Mockito.any(RollBackToAcceptedEvent.class));
+        actionList.forEach(action ->
+                verify(action).receive(any(RollBackToAcceptedEvent.class)));
+    }
+
+    private Action mockAction(long id) {
+        final Action action = mock(Action.class);
+        when(action.getId()).thenReturn(id);
+        when(actionStore.getAction(action.getId())).thenReturn(Optional.of(action));
+        return action;
     }
 
     /**

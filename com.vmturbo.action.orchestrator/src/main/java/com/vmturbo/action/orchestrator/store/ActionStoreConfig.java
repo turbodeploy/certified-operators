@@ -30,6 +30,7 @@ import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
+import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
@@ -241,6 +242,11 @@ public class ActionStoreConfig {
     }
 
     @Bean
+    public ActionCombiner actionCombiner() {
+        return new ActionCombiner(tpConfig.actionTopologyStore());
+    }
+
+    @Bean
     public Executor automatedActionSubmitter() {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("auto-act-exec-%d").build();
@@ -256,7 +262,7 @@ public class ActionStoreConfig {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 automatedActionSubmitter(), workflowConfig.workflowStore(),
                 actionExecutionConfig.actionTargetSelector(), entitySettingsCache(),
-                actionTranslationConfig.actionTranslator());
+                actionTranslationConfig.actionTranslator(), actionCombiner());
     }
 
     /**
