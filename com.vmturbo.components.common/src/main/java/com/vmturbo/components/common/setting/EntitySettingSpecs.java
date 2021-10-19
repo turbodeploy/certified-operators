@@ -367,7 +367,7 @@ public enum EntitySettingSpecs {
             SettingConstants.AGGRESSIVENESS,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE),
-            numeric(90.0f, 99.0f, 95.0f), true),
+            numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
      * Aggressiveness for Database Servers.
