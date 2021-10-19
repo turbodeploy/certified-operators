@@ -59,7 +59,7 @@ public class MLDatastoreComponent extends BaseVmtComponent {
         if (Boolean.parseBoolean(System.getenv("METRON_ENABLED"))) {
             logger.info("Metron is enabled. Starting Metron component {}.",
                 MLDatastoreComponent.class.getSimpleName());
-            startComponent(MLDatastoreComponent.class);
+            runComponent(MLDatastoreComponent.class);
         } else {
             logger.info("Metron not enabled. Component {} exiting.",
                 MLDatastoreComponent.class.getSimpleName());

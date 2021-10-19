@@ -124,7 +124,7 @@ public class GroupComponent extends BaseVmtComponent {
      * @param args command-line arguments - ignored
      */
     public static void main(String[] args) {
-        startComponent(GroupComponent.class);
+        runComponent(GroupComponent.class);
     }
 
     @Override

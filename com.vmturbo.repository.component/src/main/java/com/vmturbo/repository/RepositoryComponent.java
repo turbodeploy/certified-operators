@@ -478,7 +478,7 @@ public class RepositoryComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startComponent(RepositoryComponent.class);
+        runComponent(RepositoryComponent.class);
     }
 
     @Override

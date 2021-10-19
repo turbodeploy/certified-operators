@@ -140,7 +140,7 @@ public class CostComponent extends BaseVmtComponent {
      * properties.yaml file
      */
     public static void main(String[] args) {
-        startComponent(CostComponent.class);
+        runComponent(CostComponent.class);
     }
 
     @PostConstruct

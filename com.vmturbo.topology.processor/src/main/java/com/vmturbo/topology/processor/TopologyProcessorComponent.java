@@ -180,7 +180,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startContext((contextServer) -> {
+        runComponent((contextServer) -> {
             try {
                 final ConfigurableWebApplicationContext context =
                         attachSpringContext(contextServer, TopologyProcessorComponent.class);

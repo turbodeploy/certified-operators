@@ -94,6 +94,6 @@ public class WebhookComponent extends MediationComponentMain {
      * @param args Program arguments
      */
     public static void main(String[] args) {
-        startComponent(WebhookComponent.class);
+        runComponent(WebhookComponent.class);
     }
 }

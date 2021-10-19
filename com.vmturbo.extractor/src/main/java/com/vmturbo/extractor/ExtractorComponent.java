@@ -172,7 +172,7 @@ public class ExtractorComponent extends BaseVmtComponent {
      * @param args none expected
      */
     public static void main(String[] args) {
-        startComponent(ExtractorComponent.class);
+        runComponent(ExtractorComponent.class);
     }
 
     @Override
