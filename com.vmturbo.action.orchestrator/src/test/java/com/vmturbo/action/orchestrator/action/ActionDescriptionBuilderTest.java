@@ -574,8 +574,8 @@ public class ActionDescriptionBuilderTest {
      * @param newCapacity new capacity
      * @return {@link ActionInfo.Builder}
      */
-    private ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, float oldCapacity,
-            float newCapacity) {
+    private static ActionInfo.Builder makeResizeInfo(long targetId, int commodityType,
+            float oldCapacity, float newCapacity) {
         return makeResizeInfo(targetId, commodityType, null, oldCapacity, newCapacity);
     }
 
@@ -589,8 +589,8 @@ public class ActionDescriptionBuilderTest {
      * @param newCapacity new capacity
      * @return {@link ActionInfo.Builder}
      */
-    private ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, String key,
-                                              float oldCapacity, float newCapacity) {
+    private static ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, String key,
+            float oldCapacity, float newCapacity) {
         CommodityType.Builder commType = CommodityType.newBuilder().setType(commodityType);
         if (key != null) {
             commType.setKey(key);
@@ -647,6 +647,19 @@ public class ActionDescriptionBuilderTest {
     }
 
     /**
+     * Create a resize action for vcpu commodity.
+     *
+     * @param targetId the target entity id
+     * @param oldCapacity the capacity before resize
+     * @param newCapacity the capacity after resize
+     * @return {@link ActionInfo.Builder}
+     */
+    private static ActionInfo.Builder makeResizeVmemInfo(long targetId, float oldCapacity,
+            float newCapacity) {
+        return makeResizeInfo(targetId, CommodityDTO.CommodityType.VMEM_VALUE,
+                oldCapacity * Units.MBYTE, newCapacity * Units.MBYTE);
+            }
+
      * Create a resize action for VCPULimitQuota commodity.
      *
      * @param targetId the target entity id.
@@ -975,12 +988,21 @@ public class ActionDescriptionBuilderTest {
     }
 
     private static Optional<ActionPartialEntity> createEntity(Long oid, int entityType,
-                                                              String displayName) {
+            String displayName, double cpuReservation, double memReservation) {
         return Optional.of(ActionPartialEntity.newBuilder()
-            .setOid(oid)
-            .setEntityType(entityType)
-            .setDisplayName(displayName)
-            .build());
+                .setOid(oid)
+                .setEntityType(entityType)
+                .setDisplayName(displayName)
+                .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
+                        .setVirtualMachine(ActionVirtualMachineInfo.newBuilder()
+                                .putReservationInfo(CommodityDTO.CommodityType.CPU_VALUE,
+                                        cpuReservation)
+                                .putReservationInfo(CommodityDTO.CommodityType.MEM_VALUE,
+                                        memReservation)
+                                .setCpuCoreMhz(2600.0)
+                                .build())
+                        .build())
+                .build());
     }
 
     @Test
@@ -988,17 +1010,17 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
             .thenReturn((createEntity(PM_SOURCE_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                PM_SOURCE_DISPLAY_NAME)));
+                PM_SOURCE_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(PM_DESTINATION_ID)))
             .thenReturn((createEntity(PM_DESTINATION_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                PM_DESTINATION_DISPLAY_NAME)));
+                PM_DESTINATION_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, moveRecommendation);
@@ -1016,17 +1038,17 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
                 .thenReturn((createEntity(VV_ID,
                         EntityType.VIRTUAL_VOLUME.getNumber(),
-                        VM1_DISPLAY_NAME)));
+                        VM1_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
                 .thenReturn((createEntity(ST_SOURCE_ID,
                         EntityType.STORAGE_TIER.getNumber(),
-                        ST_SOURCE_DISPLAY_NAME)));
+                        ST_SOURCE_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(ST_DESTINATION_ID)))
                 .thenReturn((createEntity(ST_DESTINATION_ID,
                         EntityType.STORAGE_TIER.getNumber(),
-                        ST_DESTINATION_DISPLAY_NAME)));
+                        ST_DESTINATION_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleProviderChangeRecommendation);
@@ -1038,17 +1060,17 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(DB_ID)))
                 .thenReturn((createEntity(DB_ID,
                         EntityType.DATABASE.getNumber(),
-                        DB_DISPLAY_NAME)));
+                        DB_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(DB_SOURCE_ID)))
                 .thenReturn((createEntity(DB_SOURCE_ID,
                         EntityType.DATABASE_TIER.getNumber(),
-                        DB_SOURCE_DISPLAY_NAME)));
+                        DB_SOURCE_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(DB_DESTINATION_ID)))
                 .thenReturn((createEntity(DB_DESTINATION_ID,
                         EntityType.DATABASE_TIER.getNumber(),
-                        DB_DESTINATION_DISPLAY_NAME)));
+                        DB_DESTINATION_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudDBScaleProviderChangeRecommendation);
@@ -1073,7 +1095,8 @@ public class ActionDescriptionBuilderTest {
 
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID))).thenReturn(Optional.of(volumeOptEntity));
         when(entitySettingsCache.getEntityFromOid(eq(VV_TIER_ID)))
-                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME)));
+                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME,
+                        0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
@@ -1096,7 +1119,8 @@ public class ActionDescriptionBuilderTest {
 
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID))).thenReturn(Optional.of(volumeOptEntity));
         when(entitySettingsCache.getEntityFromOid(eq(VV_TIER_ID)))
-                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME)));
+                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME,
+                        0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
@@ -1169,7 +1193,7 @@ public class ActionDescriptionBuilderTest {
     private void makeMockEntityCondition(@Nonnull Long entityId, int entityType,
             @Nonnull String entityName) {
         when(entitySettingsCache.getEntityFromOid(eq(entityId)))
-                .thenReturn((createEntity(entityId, entityType, entityName)));
+                .thenReturn((createEntity(entityId, entityType, entityName, 0, 0)));
     }
 
     /**
@@ -1182,17 +1206,17 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
             .thenReturn((createEntity(COMPUTE_TIER_SOURCE_ID,
                 EntityType.COMPUTE_TIER.getNumber(),
-                COMPUTE_TIER_SOURCE_DISPLAY_NAME)));
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_DESTINATION_ID)))
             .thenReturn((createEntity(COMPUTE_TIER_DESTINATION_ID,
                 EntityType.COMPUTE_TIER.getNumber(),
-                COMPUTE_TIER_DESTINATION_DISPLAY_NAME)));
+                COMPUTE_TIER_DESTINATION_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, scaleRecommendation);
@@ -1208,12 +1232,12 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
             .thenReturn((createEntity(PM_SOURCE_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                PM_SOURCE_DISPLAY_NAME)));
+                PM_SOURCE_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureReasonCommoditiesRecommendation);
@@ -1230,12 +1254,12 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
             .thenReturn((createEntity(PM_SOURCE_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                PM_SOURCE_DISPLAY_NAME)));
+                PM_SOURCE_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureReasonSettingsRecommendation);
@@ -1251,7 +1275,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureWithoutSourceRecommendation);
@@ -1263,7 +1287,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                                                      entitySettingsCache, resizeRecommendation);
@@ -1276,13 +1300,44 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeMemRecommendation);
 
         assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16 GB to 8 GB");
     }
+
+    @Test
+    public void testBuildResizeVmemAndReservationActionDescription()
+            throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
+                (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(), VM1_DISPLAY_NAME, 0,
+                        14 * Units.MBYTE)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
+                makeRec(makeResizeVmemInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build());
+
+        assertEquals(
+                "Resize down VMem and Reservation for Virtual Machine vm1_test from 16 GB to 8 GB",
+                description);
+    }
+
+    @Test
+    public void testBuildResizeVcpuAndReservationActionDescription()
+            throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
+                (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(), VM1_DISPLAY_NAME, 12 * 2600,
+                        0)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
+                makeRec(makeResizeVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build());
+
+        assertEquals(
+                "Resize down VCPU and Reservation for Virtual Machine vm1_test from 16 to 8 cores",
+                description);
+    }
+
 
     /**
      * Tests the description for VStorage action.
@@ -1315,7 +1370,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
                 .thenReturn((createEntity(VM1_ID,
                         EntityType.VIRTUAL_MACHINE.getNumber(),
-                        VM1_DISPLAY_NAME)));
+                        VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeMemReservationRecommendation);
@@ -1332,7 +1387,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuRecommendationForVM);
@@ -1350,7 +1405,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuReservationRecommendationForVM);
@@ -1368,7 +1423,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
             .thenReturn((createEntity(CONTAINER1_ID,
                 EntityType.CONTAINER.getNumber(),
-                CONTAINER1_DISPLAY_NAME)));
+                CONTAINER1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuRecommendationForContainer);
@@ -1386,7 +1441,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
             .thenReturn((createEntity(CONTAINER1_ID,
                 EntityType.CONTAINER.getNumber(),
-                CONTAINER1_DISPLAY_NAME)));
+                CONTAINER1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuReservationRecommendationForContainer);
@@ -1406,7 +1461,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
             .thenReturn((createEntity(CONTAINER1_ID,
                 EntityType.CONTAINER.getNumber(),
-                CONTAINER1_DISPLAY_NAME)));
+                CONTAINER1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVemRequestRecommendationForContainer);
@@ -1463,7 +1518,7 @@ public class ActionDescriptionBuilderTest {
     public void testBuildResizeDBMemActionDescription() throws UnsupportedActionException {
         final long dbsId = 19L;
         when(entitySettingsCache.getEntityFromOid(eq(dbsId))).thenReturn(
-                createEntity(dbsId, EntityType.DATABASE_SERVER_VALUE, "sqlServer1"));
+                createEntity(dbsId, EntityType.DATABASE_SERVER_VALUE, "sqlServer1", 0, 0));
         ActionDTO.Action resizeDBMem = makeRec(makeResizeInfo(dbsId,
                 CommodityDTO.CommodityType.DB_MEM_VALUE, 15857614.848f, 6159335.424f),
                 SupportLevel.SUPPORTED).build();
@@ -1482,11 +1537,11 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VSAN_STORAGE_ID)))
         .thenReturn((createEntity(VSAN_STORAGE_ID,
             EntityType.STORAGE.getNumber(),
-            VSAN_STORAGE_DISPLAY_NAME)));
+            VSAN_STORAGE_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(VSAN_PM_ID)))
         .thenReturn((createEntity(VSAN_PM_ID,
             EntityType.PHYSICAL_MACHINE.getNumber(),
-            VSAN_PM_DISPLAY_NAME)));
+            VSAN_PM_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageUp);
@@ -1504,11 +1559,11 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VSAN_STORAGE_ID)))
         .thenReturn((createEntity(VSAN_STORAGE_ID,
             EntityType.STORAGE.getNumber(),
-            VSAN_STORAGE_DISPLAY_NAME)));
+            VSAN_STORAGE_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(VSAN_PM_ID)))
         .thenReturn((createEntity(VSAN_PM_ID,
             EntityType.PHYSICAL_MACHINE.getNumber(),
-            VSAN_PM_DISPLAY_NAME)));
+            VSAN_PM_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageDown);
@@ -1522,7 +1577,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deactivateRecommendation);
@@ -1535,7 +1590,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
+                VM1_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, activateRecommendation);
@@ -1551,7 +1606,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn(createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE.getNumber(),
-                ST_SOURCE_DISPLAY_NAME));
+                ST_SOURCE_DISPLAY_NAME, 0, 0));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, provisionBySupplyRecommendation);
@@ -1567,11 +1622,11 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
             .thenReturn(createEntity(PM_SOURCE_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
-                PM_SOURCE_DISPLAY_NAME));
+                PM_SOURCE_DISPLAY_NAME, 0, 0));
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn(createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME));
+                VM1_DISPLAY_NAME, 0, 0));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, provisionByDemandRecommendation);
@@ -1601,7 +1656,7 @@ public class ActionDescriptionBuilderTest {
             .thenReturn(optionalHostEntity);
         when(entitySettingsCache.getEntityFromOid(eq(VSAN_STORAGE_ID)))
             .thenReturn((createEntity(VSAN_STORAGE_ID, EntityType.STORAGE_VALUE,
-                            VSAN_STORAGE_DISPLAY_NAME)));
+                            VSAN_STORAGE_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, provisionBySupplyRecommendation);
@@ -1620,7 +1675,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(SWITCH1_ID)))
             .thenReturn(createEntity(SWITCH1_ID,
                 EntityType.SWITCH.getNumber(),
-                SWITCH1_DISPLAY_NAME));
+                SWITCH1_DISPLAY_NAME, 0, 0));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizePortChannelRecommendation);
@@ -1633,7 +1688,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn((createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE.getNumber(),
-                ST_SOURCE_DISPLAY_NAME)));
+                ST_SOURCE_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deleteRecommendation);
@@ -1647,11 +1702,11 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
             .thenReturn((createEntity(VV_ID,
                 EntityType.VIRTUAL_VOLUME.getNumber(),
-                VV_DISPLAY_NAME)));
+                VV_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn((createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE_TIER.getNumber(),
-                ST_SOURCE_DISPLAY_NAME)));
+                ST_SOURCE_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
             .thenReturn(Optional.empty());
@@ -1670,11 +1725,11 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
             .thenReturn((createEntity(VV_ID,
                 EntityType.VIRTUAL_VOLUME.getNumber(),
-                VV_DISPLAY_NAME)));
+                VV_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn((createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE_TIER.getNumber(),
-                ST_SOURCE_DISPLAY_NAME)));
+                ST_SOURCE_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
             .thenReturn(Optional.of(EntityWithConnections.newBuilder()
                 .setOid(businessAccountOid)
@@ -1699,7 +1754,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
             .thenReturn((createEntity(VV_ID,
                 EntityType.VIRTUAL_VOLUME.getNumber(),
-                VV_DISPLAY_NAME)));
+                VV_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn(Optional.empty());
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
@@ -1726,7 +1781,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
             .thenReturn((createEntity(VV_ID,
                 EntityType.VIRTUAL_VOLUME.getNumber(),
-                VV_DISPLAY_NAME)));
+                VV_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
             .thenReturn(Optional.of(EntityWithConnections.newBuilder()
                 .setOid(businessAccountOid)
@@ -1745,15 +1800,15 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
             .thenReturn((createEntity(COMPUTE_TIER_SOURCE_ID,
                 EntityType.COMPUTE_TIER.getNumber(),
-                COMPUTE_TIER_SOURCE_DISPLAY_NAME)));
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(MASTER_ACCOUNT_ID)))
             .thenReturn((createEntity(MASTER_ACCOUNT_ID,
                 EntityType.BUSINESS_ACCOUNT.getNumber(),
-                MASTER_ACCOUNT_DISPLAY_NAME)));
+                MASTER_ACCOUNT_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(REGION_ID)))
             .thenReturn((createEntity(REGION_ID,
                 EntityType.REGION.getNumber(),
-                REGION_DISPLAY_NAME)));
+                REGION_DISPLAY_NAME, 0, 0)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, buyRIRecommendation);
@@ -1771,12 +1826,12 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
                 .thenReturn((createEntity(VM1_ID,
                         EntityType.VIRTUAL_MACHINE.getNumber(),
-                        VM1_DISPLAY_NAME)));
+                        VM1_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
             .thenReturn(createEntity(COMPUTE_TIER_SOURCE_ID,
                 EntityType.COMPUTE_TIER.getNumber(),
-                COMPUTE_TIER_SOURCE_DISPLAY_NAME));
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME, 0, 0));
 
         final long businessAccountOid = 88L;
         final String businessAccountName = "Development";
@@ -1804,12 +1859,12 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
                 .thenReturn((createEntity(VM1_ID,
                         EntityType.VIRTUAL_MACHINE.getNumber(),
-                        VM1_DISPLAY_NAME)));
+                        VM1_DISPLAY_NAME, 0, 0)));
 
         when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
             .thenReturn(createEntity(COMPUTE_TIER_SOURCE_ID,
                 EntityType.COMPUTE_TIER.getNumber(),
-                COMPUTE_TIER_SOURCE_DISPLAY_NAME));
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME, 0, 0));
 
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
                 .thenReturn(Optional.empty());
@@ -1868,13 +1923,13 @@ public class ActionDescriptionBuilderTest {
 
         when(entitySettingsCache.getEntityFromOid(eq(CONTROLLER1_ID)))
                 .thenReturn((createEntity(CONTROLLER1_ID,
-                        EntityType.WORKLOAD_CONTROLLER_VALUE, CONTROLLER1_DISPLAY_NAME)));
+                        EntityType.WORKLOAD_CONTROLLER_VALUE, CONTROLLER1_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC1_ID)))
                 .thenReturn((createEntity(CONTAINER_SPEC1_ID,
-                        EntityType.CONTAINER_SPEC_VALUE, SPEC1_DISPLAY_NAME)));
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC1_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC2_ID)))
                 .thenReturn((createEntity(CONTAINER_SPEC2_ID,
-                        EntityType.CONTAINER_SPEC_VALUE, SPEC2_DISPLAY_NAME)));
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC2_DISPLAY_NAME, 0, 0)));
 
         final String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, atomicAction.build());

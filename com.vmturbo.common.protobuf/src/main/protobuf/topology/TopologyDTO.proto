@@ -667,9 +667,12 @@ message PartialEntity {
                 optional string locks = 3;
                 optional .topology.TypeSpecificInfo.VirtualizationType virtualization_type = 4;
                 // The CPU core MHz on the VM
-                optional double cpu_core_mhz = 5 [deprecated = true];
+                optional double cpu_core_mhz = 5;
                 // Maps vStorage key to partition
                 map<string,string> partitions = 6;
+                //units for cpu reservation: mHz
+                //units for mem reservation: MBytes
+                map<int32,double> reservation_info = 7;
             }
 
             message ActionPhysicalMachineInfo {

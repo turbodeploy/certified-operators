@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -558,10 +560,22 @@ public final class TopologyDTOUtil {
                         .setNumCores(tierInfo.getNumCores())
                         .setSupportedCustomerInfo(tierInfo.getSupportedCustomerInfo())));
             case VIRTUAL_MACHINE:
+                // This will get the reservation values for all commodities
+                Map<Integer, Double> reservations = new HashMap<>();
+                for (CommoditiesBoughtFromProvider commodities : topologyEntity.getCommoditiesBoughtFromProvidersList()) {
+                    for (CommodityBoughtDTO commodityBought : commodities.getCommodityBoughtList()) {
+                        if (commodityBought.hasReservedCapacity()) {
+                            reservations.put(commodityBought.getCommodityType().getType(),
+                                    commodityBought.getReservedCapacity());
+                        }
+                    }
+                }
                 VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
-                return createActionVmInfo(vmInfo)
-                        .map(actionVmInfo -> ActionEntityTypeSpecificInfo.newBuilder()
-                                .setVirtualMachine(actionVmInfo));
+                return createActionVmInfo(vmInfo, reservations).map(actionVmInfo -> {
+                    getCPUCoreMhz(topologyEntity).ifPresent(actionVmInfo::setCpuCoreMhz);
+                    return ActionEntityTypeSpecificInfo.newBuilder().setVirtualMachine(
+                            actionVmInfo);
+                });
             case PHYSICAL_MACHINE:
                 if (typeSpecificInfo.getPhysicalMachine().hasCpuCoreMhz()) {
                     return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
@@ -580,10 +594,14 @@ public final class TopologyDTOUtil {
         }
     }
 
-    private static Optional<ActionVirtualMachineInfo.Builder> createActionVmInfo(@Nonnull final VirtualMachineInfo vmInfo) {
+    private static Optional<ActionVirtualMachineInfo.Builder> createActionVmInfo(
+            @Nonnull final VirtualMachineInfo vmInfo, Map<Integer, Double> reservations) {
         ActionVirtualMachineInfo.Builder actionVmInfo = ActionVirtualMachineInfo.newBuilder();
         // We need the partition information for the vStorage actions.
         actionVmInfo.putAllPartitions(vmInfo.getPartitionsMap());
+
+        actionVmInfo.putAllReservationInfo(reservations);
+
         // Avoid creating an object if the necessary properties are not set.
         // Most notably, none of these properties are set for on-prem VMs.
         if (!(vmInfo.hasArchitecture() || vmInfo.hasVirtualizationType()
