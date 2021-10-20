@@ -114,6 +114,8 @@ public class EntityAspectMapper {
             .put(EntityType.WORKLOAD_CONTROLLER_VALUE,
                 ImmutableList.of(workloadControllerAspectMapper,
                                 containerPlatformContextAspectMapper))
+            .put(EntityType.NAMESPACE_VALUE,
+                ImmutableList.of(containerPlatformContextAspectMapper))
             .put(EntityType.SERVICE_VALUE, ImmutableList.of(containerPlatformContextAspectMapper))
             .put(EntityType.COMPUTE_TIER_VALUE, ImmutableList.of(
                     computeTierAspectMapper))

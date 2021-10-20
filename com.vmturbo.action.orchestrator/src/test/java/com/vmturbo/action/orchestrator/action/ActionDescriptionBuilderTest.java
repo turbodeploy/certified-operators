@@ -84,6 +84,8 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action resizeVcpuRecommendationForContainer;
     private ActionDTO.Action resizeVcpuReservationRecommendationForContainer;
     private ActionDTO.Action resizeVemRequestRecommendationForContainer;
+    private ActionDTO.Action resizeVcpuLimitQuotaRecommendationForNamespace;
+    private ActionDTO.Action resizeVmemLimitQuotaRecommendationForNamespace;
     private ActionDTO.Action resizeStorageAmountRecommendationForVSanStorageUp;
     private ActionDTO.Action resizeStorageAmountRecommendationForVSanStorageDown;
     private ActionDTO.Action deactivateRecommendation;
@@ -170,6 +172,8 @@ public class ActionDescriptionBuilderTest {
     private static final Long CONTAINER_SPEC2_ID = 502L;
     private static final String SPEC2_DISPLAY_NAME = "spec2_test";
     private static final String VSTORAGE_KEY = "1";
+    private static final long NAMESPACE_ID = 601L;
+    private static final String NAMESPACE_DISPLAY_NAME = "namespace_test";
 
 
     /**
@@ -370,6 +374,9 @@ public class ActionDescriptionBuilderTest {
         resizeVcpuReservationRecommendationForContainer =
             makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID, 16.111f, 8.111f), SupportLevel.SUPPORTED).build();
         resizeVemRequestRecommendationForContainer = makeRec(makeVMemRequestInfo(CONTAINER1_ID, 3200f, 2200f), SupportLevel.SUPPORTED).build();
+
+        resizeVcpuLimitQuotaRecommendationForNamespace = makeRec(makeResizeVCPULimitQuotaInfo(NAMESPACE_ID, 100f, 200f), SupportLevel.SUPPORTED).build();
+        resizeVmemLimitQuotaRecommendationForNamespace = makeRec(makeResizeVMemLimitQuotaInfo(NAMESPACE_ID, 131072f, 262144f), SupportLevel.SUPPORTED).build();
 
         resizeStorageAmountRecommendationForVSanStorageUp = makeRec(makeVSanStorageAmountRequestInfo(51200f, 76800f), SupportLevel.SUPPORTED).build();
 
@@ -637,6 +644,30 @@ public class ActionDescriptionBuilderTest {
      */
     private ActionInfo.Builder makeResizeVcpuInfo(long targetId, float oldCapacity, float newCapacity) {
         return makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, oldCapacity, newCapacity);
+    }
+
+    /**
+     * Create a resize action for VCPULimitQuota commodity.
+     *
+     * @param targetId the target entity id.
+     * @param oldCapacity the capacity before resize.
+     * @param newCapacity the capacity after resize.
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeResizeVCPULimitQuotaInfo(long targetId, float oldCapacity, float newCapacity) {
+        return makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE, oldCapacity, newCapacity);
+    }
+
+    /**
+     * Create a resize action for VMemLimitQuota commodity.
+     *
+     * @param targetId the target entity id.
+     * @param oldCapacity the capacity before resize.
+     * @param newCapacity the capacity after resize.
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeResizeVMemLimitQuotaInfo(long targetId, float oldCapacity, float newCapacity) {
+        return makeResizeInfo(targetId, CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE, oldCapacity, newCapacity);
     }
 
     /**
@@ -1382,6 +1413,46 @@ public class ActionDescriptionBuilderTest {
 
         assertEquals(description,
             "Resize down VMem Request for Container container1_test from 3.1 MB to 2.1 MB");
+    }
+
+    /**
+     * Test resize VCPULimitQuota for namespace.
+     *
+     * @throws UnsupportedActionException Exception if action is not supported.
+     */
+    @Test
+    public void testBuildResizeVCPULimitQuotaActionDescriptionForNamespace()
+        throws UnsupportedActionException {
+            when(entitySettingsCache.getEntityFromOid(eq(NAMESPACE_ID)))
+                .thenReturn((createEntity(NAMESPACE_ID,
+                    EntityType.NAMESPACE_VALUE,
+                    NAMESPACE_DISPLAY_NAME)));
+
+            String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, resizeVcpuLimitQuotaRecommendationForNamespace);
+
+            assertEquals(description,
+                "Resize up VCPU Limit Quota for Namespace namespace_test from 100 mCores to 200 mCores");
+    }
+
+    /**
+     * Test resize VMemLimitQuota for namespace.
+     *
+     * @throws UnsupportedActionException Exception if action is not supported.
+     */
+    @Test
+    public void testBuildResizeVMemLimitQuotaActionDescriptionForNamespace()
+        throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(NAMESPACE_ID)))
+            .thenReturn((createEntity(NAMESPACE_ID,
+                EntityType.NAMESPACE_VALUE,
+                NAMESPACE_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizeVmemLimitQuotaRecommendationForNamespace);
+
+        assertEquals(description,
+            "Resize up VMem Limit Quota for Namespace namespace_test from 128 MB to 256 MB");
     }
 
     /**

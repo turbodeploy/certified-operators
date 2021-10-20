@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.jsonwebtoken.lang.Collections;
 
@@ -82,6 +83,10 @@ public class ActionDescriptionBuilder {
     private static final Map<CommodityType, String> CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
             = ImmutableMap.of(CommodityType.STORAGE_ACCESS, "IOPS", CommodityType.STORAGE_AMOUNT, "Disk size");
 
+    // Cloud native entities with CPU values in millicores.
+    private static final Set<Integer> CLOUD_NATIVE_ENTITIES = ImmutableSet.of(EntityType.CONTAINER_VALUE,
+        EntityType.CONTAINER_SPEC_VALUE, EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE);
+
     // Static patterns used for dynamically-constructed message contents.
     //
     // We're going to model these pattern strings as an enum, containing a set of
@@ -145,6 +150,7 @@ public class ActionDescriptionBuilder {
         new ImmutableMap.Builder<CommodityDTO.CommodityType, Long>()
             .put(CommodityDTO.CommodityType.VMEM, Units.KBYTE)
             .put(CommodityDTO.CommodityType.VMEM_REQUEST, Units.KBYTE)
+            .put(CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA, Units.KBYTE)
             .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
             .put(CommodityDTO.CommodityType.STORAGE_PROVISIONED, Units.MBYTE)
             .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
@@ -972,9 +978,7 @@ public class ActionDescriptionBuilder {
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
             long capacityInBytes = (long)(capacity * commodityTypeToDefaultUnits.get(commodityType) / Units.BYTE);
             return StringUtil.getHumanReadableSize(capacityInBytes);
-        } else if (entityType == EntityType.CONTAINER_VALUE
-                || entityType == EntityType.WORKLOAD_CONTROLLER_VALUE
-                || entityType == EntityType.CONTAINER_SPEC_VALUE) {
+        } else if (CLOUD_NATIVE_ENTITIES.contains(entityType)) {
             return ActionMessageFormat.CONTAINER_VCPU_MILLICORES.format(capacity);
         } else if (COMMODITY_TYPE_ACTION_MESSAGE_FORMAT_MAP.containsKey(commodityType)) {
             // Convert IO_Throughput value from KB/s to MB/s in action description
