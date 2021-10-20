@@ -78,7 +78,6 @@ public class ActionDescriptionBuilder {
     private static final String UP = "up";
     private static final String DOWN = "down";
     private static final String OF = " of ";
-    private static final String RESERVATION = " and Reservation";
     // pass in methodName, name of entity, and entity OID
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
     private static final Map<CommodityType, String> CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
@@ -285,20 +284,6 @@ public class ActionDescriptionBuilder {
                 : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
 
         String commodity = beautifyCommodityType(resize.getCommodityType());
-        ActionVirtualMachineInfo vmInfo = entity.getTypeSpecificInfo().getVirtualMachine();
-
-        if (commodityType == CommodityType.VCPU && vmInfo.getCpuCoreMhz() != 0.0) {
-            Double cpuReservation = vmInfo.getReservationInfoMap().get(CommodityType.CPU_VALUE);
-            if (cpuReservation != null
-                    && resize.getNewCapacity() * vmInfo.getCpuCoreMhz() < cpuReservation) {
-                commodity += RESERVATION;
-            }
-        } else if (commodityType == CommodityType.VMEM) {
-            Double memReservation = vmInfo.getReservationInfoMap().get(CommodityType.MEM_VALUE);
-            if (memReservation != null && resize.getNewCapacity() < memReservation) {
-                commodity += RESERVATION;
-            }
-        }
 
         if (commodityType == CommodityDTO.CommodityType.VSTORAGE) {
             commodity += getPartition(entity, resize);
