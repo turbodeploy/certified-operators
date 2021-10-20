@@ -153,6 +153,7 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
             .put(EntityType.CONTAINER_POD_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
             .put(EntityType.CONTAINER_SPEC_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
             .put(EntityType.WORKLOAD_CONTROLLER_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
+            .put(EntityType.NAMESPACE_VALUE, ImmutableSet.of(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
             .put(EntityType.SERVICE_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
             //VM's don't actually belong to a specific namespace so only fetch cluster name
             .put(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableSet.of(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
