@@ -5,11 +5,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +29,7 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlocking
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.action.stats.HistoricalPendingCountReceiver;
+import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -75,8 +79,8 @@ public class ActionConfig {
     /**
      * The interval for extracting action information and sending to Kafka. Default to 6 hours.
      */
-    @Value("${actionExtractionIntervalMins:360}")
-    private long actionExtractionIntervalMins;
+    @Value("${actionExtractionIntervalMins:#{null}}")
+    private Long actionExtractionIntervalMins;
 
     /**
      * The extractor will cache policy information for this long after retrieving it from the group
@@ -245,6 +249,19 @@ public class ActionConfig {
                 topologyListenerConfig.pool(),
                 topologyListenerConfig.dataProvider(),
                 topologyListenerConfig.extractorKafkaSender(),
-                TimeUnit.MINUTES.toMillis(actionExtractionIntervalMins));
+                TimeUnit.MINUTES.toMillis(getActionExtractionIntervalMins(globalConfig)));
+    }
+
+    /**
+     * Get the interval for extracting actions, in minutes.
+     *
+     * @param config global config
+     * @return interval for extracting actions, in minutes
+     */
+    public Long getActionExtractionIntervalMins(@Nonnull ExtractorGlobalConfig config) {
+        return ObjectUtils.firstNonNull(
+                actionExtractionIntervalMins,
+                config.globalExtractionIntervalMins,
+                ExportUtils.ACTION_EXTRACTION_DEFAULT_INTERVAL_MINS);
     }
 }

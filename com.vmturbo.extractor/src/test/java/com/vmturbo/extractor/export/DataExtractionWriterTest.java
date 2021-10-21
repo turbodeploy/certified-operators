@@ -32,6 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -162,7 +163,9 @@ public class DataExtractionWriterTest {
     private final TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
     private final ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
     private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
-    private final DataExtractionFactory dataExtractionFactory = new DataExtractionFactory(dataProvider, targetCache);
+    private final Clock clock = Clock.systemUTC();
+    private final DataExtractionFactory dataExtractionFactory = new DataExtractionFactory(
+            dataProvider, targetCache, extractorKafkaSender, null, clock);
     private DataExtractionWriter writer;
     private List<ExportedObject> exportedObjectsCapture;
 

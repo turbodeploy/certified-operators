@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,6 +36,7 @@ import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -73,6 +75,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
     private final WriterConfig config;
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final DataProvider dataProvider;
+    private final ExtractorFeatureFlags featureFlags;
 
     /**
      * Create a new instance.
@@ -80,14 +83,17 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * @param writerFactories factories to create required writers
      * @param writerConfig    common config parameters for writers
      * @param dataProvider    providing data for ingestion
+     * @param featureFlags    feature flags to be enabled
      */
     public TopologyEntitiesListener(
             @Nonnull final List<TopologyWriterFactory<?>> writerFactories,
             @Nonnull final WriterConfig writerConfig,
-            @Nonnull final DataProvider dataProvider) {
+            @Nonnull final DataProvider dataProvider,
+            @Nonnull final ExtractorFeatureFlags featureFlags) {
         this.writerFactories = writerFactories;
         this.config = writerConfig;
         this.dataProvider = dataProvider;
+        this.featureFlags = featureFlags;
     }
 
     /**
@@ -160,6 +166,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             List<ITopologyWriter> writers = new ArrayList<>();
             writerFactories.stream()
                     .map(TopologyWriterFactory::newInstance)
+                    .filter(Objects::nonNull)
                     .forEach(writers::add);
 
             final List<Pair<Consumer<TopologyEntityDTO>, ITopologyWriter>> entityConsumers = new ArrayList<>();
@@ -200,8 +207,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
             }
 
             try {
-                // fetch all data from other components for use in finish stage
-                if (!writers.isEmpty()) {
+                // if any writer present, fetch all data from other components for use in finish stage
+                // or if data extraction is enabled (but no need to write this time due to custom
+                // interval), we still need to fetch latest data for use by action extraction later
+                if (!writers.isEmpty() || featureFlags.isExtractionEnabled()) {
                     final boolean requireFullSupplyChain = writers.stream()
                             .anyMatch(ITopologyWriter::requireFullSupplyChain);
                     dataProvider.fetchData(timer, graphBuilder.build(), requireFullSupplyChain,
