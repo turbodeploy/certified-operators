@@ -12,6 +12,9 @@ import io.grpc.StatusRuntimeException;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.extractor.schema.Extractor;
@@ -24,6 +27,11 @@ import com.vmturbo.sql.utils.sizemon.PostgresSizeAdapter;
  * Helper functions to set retention policy setting in extractor.
  */
 public class RetentionUtils {
+    /**
+     * Max embedded reporting retention days to be restricted to 2 years (730 days).
+     */
+    public static final int maxAllowedRetentionDays = 730;
+
     /**
      * Private constructor for util class.
      */
@@ -69,14 +77,34 @@ public class RetentionUtils {
     }
 
     /**
-     * Util method to fetch current retention setting days from group component.
+     * Updates reporting retention days, only called if the current value happens to be more than
+     * the max allowed.
+     *
+     * @param retentionDays Value to set for retention day setting.
+     * @param settingService Setting service used to update setting.
+     * @throws StatusRuntimeException Thrown on settings update error.
+     */
+    public static void setRetentionPeriod(int retentionDays,
+            @Nonnull final SettingServiceBlockingStub settingService) throws StatusRuntimeException {
+        Setting.Builder settingBuilder = Setting.newBuilder()
+                .setSettingSpecName(GlobalSettingSpecs.EmbeddedReportingRetentionDays
+                        .getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                .setValue((float)retentionDays));
+
+        settingService.updateGlobalSetting(
+                UpdateGlobalSettingRequest.newBuilder().addSetting(settingBuilder).build());
+    }
+
+    /**
+     * Util method to get current retention setting days from group component.
      *
      * @param settingService Reference to settings service to request retention settings from.
      * @return Number of days to retain extractor data for.
      * @throws StatusRuntimeException Thrown on gRPC access error.
      * @throws IllegalStateException Thrown if could not read retention setting in response.
      */
-    public static int fetchRetentionPeriod(@Nonnull final SettingServiceBlockingStub settingService)
+    public static int getRetentionPeriod(@Nonnull final SettingServiceBlockingStub settingService)
             throws StatusRuntimeException, IllegalStateException {
         final SettingProto.GetSingleGlobalSettingRequest request =
                 SettingProto.GetSingleGlobalSettingRequest.newBuilder()

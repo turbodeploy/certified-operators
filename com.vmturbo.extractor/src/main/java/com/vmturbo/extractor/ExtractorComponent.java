@@ -135,26 +135,34 @@ public class ExtractorComponent extends BaseVmtComponent {
     private void syncRetentionSettings() {
         final Runnable syncTask = () -> {
             if (retentionSyncRetries.incrementAndGet() >= retentionSyncMaxRetries) {
-                logger.error("Failed to sync retention settings. [retries: {}].",
+                logger.error("Failed to sync reporting retention settings. [retries: {}].",
                         retentionSyncRetries);
                 retentionSyncFuture.cancel(false);
                 retentionSyncExecutor.shutdown();
             }
             try {
-                int retentionDays = RetentionUtils.fetchRetentionPeriod(
+                int retentionDays = RetentionUtils.getRetentionPeriod(
                         listenerConfig.settingServiceBlockingStub());
 
+                if (retentionDays > RetentionUtils.maxAllowedRetentionDays) {
+                    logger.warn("Resetting reporting retention settings. [current: {}, max: {}]",
+                            retentionDays, RetentionUtils.maxAllowedRetentionDays);
+                    RetentionUtils.setRetentionPeriod(RetentionUtils.maxAllowedRetentionDays,
+                            listenerConfig.settingServiceBlockingStub());
+                    retentionDays = RetentionUtils.getRetentionPeriod(
+                            listenerConfig.settingServiceBlockingStub());
+                }
                 rpcConfig.extractorSettingService().updateRetentionSettings(
                         UpdateRetentionSettingRequest.newBuilder()
                                 .setRetentionDays(retentionDays).build());
                 // Update was successful, shutdown the task.
                 retentionSyncFuture.cancel(false);
                 retentionSyncExecutor.shutdown();
-                logger.info("Successfully synced and applied retention settings [retries: {}].",
-                        retentionSyncRetries);
+                logger.info("Successfully synced and applied reporting retention settings [current: {}, retries: {}].",
+                        retentionDays, retentionSyncRetries);
             } catch (Exception e) {
                 // Catching all Exception here to not risk scheduled thread dying.
-                logger.warn("Retention settings this time [retries: {}, max: {}]. Message: {}",
+                logger.warn("Failed to sync reporting retention settings. [retries: {}, max: {}]: {}",
                         retentionSyncRetries, retentionSyncMaxRetries, e.getMessage());
             }
         };
@@ -162,7 +170,7 @@ public class ExtractorComponent extends BaseVmtComponent {
         retentionSyncFuture = retentionSyncExecutor.scheduleAtFixedRate(
                 syncTask, retentionSyncIntervalSeconds, retentionSyncIntervalSeconds,
                 TimeUnit.SECONDS);
-        logger.info("Created retention settings sync task [intervalSecs: {}]",
+        logger.info("Created reporting retention settings sync task [intervalSecs: {}]",
                 retentionSyncIntervalSeconds);
     }
 

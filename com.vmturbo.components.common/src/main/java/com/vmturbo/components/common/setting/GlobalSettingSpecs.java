@@ -78,7 +78,7 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     EmbeddedReportingRetentionDays("embeddedReportingRetentionDays", "Saved reporting data [Days]",
-            numeric(30f/*min*/, 1825f/*max*/, 365f/*default*/),
+            numeric(30f/*min*/, 730f/*max*/, 365f/*default*/),
             Collections.emptyList()),
 
     AuditLogRetentionDays("auditLogRetentionDays", "Saved audit-log entries [Days]",
