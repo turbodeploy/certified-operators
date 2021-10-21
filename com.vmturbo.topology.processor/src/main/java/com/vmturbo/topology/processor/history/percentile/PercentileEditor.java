@@ -263,7 +263,7 @@ public class PercentileEditor extends
 
         try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
 
-            LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
+            Set<Long> currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
             // read the latest and full window blobs if haven't yet, set into cache
             loadPersistedData(context, latestTimestamp -> {
                 // latest

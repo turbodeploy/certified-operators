@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.identity.storage;
+package com.vmturbo.topology.processor.identity.cache;
 
 import static junitparams.JUnitParamsRunner.$;
 
@@ -6,7 +6,9 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -28,13 +30,14 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
+import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata.PropertyMetadata;
 import com.vmturbo.topology.processor.identity.IdentityService;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.DescriptorsBasedCache;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityCache;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRecordsBasedCache;
+import com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptor;
+import com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptorConverter;
+import com.vmturbo.topology.processor.identity.storage.IdentityRecord;
 
 /**
  * Class to test interactions with the identity caches implementations. Each test is run for all
@@ -49,11 +52,14 @@ public class IdentityCacheTest {
         ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata = new ConcurrentHashMap<>();
         perProbeMetadata.put(probeId,
             new ServiceEntityIdentityMetadataStore(Collections.singletonList(EntityIdentityMetadata
-                .newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).build())));
+                .newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).addVolatileProperties(
+                            PropertyMetadata.newBuilder().setName("tag").build()).build())));
         IdentityRecordsBasedCache identityRecordsBasedCache = new IdentityRecordsBasedCache(perProbeMetadata);
         DescriptorsBasedCache descriptorsBasedCache =
             new DescriptorsBasedCache();
+        OptimizedIdentityRecordsBasedCache optimizedIdentityRecordsBasedCache = new OptimizedIdentityRecordsBasedCache(perProbeMetadata);
         return $(
+            $(optimizedIdentityRecordsBasedCache),
             $(identityRecordsBasedCache),
             $(descriptorsBasedCache));
     }
@@ -84,7 +90,8 @@ public class IdentityCacheTest {
             matchingDescriptorsByNonVolatile.get(0));
 
         long matchingId =
-            identityCache.getOidByIdentifyingProperties(identityRecordWithProperties.getIdentifyingProperties());
+            identityCache.getOidByIdentifyingProperties(identityRecordWithProperties.getNonVolatileProperties(),
+                    identityRecordWithProperties.getVolatileProperties());
         Assert.assertEquals(oid, matchingId);
 
         addedDescriptor =
@@ -129,15 +136,42 @@ public class IdentityCacheTest {
 
         Assert.assertTrue(identityCache.containsKey(oid));
 
-        identityCache.remove(oid);
+        identityCache.remove(Collections.singleton(oid));
 
         Assert.assertFalse(identityCache.containsKey(oid));
         Assert.assertEquals(Collections.emptyList(),
             identityCache.getDtosByNonVolatileProperties(identityRecordWithProperties.getNonVolatileProperties()));
 
-        long matchingId =
-            identityCache.getOidByIdentifyingProperties(identityRecordWithProperties.getIdentifyingProperties());
+        long matchingId = identityCache.getOidByIdentifyingProperties(identityRecordWithProperties.getNonVolatileProperties(),
+                identityRecordWithProperties.getVolatileProperties());
         Assert.assertEquals(IdentityService.INVALID_OID, matchingId);
+    }
+
+    /**
+     * Tests that we can successfully remove several records from the cache and all the underlying data
+     * structures.
+     * @param identityCache the instance of the identity cache
+     */
+    @Test
+    @Parameters(method = "generateTestData")
+    public void testBulkRemove(IdentityCache identityCache) {
+        final Set<Long> oidsToRemove = new HashSet<>();
+        long i;
+        for (i = 0; i < 1000; i++) {
+            oidsToRemove.add(i);
+            IdentityRecordWithProperties identityRecordWithProperties = createIdentityRecord(i,
+                    probeId,
+                    EntityType.VIRTUAL_MACHINE);
+            identityCache.addIdentityRecord(identityRecordWithProperties.getIdentityRecord());
+            Assert.assertTrue(identityCache.containsKey(i));
+        }
+        IdentityRecordWithProperties identityRecordWithProperties = createIdentityRecord(i + 1,
+                probeId,
+                EntityType.VIRTUAL_MACHINE);
+        identityCache.addIdentityRecord(identityRecordWithProperties.getIdentityRecord());
+        Assert.assertTrue(identityCache.containsKey(i + 1));
+        identityCache.remove(oidsToRemove);
+        Assert.assertEquals(1, identityCache.getOids().size());
     }
 
     /**
@@ -163,8 +197,8 @@ public class IdentityCacheTest {
         Assert.assertEquals(Collections.emptyList(),
             identityCache.getDtosByNonVolatileProperties(identityRecordWithProperties.getNonVolatileProperties()));
 
-        long matchingId =
-            identityCache.getOidByIdentifyingProperties(identityRecordWithProperties.getIdentifyingProperties());
+        long matchingId = identityCache.getOidByIdentifyingProperties(identityRecordWithProperties.getNonVolatileProperties(),
+                identityRecordWithProperties.getVolatileProperties());
         Assert.assertEquals(IdentityService.INVALID_OID, matchingId);
     }
 
@@ -188,7 +222,7 @@ public class IdentityCacheTest {
         identityCache.toJson(writer);
         EntityInMemoryProxyDescriptor descriptor;
 
-        if (identityCache instanceof IdentityRecordsBasedCache) {
+        if (identityCache instanceof IdentityRecordsBasedCache || identityCache instanceof OptimizedIdentityRecordsBasedCache) {
             List<IdentityRecord> identityRecords = constructGson()
                 .fromJson(writer.toString(), new TypeToken<List<IdentityRecord>>() {
                 }.getType());
@@ -257,6 +291,10 @@ public class IdentityCacheTest {
 
         public List<PropertyDescriptor> getNonVolatileProperties() {
             return nonVolatileProperties;
+        }
+
+        public List<PropertyDescriptor> getVolatileProperties() {
+            return volatileProperties;
         }
 
         public List<PropertyDescriptor> getIdentifyingProperties() {

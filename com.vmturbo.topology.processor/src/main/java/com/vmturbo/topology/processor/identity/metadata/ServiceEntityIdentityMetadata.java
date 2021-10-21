@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.identity.metadata;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -89,8 +90,12 @@ public class ServiceEntityIdentityMetadata implements EntityMetadataDescriptor {
 
     @Override
     public Collection<Integer> getVolatilePropertyRanks() {
-        // Do we actually need this method yet?
-        throw new NotImplementedException();
+        return volatileProperties.stream().map(prop -> prop.groupId).collect(Collectors.toList());
+    }
+
+    @Override
+    public Collection<Integer> getNonVolatilePropertyRanks() {
+        return nonVolatileProperties.stream().map(prop -> prop.groupId).collect(Collectors.toList());
     }
 
     @Override

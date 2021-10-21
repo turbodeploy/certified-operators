@@ -124,15 +124,13 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
             throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         final EntityDescriptor descriptor = entryData.getDescriptor();
         final EntityMetadataDescriptor metadataDescriptor = entryData.getMetadata();
-        final List<PropertyDescriptor> identifyingProperties =
-                descriptor.getIdentifyingProperties(metadataDescriptor);
         final List<PropertyDescriptor> volatileProperties =
                 descriptor.getVolatileProperties(metadataDescriptor);
         final List<PropertyDescriptor> nonVolatileProperties =
             descriptor.getNonVolatileProperties(metadataDescriptor);
         // First, see if we have the match by the identifying properties
         final long existingOid;
-        existingOid = store_.lookupByIdentifyingSet(metadataDescriptor, identifyingProperties);
+        existingOid = store_.lookupByIdentifyingSet(nonVolatileProperties, volatileProperties);
         if (existingOid != INVALID_OID) {
             if (!volatileProperties.isEmpty()) {
                 entriesToUpsert.put(existingOid, entryData);
@@ -233,22 +231,6 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
     public boolean containsOID(long oid)
             throws IdentityServiceOperationException, IdentityUninitializedException {
         return store_.containsOID(oid);
-    }
-
-    /**
-     * Checks whether entity with such set of identifying properties is already present.
-     *
-     * @param metadataDescriptor The metadata descriptor.
-     * @param properties         The set of identifying properties.
-     * @return {@code true} iff Entity with such set of identifying properties is present.
-     * @throws IdentityServiceOperationException In case of an issue querying,
-     * @throws IdentityUninitializedException If the identity service initialization is incomplete.
-     */
-    public boolean containsWithIdentifyingProperties(
-                @Nonnull EntityMetadataDescriptor metadataDescriptor,
-                @Nonnull List<PropertyDescriptor> properties)
-            throws IdentityServiceOperationException, IdentityUninitializedException {
-        return store_.containsWithIdentifyingProperties(metadataDescriptor, properties);
     }
 
     /**

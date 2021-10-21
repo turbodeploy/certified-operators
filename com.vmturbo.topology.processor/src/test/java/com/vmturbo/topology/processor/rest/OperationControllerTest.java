@@ -131,7 +131,8 @@ public class OperationControllerTest {
         @Bean
         IdentityProvider identityProvider() {
             return new IdentityProviderImpl(new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L,
-                mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class));
+                mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class),
+                    false);
         }
 
         @Bean

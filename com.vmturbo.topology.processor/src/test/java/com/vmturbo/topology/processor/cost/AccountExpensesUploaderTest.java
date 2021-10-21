@@ -114,7 +114,8 @@ public class AccountExpensesUploaderTest {
     }
 
     private IdentityProvider identityProvider = new IdentityProviderImpl(keyValueStore,
-        new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class));
+        new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class),
+            false);
 
     private final Discovery discoveryTopology =
             new Discovery(PROBE_ID_AWS_DISCOVERY, TARGET_ID_AWS_DISCOVERY_1, identityProvider);

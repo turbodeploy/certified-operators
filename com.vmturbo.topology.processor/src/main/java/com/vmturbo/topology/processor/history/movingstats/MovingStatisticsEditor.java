@@ -6,6 +6,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
@@ -15,7 +16,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 
-import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -235,7 +235,7 @@ public class MovingStatisticsEditor extends BlobPersistingCachingHistoricalEdito
             throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             final Stopwatch sw = Stopwatch.createStarted();
-            final LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
+            final Set<Long> currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
 
             try {
                 final MovingStatisticsPersistenceTask loadTask = createTask(AbstractBlobsPersistenceTask.TOTAL_TIMESTAMP);

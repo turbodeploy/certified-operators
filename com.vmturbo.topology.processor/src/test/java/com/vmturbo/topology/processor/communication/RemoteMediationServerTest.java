@@ -8,7 +8,6 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
@@ -68,7 +67,7 @@ public class RemoteMediationServerTest {
     private final IdentityProvider identityProvider = new IdentityProviderImpl(
         new MapKeyValueStore(),
         new ProbeInfoCompatibilityChecker(),
-        0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class));
+        0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class), false);
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
 

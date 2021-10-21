@@ -82,7 +82,8 @@ public class TestMediationCommonConfig {
         return new IdentityProviderImpl(
                 new IdentityService(
                         new IdentityServiceInMemoryUnderlyingStore(
-                            Mockito.mock(IdentityDatabaseStore.class), 1, new ConcurrentHashMap<>()),
+                            Mockito.mock(IdentityDatabaseStore.class), 1, new ConcurrentHashMap<>(),
+                                true, false),
                     new HeuristicsMatcher()),
                 keyValueStore(), compatibilityChecker(), 0L, Mockito.mock(StaleOidManager.class));
     }

@@ -43,6 +43,13 @@ public interface EntityMetadataDescriptor {
     Collection<Integer> getVolatilePropertyRanks();
 
     /**
+     * Returns the ranks for the NonVolatile identifying property set.
+     *
+     * @return The Volatile identifying property set.
+     */
+    Collection<Integer> getNonVolatilePropertyRanks();
+
+    /**
      * Returns ranks for the Heuristic property set.
      *
      * @return The Heuristic property set.

@@ -23,8 +23,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
-import it.unimi.dsi.fastutil.longs.LongSet;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -364,7 +362,7 @@ public class AbstractCachingHistoricalEditorTest {
         @Nonnull
         public Map<EntityCommodityFieldReference, Float> load(
                 @Nonnull Collection<EntityCommodityReference> commodities,
-                @Nonnull CachingHistoricalEditorConfig config, final LongSet oidsToUse) {
+                @Nonnull CachingHistoricalEditorConfig config, final Set<Long> oidsToUse) {
             seenCommRefs.addAll(commodities);
             return commodities.stream()
                             .map(comm -> new EntityCommodityFieldReference(comm,

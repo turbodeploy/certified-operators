@@ -67,7 +67,7 @@ public class ProbeRegistrationTest {
 
         identityProvider = new IdentityProviderImpl(new MapKeyValueStore(),
             new ProbeInfoCompatibilityChecker(), 0L,
-            mock(IdentityDatabaseStore.class), 0, 0, false, mock(StaleOidManagerImpl.class));
+            mock(IdentityDatabaseStore.class), 0, 0, false, mock(StaleOidManagerImpl.class), false);
         ProbeStore probeStore = new RemoteProbeStore(keyValueStore,
             identityProvider, stitchingOperationStore,  new ActionMergeSpecsRepository());
         remoteMediation = new RemoteMediationServer(probeStore,

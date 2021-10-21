@@ -3,10 +3,9 @@ package com.vmturbo.topology.processor.history.maxvalue;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
-
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -37,7 +36,7 @@ public class MaxValueLoadingTask implements IHistoryLoadingTask<CachingHistorica
 
     @Override
     public Map<EntityCommodityFieldReference, Float>
-           load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config, final LongSet oidsToUse)
+           load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config, final Set<Long> oidsToUse)
                            throws HistoryCalculationException {
         // TODO dmitry make a request to historydb for given commodities
         return Collections.emptyMap();

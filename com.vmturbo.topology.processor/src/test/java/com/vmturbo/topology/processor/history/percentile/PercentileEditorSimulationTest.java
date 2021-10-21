@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -448,7 +449,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         @Override
         public Map<EntityCommodityFieldReference, PercentileCounts.PercentileRecord> load(
             @Nonnull Collection<EntityCommodityReference> commodities,
-            @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final LongSet oidsToUse)  {
+            @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final Set<Long> oidsToUse)  {
             return loadFromCounts(persistenceTable.get(getStartTimestamp()));
         }
 

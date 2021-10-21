@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -302,7 +303,7 @@ public class BlobPersistingCachingHistoricalEditorTest {
         @Override
         public Map<EntityCommodityFieldReference, Float> load(@Nonnull Collection<EntityCommodityReference> commodities,
                                                               @Nonnull CachingHistoricalEditorConfig cachingHistoricalEditorConfig,
-                                                              LongSet oidsToUse) throws HistoryCalculationException, InterruptedException {
+                                                              Set<Long> oidsToUse) throws HistoryCalculationException, InterruptedException {
             return Collections.emptyMap();
         }
     }

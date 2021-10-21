@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
@@ -14,8 +15,6 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.stub.StreamObserver;
-
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -114,7 +113,7 @@ public class MovingStatisticsPersistenceTask extends AbstractBlobsPersistenceTas
     @Override
     protected Map<EntityCommodityFieldReference, MovingStatisticsRecord> parse(long startTimestamp,
                                                                                @Nonnull InputStream source,
-                                                                               @Nonnull LongSet oidsToUse,
+                                                                               @Nonnull Set<Long> oidsToUse,
                                                                                boolean enableExpiredOidFiltering)
             throws IOException {
         return parse(source, MovingStatistics::parseFrom, config, oidsToUse, enableExpiredOidFiltering);
@@ -137,7 +136,7 @@ public class MovingStatisticsPersistenceTask extends AbstractBlobsPersistenceTas
     protected static Map<EntityCommodityFieldReference, MovingStatisticsRecord>
     parse(@Nonnull InputStream source, @Nonnull ThrowingFunction<InputStream, MovingStatistics, IOException> parser,
           @Nonnull MovingStatisticsHistoricalEditorConfig config,
-          @Nullable LongSet oidsToUse, boolean enableExpiredOidFiltering)
+          @Nullable Set<Long> oidsToUse, boolean enableExpiredOidFiltering)
         throws IOException {
         final ThrowingFunction<InputStream, Iterable<MovingStatisticsRecord>, IOException> statsToRecords = inputStream -> {
             final MovingStatistics stats = parser.apply(source);
