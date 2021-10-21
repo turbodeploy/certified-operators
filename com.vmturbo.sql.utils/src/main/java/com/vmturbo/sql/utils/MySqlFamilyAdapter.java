@@ -73,7 +73,7 @@ class MySqlFamilyAdapter extends DbAdapter {
 
     @Override
     protected String obscurePasswords(final String sql) {
-        return sql.replaceAll("(\\bSET\\s+PASSWORD\\b.=\\s*')([^']*)'", "$1***'");
+        return sql.replaceAll("(\\bSET\\s+PASSWORD\\s+(?:FOR\\s+`[^`]*`@`[^`]+`)\\s+)?=\\s+password\\(\\s*'([^']*)'", "$1***'");
     }
 
     @Override
