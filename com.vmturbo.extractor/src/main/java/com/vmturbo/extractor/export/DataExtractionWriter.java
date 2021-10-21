@@ -45,6 +45,7 @@ public class DataExtractionWriter extends TopologyWriterBase {
     private final PrimitiveFieldsOnTEDPatcher attrsExtractor;
     private final GroupPrimitiveFieldsOnGroupingPatcher groupAttrsExtractor;
     private String formattedTopologyCreationTime;
+    private long topologyTime;
 
     /**
      * Create a new writer instance.
@@ -68,6 +69,7 @@ public class DataExtractionWriter extends TopologyWriterBase {
             throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
         super.startTopology(topologyInfo, config, timer);
         this.formattedTopologyCreationTime = ExportUtils.getFormattedDate(topologyInfo.getCreationTime());
+        this.topologyTime = topologyInfo.getCreationTime();
         return this::writeEntity;
     }
 
@@ -160,6 +162,10 @@ public class DataExtractionWriter extends TopologyWriterBase {
         timer.start(kafkaStageLabel);
         final int successCount = extractorKafkaSender.send(exportedObjects);
         timer.stop();
+
+        // update the last time when the topology is extracted successfully
+        dataExtractionFactory.updateLastExtractionTime(topologyTime);
+
         return successCount;
     }
 }

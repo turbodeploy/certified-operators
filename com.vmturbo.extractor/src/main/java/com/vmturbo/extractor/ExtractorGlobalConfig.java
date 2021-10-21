@@ -51,6 +51,13 @@ public class ExtractorGlobalConfig {
     private boolean enableIndividualVStorages;
 
     /**
+     * The global interval for data exporter (extracting entity, group and action and sending to
+     * Kafka. It's not set by default.
+     */
+    @Value("${globalExtractionIntervalMins:#{null}}")
+    public Long globalExtractionIntervalMins;
+
+    /**
      * Clock for the component.
      *
      * @return The clock.

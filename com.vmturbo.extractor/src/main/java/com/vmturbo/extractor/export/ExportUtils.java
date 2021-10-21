@@ -75,6 +75,11 @@ public class ExportUtils {
     public static final String PARTITION_MAP_JSON_KEY_NAME = "partition";
 
     /**
+     * The default interval for extracting actions and push to kafka.
+     */
+    public static final long ACTION_EXTRACTION_DEFAULT_INTERVAL_MINS = 360;
+
+    /**
      * Private constructor to avoid creating new instance.
      */
     private ExportUtils() {}

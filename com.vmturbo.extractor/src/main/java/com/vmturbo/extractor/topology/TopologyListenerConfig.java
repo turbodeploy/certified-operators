@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,6 +25,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -55,7 +57,6 @@ import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.export.DataExtractionFactory;
-import com.vmturbo.extractor.export.DataExtractionWriter;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.models.Constants;
@@ -159,6 +160,12 @@ public class TopologyListenerConfig {
     private long realtimeTopologyContextId;
 
     /**
+     * The interval for extracting entity/group and sending to Kafka. Default to broadcast schedule.
+     */
+    @Value("${entityExtractionIntervalMins:#{null}}")
+    private Long entityExtractionIntervalMins;
+
+    /**
      * Create an instance of our topology listener.
      *
      * @return listener instance
@@ -166,7 +173,7 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
-                writerFactories(), writerConfig(), dataProvider());
+                writerFactories(), writerConfig(), dataProvider(), extractorGlobalConfig.featureFlags());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
     }
@@ -368,8 +375,7 @@ public class TopologyListenerConfig {
             retFactories.add(historicalAttributeWriterFactory());
         }
         if (featureFlags.isExtractionEnabled()) {
-            retFactories.add(() -> new DataExtractionWriter(extractorKafkaSender(),
-                    dataExtractionFactory()));
+            retFactories.add(() -> dataExtractionFactory().newDataExtractionWriter());
         }
 
         if (featureFlags.isExtractionEnabled() || featureFlags.isReportingActionIngestionEnabled()) {
@@ -521,7 +527,12 @@ public class TopologyListenerConfig {
      */
     @Bean
     public DataExtractionFactory dataExtractionFactory() {
-        return new DataExtractionFactory(dataProvider(), targetCache());
+        final Long extractionIntervalMins = ObjectUtils.firstNonNull(
+                entityExtractionIntervalMins,
+                extractorGlobalConfig.globalExtractionIntervalMins);
+        return new DataExtractionFactory(dataProvider(), targetCache(), extractorKafkaSender(),
+                Optional.ofNullable(extractionIntervalMins).map(TimeUnit.MINUTES::toMillis).orElse(null),
+                extractorGlobalConfig.clock());
     }
 
     /**
