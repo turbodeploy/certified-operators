@@ -43,7 +43,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
-import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
@@ -64,7 +63,6 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -93,7 +91,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
@@ -126,6 +123,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.KubernetesServiceData;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -239,6 +237,8 @@ public class SearchService implements ISearchService {
                 .put(EntityFilterMapper.CONTAINER_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .put(EntityFilterMapper.CONTAINER_POD_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .put(EntityFilterMapper.CONTAINER_SPEC_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
+                .put(EntityFilterMapper.KUBERNETES_SERVICE_TYPE, (a, b, c) -> getEnumFilterOptions(
+                        KubernetesServiceData.ServiceType.class))
                 .put(EntityFilterMapper.USER_DEFINED_ENTITY, (a, b, c) -> getBooleanFilterOptions())
                 .put(SearchableProperties.DB_STORAGE_ENCRYPTION,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
                 .put(SearchableProperties.DB_STORAGE_AUTOSCALING,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
@@ -603,7 +603,7 @@ public class SearchService implements ISearchService {
                                                                        String state,
                                                                        @Nullable EnvironmentType environmentType,
                                                                        @Nullable EntityDetailType entityDetailType,
-                                                                       @NotNull SearchPaginationRequest paginationRequest,
+                                                                       @Nonnull SearchPaginationRequest paginationRequest,
                                                                        List<String> probeTypes,
                                                                        @Nullable QueryType queryType)
                     throws InterruptedException, ConversionException, OperationFailedException {

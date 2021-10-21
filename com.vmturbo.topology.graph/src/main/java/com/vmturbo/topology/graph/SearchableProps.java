@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -208,6 +209,19 @@ public interface SearchableProps {
          * @return True if it is deletable.
          */
         boolean isDeletable();
+    }
+
+    /**
+     * Searchable properties for services.
+     */
+    interface ServiceProps extends SearchableProps {
+        /**
+         * Get the kubernetes service type.
+         *
+         * @return the kubernetes service type
+         */
+        @Nullable
+        String getKubernetesServiceType();
     }
 
     /**

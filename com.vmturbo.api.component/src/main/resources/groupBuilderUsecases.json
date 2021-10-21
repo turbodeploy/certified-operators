@@ -196,6 +196,7 @@
                 "filterCategory": "entity", "filterType": "serviceByNamespace"},
             {"inputType": "*", "elements": "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES:Container:PRODUCES:ApplicationComponent:PRODUCES",
                 "filterCategory": "entity", "filterType": "serviceByContainerPlatformCluster"},
+            {"inputType": "s", "elements": "serviceInfoRepoDTO.kubernetesServiceType", "filterCategory":"property", "filterType": "serviceByKubernetesServiceType", "loadOptions": true},
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessApplication"},
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessTransaction"},
             {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "serviceByUserDefinedEntity", "loadOptions": true}

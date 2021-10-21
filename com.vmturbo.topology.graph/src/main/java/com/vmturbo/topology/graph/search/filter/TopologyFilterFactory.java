@@ -40,6 +40,7 @@ import com.vmturbo.topology.graph.SearchableProps;
 import com.vmturbo.topology.graph.SearchableProps.BusinessAccountProps;
 import com.vmturbo.topology.graph.SearchableProps.DatabaseServerProps;
 import com.vmturbo.topology.graph.SearchableProps.PmProps;
+import com.vmturbo.topology.graph.SearchableProps.ServiceProps;
 import com.vmturbo.topology.graph.SearchableProps.StorageProps;
 import com.vmturbo.topology.graph.SearchableProps.VmProps;
 import com.vmturbo.topology.graph.SearchableProps.VolumeProps;
@@ -673,7 +674,8 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 }
             case SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME:
                 return workloadControllerObjectFilter(propertyName, objectCriteria);
-
+            case SearchableProperties.SERVICE_INFO_REPO_DTO_PROPERTY_NAME:
+                return serviceObjectFilter(propertyName, objectCriteria);
             default:
                 throw new IllegalArgumentException("Unknown object property: " + propertyName
                         + " with criteria: " + objectCriteria);
@@ -820,6 +822,36 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
 
             return negate ? !expectedSet.contains(propValue) : expectedSet.contains(propValue);
         };
+    }
+
+    /**
+     * Get property filter for Service based on given property name and filter criteria.
+     *
+     * @param propertyName   Name of the property that we want to compare
+     * @param objectCriteria The filter criteria used to check if an object matches.
+     * @return Service object filter that corresponds to the input criteria.
+     */
+    private PropertyFilter<E> serviceObjectFilter(
+            @Nonnull final String propertyName,
+            @Nonnull final Search.PropertyFilter.ObjectFilter objectCriteria) {
+        List<Search.PropertyFilter> filters = objectCriteria.getFiltersList();
+        if (filters.size() != 1) {
+            throw new IllegalArgumentException("Expecting one PropertyFilter for "
+                               + propertyName + ", but got " + filters.size() + ": " + filters);
+        }
+        Search.PropertyFilter filter = objectCriteria.getFilters(0);
+        if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+            throw new IllegalArgumentException("Expecting StringFilter for "
+                                                       + filter.getPropertyName() + ", but got " + filter);
+        }
+        if (!SearchableProperties.KUBERNETES_SERVICE_TYPE.equals(filter.getPropertyName())) {
+            throw new IllegalArgumentException(
+                    "Unknown property: " + filter.getPropertyName() + " on " + propertyName);
+        }
+        return PropertyFilter.typeSpecificFilter(
+                svcProps -> stringPredicate(filter.getStringFilter())
+                        .test(svcProps.getKubernetesServiceType()),
+                ServiceProps.class);
     }
 
     /**

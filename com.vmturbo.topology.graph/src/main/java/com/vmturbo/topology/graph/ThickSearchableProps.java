@@ -1,16 +1,21 @@
 package com.vmturbo.topology.graph;
 
 import java.util.Collection;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.KubernetesServiceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -55,6 +60,8 @@ public class ThickSearchableProps implements SearchableProps {
                 return new ThickBusinessAccountProps(entityOrBldr);
             case DATABASE_SERVER:
                 return new ThickDatabaseServerProps(entityOrBldr);
+            case SERVICE:
+                return new ThickServiceProps(entityOrBldr);
             default:
                 return new ThickSearchableProps(entityOrBldr);
         }
@@ -216,6 +223,29 @@ public class ThickSearchableProps implements SearchableProps {
         @Override
         public boolean isDeletable() {
             return entityOrBldr.getAnalysisSettings().getDeletable();
+        }
+    }
+
+    /**
+     * Service properties.
+     */
+    public static class ThickServiceProps extends ThickSearchableProps implements ServiceProps {
+        private ThickServiceProps(TopologyEntityDTOOrBuilder entityDTOOrBuilder) {
+            super(entityDTOOrBuilder);
+        }
+
+        @Override
+        @Nullable
+        public String getKubernetesServiceType() {
+            return Optional.of(entityOrBldr.getTypeSpecificInfo())
+                    .filter(TypeSpecificInfo::hasService)
+                    .map(TypeSpecificInfo::getService)
+                    .filter(ServiceInfo::hasKubernetesServiceData)
+                    .map(ServiceInfo::getKubernetesServiceData)
+                    .filter(KubernetesServiceData::hasServiceType)
+                    .map(KubernetesServiceData::getServiceType)
+                    .map(Enum::name)
+                    .orElse(null);
         }
     }
 
