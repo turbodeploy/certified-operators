@@ -34,7 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -44,11 +44,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
     private static final long DESKTOP_POOL_OID = 10001;
+    private static final long PHYSICAL_MACHINE_OID = 10004;
     private static final long VM_REFERENCE_ID = 10002;
     private static final long MASTER_IMAGE_OID = 10003;
     private static final String MASTER_IMAGE_VM_DISPLAY_NAME = "S01-P01-P01-00";
     private static final int MASTER_IMAGE_VM_NUM_CPU = 4;
     private static final float MASTER_IMAGE_VMEM_CAPACITY = 500F;
+    private static final float MASTER_IMAGE_CPU_CAPAITY = 10396F;
+    private static final int DP_CPU_CORE_MHZ_VALUE = 2599;
     private static final float MASTER_IMAGE_STORAGE_USED_1 = 100F;
     private static final float MASTER_IMAGE_STORAGE_USED_2 = 200F;
     private static final float DELTA = 0.001F;
@@ -61,6 +64,7 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
     private TemplateServiceBlockingStub templateService;
     private TopologyEntityDTO masterImageVirtualMachine;
     private TopologyEntityDTO desktopPool;
+    private TopologyEntityDTO physicalMachine;
 
     /**
      * Rule to define test GRPC server.
@@ -80,8 +84,12 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
         final List<CommoditySoldDTO> commoditySoldList = ImmutableList.of(
                 CommoditySoldDTO.newBuilder()
                         .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                .setType(CommodityType.VMEM_VALUE))
+                                .setType(CommodityType.IMAGE_MEM_VALUE))
                         .setCapacity(MASTER_IMAGE_VMEM_CAPACITY)
+                        .build(),  CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.IMAGE_CPU_VALUE))
+                        .setCapacity(MASTER_IMAGE_CPU_CAPAITY)
                         .build());
         final List<CommodityBoughtDTO> commodityBoughtDTOList = ImmutableList.of(
                 CommodityBoughtDTO.newBuilder()
@@ -97,17 +105,18 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
                 CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderId(DESKTOP_POOL_OID)
                         .addAllCommodityBought(commodityBoughtDTOList)
+                        .build(), CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PHYSICAL_MACHINE_OID)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addAllCommodityBought(ImmutableList.of(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.DATASTORE_VALUE))
+                                .build()))
                         .build());
         masterImageVirtualMachine = TopologyEntityDTO.newBuilder()
                 .setOid(MASTER_IMAGE_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setDisplayName(MASTER_IMAGE_VM_DISPLAY_NAME)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                        .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                                .setNumCpus(MASTER_IMAGE_VM_NUM_CPU)
-                                .build())
-                        .build())
-                .addAllCommoditySoldList(commoditySoldList)
                 .addAllCommoditiesBoughtFromProviders(commoditiesBoughtFromProviders)
                 .build();
 
@@ -120,7 +129,12 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
                                         .setVmReferenceId(VM_REFERENCE_ID)
                                         .build())
                                 .build()))
+                .addAllCommoditySoldList(commoditySoldList)
                 .build();
+        physicalMachine = TopologyEntityDTO.newBuilder().setEntityType(
+                EntityType.PHYSICAL_MACHINE_VALUE).setOid(PHYSICAL_MACHINE_OID).setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder()
+                        .setPhysicalMachine(PhysicalMachineInfo.newBuilder().setCpuCoreMhz(DP_CPU_CORE_MHZ_VALUE).build())).build();
     }
 
     /**
@@ -132,6 +146,10 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
                 ApiTestUtils.mockSingleEntityRequest(masterImageVirtualMachine);
         Mockito.when(repositoryApi.entityRequest(VM_REFERENCE_ID))
                 .thenReturn(masterImageVirtualMachineRequest);
+        final SingleEntityRequest physicalMachineRequest = ApiTestUtils.mockSingleEntityRequest(
+                physicalMachine);
+        Mockito.when(repositoryApi.entityRequest(PHYSICAL_MACHINE_OID)).thenReturn(
+                physicalMachineRequest);
         // act
         final MasterImageEntityAspectApiDTO aspect =
                 masterImageEntityAspectMapper.mapEntityToAspect(desktopPool);
@@ -150,6 +168,10 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
         final SingleEntityRequest desktopPoolRequest =
                 ApiTestUtils.mockSingleEntityRequest(desktopPool);
         Mockito.when(repositoryApi.entityRequest(DESKTOP_POOL_OID)).thenReturn(desktopPoolRequest);
+        final SingleEntityRequest physicalMachineRequest = ApiTestUtils.mockSingleEntityRequest(
+                physicalMachine);
+        Mockito.when(repositoryApi.entityRequest(PHYSICAL_MACHINE_OID)).thenReturn(
+                physicalMachineRequest);
 
         final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders = ImmutableList.of(
                 CommoditiesBoughtFromProvider.newBuilder()

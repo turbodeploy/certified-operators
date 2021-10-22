@@ -31,10 +31,13 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -99,11 +102,18 @@ public class MasterImageEntityAspectMapper extends AbstractAspectMapper {
         if (entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo().hasDesktopPool()) {
             final DesktopPoolInfo info = entity.getTypeSpecificInfo().getDesktopPool();
             if (info.hasVmWithSnapshot()) {
-                return repositoryApi.entityRequest(
-                    info.getVmWithSnapshot().getVmReferenceId())
-                    .getFullEntity()
-                    .map(MasterImageEntityAspectMapper::createAspectByVirtualMachineDTO)
-                    .orElse(null);
+                final long vmReferenceId = info.getVmWithSnapshot().getVmReferenceId();
+                TopologyEntityDTO vm = repositoryApi.entityRequest(vmReferenceId)
+                        .getFullEntity()
+                        .orElse(null);
+                if (vm == null) {
+                    LOGGER.warn(
+                            "The VM could not be found by id {} when collecting information for entity {}",
+                            vmReferenceId, entity.getOid());
+                    return null;
+                }
+                return MasterImageEntityAspectMapper.createAspectByDpVmPmDTOs(entity, vm,
+                        getVmProvider(vm));
             } else if (info.hasTemplateReferenceId()) {
                 try {
                     SingleTemplateResponse response = templateService.getTemplate(GetTemplateRequest
@@ -122,6 +132,27 @@ public class MasterImageEntityAspectMapper extends AbstractAspectMapper {
                 LOGGER.error("Master image is not referenced by a VDI entity " + entity.getDisplayName());
             }
         }
+        return null;
+    }
+
+    private TopologyEntityDTO getVmProvider(TopologyEntityDTO vm) {
+        CommoditiesBoughtFromProvider provider =
+                vm.getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .filter(p -> p.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                        .findFirst()
+                        .orElse(null);
+        if (provider != null) {
+            final long providerId = provider.getProviderId();
+            final TopologyEntityDTO pm = repositoryApi.entityRequest(providerId)
+                    .getFullEntity()
+                    .orElse(null);
+            if (pm != null) {
+                return pm;
+            }
+        }
+        String providerIdInfo = provider != null ? "by id " + provider.getProviderId() : "";
+        LOGGER.warn("The provider PM could not be found {} for VM {}", providerIdInfo, vm.getOid());
         return null;
     }
 
@@ -165,34 +196,50 @@ public class MasterImageEntityAspectMapper extends AbstractAspectMapper {
 
     /**
      * Creates {@link MasterImageEntityAspectApiDTO}
-     * by the {@link TopologyEntityDTO} that contains {@link VirtualMachineInfo}.
+     * by the desktop pool, virtual machine and physical machine {@link TopologyEntityDTO} .
      *
-     * @param entity the {@link TopologyEntityDTO} that contains {@link VirtualMachineInfo}
+     * @param dp the desktop pool {@link TopologyEntityDTO}
+     * @param vm the virtual machine {@link TopologyEntityDTO} that contains {@link
+     *         VirtualMachineInfo}
+     * @param pm the physical machine {@link TopologyEntityDTO}
      * @return the {@link MasterImageEntityAspectApiDTO}
      */
-    @Nullable
-    private static MasterImageEntityAspectApiDTO createAspectByVirtualMachineDTO(
-            @Nonnull TopologyEntityDTO entity) {
-        if (!entity.hasTypeSpecificInfo() || !entity.getTypeSpecificInfo().hasVirtualMachine()) {
-            return null;
-        }
+    @Nonnull
+    private static MasterImageEntityAspectApiDTO createAspectByDpVmPmDTOs(
+            @Nonnull TopologyEntityDTO dp, @Nonnull TopologyEntityDTO vm,
+            @Nullable TopologyEntityDTO pm) {
         final MasterImageEntityAspectApiDTO aspect = new MasterImageEntityAspectApiDTO();
-        aspect.setDisplayName(entity.getDisplayName());
-        final VirtualMachineInfo virtualMachineInfo = entity.getTypeSpecificInfo().getVirtualMachine();
-        if (virtualMachineInfo.hasNumCpus()) {
-            aspect.setNumVcpus(virtualMachineInfo.getNumCpus());
-        }
-        entity.getCommoditySoldListList()
+        final VmWithSnapshot vmWithSnapshot =
+                dp.getTypeSpecificInfo().getDesktopPool().getVmWithSnapshot();
+        final String snapshotNameInfo =
+                vmWithSnapshot.hasSnapshot() ? " (" + vmWithSnapshot.getSnapshot() + ")" : "";
+        aspect.setDisplayName(vm.getDisplayName() + snapshotNameInfo);
+        dp.getCommoditySoldListList()
                 .stream()
-                .filter(c -> c.getCommodityType().getType() == CommodityType.VMEM_VALUE)
+                .filter(c -> c.getCommodityType().getType() == CommodityType.IMAGE_MEM_VALUE)
                 .findFirst()
-                .ifPresent(vmem -> aspect.setMem((float)vmem.getCapacity()));
-        final double storage = entity.getCommoditiesBoughtFromProvidersList()
+                .ifPresent(mem -> aspect.setMem((float)mem.getCapacity()));
+        CommoditySoldDTO imageCpuValue = dp.getCommoditySoldListList()
+                .stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityType.IMAGE_CPU_VALUE)
+                .findFirst()
+                .orElse(null);
+        if (pm != null) {
+            TypeSpecificInfo typeSpecificInfo = pm.getTypeSpecificInfo();
+            if (imageCpuValue != null && pm.hasTypeSpecificInfo()
+                    && typeSpecificInfo.hasPhysicalMachine()) {
+                int cpuCoreMhz = typeSpecificInfo.getPhysicalMachine().getCpuCoreMhz();
+                if (cpuCoreMhz > 0) {
+                    aspect.setNumVcpus((int)Math.round(imageCpuValue.getCapacity() / cpuCoreMhz));
+                }
+            }
+        }
+        final double storage = vm.getCommoditiesBoughtFromProvidersList()
                 .stream()
                 .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
                 .flatMap(Collection::stream)
-                .filter(c -> c.getCommodityType().getType() ==
-                        CommodityType.STORAGE_PROVISIONED_VALUE)
+                .filter(c -> c.getCommodityType().getType()
+                        == CommodityType.STORAGE_PROVISIONED_VALUE)
                 .mapToDouble(CommodityBoughtDTO::getUsed)
                 .sum();
         aspect.setStorage((float)storage);
