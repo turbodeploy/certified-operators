@@ -166,10 +166,9 @@ public class ScopeManagerTest {
         scopeManager.addInCurrentScope(2L, 200L);
         scopeManager.finishTopology(types);
         Set<ScopeRecord> records = fetchScopeRecords(t1.getOffset());
-        assertThat(records.size(), is(4));
+        assertThat(records.size(), is(3));
         checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 1L, 100L, 101L);
         checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 2L, 200L);
-        checkPersisted(records, ScopeManager.EPOCH_TIMESTAMP, t1, 0L, 0L);
         // topology 2: drop 1/101, add 2/201 and 3/300
         OffsetDateTime t2 = t1.plus(10, ChronoUnit.MINUTES);
         scopeManager.startTopology(TopologyInfo.newBuilder().setCreationTime(t2.toInstant().toEpochMilli()).build());
@@ -178,13 +177,12 @@ public class ScopeManagerTest {
         scopeManager.addInCurrentScope(3L, 300L);
         scopeManager.finishTopology(types);
         records = fetchScopeRecords(t1.getOffset());
-        assertThat(records.size(), is(6));
+        assertThat(records.size(), is(5));
         checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 1L, 100L);
         checkPersisted(records, t1, t1, 1L, 101L);
         checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 2L, 200L);
         checkPersisted(records, t2, Constants.MAX_TIMESTAMP, 2L, 201L);
         checkPersisted(records, t2, Constants.MAX_TIMESTAMP, 3L, 300L);
-        checkPersisted(records, ScopeManager.EPOCH_TIMESTAMP, t2, 0L, 0L);
         // topology 3: drop 1/100, re-add 1/101, and all of entity 2
         OffsetDateTime t3 = t1.plus(20, ChronoUnit.MINUTES);
         scopeManager.startTopology(TopologyInfo.newBuilder().setCreationTime(t3.toInstant().toEpochMilli()).build());
@@ -192,14 +190,13 @@ public class ScopeManagerTest {
         scopeManager.addInCurrentScope(3L, 300L);
         scopeManager.finishTopology(types);
         records = fetchScopeRecords(t1.getOffset());
-        assertThat(records.size(), is(7));
+        assertThat(records.size(), is(6));
         checkPersisted(records, t1, t2, 1L, 100L);
         checkPersisted(records, t1, t1, 1L, 101L);
         checkPersisted(records, t3, Constants.MAX_TIMESTAMP, 1L, 101L);
         checkPersisted(records, t1, t2, 2L, 200L);
         checkPersisted(records, t2, t2, 2L, 201L);
         checkPersisted(records, t2, Constants.MAX_TIMESTAMP, 3L, 300L);
-        checkPersisted(records, ScopeManager.EPOCH_TIMESTAMP, t3, 0L, 0L);
     }
 
     @Nonnull
