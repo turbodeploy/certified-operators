@@ -39,6 +39,7 @@ import com.vmturbo.stitching.poststitching.ProtectSharedStorageWastedFilesPostSt
 import com.vmturbo.stitching.poststitching.ServiceResponseTimePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache;
+import com.vmturbo.stitching.poststitching.SetCommBoughtUsedFromCommSoldMaxPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
@@ -124,6 +125,7 @@ public class PostStitchingOperationLibrary {
             new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_LATENCY),
             new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_ACCESS),
             new SetCommodityMaxQuantityPostStitchingOperation(commodityPostStitchingOperationConfig),
+            new SetCommBoughtUsedFromCommSoldMaxPostStitchingOperation(),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
             new DisableActionForHxControllerVmAndDsOperation(),
             new UseHypervisorVmemForResizingPostStitchingOperation(),

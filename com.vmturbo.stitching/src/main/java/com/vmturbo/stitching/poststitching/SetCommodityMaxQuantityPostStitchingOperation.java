@@ -126,7 +126,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             .put(EntityType.APPLICATION_SERVER_VALUE, ImmutableSet.of(CommodityType.HEAP_VALUE))
             .put(EntityType.CONTAINER_SPEC_VALUE, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
             .put(EntityType.DATABASE_VALUE, ImmutableSet.of(CommodityType.VMEM_VALUE))
-            .put(EntityType.DATABASE_SERVER_VALUE, ImmutableSet.of(CommodityType.DB_MEM_VALUE))
+            .put(EntityType.DATABASE_SERVER_VALUE, ImmutableSet.of(CommodityType.DB_MEM_VALUE, CommodityType.CONNECTION_VALUE))
             .put(EntityType.DISK_ARRAY_VALUE, ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE))
             .put(EntityType.IO_MODULE_VALUE, ImmutableSet.of(CommodityType.NET_THROUGHPUT_VALUE))
             .put(EntityType.LOGICAL_POOL_VALUE, ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE))
