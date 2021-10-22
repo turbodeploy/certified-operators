@@ -368,18 +368,18 @@ public class TopologyListenerConfig {
         if (featureFlags.isSearchEnabled()) {
             retFactories.add(() -> new SearchEntityWriter(dbConfig.ingesterMySqlEndpoint(), pool()));
         }
+        if (featureFlags.isExtractionEnabled()) {
+            retFactories.add(() -> dataExtractionFactory().newDataExtractionWriter());
+        }
+        if (featureFlags.isExtractionEnabled() || featureFlags.isReportingActionIngestionEnabled()) {
+            retFactories.add(() -> actionCommodityDataRetriever());
+        }
         if (featureFlags.isReportingEnabled()) {
             retFactories.add(() -> new EntityMetricWriter(dbConfig.ingesterEndpoint(), entityHashManager(),
                     scopeManager(), fileDataManager(),
                     oidPack(), pool(), dataExtractionFactory()));
             retFactories.add(historicalAttributeWriterFactory());
-        }
-        if (featureFlags.isExtractionEnabled()) {
-            retFactories.add(() -> dataExtractionFactory().newDataExtractionWriter());
-        }
-
-        if (featureFlags.isExtractionEnabled() || featureFlags.isReportingActionIngestionEnabled()) {
-            retFactories.add(() -> actionCommodityDataRetriever());
+            retFactories.add(() -> new TopologyStatsWriter(dbConfig.ingesterEndpoint(), pool()));
         }
         return Collections.unmodifiableList(retFactories);
     }

@@ -8,6 +8,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.SCOPE_START;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPE_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEED_OID;
 import static com.vmturbo.extractor.schema.Tables.SCOPE;
+import static com.vmturbo.extractor.schema.Tables.TOPOLOGY_STATS;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -215,15 +216,6 @@ public class ScopeManager {
                     .forEach(scopedIid ->
                             // handle every entity that appeared in this or prior topology
                             finishScopingEntity(scopedIid, scopeInserter, scopeUpdater, entityTypes));
-            // update the "0/0" record's finish date to be the current timestamp, for restoration
-            // following  a restart. We use an upsert because on very first cycle there will be no
-            // record.
-            dsl.insertInto(SCOPE,
-                    SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH)
-                    .values(0L, 0L, EntityType._NONE_, EPOCH_TIMESTAMP, currentTimestamp)
-                    .onConflictOnConstraint(SCOPE.getPrimaryKey()).doUpdate()
-                    .set(SCOPE.FINISH, currentTimestamp)
-                    .execute();
         } finally {
             logger.info("Finished scope updates for {}", currentTimestamp);
             priorScope = currentScope;
@@ -431,10 +423,8 @@ public class ScopeManager {
                 addScope(priorScope, seedIid, scopedIid);
             });
         }
-        priorTimestamp = dsl.select(SCOPE.FINISH).from(SCOPE)
-                .where(SCOPE.SEED_OID.eq(0L).and(SCOPE.SCOPED_OID.eq(0L))
-                        .and(SCOPE.START.eq(EPOCH_TIMESTAMP)))
-                .fetchOne(SCOPE.FINISH);
+        priorTimestamp = dsl.select(DSL.max(TOPOLOGY_STATS.TIME)).from(TOPOLOGY_STATS)
+                .fetchOne().value1();
         if (priorTimestamp != null) {
             logger.info("Prior scopes for {} entities loaded for timestamp {}",
                     priorScope.size(), priorTimestamp);
