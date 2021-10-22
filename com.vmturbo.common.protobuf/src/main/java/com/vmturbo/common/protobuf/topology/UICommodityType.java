@@ -255,6 +255,10 @@ public enum UICommodityType {
     VCPU_THROTTLING(CommodityType.VCPU_THROTTLING, "VCPU Throttling"),
     /** The commodity CPU_READY **/
     CPU_READY(CommodityType.CPU_READY, "CPU READY"),
+    /** The commodity NET_THROUGHPUT_OUT **/
+    NET_THROUGHPUT_OUT(CommodityType.NET_THROUGHPUT_OUT, "Net Throughput Outbound"),
+    /** The commodity NET_THROUGHPUT_IN **/
+    NET_THROUGHPUT_IN(CommodityType.NET_THROUGHPUT_IN, "Net Throughput Inbound"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 

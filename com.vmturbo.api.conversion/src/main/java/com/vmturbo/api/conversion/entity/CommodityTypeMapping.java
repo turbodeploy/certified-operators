@@ -170,6 +170,8 @@ public class CommodityTypeMapping {
             .put(CommodityType.NUMBER_REPLICAS, CommodityInfo.of("NumberReplicas", "NumberReplicas", ""))
             .put(CommodityType.VCPU_THROTTLING, CommodityInfo.of("VCPUThrottling", "VCPUThrottling", "%"))
             .put(CommodityType.CPU_READY, CommodityInfo.of("CPUReady", "CPUReady", "msec"))
+            .put(CommodityType.NET_THROUGHPUT_OUT, CommodityInfo.of("NetThroughputOutbound", "NetThroughputOutbound", "KByte/sec"))
+            .put(CommodityType.NET_THROUGHPUT_IN, CommodityInfo.of("NetThroughputInbound", "NetThroughputInbound", "KByte/sec"))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 
