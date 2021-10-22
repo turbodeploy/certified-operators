@@ -1,0 +1,15 @@
+# dashboard provisioner for canned prometheus dashboards included in Embedded Reporting and SaaS
+# Reporting
+
+apiVersion: 1
+
+providers:
+  - name: system
+    orgId: 1
+    folder: System
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /grafana-dashboards/system

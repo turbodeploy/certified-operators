@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.flyway.ResetChecksumsForTimescaleDB201Migrations;
 import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
@@ -193,7 +194,8 @@ public class ExtractorDbConfig {
                 .withMigrationLocations("db.migration.grafana")
                 .withRootAccessEnabled(true)
                 .withEndpointEnabled(r ->
-                        r.apply("dbs.grafana.databaseName") != null
+                        !FeatureFlags.SAAS_REPORTING.isEnabled()
+                                && r.apply("dbs.grafana.databaseName") != null
                                 && r.apply("dbs.grafana.userName") != null
                                 && r.apply("dbs.grafana.password") != null
                                 && extractorGlobalConfig.featureFlags().isReportingEnabled())

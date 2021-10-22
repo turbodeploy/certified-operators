@@ -1,0 +1,671 @@
+annotations:
+  list:
+  - builtIn: 1
+    datasource: -- Grafana --
+    enable: true
+    hide: true
+    iconColor: rgba(0, 211, 255, 1)
+    name: Annotations & Alerts
+    type: dashboard
+description: Performance and capacity profile, including trends, for selected datastores.
+editable: false
+gnetId:
+graphTooltip: 0
+iteration: 1596572009638
+links: []
+panels:
+- datasource: $DB
+  description: ''
+  fieldConfig:
+    defaults:
+      custom:
+        align:
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value:
+        - color: red
+          value: 80
+      unit: mbytes
+    overrides:
+    - matcher:
+        id: byName
+        options: Utilization
+      properties:
+      - id: unit
+        value: percentunit
+  gridPos:
+    h: 3
+    w: 12
+    x: 0
+    y: 0
+  id: 4
+  options:
+    showHeader: true
+  pluginVersion: 7.0.1
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      SELECT
+        sum(used) AS "Storage Used",
+        sum(capacity) AS "Storage Capacity",
+        round((sum(used)/ NULLIF(sum(capacity), 0))::NUMERIC, 4) AS "Utilization"
+      FROM (
+        WITH unique_data as(
+          SELECT
+            m.entity_oid AS oid,
+            m.current,
+            m.capacity
+          FROM metric m,
+            scope_to($__timeFrom(), $__timeTo(), 'STORAGE', ARRAY[${Group:raw}+0]::bigint[], '${Group:raw}' = '0') s
+          WHERE
+            m.entity_oid = s.oid
+            AND m.time BETWEEN s.from_time AND s.to_time
+            AND m.type = 'STORAGE_AMOUNT'
+            AND m."time" BETWEEN timestamptz $__timeFrom() AND $__timeTo()
+          GROUP BY m.time, m.entity_oid, m.current, m.capacity
+        )
+        SELECT unique_data.oid, avg(unique_data.current) AS used, avg(unique_data.capacity)::NUMERIC AS capacity
+        FROM unique_data
+        GROUP BY unique_data.oid
+      ) AS data_tbl
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom:
+  timeShift:
+  title: Overall Datastore Avg Consumption
+  type: table
+- datasource: $DB
+  fieldConfig:
+    defaults:
+      custom:
+        align: right
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value:
+        - color: red
+          value: 80
+      unit: none
+    overrides:
+    - matcher:
+        id: byName
+        options: Utilization
+      properties:
+      - id: unit
+        value: percent
+      - id: custom.width
+        value:
+    - matcher:
+        id: byName
+        options: IOPS
+      properties:
+      - id: unit
+        value: iops
+    - matcher:
+        id: byName
+        options: Latency
+      properties:
+      - id: unit
+        value: ms
+  gridPos:
+    h: 5
+    w: 12
+    x: 12
+    y: 0
+  id: 6
+  options:
+    showHeader: true
+    sortBy: []
+  pluginVersion: 7.0.1
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      WITH metrics AS (
+        SELECT m.utilization, m.current, m.type
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(), 'STORAGE', ARRAY[${Group:raw}+0]::bigint[], '${Group:raw}' = '0') s
+        WHERE
+          m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.type in ('STORAGE_AMOUNT','STORAGE_ACCESS','STORAGE_LATENCY')
+          AND m."time" BETWEEN $__timeFrom() AND $__timeTo()
+        GROUP BY m.time, m.entity_oid, m.utilization, m.CURRENT, m.type
+      )
+      SELECT
+        unnest(array['AVG','MIN','MAX']) as "Aggregation",
+        unnest(array[
+          avg(metrics.utilization) FILTER (WHERE metrics.type = 'STORAGE_AMOUNT'),
+          min(metrics.utilization) FILTER (WHERE metrics.type = 'STORAGE_AMOUNT'),
+          max(metrics.Utilization) FILTER (WHERE metrics.type = 'STORAGE_AMOUNT')
+        ]) AS "Utilization",
+        unnest(array[
+          avg(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_ACCESS'),
+          min(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_ACCESS'),
+          max(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_ACCESS')
+        ]) AS "IOPS",
+        unnest(array[
+          avg(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_LATENCY'),
+          min(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_LATENCY'),
+          max(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_LATENCY')
+        ]) AS "Latency"
+      FROM metrics
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom:
+  timeShift:
+  title: Datastore Performance Stats
+  transformations:
+  - id: organize
+    options: {}
+  type: table
+- aliasColors: {}
+  bars: false
+  dashLength: 10
+  dashes: false
+  datasource: $DB
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fill: 0
+  fillGradient: 0
+  gridPos:
+    h: 10
+    w: 12
+    x: 0
+    y: 3
+  hiddenSeries: false
+  id: 2
+  legend:
+    avg: false
+    current: false
+    max: false
+    min: false
+    show: true
+    total: false
+    values: false
+  lines: true
+  linewidth: 3
+  nullPointMode: 'null'
+  options:
+    dataLinks: []
+  percentage: false
+  pointradius: 2
+  points: false
+  renderer: flot
+  seriesOverrides: []
+  spaceLength: 10
+  stack: false
+  steppedLine: false
+  targets:
+  - format: time_series
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      WITH metrics AS (
+        SELECT m.time, m.capacity, m.current
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(), 'STORAGE', ARRAY[${Group:raw}+0]::bigint[], '${Group:raw}' = '0') s
+        WHERE
+          m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.type = 'STORAGE_AMOUNT'
+          AND "time" BETWEEN $__timeFrom() AND $__timeTo()
+        GROUP BY m.time, m.entity_oid, m.capacity, m.current
+      )
+      SELECT
+        date_trunc('hour', m.time) as "time",
+        ROUND((sum(m.current)/sum(m.capacity))::NUMERIC, 4) AS "Storage Amount Used"
+      FROM metrics m
+      GROUP BY 1
+      ORDER BY 1
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  thresholds: []
+  timeFrom:
+  timeRegions: []
+  timeShift:
+  title: Datastore Consumption Trend
+  tooltip:
+    shared: true
+    sort: 0
+    value_type: individual
+  type: graph
+  xaxis:
+    buckets:
+    mode: time
+    name:
+    show: true
+    values: []
+  yaxes:
+  - $$hashKey: object:754
+    decimals: 2
+    format: percentunit
+    label:
+    logBase: 1
+    max:
+    min:
+    show: true
+  - $$hashKey: object:755
+    format: short
+    label:
+    logBase: 1
+    max:
+    min:
+    show: true
+  yaxis:
+    align: false
+    alignLevel:
+- aliasColors: {}
+  bars: false
+  dashLength: 10
+  dashes: false
+  datasource: $DB
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fill: 0
+  fillGradient: 0
+  gridPos:
+    h: 8
+    w: 12
+    x: 12
+    y: 5
+  hiddenSeries: false
+  id: 8
+  legend:
+    avg: false
+    current: false
+    max: false
+    min: false
+    show: true
+    total: false
+    values: false
+  lines: true
+  linewidth: 3
+  nullPointMode: 'null'
+  options:
+    dataLinks: []
+  percentage: false
+  pointradius: 2
+  points: false
+  renderer: flot
+  seriesOverrides:
+  - $$hashKey: object:844
+    alias: Latency Avg
+    yaxis: 2
+  spaceLength: 10
+  stack: false
+  steppedLine: false
+  targets:
+  - format: time_series
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      WITH metrics AS (
+        SELECT m.time, m.current, m.type
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(), 'STORAGE', ARRAY[${Group:raw}+0]::bigint[], '${Group:raw}' = '0') s
+        WHERE
+          m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
+          AND "time" BETWEEN $__timeFrom() AND $__timeTo()
+        GROUP BY m.time, m.entity_oid, m.current, m.type
+      )
+      SELECT
+        m.time,
+        avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS "IOPS Avg",
+        avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS "Latency Avg"
+      FROM metrics m
+      GROUP BY m.time
+      ORDER BY 1
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  thresholds: []
+  timeFrom:
+  timeRegions: []
+  timeShift:
+  title: Datastore Performance Trends
+  tooltip:
+    shared: true
+    sort: 0
+    value_type: individual
+  type: graph
+  xaxis:
+    buckets:
+    mode: time
+    name:
+    show: true
+    values: []
+  yaxes:
+  - $$hashKey: object:851
+    decimals: 2
+    format: iops
+    label: ''
+    logBase: 1
+    max:
+    min:
+    show: true
+  - $$hashKey: object:852
+    decimals: 2
+    format: ms
+    label:
+    logBase: 1
+    max:
+    min:
+    show: true
+  yaxis:
+    align: false
+    alignLevel:
+- datasource: $DB
+  description: Average values.
+  fieldConfig:
+    defaults:
+      custom:
+        align:
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value:
+        - color: red
+          value: 80
+      unit: mbytes
+    overrides:
+    - matcher:
+        id: byName
+        options: Data Store
+      properties:
+      - id: custom.width
+        value: 198
+    - matcher:
+        id: byName
+        options: Storage Utilization
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+    - matcher:
+        id: byName
+        options: Storage Over-Provisioned
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+    - matcher:
+        id: byName
+        options: Datastore
+      properties:
+      - id: links
+        value:
+        - title: Go to Datastore Summary for ${__value.text}
+          url: /d/datastore_summary?var-Datastore=${__value.text}&var-DB=${DB}
+  gridPos:
+    h: 8
+    w: 24
+    x: 0
+    y: 13
+  id: 10
+  options:
+    showHeader: true
+    sortBy: []
+  pluginVersion: 7.0.1
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      WITH data AS (
+        SELECT e.name entity_name, m.time, m.entity_oid, m.current, m.capacity, m.utilization, m.type
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(), 'STORAGE', ARRAY[${Group:raw}+0]::bigint[], '${Group:raw}' = '0') s,
+          entity e
+        WHERE
+          m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.entity_oid = e.oid
+          AND m.type IN ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
+          AND "time" BETWEEN $__timeFrom() AND $__timeTo()
+        GROUP BY e.name, m.time, m.entity_oid, m.current, m.capacity, m.utilization, m.type
+      )
+      SELECT d.entity_name as "Datastore"
+                  ,avg(d.capacity) FILTER (WHERE d.type = 'STORAGE_AMOUNT') AS "Storage Capacity"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_AMOUNT') AS "Storage Used"
+                  ,avg(d.utilization) FILTER (WHERE d.type = 'STORAGE_AMOUNT') as "Storage Utilization"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_PROVISIONED') as "Storage Provisioned"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_PROVISIONED') /
+                        NULLIF(avg(d.capacity) FILTER (WHERE d.type = 'STORAGE_AMOUNT'), 0) as "Storage Over-Provisioned"
+      FROM data d
+      GROUP BY d.entity_name
+      ORDER BY 4 DESC
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom:
+  timeShift:
+  title: Consumption Stats By Datastore
+  type: table
+- datasource: $DB
+  fieldConfig:
+    defaults:
+      custom:
+        align:
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value:
+        - color: red
+          value: 80
+      unit: iops
+    overrides:
+    - matcher:
+        id: byName
+        options: Latency Avg
+      properties:
+      - id: unit
+        value: ms
+    - matcher:
+        id: byName
+        options: Latency Max
+      properties:
+      - id: unit
+        value: ms
+    - matcher:
+        id: byName
+        options: Datastore
+      properties:
+      - id: links
+        value:
+        - title: Go to Datastore Summary for ${__value.text}
+          url: /d/datastore_summary?var-Datastore=${__value.text}&var-DB=${DB}
+  gridPos:
+    h: 8
+    w: 24
+    x: 0
+    y: 21
+  id: 12
+  options:
+    showHeader: true
+  pluginVersion: 7.0.1
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      WITH data AS (
+        SELECT e.name as entity_name, m.current, m.type
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(), 'STORAGE', ARRAY[${Group:raw}+0]::bigint[], '${Group:raw}' = '0') s,
+          entity e
+        WHERE
+          m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.entity_oid = e.oid
+          AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
+          AND m.time BETWEEN $__timeFrom() AND $__timeTo()
+        GROUP BY e.name, m.time, m.entity_oid, m.current, m.type
+      )
+      SELECT d.entity_name as "Datastore"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_ACCESS') AS "IOPS Avg"
+                  ,max(d.current) FILTER (WHERE d.type = 'STORAGE_ACCESS') AS "IOPS Max"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_LATENCY') AS "Latency Avg"
+                  ,max(d.current) FILTER (WHERE d.type = 'STORAGE_LATENCY') AS "Latency Max"
+      FROM data d
+      GROUP BY d.entity_name
+      ORDER BY 2 DESC
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom:
+  timeShift:
+  title: Performance Stats By Datastore
+  type: table
+refresh: false
+schemaVersion: 25
+style: dark
+tags: []
+templating:
+  list:
+  - hide: 2
+    includeAll: false
+    label:
+    multi: false
+    name: DB
+    options: []
+    query: postgres
+    queryValue: ''
+    refresh: 1
+    regex: ''
+    skipUrlSync: false
+    type: datasource
+  - allValue: "0"
+    datasource: $DB
+    definition: |-
+      SELECT
+        name as __text,
+        oid as __value
+      FROM entity
+      WHERE
+        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+        AND (type = 'STORAGE_CLUSTER'
+          OR (type = 'GROUP' AND attrs -> 'member_types' ? 'STORAGE'))
+      ORDER BY 1
+    hide: 0
+    includeAll: true
+    label:
+    multi: false
+    name: Group
+    options: []
+    query: |-
+      SELECT
+        name as __text,
+        oid as __value
+      FROM entity
+      WHERE
+        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+        AND (type = 'STORAGE_CLUSTER'
+          OR (type = 'GROUP' AND attrs -> 'member_types' ? 'STORAGE'))
+      ORDER BY 1
+    refresh: 2
+    regex: ''
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ''
+    tags: []
+    tagsQuery: ''
+    type: query
+    useTags: false
+timepicker:
+  refresh_intervals:
+  - 10s
+  - 30s
+  - 1m
+  - 5m
+  - 15m
+  - 30m
+  - 1h
+  - 2h
+  - 1d
+timezone: ''
+title: Datastore Group Summary
+uid: datastore_group_summary

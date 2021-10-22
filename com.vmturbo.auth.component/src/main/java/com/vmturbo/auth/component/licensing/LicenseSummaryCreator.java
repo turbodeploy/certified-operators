@@ -150,6 +150,7 @@ public class LicenseSummaryCreator {
                 // support applying only one Grafana license
                 final Optional<Integer> reportEditorsCount = getReportEditorsCount(externalLicenses.get(0));
                 if (reportEditorsCount.isPresent()) {
+                    // this count includes default editor
                     summaryBuilder.setMaxReportEditorsCount(reportEditorsCount.get());
                 } else {
                     logger.debug("Value of max allowed count of report editors wasn't found in"
@@ -189,7 +190,7 @@ public class LicenseSummaryCreator {
         if (jwtClaims.containsKey(GRAFANA_ADMINS_CLAIM_NAME)) {
             // The number of admins in the license includes the "default" Grafana admin.
             // We don't want to count that towards the number of allowed report editors.
-            return Optional.of(jwtClaims.get(GRAFANA_ADMINS_CLAIM_NAME).asInt() - 1);
+            return Optional.of(jwtClaims.get(GRAFANA_ADMINS_CLAIM_NAME).asInt());
         } else {
             return Optional.empty();
         }

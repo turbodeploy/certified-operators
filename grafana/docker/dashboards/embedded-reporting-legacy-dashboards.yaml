@@ -1,0 +1,13 @@
+# dashboard provisioner for canned reports available in embedded reporting
+apiVersion: 1
+
+providers:
+  - name: embedded-reporting-legacy
+    orgId: 1
+    folder: Old Reports, data prior to $LEGACY_DATE
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /grafana-dashboards/embedded-reporting-legacy

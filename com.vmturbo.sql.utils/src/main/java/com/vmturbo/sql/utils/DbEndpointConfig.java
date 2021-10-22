@@ -132,7 +132,9 @@ public class DbEndpointConfig {
         this.rootUserName = rootUserName;
     }
 
-    public Boolean isRootAccessEnabled() { return rootAccessEnabled; }
+    public Boolean isRootAccessEnabled() {
+        return rootAccessEnabled;
+    }
 
     public void setRootAccessEnabled(final boolean rootAccessEnabled) {
         this.rootAccessEnabled = rootAccessEnabled;
@@ -180,6 +182,12 @@ public class DbEndpointConfig {
 
     public Boolean getEndpointEnabled() {
         return endpointEnabled;
+    }
+
+    public boolean isEndpoinEnabled() {
+        // resolved endpoints will always have non-null enablement, so this should
+        // never result in a false "false"
+        return endpointEnabled != null ? endpointEnabled : false;
     }
 
     public void setEndpointEnabled(final boolean endpointEnabled) {
@@ -259,6 +267,7 @@ public class DbEndpointConfig {
 
     /**
      * Sets the minimum pool size for database connections.
+     * @param minPoolSize the minimum pool size for database connections.
      */
     public void setMinPoolSize(int minPoolSize) {
         this.minPoolSize = minPoolSize;
@@ -275,6 +284,7 @@ public class DbEndpointConfig {
 
     /**
      * Sets the maximum pool size for database connections.
+     * @param maxPoolSize the maximum pool size for database connections.
      */
     public void setMaxPoolSize(int maxPoolSize) {
         this.maxPoolSize = maxPoolSize;

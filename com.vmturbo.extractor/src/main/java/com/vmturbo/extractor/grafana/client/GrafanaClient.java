@@ -235,8 +235,7 @@ public class GrafanaClient {
 
     private boolean ensureUserRole(String orgId, long userId, Role role) {
         final URI orgRole = grafanaClientConfig.getGrafanaUrl("orgs", orgId, "users", Long.toString(userId));
-        JsonParser jsonParser = new JsonParser();
-        JsonElement jsonElement = jsonParser.parse(FormattedString.format("{ \"role\" : \"{}\" }", role.getName()));
+        JsonElement jsonElement = JsonParser.parseString(FormattedString.format("{ \"role\" : \"{}\" }", role.getName()));
         final ResponseEntity<JsonObject> userUpdateResp = restTemplate.exchange(orgRole, HttpMethod.PATCH,
             new HttpEntity<>(jsonElement), JsonObject.class);
         logger.info(userUpdateResp.getBody());
@@ -386,7 +385,7 @@ public class GrafanaClient {
 
     private boolean testDatasourceConnection(final Datasource datasource) {
         String refId = "tempvar";
-        JsonObject query = new JsonParser().parse(FormattedString.format("{\"queries\":[{\"refId\":\"{}"
+        JsonObject query = JsonParser.parseString(FormattedString.format("{\"queries\":[{\"refId\":\"{}"
                 + "\",\"datasourceId\": {}, \"rawSql\":\"SELECT 1\",\"format\":\"table\"}],"
                 + "\"from\":\"{}\",\"to\":\"{}\"}",
                 refId, datasource.getId(), System.currentTimeMillis() - 10_000, System.currentTimeMillis())).getAsJsonObject();

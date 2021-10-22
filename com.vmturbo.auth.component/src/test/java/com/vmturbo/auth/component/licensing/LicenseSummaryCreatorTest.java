@@ -107,8 +107,7 @@ public class LicenseSummaryCreatorTest {
                         Optional.empty());
 
         // ASSERT
-        // Should subtract one to accommodate the grafana instance ID.
-        Assert.assertEquals(grafanaReportEditorCount - 1, licenseSummary.getMaxReportEditorsCount());
+        Assert.assertEquals(grafanaReportEditorCount, licenseSummary.getMaxReportEditorsCount());
     }
 
     /**
