@@ -125,7 +125,8 @@ grafana:
   ## We generate grafana.ini by merging selected structures from `grafana.ini.defaults` based on
   ## deployment mode, with values specified in the CR file. Any grafana.ini parameter can be
   ## overridden in the CR file, whether it's mentioned here or not.
-  grafana.ini: {}
+  grafana.ini:
+    database: {}
   grafana.ini.defaults:
     # common defaults for all deployments
     _base:

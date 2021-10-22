@@ -193,6 +193,7 @@ data:
         dbPort: {{ .Values.global.externalTimescaleDBPort | default 5432 }}
         enableReporting: {{ .Values.reporting.enabled }}
         grafanaAdminPassword: {{ .Values.grafana.adminPassword }}
+{{- if index .Values "grafana" "grafana.ini" "database" "type" }}
         grafanaDb:
 {{ toYaml (index .Values "grafana" "grafana.ini" "database") | indent 12 }}
         dbs: 
@@ -200,6 +201,7 @@ data:
             databaseName: {{ index .Values "grafana" "grafana.ini" "database" "name" | default "grafana" }}
             userName: {{ index .Values "grafana" "grafana.ini" "database" "user" | default "grafana_backend" }}
             password: {{ index .Values "grafana" "grafana.ini" "database" "password" }}
+{{- end }}
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}
