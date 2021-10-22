@@ -1057,26 +1057,20 @@ public class ResizerTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: ResizeDecisionsForContainers({0}, {1}, {2}, {3}, {4})")
-    public final void testResizeDecisionsForContainers(double nsAndPodVmemLimitCapacity,
+    @TestCaseName("Test #{index}: ResizeDecisionsForContainersTest({0}, {1}, {2}, {3}, {4})")
+    public final void testResizeDecisionsForContainersNotDrivenByNS(double nsAndPodVmemLimitCapacity,
                                                        double contVmemCapacity,
                                                        double vmemUsedByApp,
                                                        double vmemUsedByCont,
                                                        double vmemLimitUsedByPod,
-                                                       double numActions,
-                                                       boolean executable) throws Exception {
+                                                       double numActions) {
         Economy economy = new Economy();
         setupContainerTopologyForResizeTest(economy, nsAndPodVmemLimitCapacity, contVmemCapacity,
                 vmemUsedByApp, vmemUsedByCont, vmemLimitUsedByPod, 0.65, 0.75,
                 RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-        ActionClassifier classifier = new ActionClassifier(economy);;
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
-        classifier.classify(actions, economy);
         assertTrue(numActions == actions.size());
-        if (numActions > 0) {
-            assertEquals(actions.get(0).isExecutable(), executable);
-        }
     }
 
     /**
@@ -1152,10 +1146,13 @@ public class ResizerTest {
                     .mapToDouble(r -> r.getOldCapacity() - r.getNewCapacity())
                     .sum();
 
+            assertTrue(actions.stream().filter(Resize.class::isInstance).allMatch(a -> ((Resize) a).getNewCapacity()%10 == 0));
             assertEquals(totalDecrease, namespaceUsage - namespace.getCommoditiesSold().get(0).getQuantity(), 0);
         } else {
             assertTrue(actions.isEmpty());
         }
+
+
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -1299,21 +1296,13 @@ public class ResizerTest {
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestResizeDecisionsForContainers() {
+    private static Object[] parametersForTestResizeDecisionsForContainersNotDrivenByNS() {
         return new Object[][] {
                 // No resize action on container since congested NS wont drive a scaling decision
-                /*
-                nsAndPodVmemLimitCapacity, contVmemCapacity, vmemUsedByApp, vmemUsedByCont,
-                vmemLimitUsedByPod, numActions
-                 */
-                // executable resize Up by only 1 increment. Though desired was higher.
-                {100, 95, 90, 90, 80, 1, true},
-                // non-executable action since we are exceeding headroom on NS
-                {100, 100, 90, 90, 100, 1, false},
-                // executable resize UP
-                {100, 80, 70, 80, 80, 1, true},
-                // no resize action
-                {100, 80, 20, 80, 80, 0, true}
+                {100, 101, 101, 80, 80, 0},
+                {100, 80, 70, 80, 80, 0},
+                {100, 80, 20, 80, 80, 0},
+                {100, 80, 70, 80, 97, 0}
         };
     }
 
@@ -1434,7 +1423,6 @@ public class ResizerTest {
             double minDesiredUtil, double maxDesiredUtil,
             double economyRightSizeLower, double economyRightSizeUpper) {
 
-        double nodeResourceCommodityCap = contResourceCommCapacity*1000;
         // Create Namespace
         namespace = TestUtils.createTrader(economy, TestUtils.NAMESPACE_TYPE,
                 Arrays.asList(0L), Arrays.asList(quotaCommodity),
@@ -1450,40 +1438,25 @@ public class ResizerTest {
         TestUtils.createAndPlaceShoppingList(economy,
             Arrays.asList(quotaCommodity), workloadController,
             new double[]{quotaCommUsedByPod}, namespace).setMovable(false);
-
-        // Create node
-        vm = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
-                Arrays.asList(0L), Arrays.asList(resourceCommodity),
-                new double[]{contResourceCommCapacity * 1000}, false, false);
-        vm.setDebugInfoNeverUseInCode("NODE1");
-        vm.getCommoditiesSold().forEach(cs -> cs.getSettings().setResizable(false));
-
-        // Create pod and place on wc and node
+        //Create pod and place on namespace
         pod = TestUtils.createTrader(economy, TestUtils.POD_TYPE,
-                Arrays.asList(0L), Arrays.asList(resourceCommodity, quotaCommodity),
-                new double[]{nodeResourceCommodityCap, nsAndPodQuotaLimitCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(quotaCommodity),
+                new double[]{nsAndPodQuotaLimitCapacity}, false, false);
         pod.setDebugInfoNeverUseInCode("POD1");
         pod.getCommoditiesSold().forEach(cs -> cs.getSettings().setResold(true).setResizable(false));
         TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(quotaCommodity), pod,
                 new double[]{quotaCommUsedByPod}, workloadController).setMovable(false);
-
-        TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(resourceCommodity), pod,
-                new double[]{quotaCommUsedByPod}, vm).setMovable(false);
-
-        // Create cont and place on pod
+        //Create cont and place on pod
         cont = TestUtils.createTrader(economy, TestUtils.CONTAINER_TYPE,
                 Arrays.asList(0L), Arrays.asList(resourceCommodity),
                 new double[]{contResourceCommCapacity}, false, false);
         cont.setDebugInfoNeverUseInCode("CONTAINER1");
         cont.getCommoditiesSold().get(0).getSettings().setCapacityIncrement(5);
-        // buy vmemquota and vmem from pod
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(resourceCommodity, quotaCommodity), cont,
-                new double[]{resourceCommUsedByCont, resourceCommUsedByCont}, pod).setMovable(false);
-
-        // Create app and place on container
+                Arrays.asList(quotaCommodity), cont,
+                new double[]{resourceCommUsedByCont}, pod).setMovable(false);
+        //Create app and place on container
         app = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
                 Arrays.asList(0L), Arrays.asList(), new double[]{}, false, false);
         app.setDebugInfoNeverUseInCode("APP1");
@@ -1492,7 +1465,6 @@ public class ResizerTest {
                 new double[]{resourceCommUsedByApp}, cont);
         namespace.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
         cont.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
-
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
