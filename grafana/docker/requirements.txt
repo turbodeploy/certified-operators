@@ -4,3 +4,7 @@ psutil==5.7.0
 PyJWT==1.7.1
 urllib3==1.25.8
 dataclasses==0.7
+ruamel.yaml==0.17.16
+psycopg2-binary==2.9.1
+mysql.connector==2.2.9
+requests==2.26.0

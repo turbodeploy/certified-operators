@@ -1,20 +1,37 @@
 #!/usr/bin/env python3
 
+# noinspection PyPackageRequirements
+import json
+import random
+import string
+
 import google.protobuf.empty_pb2
+# noinspection PyPackageRequirements
 import grpc
 import jwt
+# noinspection PyUnresolvedReferences,PyPackageRequirements
 import licensing.Licensing_pb2_grpc
 import logging
+from util.logger import logger
 import os
 import psutil
+# noinspection PyUnresolvedReferences,PyPackageRequirements
 import setting.Setting_pb2_grpc
 import signal
 import sys
 import time
 from dataclasses import dataclass
+# noinspection PyUnresolvedReferences,PyPackageRequirements
 from licensing.Licensing_pb2 import LicenseDTO, GetLicensesRequest, LicenseType
+# noinspection PyUnresolvedReferences,PyPackageRequirements
 from setting.Setting_pb2 import GetMultipleGlobalSettingsRequest
 from urllib.parse import urlparse
+from util.config_props import get_config_properties
+import requests
+from configparser import ConfigParser
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
 
 """
 REMEMBER TO SET PYTHON_PATH IN THE ENTRYPOINT.
@@ -26,9 +43,8 @@ This script is responsible for:
 3) Restarting Grafana when necessary in order for the configuration from 2) to take effect.
 """
 
-_LOGGER = logging.getLogger("grafana_mgr")
 
-@dataclass(eq = True)
+@dataclass(eq=True)
 class SmtpConfig:
     host: str
     user: str
@@ -79,6 +95,9 @@ class Grafana:
         # There is one "report-editor" user created by the platform. All other users get the
         # "Viewer" role.
         self.grafana_env["GF_USERS_AUTO_ASSIGN_ORG_ROLE"] = "Viewer"
+        # for backward compat we will still find certain properties under extractor component,
+        # even though we now prefer them to be under grafana
+        self.props = get_config_properties(['extractor', 'grafana'])
         signal.signal(signal.SIGTERM, self.handle_sigterm)
 
     def reboot(self):
@@ -92,16 +111,18 @@ class Grafana:
                                     env=self.grafana_env)
         self.logger.info("Started Grafana server process.")
 
-    def ensureStarted(self):
-        if not self.isRunning():
-            self.logger.warn("Grafana is not running (or in zombie mode). Restarting...")
+    def ensure_started(self):
+        if not self.is_running():
+            self.logger.warning("Grafana is not running (or in zombie mode). Restarting...")
             self.reboot()
 
-    def isRunning(self):
+    def is_running(self):
         # The process has to exist, be running, and have a "RUNNING" status.
         # If grafana shuts down (e.g. due to failure to connect to Postgres to store its data)
         # it will be in a "Zombie" status.
-        return self.process is not None and self.process.is_running() and not self.process.status() == psutil.STATUS_ZOMBIE
+        return self.process is not None \
+               and self.process.is_running() \
+               and not self.process.status() == psutil.STATUS_ZOMBIE
 
     def shutdown(self):
         """
@@ -122,8 +143,11 @@ class Grafana:
                 self.logger.info("Killing Grafana server!!!")
                 self.process.kill()
             self.logger.info("Shut down existing Grafana server.")
+
+    # noinspection PyUnusedLocal
     def handle_sigterm(self, *args):
         self.logger.info("Exiting after catching SIGTERM")
+        self.shutdown()
         sys.exit("Caught SIGTERM")
 
     def clear_license(self):
@@ -162,9 +186,10 @@ class Grafana:
         if licensed_subpath in ["/reports", "/reports/"]:
             self.grafana_env["GF_SERVER_ROOT_URL"] = licensed_domain
         else:
-            self.logger.warning("License sub-path %s does not match reverse proxy path.", licensed_subpath)
+            self.logger.warning("License sub-path %s does not match reverse proxy path.",
+                                licensed_subpath)
 
-        if (os.path.exists(self.license_path)):
+        if os.path.exists(self.license_path):
             self.logger.info("Overwriting contents of license file: %s", self.license_path)
             # Remove the old license before writing the new one.
             os.remove(self.license_path)
@@ -174,6 +199,7 @@ class Grafana:
         with open(self.license_path, 'w') as license_file:
             license_file.write(new_content)
         self.reboot()
+
 
 class SmtpUpdateOperation:
     """
@@ -191,8 +217,6 @@ class SmtpUpdateOperation:
     REQUIRED = [SMTP_SERVER, SMTP_PORT, FROM_ADDR]
     OPTIONAL = [SMTP_ENCRYPTION, SMTP_USER, SMTP_PASS]
 
-    logger = _LOGGER
-
     cur_smtp_config = None
 
     def __init__(self, grafana, group_channel):
@@ -207,6 +231,7 @@ class SmtpUpdateOperation:
             req.setting_spec_name.extend(self.REQUIRED)
             req.setting_spec_name.extend(self.OPTIONAL)
             setting_map = {}
+            # noinspection PyShadowingNames
             for setting in self.setting_stub.GetMultipleGlobalSettings(req):
                 val = setting.string_setting_value.value
                 if setting.setting_spec_name == self.SMTP_ENCRYPTION:
@@ -230,13 +255,12 @@ class SmtpUpdateOperation:
             if self.cur_smtp_config is None or self.cur_smtp_config != new_config:
                 self.logger.debug("SMTP config change detected.")
                 self.grafana.refresh_smtp(new_config)
-                # Only overwrite the STMP config after the refresh is successfull.
+                # Only overwrite the SMTP config after the refresh is successful
                 self.cur_smtp_config = new_config
             else:
                 self.logger.debug("SMTP config unchanged.")
         except grpc.RpcError as rpc_error:
             self.logger.error('gRPC call to group failed: %s', rpc_error)
-
 
 
 class LicenseUpdateOperation:
@@ -247,13 +271,21 @@ class LicenseUpdateOperation:
 
     NO_LICENSE_CHECKSUM = 0
     last_processed_checksum = NO_LICENSE_CHECKSUM
-    logger = _LOGGER
 
-    def __init__(self, grafana, auth_channel):
+    def __init__(self, grafana, auth_channel, props):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.license_stub = licensing.Licensing_pb2_grpc.LicenseManagerServiceStub(auth_channel)
         self.summary_stub = licensing.Licensing_pb2_grpc.LicenseCheckServiceStub(auth_channel)
         self.grafana = grafana
+        self.saas_reporting_enabled = props.get('featureFlags.saasReporting') == 'True'
+        self.editor_display_name = props.get('grafanaEditorDisplayName', 'Report Editor')
+        self.editor_user_prefix = props.get('grafanaEditorUsername', 'turbo-report-editor')
+        config = ConfigParser(interpolation=None)
+        config.read(os.environ['GF_PATHS_CONFIG'])
+        security_section = config['security'] if config.has_section('security') else {}
+        self.admin_user = security_section.get('admin_user', 'admin')
+        self.admin_password = security_section.get('admin_password', 'admin')
+        self.admin_port = config['server'].get('http_port', 3000)
 
     def run(self):
         """ Run the operation. This should be done in a loop. """
@@ -263,13 +295,20 @@ class LicenseUpdateOperation:
             grafana_summaries = [summary for summary in
                                  summary_resp.licenseSummary.external_licenses_by_type if
                                  summary.type == LicenseDTO.ExternalLicense.Type.GRAFANA]
-            new_checksum = grafana_summaries[0].checksum if len(grafana_summaries) > 0 else self.NO_LICENSE_CHECKSUM
+            new_checksum = grafana_summaries[0].checksum if len(
+                grafana_summaries) > 0 else self.NO_LICENSE_CHECKSUM
             if new_checksum == self.last_processed_checksum:
                 self.logger.debug("Grafana license summary checksum unchanged (%s).",
-                              self.last_processed_checksum)
+                                  self.last_processed_checksum)
             else:
                 self.logger.debug("Change detected. Last checksum: %s. New checksum: %s.",
-                              self.last_processed_checksum, new_checksum)
+                                  self.last_processed_checksum, new_checksum)
+                # create/update editor users if needed
+                if self.saas_reporting_enabled:
+                    editor_count = \
+                        summary_resp.licenseSummary.max_report_editors_count if grafana_summaries \
+                        else 1
+                    self.ensure_editors_exist(editor_count)
                 # Get the actual license.
                 req = GetLicensesRequest()
                 req.filter.type = LicenseType.EXTERNAL
@@ -279,11 +318,12 @@ class LicenseUpdateOperation:
                 license_cnt = len(response.licenseDTO)
                 if license_cnt > 0:
                     if license_cnt > 1:
-                        self.logger.warn("Got %s grafana licenses. Using first available one.", license_cnt)
-                    targetLicense = response.licenseDTO[0]
+                        self.logger.warning("Got %s grafana licenses. Using first available one.",
+                                            license_cnt)
+                    target_license = response.licenseDTO[0]
                     self.logger.info("Setting grafana licence to payload from: %s (uuid: %s)",
-                                 targetLicense.filename, targetLicense.uuid)
-                    self.grafana.overwrite_license(targetLicense.external.payload)
+                                     target_license.filename, target_license.uuid)
+                    self.grafana.overwrite_license(target_license.external.payload)
                 else:
                     self.grafana.clear_license()
 
@@ -293,8 +333,55 @@ class LicenseUpdateOperation:
         except grpc.RpcError as rpc_error:
             self.logger.error('gRPC call to auth failed: %s', rpc_error)
 
+    def ensure_editors_exist(self, editor_count):
+        for i in range(editor_count):
+            editor_name = f'{self.editor_user_prefix}-{i}'
+            id = self.ensure_user_exists(editor_name)
+            self.ensure_user_role(id, 1, 'Admin')
 
-def run():
+    def ensure_user_exists(self, name):
+        with self.get_admin_session() as s:
+            try:
+                resp = s.get(f"http://localhost:{self.admin_port}/api/users/lookup",
+                             params={'loginOrEmail': name})
+                if resp.status_code == requests.codes.ok:
+                    id = resp.json().get('id')
+                    return id
+                else:
+                    payload = {'name': self.editor_display_name,
+                               'login': name,
+                               'password': self.random_password(),
+                               'OrgId': 1}
+                resp = s.post(f"http://localhost:{self.admin_port}/api/admin/users",
+                              json=payload)
+                resp.raise_for_status()
+                id = resp.json().get('id')
+                logger.info(f"User {name} newly created with id {id}")
+                return id
+            except requests.exceptions.RequestException as e:
+                raise RuntimeError(f"Failed to create editor user {name}") from e
+
+    def ensure_user_role(self, user_id, org_id, role):
+        with self.get_admin_session() as s:
+            try:
+                resp = s.patch(
+                    f"http://localhost:{self.admin_port}/api/orgs/{org_id}/users/{user_id}",
+                    json={'role': role})
+                resp.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                raise RuntimeError(f"Failed to update user id {id} to role {role}") from e
+
+    def get_admin_session(self):
+        s = requests.Session()
+        # try up to about half a minute to get a connection
+        s.mount('http://', HTTPAdapter(max_retries=Retry(connect=5, backoff_factor=1)))
+        s.auth = (self.admin_user, self.admin_password)
+        return s
+
+    def random_password(self):
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+
+def main():
     # We start up Grafana right away.
     home_path = os.environ["GF_PATHS_HOME"]
     config_path = os.environ["GF_PATHS_CONFIG"]
@@ -305,20 +392,20 @@ def run():
     auth_route = os.environ.get("AUTH_SERVICE_HOST")
     if auth_route is None:
         auth_route = "auth"
-        _LOGGER.info("No auth host override provided. Will attempt with default: " + auth_route)
+        logger.info("No auth host override provided. Will attempt with default: " + auth_route)
     auth_port = os.environ.get("AUTH_SERVICE_PORT_GRPC_AUTH")
     if auth_port is None:
         auth_port = "9001"
-        _LOGGER.info("No auth port override provided. Will attempt with default: " + auth_port)
+        logger.info("No auth port override provided. Will attempt with default: " + auth_port)
 
     group_route = os.environ.get("GROUP_SERVICE_HOST")
     if group_route is None:
         group_route = "group"
-        _LOGGER.info("No group host override provided. Will attempt with default: " + group_route)
+        logger.info("No group host override provided. Will attempt with default: " + group_route)
     group_port = os.environ.get("GROUP_SERVICE_PORT_GRPC_GROUP")
     if group_port is None:
         group_port = "9001"
-        _LOGGER.info("No group port override provided. Will attempt with default: " + group_port)
+        logger.info("No group port override provided. Will attempt with default: " + group_port)
 
     polling_interval_s = 30
     polling_interval_override = os.environ.get("POLL_INTERVAL_SEC")
@@ -326,25 +413,31 @@ def run():
         try:
             polling_interval_s = int(polling_interval_override)
         except ValueError:
-            _LOGGER.warning("Invalid polling interval override: %s. Falling back to default",
-                            polling_interval_override)
+            logger.warning("Invalid polling interval override: %s. Falling back to default",
+                           polling_interval_override)
+
+    props = get_config_properties(['extractor', 'grafana'])
+    for (prop) in sorted(props):
+        logger.info(f"Configured property {prop}={props[prop]}")
 
     grafana = Grafana(home_path, config_path, license_path)
 
     try:
         with grpc.insecure_channel(auth_route + ":" + auth_port) as auth_channel, \
                 grpc.insecure_channel(group_route + ":" + group_port) as group_channel:
-            license_update_op = LicenseUpdateOperation(grafana, auth_channel)
+            license_update_op = LicenseUpdateOperation(grafana, auth_channel, props)
             email_update_op = SmtpUpdateOperation(grafana, group_channel)
             while True:
                 try:
                     license_update_op.run()
-                except:
-                    _LOGGER.error("Failed to process auth response due to unexpected error:", sys.exc_info()[0])
+                except RuntimeError:
+                    logger.error("Failed to process auth response due to unexpected error:",
+                                 sys.exc_info()[0])
                 try:
                     email_update_op.run()
-                except:
-                    _LOGGER.error("Failed to process group response due to unexpected error:", sys.exc_info()[0])
+                except RuntimeError:
+                    logger.error("Failed to process group response due to unexpected error:",
+                                 sys.exc_info()[0])
                 # Instead of sleeping for the polling interval, we sleep for 10 seconds at a time.
                 # This is to check that Grafana is still running, and restart it if necessary.
                 ten_sec_intervals = int(polling_interval_s / 10)
@@ -352,14 +445,14 @@ def run():
                     # Ensure that the underlying Grafana process is still running.
                     # Grafana may crash, or fail to start up (e.g. if the extractor hasn't finished
                     # initializing the database users).
-                    grafana.ensureStarted()
+                    grafana.ensure_started()
+                    license_update_op.ensure_editors_exist(1)
                     time.sleep(10)
-    except:
+    except RuntimeError:
         if sys.exc_info()[0] != SystemExit:
-            _LOGGER.error("Shutting down after unexpected error: ", str(sys.exc_info()[0]))
+            logger.error("Shutting down after unexpected error: ", str(sys.exc_info()[0]))
             grafana.shutdown()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    run()
+    main()

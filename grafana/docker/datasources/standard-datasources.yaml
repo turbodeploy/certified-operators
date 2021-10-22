@@ -1,0 +1,22 @@
+# provisioner for a default collection of datasources, including one required for our
+# prometheus-based collection of "system" dashboards
+
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus-server:9090
+    access: proxy
+    isDefault: false
+  - name: InfluxDB
+    type: influxdb
+    url: http://influxdb:8086
+    access: proxy
+    database: metron
+    isDefault: false
+  - name: Loki
+    type: loki
+    url: http://loki:3100
+    access: proxy
+    database: metron
+    isDefault: false

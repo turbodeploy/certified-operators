@@ -1,0 +1,13 @@
+# dashboard provisioner for canned reports available in embedded reporting
+apiVersion: 1
+
+providers:
+  - name: embedded-reporting-prototype
+    orgId: 1
+    folder: Prototypes
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /grafana-dashboards/embedded-reporting-prototype

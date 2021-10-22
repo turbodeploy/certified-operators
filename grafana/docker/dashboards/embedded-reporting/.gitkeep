@@ -1,0 +1,1 @@
+Ensure that the containing directory is contained in the git tree even if otherwise emtpy

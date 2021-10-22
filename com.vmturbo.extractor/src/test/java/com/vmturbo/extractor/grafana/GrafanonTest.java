@@ -31,6 +31,7 @@ import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockitoAnnotations;
@@ -40,6 +41,7 @@ import reactor.core.publisher.Flux;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.model.FolderInput;
@@ -63,6 +65,12 @@ public class GrafanonTest {
     private final int reportEditorCount = 2;
 
     private DashboardsOnDisk dashboardsOnDiskMock = mock(DashboardsOnDisk.class);
+
+    /**
+     * Establish a store for feature flag state, required currently by Grafanon.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Test setup.

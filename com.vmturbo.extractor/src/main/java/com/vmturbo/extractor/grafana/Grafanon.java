@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
+import com.google.protobuf.TextFormat;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -30,6 +31,7 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.common.RequiresDataInitialization;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.model.DashboardSpec;
@@ -85,16 +87,18 @@ public class Grafanon implements RequiresDataInitialization {
         this.grafanaClient = grafanaClient;
         this.dbEndpoint = dbEndpoint;
         this.licenseCheckClient = licenseCheckClient;
-        licenseCheckClient.getUpdateEventStream().subscribe(licenseSummary -> {
-            // Any exception must be caught to prevent the subscription from terminating
-            try {
-                RefreshSummary refreshSummary = new RefreshSummary();
-                refreshTurboEditors(refreshSummary, licenseSummary);
-                logger.info("Turbo editor refresh result: {}", refreshSummary);
-            } catch (Exception e) {
-                logger.error("Unable to update turbo editors", e);
-            }
-        });
+        if (!FeatureFlags.SAAS_REPORTING.isEnabled()) {
+            licenseCheckClient.getUpdateEventStream().subscribe(licenseSummary -> {
+                // Any exception must be caught to prevent the subscription from terminating
+                try {
+                    RefreshSummary refreshSummary = new RefreshSummary();
+                    refreshTurboEditors(refreshSummary, licenseSummary);
+                    logger.info("Turbo editor refresh result: {}", refreshSummary);
+                } catch (Exception e) {
+                    logger.error("Unable to update turbo editors", e);
+                }
+            });
+        }
     }
 
     @Nonnull
@@ -164,39 +168,42 @@ public class Grafanon implements RequiresDataInitialization {
      * @throws IllegalArgumentException If there is some configuration error.
      */
     public void refreshGrafana(@Nonnull final RefreshSummary refreshSummary) {
-        refreshTurboEditors(refreshSummary, licenseCheckClient.geCurrentLicenseSummary());
+        logger.info("Editor count {} license summary = {}", licenseCheckClient.geCurrentLicenseSummary().getMaxReportEditorsCount(), TextFormat.printer().printToString(licenseCheckClient.getLicenseSummary()));
+        if (!FeatureFlags.SAAS_REPORTING.isEnabled()) {
+            refreshTurboEditors(refreshSummary, licenseCheckClient.geCurrentLicenseSummary());
 
-        try {
-            // Get the endpoint here (inside the initialization thread) to avoid blocking the
-            // main thread.
-            final DbEndpointConfig endpointConfig = grafanonConfig.getDbEndpointConfig().get();
-            final DatasourceInput input = DatasourceInput.fromDbEndpoint(grafanonConfig.getTimescaleDisplayName(), endpointConfig);
-            grafanaClient.upsertDefaultDatasource(input, refreshSummary);
-        } catch (UnsupportedDialectException e) {
-            throw new IllegalArgumentException("Invalid endpoint configuration.", e);
-        }
-        final String v14TimestampMigration = getMigrationV14TimeStamp();
-        final Map<String, Long> existingDashboardsByUid = grafanaClient.dashboardIdsByUid();
-        final Map<String, Folder> existingFolders = grafanaClient.foldersByUid();
-        dashboardsOnDisk.visit((folderData) -> {
-            Optional<FolderInput> folderInputOptional = folderData.getFolderSpec();
-            if (skipFolder(folderInputOptional)) {
-                folderInputOptional.ifPresent(folderInput ->
-                          logger.info("Skipping folder uuid: {}", folderInput.getUid()));
-                return;
+            try {
+                // Get the endpoint here (inside the initialization thread) to avoid blocking the
+                // main thread.
+                final DbEndpointConfig endpointConfig = grafanonConfig.getDbEndpointConfig().get();
+                final DatasourceInput input = DatasourceInput.fromDbEndpoint(grafanonConfig.getTimescaleDisplayName(), endpointConfig);
+                grafanaClient.upsertDefaultDatasource(input, refreshSummary);
+            } catch (UnsupportedDialectException e) {
+                throw new IllegalArgumentException("Invalid endpoint configuration.", e);
             }
-            Optional<Folder> folder = folderInputOptional.map(folderInput -> {
-                addTimestampToReportsV1FolderTitle(folderInput, v14TimestampMigration);
-                Folder upsertedFolder = grafanaClient.upsertFolder(folderInput, existingFolders, refreshSummary);
-                folderData.getPermissions().ifPresent(permissions -> {
-                    grafanaClient.setFolderPermissions(folderInput.getUid(), permissions, refreshSummary);
+            final String v14TimestampMigration = getMigrationV14TimeStamp();
+            final Map<String, Long> existingDashboardsByUid = grafanaClient.dashboardIdsByUid();
+            final Map<String, Folder> existingFolders = grafanaClient.foldersByUid();
+            dashboardsOnDisk.visit((folderData) -> {
+                Optional<FolderInput> folderInputOptional = folderData.getFolderSpec();
+                if (skipFolder(folderInputOptional)) {
+                    folderInputOptional.ifPresent(folderInput ->
+                            logger.info("Skipping folder uuid: {}", folderInput.getUid()));
+                    return;
+                }
+                Optional<Folder> folder = folderInputOptional.map(folderInput -> {
+                    addTimestampToReportsV1FolderTitle(folderInput, v14TimestampMigration);
+                    Folder upsertedFolder = grafanaClient.upsertFolder(folderInput, existingFolders, refreshSummary);
+                    folderData.getPermissions().ifPresent(permissions -> {
+                        grafanaClient.setFolderPermissions(folderInput.getUid(), permissions, refreshSummary);
+                    });
+                    return upsertedFolder;
                 });
-                return upsertedFolder;
+                folderData.getDashboardsByUid().forEach((uid, dashboardSpec) -> {
+                    processDashboard(uid, dashboardSpec, folder, existingDashboardsByUid, refreshSummary);
+                });
             });
-            folderData.getDashboardsByUid().forEach((uid, dashboardSpec) -> {
-                processDashboard(uid, dashboardSpec, folder, existingDashboardsByUid, refreshSummary);
-            });
-        });
+        }
     }
 
     private void refreshTurboEditors(@Nonnull RefreshSummary refreshSummary, @Nullable LicenseSummary licenseSummary) {

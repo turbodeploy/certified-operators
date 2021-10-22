@@ -169,7 +169,7 @@ public class DbEndpoint {
      */
     public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
         awaitCompletion(endpointCompleter.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
-        if (config.getEndpointEnabled()) {
+        if (config.isEndpoinEnabled()) {
             return DSL.using(getConfiguration());
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -186,7 +186,7 @@ public class DbEndpoint {
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
         awaitCompletion(endpointCompleter.maxAwaitCompletionMs, TimeUnit.MILLISECONDS);
-        if (config.getEndpointEnabled()) {
+        if (config.isEndpoinEnabled()) {
             return adapter.getDataSource(true);
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -238,7 +238,6 @@ public class DbEndpoint {
      * @throws InterruptedException if interrupted
      */
     public DbAdapter getAdapter() throws InterruptedException {
-
         awaitCompletion(endpointCompleter.maxAwaitCompletionMs, TimeUnit.MILLISECONDS);
         return adapter;
     }
@@ -501,9 +500,13 @@ public class DbEndpoint {
             logger.info("Completing {}", endpoint);
             try {
                 resolveConfig(config);
-                final DbAdapter adapter = DbAdapter.of(config);
-                adapter.init();
-                endpoint.markComplete(adapter);
+                if (config.isEndpoinEnabled()) {
+                    final DbAdapter adapter = DbAdapter.of(config);
+                    adapter.init();
+                    endpoint.markComplete(adapter);
+                 } else {
+                    endpoint.markComplete((DbAdapter)null);
+                }
             } catch (Exception e) {
                 logger.warn("Failed to create {}.", endpoint, e);
                 endpoint.markComplete(e);

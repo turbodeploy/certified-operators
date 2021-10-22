@@ -1,21 +1,22 @@
 # This docker file is capable of building an image that contains multiple versions of the
 # grafana server for use in different scenarios, if needed. The following ARG specifies the
-# versions as a list of <name>:<version> pairs. One of the names should be "default"; that version
-# will be used when the GRAFANA_VERSION_NAME environment variable is unset (or, of course set to
-# "default") when the container starts up.
+# versions as a list of <name>:<version> pairs.
+ARG grafana_versions="embedded-reporting:8.0.6 saas-reporting:7.5.10"
 
-# The helm chart that defines the container in which this image is used defines the grafana config
-# in as a configmap property whose value is mounted as a volume in /etc/grafana/grafana.ini. Hence
-# any attempt here to install our own config file will be ineffective. For that reason, any desired
-# customization is made here to the "defaults.ini" file that is located at top-level in the grafana
-# home directory and is consulted prior to loading the config file. Therefore, we require a copy
-# of this file for each grafana version included in the image. Please use the file from the
-# grafana tarball for the associated version as a starting point, and precede any customization
-# with a "TURBO" comment so we can port important changes to later versions.
+# The grafana.ini config file is, in our case, created by the helm chart responsible for the
+# grafana deployment. It is mounted as a read-only volume mounted at /etc/grafana/grafana.ini.
+# Adjustments to grafana parameters can be made in either of two places:
+#
+# * in the CR file by setting `spec.grafana."grafana.ini".section.param`, where `section` names
+#   the config file section containing the parameter, and `param` is the parmaeter name
+# * In the overall chart's `values.yaml` file, similar structures appear under
+#   `grafana."grafana.ini.defaults"`. Each such structure provides values for some subset of the
+#   available parameters.
 
-# Name the individual default.ini files like "/default-<name>.ini" in the docker context, where
-# <name> is the name associated with the version.
-ARG grafana_versions="default:8.0.6 datacloud:7.5.10"
+# WHen the grafana.ini file is constructed, values in the CR file have the highest precedence,
+# followed by valuse in a `grafana.ini.defaults` block whose key is the current `deploymentMode`
+# value (or the "_default" block if `deploymentMode` is unspecified). Lowest priority values come
+# from a block named "_base" in that same `grafana.ini.defaults` object.
 
 # Currently a single renderer version works in the configured grafana versions; this dockerfile will
 # need to be adjusted for per-grafana-version renderer versions if that does not continue to be true
@@ -85,7 +86,6 @@ RUN chown -R grafana:grafana /grafana-fetch
 USER grafana
 
 RUN for version in $grafana_versions; do \
-      name=${version%:*}; \
       v=${version#*:}; \
       tar -zxf /grafana-enterprise-$v.linux-amd64.tar.gz; \
     done
@@ -117,7 +117,7 @@ ARG grafana_group
 RUN groupadd -g $grafana_group grafana && useradd -r -g $grafana_group -s /bin/bash -u $grafana_user grafana
 
 # install python now so we get the cached layer from docker cache (since so far we're identical to
-# --from=python image)
+# --from=python section)
 
 RUN dnf install -y --nobest python3-devel
 
@@ -128,16 +128,16 @@ RUN passwd -l root
 COPY --from=python /python-fetch/pylib /pylib
 COPY --from=grafana /grafana-fetch/ /grafana/
 
-# python classes generated in our maven build from protobuf definitions, so that our python
+# copy python classes generated in our maven build from protobuf definitions, so that our python
 # code can make use of needed grpc methods from turbonomic components
 COPY grpc /grpc
 
 COPY CentOS-AppStream.repo /etc/yum.repos.d/
 COPY CentOS-Base.repo /etc/yum.repos.d/
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-    # The name and file path of the key needs to match the ones configured in the CentOS .repo files.
-    curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official -s -o /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official && \
+# The name and file path of the key needs to match the ones configured in the CentOS .repo files \
+RUN curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official -s -o /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official
     # Install common libs that every component has
+RUN curl https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -s -o /etc/yum.repos.d/epel-release-latest-8.noarch.rpm && \
     dnf install -y --nobest rsyslog procps-ng \
     # Install specific dependencies that the grafana renderer plugins need. Taken from lib list for centos:
     # https://grafana.com/docs/grafana/latest/administration/image_rendering/
@@ -157,75 +157,82 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.n
 
 COPY rsyslog.conf /etc
 
-# set up directories required by grafana at runtime. Where these will differ based on grafana
-# version it will be up to the entrypoint script to make selections using synmlinks. Note that
-# we can't put things in /var/lib/grafana because that's mounted as a volume in the helm charts,
-# so we use /var/lib/grafanax where the former would be the natural choice.
-RUN mkdir -p /tmp/etc/grafana/provisioning/{dashboards,plugins,notifiers} \
-             /var/lib/grafanax/plugins /tmp/grafana/plugins \
-             /var/lib/grafanax/data \
-             /var/log/grafana && \
-    chown -R grafana:grafana /tmp/etc/grafana /tmp/grafana /var/lib/grafanax /var/log/grafana && \
-    # Forward the Grafana data log to stdout.
-    ln -sf /dev/stdout $GF_PATHS_LOGS/grafana.log
-
-COPY defaults-*.ini /
-RUN for version in $grafana_versions; do \
-        name=${version%:*}; \
-        v=${version#*:}; \
-        # create a tree just like the downloaded tree, but with a carve-out for a symlink
-        # for conf/defaults.ini, so we can substitute our substited version of that file.
-        mkdir /grafana-$name; ln -s -f /grafana/grafana-$v/* /grafana-$name; \
-        rm /grafana-$name/conf; mkdir /grafana-$name/conf; ln -s /grafana/grafana-$v/conf/* /grafana-$name/conf; \
-        ln -s -f /defaults-$name.ini /grafana-$name/conf/defaults.ini; \
-    done
-
-
-COPY entrypoint.sh /
-RUN chmod +x /entrypoint.sh
-
-USER grafana
-
-# install plugins we rely on, either for Embedded Reporting or Saas Reporting. This is the union
-# of all plugins required in verious deployment; the entrypoint script is responsible to configure
-# only the plugins required in a given deployment
-RUN /grafana-default/bin/grafana-cli \
-    --pluginsDir /var/lib/grafanax/plugins \
-    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc.zip \
-    plugins install grafana-image-renderer
-RUN /grafana-default/bin/grafana-cli \
-    --pluginsDir /var/lib/grafanax/plugins \
-    --pluginUrl https://storage.googleapis.com/datacloud-grafana-datasource/datacloud-grafana-datasource-7428f43a.zip \
-    plugins install turbonomic-datacloud-grafana-datasource
-RUN /grafana-default/bin/grafana-cli \
-    --pluginsDir /var/lib/grafanax/plugins \
-    --pluginUrl https://grafana.com/api/plugins/marcusolsson-treemap-panel/versions/0.9.1/download \
-    plugins install marcusolsson-treemap-panel
-
-# This command is only used to have a visual indication during the build that all the chrome dependencies are satisfied
-RUN echo "IMPORTANT! Make sure that in the list below all the chrome dependencies are satisfied." && \
-    ldd /var/lib/grafanax/plugins/grafana-image-renderer/chrome-linux/chrome
-
-# This is our python script to manage the server, responding to newly uploaded licenses, SMTP
-# config changes in turbonomic, etc.
-COPY grafana_mgr.py /
-
-# Make sure that python can find installed libraries and grpc bindings
-ENV PYTHONPATH="/pylib:/grpc"
-
-# point grafana at its files - some of these paths must be established by the entrypoint script
-# e.g. by using symlinks
+# point grafana at its files - some of these paths won't exist in the final image and will be
+# established by the entrypoint script, e.g. by using symlinks
 ENV GF_PATHS_CONFIG="/etc/grafana/grafana.ini" \
-  GF_PATHS_DATA="/var/lib/grafanax/data" \
+  GF_PATHS_DATA="/grafana-data" \
   GF_PATHS_HOME="/tmp/grafana/home" \
   GF_PATHS_LOGS="/var/log/grafana" \
   GF_PATHS_PLUGINS="/tmp/grafana/plugins" \
   GF_PATHS_PROVISIONING="/tmp/etc/grafana/provisioning" \
   GRAFANA_PATH="$GF_PATHS_HOME/bin/grafana-server"
 
+# copy in provisioned dashboards and datasources
+COPY dashboards /grafana-dashboards/
+COPY datasources /grafana-datasources/
+
+# set up directories required by grafana at runtime. Where these will differ based on grafana
+# version it will be up to the entrypoint script to make selections using synmlinks.
+RUN mkdir -p /tmp/etc/grafana/provisioning/{dashboards,datasources,plugins,notifiers} \
+             /grafana-plugins /tmp/grafana/plugins  \
+             /grafana-data /grafana-ini /var/log/grafana && \
+    chown -R grafana:grafana /tmp/etc/grafana /tmp/grafana /grafana-dashboards /grafana-plugins \
+             /grafana-datasources /grafana-data /grafana-ini /var/log/grafana
+
+# copy utility scripts
+COPY util /util/
+RUN chmod +x /util/*.py /util/*.sh
+
+# create symlinks pointing at grafana versions by version name rather than version number
+RUN for version in $grafana_versions; do \
+        name=${version%:*}; \
+        v=${version#*:}; \
+        ln -s -f /grafana/grafana-$v /grafana-$name-runtime; \
+    done
+
+# prepare entry-point script
+COPY entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+
+# Make sure that python can find installed libraries and grpc bindings
+ENV PYTHONPATH="/pylib:/grpc:/util"
+
+# Where we expect the turbonomic configmap properties to be mounted by the helm chart
+ENV TURBO_CONFIG_PROPERTIES_FILE=/etc/turbonomic/properties.yaml
+
+USER grafana
+
+# many of our dashboards are maintained as yaml... replace them with json
+RUN find /grafana-dashboards/*/ -type f -iname '*.yaml' -print0 | xargs -0 /util/yaml2json.py
+
+# install plugins we rely on, either for Embedded Reporting or Saas Reporting. This is the union
+# of all plugins required in various deployments; the entrypoint script is responsible to configure
+# only the plugins required in a given deployment.
+# We use the first configured grafana version in order to run the cli to install plugins
+RUN cli_version="${grafana_versions% *}" && cli_version="${cli_version%:*}"  && \
+    /grafana-${cli_version}-runtime/bin/grafana-cli \
+        --pluginsDir /grafana-plugins \
+        --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc.zip \
+        plugins install grafana-image-renderer && \
+    /grafana-$cli_version-runtime/bin/grafana-cli \
+        --pluginsDir /grafana-plugins \
+        --pluginUrl https://storage.googleapis.com/datacloud-grafana-datasource/datacloud-grafana-datasource-7428f43a.zip \
+        plugins install turbonomic-datacloud-grafana-datasource && \
+    /grafana-$cli_version-runtime/bin/grafana-cli \
+        --pluginsDir /grafana-plugins \
+        --pluginUrl https://grafana.com/api/plugins/marcusolsson-treemap-panel/versions/0.9.1/download \
+        plugins install marcusolsson-treemap-panel
+
+# This command is only used to have a visual indication during the build that all the chrome dependencies are satisfied
+RUN echo "IMPORTANT! Make sure that in the list below all the chrome dependencies are satisfied." && \
+    ldd /grafana-plugins/grafana-image-renderer/chrome-linux/chrome
+
+# This is our python script to manage the server, responding to newly uploaded licenses, SMTP
+# config changes in turbonomic, etc.
+COPY grafana_mgr.py /
+
 EXPOSE 3000
 
 STOPSIGNAL SIGTERM
 
 ENTRYPOINT [ "/entrypoint.sh" ]
-

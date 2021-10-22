@@ -24,7 +24,8 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * {@link DbAdapter} implementation for PostgreSQL endpoints.
  */
-public class PostgresAdapter extends DbAdapter {
+public class
+PostgresAdapter extends DbAdapter {
 
     private static final Logger logger = LogManager.getLogger();
 

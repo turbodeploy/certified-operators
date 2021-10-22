@@ -1,0 +1,16 @@
+apiVersion: 1
+datasources:
+  - name: Turbonomic Data Cloud
+    url: 'https://datacloud.turbonomic.io'
+    orgId: 1
+    type: turbonomic-datacloud-grafana-datasource
+    typeName: Turbonomic Data Cloud
+    typeLogoUrl: public/plugins/turbonomic-datacloud-grafana-datasource/img/logo.svg
+    access: proxy
+    basicAuth: false
+    isDefault: true
+    jsonData:
+      httpHeaderName1: Authorization
+      projectId: ${PROJECT_ID}
+    secureJsonData:
+      httpHeaderValue1: 'apikey ${API_KEY}'
