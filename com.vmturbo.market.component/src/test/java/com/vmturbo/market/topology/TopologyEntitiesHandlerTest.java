@@ -1360,6 +1360,7 @@ public class TopologyEntitiesHandlerTest {
             .findAny();
         assertTrue(rawMaterialMetadata.isPresent());
         assertFalse(rawMaterialMetadata.get().isHardConstraint());
+        featureFlagTestRule.reset();
     }
 
     /**

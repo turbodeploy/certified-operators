@@ -755,6 +755,7 @@ public class AnalysisTest {
         analysis.execute();
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
+        featureFlagTestRule.reset();
     }
     /**
      * Test {@link Analysis#execute} with "namespaceQuotaResizing" feature flag disabled and
@@ -773,6 +774,7 @@ public class AnalysisTest {
         analysis.execute();
         assertTrue(analysis.getActionPlan().isPresent());
         assertFalse(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
+        featureFlagTestRule.reset();
     }
 
     /**

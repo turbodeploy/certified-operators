@@ -41,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -54,6 +55,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
@@ -114,6 +117,12 @@ public class AnalysisDiagnosticsCollectorTest {
     private final String unzippedSMADiagsLocation = "target/test-classes/cloudvmscaling/smaDiags";
     private final String unzippedSMADiagsLocation2 = "target/test-classes/cloudvmscaling/smaDiags2";
     private final String unzippedInitialPlacementDiagsLocation = "";
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
 
     /**
      * run the InitialPlacement from diags.
