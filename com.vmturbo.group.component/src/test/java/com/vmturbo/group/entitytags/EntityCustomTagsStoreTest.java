@@ -9,7 +9,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -159,5 +161,54 @@ public class EntityCustomTagsStoreTest {
         values = tags.get(tagName2);
         assertThat(values, is(notNullValue()));
         assertThat(values.getValuesList().get(0), is(tagValue1));
+    }
+
+    /**
+     * Tests how tags are deleted.
+     *
+     * @throws StoreOperationException should not happen
+     */
+    @Test
+    public void testDeleteTag() throws StoreOperationException {
+        int result = entityCustomTagsStore.insertTags(ENTITY_ID, tags);
+        assertThat(result, is(3));
+
+        int affectedRows = entityCustomTagsStore.deleteTag(ENTITY_ID, tagName1);
+        assertThat(affectedRows, is(2));
+        Map<String, TagValuesDTO> tagsMap = entityCustomTagsStore.getTags(ENTITY_ID).getTagsMap();
+        Assert.assertThat(tagsMap.size(), is(1));
+        Assert.assertThat(tagsMap.get(tagName1), is(Matchers.nullValue()));
+        Assert.assertThat(tagsMap.get(tagName2), is(Matchers.notNullValue()));
+    }
+
+    /**
+     * Tests how tags are deleted if tag does not exist.
+     *
+     * @throws StoreOperationException should not happen
+     */
+    @Test
+    public void testDeleteTagNotExist() throws StoreOperationException {
+        final String notExistTag = "randomTag";
+
+        int affectedRows = entityCustomTagsStore.deleteTag(ENTITY_ID, notExistTag);
+        assertThat(affectedRows, is(0));
+    }
+
+    /**
+     * Tests how tags are deleted.
+     *
+     * @throws StoreOperationException should not happen
+     */
+    @Test
+    public void testDeleteTags() throws StoreOperationException {
+        int result = entityCustomTagsStore.insertTags(ENTITY_ID, tags);
+        assertThat(result, is(3));
+
+        entityCustomTagsStore.deleteTags(ENTITY_ID);
+
+        Map<String, TagValuesDTO> tagsMap = entityCustomTagsStore.getTags(ENTITY_ID).getTagsMap();
+        Assert.assertThat(tagsMap.size(), is(0));
+        Assert.assertThat(tagsMap.get(tagName1), is(Matchers.nullValue()));
+        Assert.assertThat(tagsMap.get(tagName2), is(Matchers.nullValue()));
     }
 }

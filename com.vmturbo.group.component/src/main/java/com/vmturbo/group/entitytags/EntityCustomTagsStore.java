@@ -47,14 +47,19 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
     }
 
     @Override
-    public void deleteTag(long entityId, @Nonnull String tagKey) throws StoreOperationException {
+    public int deleteTag(long entityId, @Nonnull String tagKey) throws StoreOperationException {
+        int affectedRows;
         try {
-            dslContext.deleteFrom(ENTITY_CUSTOM_TAGS).where(ENTITY_CUSTOM_TAGS.ENTITY_ID.eq(entityId),
-                    ENTITY_CUSTOM_TAGS.TAG_KEY.eq(tagKey)).execute();
+            affectedRows = dslContext.deleteFrom(ENTITY_CUSTOM_TAGS).where(
+                    ENTITY_CUSTOM_TAGS.ENTITY_ID.eq(entityId),
+                    ENTITY_CUSTOM_TAGS.TAG_KEY.eq(tagKey)
+            ).execute();
         } catch (DataAccessException e) {
             throw new StoreOperationException(Status.INTERNAL,
                     "Could not delete tags for Entity: '" + entityId + "' and key: '" + tagKey + "'");
         }
+
+        return affectedRows;
     }
 
     @Override

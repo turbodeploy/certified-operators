@@ -954,11 +954,23 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
             try {
-                stores.getGroupStore().deleteTag(request.getGroupOid(), request.getTagKey());
+                int affectedRows = stores.getGroupStore().deleteTag(request.getGroupOid(),
+                        request.getTagKey());
+
+                // We need to fail if no tag was deleted to inform the client that nothing was actually
+                // deleted.
+                if (affectedRows == 0) {
+                    final String errMsg = "Could not delete tags for Group: '"
+                            + request.getGroupOid() + "' no such tag Key: '" + request.getTagKey();
+
+                    logger.error(errMsg);
+                    responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+                    return;
+                }
             } catch (StoreOperationException e) {
-                logger.error("Could not delete tags for Group: '" + request.getGroupOid() + "'"
-                        + request.getTagKey());
-                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+                logger.error("Could not delete tags for Group: '" + request.getGroupOid()
+                        + "' and Key: '" + request.getTagKey() + "'");
+                responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
                 return;
             }
             responseObserver.onNext(DeleteTagResponse.newBuilder().build());
@@ -983,7 +995,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                 stores.getGroupStore().deleteTags(request.getGroupOid());
             } catch (StoreOperationException e) {
                 logger.error("Could not delete tags for Group: '" + request.getGroupOid() + "'");
-                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+                responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
                 return;
             }
             responseObserver.onNext(DeleteTagsResponse.newBuilder().build());

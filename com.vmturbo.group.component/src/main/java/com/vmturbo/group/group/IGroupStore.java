@@ -286,10 +286,11 @@ public interface IGroupStore {
      *
      * @param groupId is the entity oid to attach the tag.
      * @param tagKey tag key
+     * @return the affected rows after the database operation
      *
      * @throws StoreOperationException if the tag with key could not be deleted.
      */
-    void deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException;
+    int deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException;
 
     /**
      * Delete a list of user defined group tags for group.

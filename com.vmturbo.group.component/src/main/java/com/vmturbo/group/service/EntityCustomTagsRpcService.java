@@ -87,7 +87,7 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
             entityCustomTagsStore.deleteTags(request.getEntityOid());
         } catch (StoreOperationException e) {
             logger.error("Could not delete tags for Entity: '" + request.getEntityOid() + "'");
-            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+            responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
             return;
         }
 
@@ -115,11 +115,23 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
             return;
         }
         try {
-            logger.error("Could not delete tags for Entity: '" + request.getEntityOid() + "' and Key: '"
-                    + request.getTagKey());
-            entityCustomTagsStore.deleteTag(request.getEntityOid(), request.getTagKey());
+            int affectedRows = entityCustomTagsStore.deleteTag(request.getEntityOid(),
+                    request.getTagKey());
+
+            // We need to fail if no tag was deleted to inform the client that nothing was actually
+            // deleted.
+            if (affectedRows == 0) {
+                final String errMsg = "Could not delete tags for Entity: '" + request.getEntityOid() + "' no such tag Key: '"
+                        + request.getTagKey();
+
+                logger.error(errMsg);
+                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+                return;
+            }
         } catch (StoreOperationException e) {
-            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+            logger.error("Could not delete tags for Entity: '" + request.getEntityOid()
+                    + "' and Key: '" + request.getTagKey() + "'");
+            responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
             return;
         }
 
