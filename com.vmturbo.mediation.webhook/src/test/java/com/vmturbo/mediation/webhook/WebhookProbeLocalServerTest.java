@@ -4,13 +4,10 @@ import static com.vmturbo.mediation.webhook.WebhookProbeTest.createWorkflow;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -21,23 +18,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Supplier;
 
-import com.google.common.collect.Sets;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHeaders;
 import org.apache.logging.log4j.LogManager;
@@ -50,23 +43,17 @@ import org.junit.Test;
 
 import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.webhook.WebhookProbeTest.WebhookProperties.WebhookPropertiesBuilder;
-import com.vmturbo.mediation.webhook.oauth.AccessTokenKey;
-import com.vmturbo.mediation.webhook.oauth.AccessTokenResponse;
-import com.vmturbo.mediation.webhook.oauth.GrantType;
-import com.vmturbo.mediation.webhook.oauth.OAuthParameters;
-import com.vmturbo.mediation.webhook.oauth.TokenManager;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.sdk.common.util.WebhookConstants;
 import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 import com.vmturbo.platform.sdk.probe.ActionResult;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
-import com.vmturbo.platform.sdk.probe.IProbeDataStoreEntry;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
+import com.vmturbo.platform.sdk.probe.TargetOperationException;
 import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
@@ -85,19 +72,6 @@ public class WebhookProbeLocalServerTest {
     private static final String MOVE_RISK_DESC = "Q4 VCPU, Mem Congestion";
     private static final int OLD_CPU_CAPACITY = 2;
     private static final int NEW_CPU_CAPACITY = 3;
-    private static final String SERVER_URL = "http://localhost:28121";
-    private static final String GET_METHOD_PATH = "/get/method";
-    private static final String OAUTH_PATH = "/oauth";
-    private static final String OAUTH_URL = SERVER_URL + OAUTH_PATH;
-    private static final String CLIENT_ID = "test_client_id";
-    private static final String CLIENT_SECRET = "test_client_secret";
-    private static final String SCOPE = "test_scope";
-    private static final String ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6I";
-    private static final String SECOND_ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI14";
-    private static final String OAUTH_RESPONSE = "{\n"
-            + "  \"token_type\": \"Bearer\",\n"
-            + "  \"expires_in\": 3599,\n"
-            + "  \"access_token\": \"%s\"}";
 
     private static final ActionExecutionDTO ON_PREM_RESIZE_ACTION =
             ActionExecutionDTO.newBuilder()
@@ -154,7 +128,6 @@ public class WebhookProbeLocalServerTest {
     private static final Logger logger = LogManager.getLogger();
 
     private final WebhookAccount account = new WebhookAccount();
-    private IProbeDataStoreEntry probePersistentData;
 
     /**
      * Setup an http server for test.
@@ -175,20 +148,15 @@ public class WebhookProbeLocalServerTest {
         server.start();
         logger.info("Server started on port 28121");
 
-    }
+        // set up probe related stuff
+        IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
+        when(propertyProvider.getProperty(any())).thenReturn(30000);
+        IProbeContext probeContext = mock(IProbeContext.class);
+        when(probeContext.getPropertyProvider()).thenReturn(propertyProvider);
 
-    /**
-     * Utility method to help serve http-response.
-     * @param exchange the http object encapsulating both the http request and response.
-     * @param responseBody the response body used in the http response.
-     * @throws IOException if port cannot get claimed
-     */
-    public static void httpContextCreator(HttpExchange exchange, Supplier<String> responseBody)
-            throws IOException {
-        final byte[] response = responseBody.get().getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(200, response.length);
-        exchange.getResponseBody().write(response);
-        exchange.getResponseBody().close();
+        probe = new WebhookProbe();
+        probe.initialize(probeContext, null);
+        progressTracker = mock(IProgressTracker.class);
     }
 
     /**
@@ -202,23 +170,10 @@ public class WebhookProbeLocalServerTest {
     }
 
     /**
-     * Prepares for the test.
-     *
-     * @throws Exception if something goes wrong.
+     * Reset handler before each request.
      */
     @Before
-    public void prepareTest() throws Exception {
-        IProbeContext probeContext = mock(IProbeContext.class);
-        // set up probe related stuff
-        IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
-        when(propertyProvider.getProperty(any())).thenReturn(30000);
-        when(probeContext.getPropertyProvider()).thenReturn(propertyProvider);
-        probePersistentData = mock(IProbeDataStoreEntry.class);
-        when(probeContext.getTargetFeatureCategoryData(any())).thenReturn(probePersistentData);
-        when(probePersistentData.load()).thenReturn(Optional.empty());
-        probe = new WebhookProbe();
-        probe.initialize(probeContext, null);
-        progressTracker = mock(IProgressTracker.class);
+    public void resetHandler() {
         handler.resetHandler();
     }
 
@@ -422,7 +377,7 @@ public class WebhookProbeLocalServerTest {
                         .build()))
                 .build();
 
-        handler.addResponse(new Response(201, null));
+        handler.setResponseCode(201);
 
         // ACT
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
@@ -447,7 +402,8 @@ public class WebhookProbeLocalServerTest {
                         .build()))
                 .build();
 
-        handler.addResponse(new Response(404, "XYXYXY"));
+        handler.setResponseCode(404);
+        handler.setResponseBody("XYXYXY");
 
         // ACT
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
@@ -598,350 +554,13 @@ public class WebhookProbeLocalServerTest {
     }
 
     /**
-     * Test that when using oauth, an authorization header is sent in the form of
-     * "Bearer {accessToken}".
-     * @throws InterruptedException should not be thrown.
-     */
-    @Test
-    public void testOAuth() throws InterruptedException {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-        addSuccessfulOAuthResponses(ACCESS_TOKEN);
-
-        // ACT
-        ActionResult result = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        // make sure request has the authorization header which includes the bearer token
-        Map<String, List<String>> headers = handler.getLastRequest().get().headers;
-        assertNotNull(headers);
-        assertTrue(headers.get(OAuthParameters.AUTHORIZATION.getParameterId()).get(0).contains("Bearer"));
-
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), GET_METHOD_PATH,
-                null, Collections.emptyList());
-    }
-
-    /**
-     * Test that when requesting authorization to a server, a retry attempt occurs if the first
-     * request fails (any 4xx failure).
-     * We proceed by trying to request a new access token. If the access token is the same (it is in this case),
-     * as the previous one new no request will be made and an exception will be thrown.
-     * @throws Exception should not be thrown.
-     */
-    @Test
-    public void testOAuthRetryAttemptWithSameToken() throws Exception {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-        // we already have the access token in the cache
-        when(probePersistentData.load()).thenReturn(Optional.of(createSerializedMap(3600)));
-
-        handler.responses.add(new Response(401, "Failed to Access"));
-        handler.responses.add(new Response(200, String.format(OAUTH_RESPONSE,
-                ACCESS_TOKEN)));
-
-        // ACT
-        final ActionResult actionResult = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        List<Request> requests = handler.getRequests();
-        assertNotNull(requests);
-        assertEquals(2, requests.size());
-        assertThat(actionResult.getState(), is(ActionResponseState.FAILED));
-    }
-
-    /**
-     * Test that when requesting authorization to a server, a retry attempt occurs if the first
-     * request fails (any 4xx failure). We proceed by trying to request a new access token and
-     * attempting another attempt to request access to the authorizing server.
-     * @throws Exception should not be thrown.
-     */
-    @Test
-    public void testOAuthRetryAttemptWithDifferentTokens() throws Exception {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-
-        when(probePersistentData.load()).thenReturn(Optional.of(createSerializedMapWithRefreshToken()));
-
-        handler.responses.add(new Response(401, "Failed to Access"));
-        handler.responses.add(new Response(200, String.format(OAUTH_RESPONSE,
-                SECOND_ACCESS_TOKEN)));
-
-        // ACT
-        final ActionResult actionResult = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        //ASSERT
-        assertEquals(handler.getRequests().size(), 3);
-        // make the second call used refresh token
-        final Request refreshToken = handler.getRequests().get(1);
-        assertThat(Sets.newHashSet(refreshToken.payload.split("&")), is(Sets.newHashSet(
-                "scope=test_scope", "grant_type=refresh_token",
-                "refresh_token=refresh_tk1")));
-        // make sure the main call was made
-        verifyResults(actionResult, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), GET_METHOD_PATH,
-                null, Collections.emptyList());
-    }
-
-    /**
-     * Tests the case where refresh token is used to get a new access token. However,
-     * the refresh token is no longer valid. It is expected that we fall back to implied grant type.
-     *
-     * @throws Exception if something goes wrong.
-     */
-    @Test
-    public void testOAuthRefreshTokenFailure() throws Exception {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-        when(probePersistentData.load()).thenReturn(Optional.of(createSerializedMapWithRefreshToken()));
-
-        handler.responses.add(new Response(401, "Failed to Access"));
-        handler.responses.add(new Response(401,
-                "{\"error\": \"invalid refresh token\""));
-        handler.responses.add(new Response(200, String.format(OAUTH_RESPONSE,
-                SECOND_ACCESS_TOKEN)));
-
-        // ACT
-        final ActionResult actionResult = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        // ASSERT
-        assertEquals(handler.getRequests().size(), 4);
-        // make the second call used refresh token
-        assertThat(Sets.newHashSet(handler.getRequests().get(1).payload.split("&")),
-                is(Sets.newHashSet(
-                "scope=test_scope", "grant_type=refresh_token",
-                "refresh_token=refresh_tk1")));
-        // make sure third call is not using refresh token
-        assertThat(Sets.newHashSet(handler.getRequests().get(2).payload.split("&")),
-                is(Sets.newHashSet(
-                "scope=test_scope", "grant_type=client_credentials",
-                "client_id=test_client_id", "client_secret=test_client_secret")));
-        // make sure the main call was made
-        verifyResults(actionResult, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), GET_METHOD_PATH,
-                null, Collections.emptyList());
-    }
-
-    /**
-     * Test the case that we use probe data persistence to re-use access token.
-     *
-     * @throws Exception if something goes wrong.
-     */
-    @Test
-    public void testOauthDataPersistence() throws Exception {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-        addSuccessfulOAuthResponses(ACCESS_TOKEN);
-        when(probePersistentData.compute(any())).thenAnswer(invocation -> {
-            // verify serialization behaving as expected
-            TokenManager.WebhookProbeDataStoreEntryUpdate update = invocation.getArgument(0);
-            final Optional<byte[]> result = update.update(Optional.empty());
-            Assert.assertTrue(result.isPresent());
-            Map<AccessTokenKey, AccessTokenResponse> map = SerializationUtils
-                    .deserialize(result.get());
-            assertThat(map.size(), is(1));
-            Map.Entry<AccessTokenKey, AccessTokenResponse> entry = map.entrySet().iterator().next();
-            assertThat(entry.getKey(), is(new AccessTokenKey(OAUTH_URL, CLIENT_ID, CLIENT_SECRET,
-                    GrantType.CLIENT_CREDENTIALS, SCOPE)));
-            assertThat(entry.getValue().getAccessToken(), is(ACCESS_TOKEN));
-            assertThat(entry.getValue().getTokenType(), is("Bearer"));
-            assertThat(entry.getValue().getExpiresIn(), is(3599L));
-            return null;
-        });
-
-
-        // ACT
-        ActionResult result = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        // ASSERT
-        assertThat(handler.requests.size(), is(2));
-        // verify actual call
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), GET_METHOD_PATH,
-                null, Collections.emptyList());
-        // verify oauth
-        final Request oauthRequest = handler.requests.get(0);
-        assertThat(oauthRequest.method, is(HttpMethodType.POST.name()));
-        assertThat(oauthRequest.url, is("/oauth"));
-        assertThat(Sets.newHashSet(oauthRequest.payload.split("&")), is(Sets.newHashSet(
-                "scope=test_scope", "grant_type=client_credentials",
-                "client_id=test_client_id", "client_secret=test_client_secret")));
-
-        // verify the update is called
-        verify(probePersistentData, times(1)).compute(any());
-    }
-
-    /**
-     * Test the case when an oauth call is made when the access token already exists
-     * in data persistence.
-     *
-     * @throws Exception if something goes wrong.
-     */
-    @Test
-    public void testOauthAccessTokenAlreadyExists() throws Exception {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-        // create the map
-        when(probePersistentData.load()).thenReturn(Optional.of(createSerializedMap(3600)));
-
-        // ACT
-        ActionResult result = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        assertThat(handler.requests.size(), is(1));
-        // verify actual call
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), GET_METHOD_PATH,
-                null, Collections.emptyList());
-        // verify the update is called
-        verify(probePersistentData, times(0)).compute(any());
-    }
-
-    /**
-     * Test the case when an oauth call is made when the access token already exists
-     * in data persistence but it is expired.
-     *
-     * @throws Exception if something goes wrong.
-     */
-    @Test
-    public void testOauthAccessTokenAlreadyExistsExpired() throws Exception {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-
-        when(probePersistentData.compute(any())).thenAnswer(invocation -> {
-            // verify serialization behaving as expected
-            TokenManager.WebhookProbeDataStoreEntryUpdate update = invocation.getArgument(0);
-            final Optional<byte[]> result = update.update(Optional.of(createSerializedMap(0)));
-            Assert.assertTrue(result.isPresent());
-            Map<AccessTokenKey, AccessTokenResponse> map = SerializationUtils
-                    .deserialize(result.get());
-            assertThat(map.size(), is(1));
-            Map.Entry<AccessTokenKey, AccessTokenResponse> entry = map.entrySet().iterator().next();
-            assertThat(entry.getKey(), is(new AccessTokenKey(OAUTH_URL, CLIENT_ID, CLIENT_SECRET,
-                    GrantType.CLIENT_CREDENTIALS, SCOPE)));
-            assertThat(entry.getValue().getAccessToken(), is(SECOND_ACCESS_TOKEN));
-            assertThat(entry.getValue().getTokenType(), is("Bearer"));
-            assertThat(entry.getValue().getExpiresIn(), is(3599L));
-            return null;
-        });
-
-        // create the map
-        when(probePersistentData.load()).thenReturn(Optional.of(createSerializedMap(0)));
-
-        handler.responses.add(new Response(200, String.format(OAUTH_RESPONSE,
-                SECOND_ACCESS_TOKEN)));
-        handler.responses.add(new Response(200, "Test"));
-
-        // ACT
-        ActionResult result = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        assertThat(handler.requests.size(), is(2));
-        // verify actual call
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), GET_METHOD_PATH,
-                null, Collections.emptyList());
-        // verify the update is called
-        verify(probePersistentData, times(1)).compute(any());
-    }
-
-    /**
-     * Test the case when an oauth call is made when the data for previous value is
-     * corrupted.
-     *
-     * @throws Exception if something goes wrong.
-     */
-    @Test
-    public void testOauthAccessTokenPreviousValueDeserializationFailed() throws Exception {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = oAuthAction();
-
-        when(probePersistentData.compute(any())).thenAnswer(invocation -> {
-            // verify serialization behaving as expected
-            TokenManager.WebhookProbeDataStoreEntryUpdate update = invocation.getArgument(0);
-            final Optional<byte[]> result = update
-                    .update(Optional.of(SerializationUtils.serialize(new ArrayList<>())));
-            Assert.assertTrue(result.isPresent());
-            Map<AccessTokenKey, AccessTokenResponse> map = SerializationUtils
-                    .deserialize(result.get());
-            assertThat(map.size(), is(1));
-            Map.Entry<AccessTokenKey, AccessTokenResponse> entry = map.entrySet().iterator().next();
-            assertThat(entry.getKey(), is(new AccessTokenKey(OAUTH_URL, CLIENT_ID, CLIENT_SECRET,
-                    GrantType.CLIENT_CREDENTIALS, SCOPE)));
-            assertThat(entry.getValue().getAccessToken(), is(ACCESS_TOKEN));
-            assertThat(entry.getValue().getTokenType(), is("Bearer"));
-            assertThat(entry.getValue().getExpiresIn(), is(3599L));
-            return null;
-        });
-
-        // create the map
-        when(probePersistentData.load()).thenReturn(
-                Optional.of(SerializationUtils.serialize(new ConcurrentHashMap<>())));
-
-        handler.responses.add(new Response(200, String.format(OAUTH_RESPONSE,
-                ACCESS_TOKEN)));
-        handler.responses.add(new Response(200, "Test"));
-
-        // ACT
-        ActionResult result = probe.executeAction(actionExecutionDTO, account,
-                Collections.emptyMap(), progressTracker);
-
-        assertThat(handler.requests.size(), is(2));
-        // verify actual call
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), GET_METHOD_PATH,
-                null, Collections.emptyList());
-        // verify the update is called
-        verify(probePersistentData, times(1)).compute(any());
-    }
-
-    private byte[] createSerializedMap(long expireIn) {
-        final ConcurrentHashMap<AccessTokenKey, AccessTokenResponse> map =
-                new ConcurrentHashMap<>();
-        final AccessTokenKey accessTokenKey = new AccessTokenKey(OAUTH_URL, CLIENT_ID, CLIENT_SECRET,
-                GrantType.CLIENT_CREDENTIALS, SCOPE);
-        final AccessTokenResponse accessTokenResponse = new AccessTokenResponse(ACCESS_TOKEN, "Bearer",
-                expireIn, null, null, null, null);
-        map.put(accessTokenKey, accessTokenResponse);
-        return SerializationUtils.serialize(map);
-    }
-
-    private byte[] createSerializedMapWithRefreshToken() {
-        // we already have the access token with refresh in the cache
-        final ConcurrentHashMap<AccessTokenKey, AccessTokenResponse> map =
-                new ConcurrentHashMap<>();
-        final AccessTokenKey accessTokenKey = new AccessTokenKey(OAUTH_URL, CLIENT_ID, CLIENT_SECRET,
-                GrantType.CLIENT_CREDENTIALS, SCOPE);
-        final AccessTokenResponse accessTokenResponse = new AccessTokenResponse(ACCESS_TOKEN, "Bearer",
-                3600, "refresh_tk1", null, null, null);
-        map.put(accessTokenKey, accessTokenResponse);
-        return SerializationUtils.serialize(map);
-    }
-
-    private ActionExecutionDTO oAuthAction() {
-        return ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
-                createWorkflow(new WebhookPropertiesBuilder()
-                        .setUrl(SERVER_URL + GET_METHOD_PATH)
-                        .setHttpMethod(HttpMethodType.GET.name())
-                        .setAuthenticationMethod(AuthenticationMethod.OAUTH.name())
-                        .setOAuthUrl(OAUTH_URL)
-                        .setClientId(CLIENT_ID)
-                        .setClientSecret(CLIENT_SECRET)
-                        .setScope(SCOPE)
-                        .setGrantType(WebhookConstants.GrantType.CLIENT_CREDENTIALS.name())
-                        .build()))
-                .build();
-    }
-
-    private void addSuccessfulOAuthResponses(String accessToken) {
-        handler.responses.add(new Response(200,
-                String.format(OAUTH_RESPONSE, accessToken)));
-        handler.responses.add(new Response(200, "Test"));
-    }
-
-    /**
      * Test sending newly generated actions to a webhook.
      *
      * @throws InterruptedException if something goes wrong.
+     * @throws TargetOperationException if probe did not manage to communicate with a target.
      */
     @Test
-    public void testSendingOnGenActionsToWebhook() throws InterruptedException {
+    public void testSendingOnGenActionsToWebhook() throws InterruptedException, TargetOperationException {
         // ARRANGE
         final String address = "/actions/$action.uuid";
         final String payload = "{\"description\": \"$action.details\"}";
@@ -972,9 +591,10 @@ public class WebhookProbeLocalServerTest {
      * Tests audit actions to webhook.
      *
      * @throws InterruptedException if something goes wrong.
+     * @throws TargetOperationException if probe did not manage to communicate with a target.
      */
     @Test
-    public void testSendingOnGenActionsToWebhookFailure() throws InterruptedException {
+    public void testSendingOnGenActionsToWebhookFailure() throws InterruptedException, TargetOperationException {
         // ARRANGE
         final String address = "/actions/$action.uuid";
         final String payload = "{\"description\": \"$action.details\"}";
@@ -993,7 +613,7 @@ public class WebhookProbeLocalServerTest {
                 .setTimestamp(System.currentTimeMillis())
                 .build();
 
-        handler.addResponse(new Response(404, null));
+        handler.setResponseCode(404);
 
         // ACT
         final Collection<ActionErrorDTO> actionErrorDTOS = probe.auditActions(account,
@@ -1006,10 +626,11 @@ public class WebhookProbeLocalServerTest {
     /**
      * Test to verify the cleared actions are not audited.
      *
-     * @throws InterruptedException if an error occurs..
+     * @throws InterruptedException if an error occurs.
+     * @throws TargetOperationException if the Webhook probe cannot communicate with the target.
      */
     @Test
-    public void testClearedActionsAreNotAudited() throws InterruptedException {
+    public void testClearedActionsAreNotAudited() throws InterruptedException, TargetOperationException {
         // ARRANGE
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
@@ -1048,6 +669,7 @@ public class WebhookProbeLocalServerTest {
                         .setUrl("http://localhost:28121" + address)
                         .setHttpMethod(HttpMethodType.GET.name())
                         .setTemplatedActionBody(payload)
+                        .setHasTemplateApplied(true)
                         .build()))
                 .build();
 
@@ -1073,7 +695,7 @@ public class WebhookProbeLocalServerTest {
             final Map<String, List<String>> receivedHeaders = request.get().headers;
             sentHeaders.forEach((key, value) -> {
                 final List<String> headerValues = receivedHeaders.get(key);
-                assertEquals(headerValues, value);
+                Assert.assertTrue(Objects.equals(headerValues, value));
             });
         }
     }
@@ -1092,9 +714,10 @@ public class WebhookProbeLocalServerTest {
      * A response handler that caches the last request made to it.
      */
     private static class CachingHttpHandler implements HttpHandler {
-        private final List<Request> requests = new ArrayList<>();
-        private final Queue<Response> responses = new LinkedList<>();
-
+        private Request lastRequest = null;
+        private int responseCode = 200;
+        private String responseBody = null;
+        private Headers lastHeaders = null;
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -1105,42 +728,40 @@ public class WebhookProbeLocalServerTest {
                 body = null;
             }
 
-            requests.add(new Request(exchange.getRequestMethod(),
-                    exchange.getRequestURI().toString(), body,
-                    exchange.getRequestHeaders()));
+            lastRequest = new Request(exchange.getRequestMethod(), exchange.getRequestURI().toString(), body,
+                    exchange.getRequestHeaders());
 
-            if (!responses.isEmpty()) {
-                final Response response = responses.remove();
-                final byte[] responseBytes = response.responseBody != null
-                        ? response.responseBody.getBytes(StandardCharsets.UTF_8) : new byte[0];
-                exchange.sendResponseHeaders(response.responseCode, responseBytes.length);
-                exchange.getResponseBody().write(responseBytes);
+            lastHeaders = exchange.getRequestHeaders();
+
+            if (responseBody != null) {
+                final byte[] response = responseBody.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(responseCode, response.length);
+                exchange.getResponseBody().write(response);
             } else {
-                exchange.sendResponseHeaders(200, 0);
+                exchange.sendResponseHeaders(responseCode, 0);
             }
             exchange.getResponseBody().close();
         }
 
-        void addResponse(Response response) {
-            this.responses.add(response);
+        void setResponseCode(int responseCode) {
+            this.responseCode = responseCode;
+        }
+
+        void setResponseBody(String responseBody) {
+            this.responseBody = responseBody;
         }
 
         Optional<Request> getLastRequest() {
-            return requests.isEmpty() ? Optional.empty()
-                    : Optional.of(requests.get(requests.size() - 1));
-        }
-
-        List<Request> getRequests() {
-            return requests;
+            return Optional.ofNullable(lastRequest);
         }
 
         Optional<Map<String, List<String>>> getLastRequestHeaders() {
-            return getLastRequest().flatMap(Request::getHeaders);
+            return Optional.ofNullable(lastHeaders);
         }
 
         void resetHandler() {
-            requests.clear();
-            responses.clear();
+            lastRequest = null;
+            responseCode = 200;
         }
     }
 
@@ -1158,23 +779,6 @@ public class WebhookProbeLocalServerTest {
             this.url = url;
             this.payload = payload;
             this.headers = headers;
-        }
-
-        Optional<Map<String, List<String>>> getHeaders() {
-            return Optional.ofNullable(headers);
-        }
-    }
-
-    /**
-     * Keeps the information about a response.
-     */
-    private static class Response {
-        private final int responseCode;
-        private final String responseBody;
-
-        Response(int responseCode, String responseBody) {
-            this.responseCode = responseCode;
-            this.responseBody = responseBody;
         }
     }
 }

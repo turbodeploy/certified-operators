@@ -3,19 +3,19 @@ package com.vmturbo.mediation.webhook.connector;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.MoreObjects;
+
 import com.vmturbo.mediation.connector.common.credentials.PortAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.SecureAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.TargetAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.TimeoutAwareCredentials;
 import com.vmturbo.mediation.webhook.oauth.GrantType;
-import com.vmturbo.mediation.webhook.oauth.OAuthCredentials;
 
 /**
  * Webhook credentials.
@@ -32,7 +32,11 @@ public class WebhookCredentials
     private final String userName;
     private final String password;
     private final boolean trustSelfSignedCertificates;
-    private final OAuthCredentials oAuthCredentials;
+    private final String oAuthUrl;
+    private final String clientID;
+    private final String clientSecret;
+    private final GrantType grantType;
+    private final String scope;
 
     /**
      * Creates a {@link WebhookCredentials} instance.
@@ -63,9 +67,11 @@ public class WebhookCredentials
         this.userName = userName;
         this.password = password;
         this.trustSelfSignedCertificates = trustSelfSignedCertificates;
-        this.oAuthCredentials =
-                authenticationMethod == AuthenticationMethod.OAUTH ? new OAuthCredentials(oAuthUrl,
-                        clientID, clientSecret, grantType, scope, trustSelfSignedCertificates) : null;
+        this.oAuthUrl = oAuthUrl;
+        this.clientID = clientID;
+        this.clientSecret = clientSecret;
+        this.grantType = grantType;
+        this.scope = scope;
     }
 
     public String getWebhookUrl() {
@@ -130,6 +136,20 @@ public class WebhookCredentials
         return 0;
     }
 
+    @Override
+    public String toString() {
+        // Make sure you do not place any customer secrets in toString()!!!
+        return MoreObjects.toStringHelper(this)
+            .add("url", getNameOrAddress())
+            .add("method", getMethod())
+            .add("port", getPort())
+            .add("secure", isSecure())
+            .add("timeout", getTimeout())
+            .add("authenticationType", getAuthenticationMethod())
+            .add("username", getUserName())
+            .toString();
+    }
+
     /**
      * The method of authentication used.
      *
@@ -172,20 +192,28 @@ public class WebhookCredentials
         }
     }
 
-    public Optional<OAuthCredentials> getOAuthCredentials() {
-        return Optional.ofNullable(oAuthCredentials);
+    @Nullable
+    public String getOAuthUrl() {
+        return oAuthUrl;
     }
 
-    @Override
-    public String toString() {
-        return "WebhookCredentials{"
-                + "webhookUrl='" + webhookUrl + '\''
-                + ", methodType='" + methodType + '\''
-                + ", timeout=" + timeout
-                + ", authenticationMethod=" + authenticationMethod
-                + ", userName='" + userName + '\''
-                + ", trustSelfSignedCertificates=" + trustSelfSignedCertificates
-                + ", oAuthCredentials=" + oAuthCredentials
-                + '}';
+    @Nullable
+    public String getClientID() {
+        return clientID;
+    }
+
+    @Nullable
+    public String getClientSecret() {
+        return clientSecret;
+    }
+
+    @Nullable
+    public GrantType getGrantType() {
+        return grantType;
+    }
+
+    @Nullable
+    public String getScope() {
+        return scope;
     }
 }

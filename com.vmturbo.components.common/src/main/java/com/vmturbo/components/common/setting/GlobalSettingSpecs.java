@@ -106,7 +106,7 @@ public enum GlobalSettingSpecs {
      * Setting to indicate whether to run Cloud Commitment Analysis instead of legacy RI buy.
      */
     RunCloudCommitmentAnalysis("run.Cloud.Commitment.Analysis", "Run Cloud Commitment Analysis",
-            new BooleanSettingDataType(true),
+            new BooleanSettingDataType(false),
             Lists.newArrayList(CategoryPathConstants.RI)),
 
     CloudCommitmentAllocationRetentionDays(

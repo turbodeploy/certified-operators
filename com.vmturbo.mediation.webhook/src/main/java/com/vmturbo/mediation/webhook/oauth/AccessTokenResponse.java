@@ -1,6 +1,5 @@
 package com.vmturbo.mediation.webhook.oauth;
 
-import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -15,7 +14,7 @@ import com.vmturbo.mediation.connector.common.Response;
  * The response from an oauth server when requesting for an access token.
  */
 @Immutable
-public class AccessTokenResponse implements Response, Serializable {
+public class AccessTokenResponse implements Response {
     /**
      * Safe buffer to protect against race conditions where we actually have an expired token.
      */
@@ -126,8 +125,9 @@ public class AccessTokenResponse implements Response, Serializable {
 
     @Override
     public String toString() {
-        return "AccessTokenResponse{" + "token_type='" + token_type + '\'' + ", expires_in="
-                + expires_in + ", scope='" + scope + '\'' + ", error='" + error + '\''
+        return "AccessTokenResponse{" + "access_token='" + access_token + '\'' + ", token_type='"
+                + token_type + '\'' + ", expires_in=" + expires_in + ", refresh_token='"
+                + refresh_token + '\'' + ", scope='" + scope + '\'' + ", error='" + error + '\''
                 + ", error_description='" + error_description + '\'' + ", timestamp=" + timestamp
                 + '}';
     }

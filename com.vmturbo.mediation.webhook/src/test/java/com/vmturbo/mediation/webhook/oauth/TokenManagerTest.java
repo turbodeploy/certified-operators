@@ -13,7 +13,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import com.google.common.collect.Sets;
 import com.sun.net.httpserver.HttpHandler;
@@ -24,8 +23,10 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.vmturbo.mediation.connector.common.HttpConnectorException;
+import com.vmturbo.mediation.connector.common.HttpMethodType;
+import com.vmturbo.mediation.webhook.connector.WebhookCredentials;
 import com.vmturbo.mediation.webhook.connector.WebhookException;
+import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 
 /**
  * Class to test TokenManager.
@@ -35,8 +36,9 @@ public class TokenManagerTest {
     private static HttpServer server;
     private static ThreadPoolExecutor executor;
 
-    private final OAuthCredentials oAuthCredentials = new OAuthCredentials("http://localhost:28121",
-            "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
+    private final WebhookCredentials credentials = new WebhookCredentials("http://:142/endpoint",
+            HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null, false,
+            "http://localhost:28121", "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide");
 
     /**
      * Setup an http server for test.
@@ -63,8 +65,8 @@ public class TokenManagerTest {
     @Test
     public void testAccessTokenRequestIsCached() throws Exception {
         TokenManager tokenManager = new TokenManager();
-        AccessTokenResponse firstRequest = tokenManager.requestAccessToken(oAuthCredentials);
-        AccessTokenResponse secondRequest = tokenManager.requestAccessToken(oAuthCredentials);
+        AccessTokenResponse firstRequest = tokenManager.requestAccessToken(credentials);
+        AccessTokenResponse secondRequest = tokenManager.requestAccessToken(credentials);
         Assert.assertEquals(firstRequest, secondRequest);
     }
 
@@ -76,9 +78,9 @@ public class TokenManagerTest {
     @Test
     public void testNewAccessTokenRequest() throws Exception {
         TokenManager tokenManager = new TokenManager();
-        AccessTokenResponse firstRequest = tokenManager.requestAccessToken(oAuthCredentials);
-        AccessTokenResponse secondRequest = tokenManager.requestAccessToken(oAuthCredentials, true);
-        Assert.assertNotEquals(firstRequest.getAccessToken(), secondRequest.getAccessToken());
+        AccessTokenResponse firstRequest = tokenManager.requestAccessToken(credentials);
+        AccessTokenResponse secondRequest = tokenManager.requestAccessToken(credentials, true);
+        Assert.assertNotEquals(firstRequest, secondRequest);
     }
 
     /**
@@ -89,9 +91,10 @@ public class TokenManagerTest {
     @Test
     public void testAccessTokenExpiry() throws Exception {
         TokenManager tokenManager = new TokenManager();
-        OAuthCredentials oAuthCredentials = new OAuthCredentials("http://localhost:28121/expired",
-                "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
-        AccessTokenResponse accessTokenResponse = tokenManager.requestAccessToken(oAuthCredentials);
+        WebhookCredentials credentials = new WebhookCredentials("http://:142/endpoint",
+                HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null, false,
+                "http://localhost:28121/expired", "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide");
+        AccessTokenResponse accessTokenResponse = tokenManager.requestAccessToken(credentials);
         Assert.assertTrue(accessTokenResponse.hasExpired());
     }
 
@@ -103,9 +106,10 @@ public class TokenManagerTest {
         AccessTokenResponse accessTokenResponse = null;
         try {
             TokenManager tokenManager = new TokenManager();
-            OAuthCredentials oAuthCredentials = new OAuthCredentials("http://localhost:28121/unexpected-json",
-                    "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
-            accessTokenResponse = tokenManager.requestAccessToken(oAuthCredentials);
+            WebhookCredentials credentials = new WebhookCredentials("http://:142/endpoint",
+                    HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null, false,
+                    "http://localhost:28121/unexpected-json", "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide");
+            accessTokenResponse = tokenManager.requestAccessToken(credentials);
         } catch (Exception e) {
             // exception should not be thrown
             fail();
@@ -133,7 +137,7 @@ public class TokenManagerTest {
         for (int i = 0; i < 10; i++) {
             tasks.add(() -> {
                 try {
-                    String token = tokenManager.requestAccessToken(oAuthCredentials)
+                    String token = tokenManager.requestAccessToken(credentials)
                             .getAccessToken();
                     tokens.add(token);
                 } catch (WebhookException | InterruptedException | IOException e) {
@@ -147,42 +151,27 @@ public class TokenManagerTest {
     }
 
     /**
-     * Tests that a refresh token is used to request a new token since the current access
-     * token has expired.
-     * @throws Exception should not be thrown.
-     */
-    @Test
-    public void testRefreshTokenIsUsedToRequestNewTokenWhenTokenExpired() throws Exception {
-        TokenManager tokenManager = new TokenManager();
-        OAuthCredentials oAuthCredentials = new OAuthCredentials("http://localhost:28121/expired",
-                "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
-        AccessTokenResponse accessTokenResponse = tokenManager.requestAccessToken(oAuthCredentials);
-        Assert.assertTrue(accessTokenResponse.hasExpired());
-        AccessTokenResponse newAccessTokenResponse = tokenManager.requestAccessToken(oAuthCredentials);
-        Assert.assertNotEquals(accessTokenResponse.getAccessToken(), newAccessTokenResponse.getAccessToken());
-    }
-
-    /**
      * Test exception is thrown when attempting to access endpoint that does not exist.
      *
      * @throws WebhookException should be thrown when trying failed to access endpoint.
      * @throws IOException should not be thrown.
      * @throws InterruptedException should not be thrown.
      */
-    @Test(expected = AccessTokenRequestException.class)
+    @Test(expected = WebhookException.class)
     public void testRequestAccessTokenToInvalidEndpoint()
-            throws HttpConnectorException, IOException, InterruptedException {
+            throws WebhookException, IOException, InterruptedException {
         TokenManager tokenManager = new TokenManager();
-        OAuthCredentials oAuthCredentials = new OAuthCredentials("http://notvalid:28121",
-                "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
-        tokenManager.requestAccessToken(oAuthCredentials);
+        WebhookCredentials credentials = new WebhookCredentials("http://fake_webhook:142/endpoint",
+                HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null, false,
+                "http://notvalid:28121", "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide");
+        tokenManager.requestAccessToken(credentials);
     }
 
     /**
      * Generic HttpHandler which accepts a string representing the http response body.
      */
-    private static final Function<Supplier<String>, HttpHandler> httpResponseBodyHandler = responseBody -> exchange ->  {
-        final byte[] response = responseBody.get().getBytes(StandardCharsets.UTF_8);
+    private static final Function<String, HttpHandler> httpResponseBodyHandler = responseBody -> exchange ->  {
+        final byte[] response = responseBody.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(200, response.length);
         exchange.getResponseBody().write(response);
         exchange.getResponseBody().close();
@@ -192,7 +181,7 @@ public class TokenManagerTest {
      * Endpoint to generate new access token response.
      */
     private static final HttpHandler generateAccessTokenHandler = httpResponseBodyHandler.apply(
-            generateResponseBody(() -> RandomStringUtils.random(10, "UTF-8"), "bearer", "3600", "123",
+            generateResponseBody(RandomStringUtils.random(10, "UTF-8"), "bearer", "3600", "123",
                     "wide"));
 
     /**
@@ -200,14 +189,14 @@ public class TokenManagerTest {
      */
     private static final HttpHandler generateExpiredAccessTokenHandler =
             httpResponseBodyHandler.apply(
-                    generateResponseBody(() -> RandomStringUtils.random(10, "UTF-8"), "bearer", "0",
+                    generateResponseBody(RandomStringUtils.random(10, "UTF-8"), "bearer", "0",
                             "123", "wide"));
 
     /**
      * Endpoint to generate valid json that does not provide any fields for
      * {@link AccessTokenResponse}.
      */
-    private static final HttpHandler generateUnexpectedJsonHandler = httpResponseBodyHandler.apply(() ->
+    private static final HttpHandler generateUnexpectedJsonHandler = httpResponseBodyHandler.apply(
             "{\n" + "   \"data\":\"unexpected\"\n" + "}");
 
     /**
@@ -220,9 +209,9 @@ public class TokenManagerTest {
      * @param scope the scope
      * @return json formatted string response.
      */
-    private static Supplier<String> generateResponseBody(Supplier<String> accessToken, String tokenType,
+    private static String generateResponseBody(String accessToken, String tokenType,
             String expiresIn, String refreshToken, String scope) {
-        return () -> "{\n" + "  \"access_token\":\"" + accessToken.get() + "\",\n" + "  \"token_type\":\""
+        return "{\n" + "  \"access_token\":\"" + accessToken + "\",\n" + "  \"token_type\":\""
                 + tokenType + "\",\n" + "  \"expires_in\":" + expiresIn + ",\n"
                 + "  \"refresh_token\":\"" + refreshToken + "\",\n" + "  \"scope\":\"" + scope
                 + "\"\n" + "}";

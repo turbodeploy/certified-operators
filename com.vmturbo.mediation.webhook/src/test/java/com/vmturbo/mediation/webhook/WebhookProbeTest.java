@@ -180,41 +180,6 @@ public class WebhookProbeTest {
             workflow.addAllProperty(populateHeadersAsProperties(webhookProperties.getHeaders()));
         }
 
-        if (webhookProperties.getClientId() != null) {
-            workflow.addProperty(Property.newBuilder()
-                    .setName(WebhookConstants.CLIENT_ID)
-                    .setValue(webhookProperties.getClientId())
-                    .build());
-        }
-
-        if (webhookProperties.getClientSecret() != null) {
-            workflow.addProperty(Property.newBuilder()
-                    .setName(WebhookConstants.CLIENT_SECRET)
-                    .setValue(webhookProperties.getClientSecret())
-                    .build());
-        }
-
-        if (webhookProperties.getOAuthUrl() != null) {
-            workflow.addProperty(Property.newBuilder()
-                    .setName(WebhookConstants.AUTHORIZATION_SERVER_URL)
-                    .setValue(webhookProperties.getOAuthUrl())
-                    .build());
-        }
-
-        if (webhookProperties.getScope() != null) {
-            workflow.addProperty(Property.newBuilder()
-                    .setName(WebhookConstants.SCOPE)
-                    .setValue(webhookProperties.getScope())
-                    .build());
-        }
-
-        if (webhookProperties.getGrantType() != null) {
-            workflow.addProperty(Property.newBuilder()
-                    .setName(WebhookConstants.GRANT_TYPE)
-                    .setValue(webhookProperties.getGrantType())
-                    .build());
-        }
-
         return workflow.build();
     }
 
@@ -262,17 +227,11 @@ public class WebhookProbeTest {
         private final String templatedActionBody;
         private final List<Pair<String, String>> headers;
         private final boolean hasTemplateApplied;
-        private final String clientId;
-        private final String clientSecret;
-        private final String oAuthUrl;
-        private final String scope;
-        private final String grantType;
 
         private WebhookProperties(String url, String httpMethod, String authenticationMethod,
                 String username, String password, String trustSelfSignedCertificate,
                 String templatedActionBody, List<Pair<String, String>> headers,
-                boolean hasTemplateApplied, String clientId, String clientSecret,
-                String oAuthUrl, String scope, String grantType) {
+                boolean hasTemplateApplied) {
             this.url = url;
             this.httpMethod = httpMethod;
             this.authenticationMethod = authenticationMethod;
@@ -282,11 +241,6 @@ public class WebhookProbeTest {
             this.templatedActionBody = templatedActionBody;
             this.headers = headers;
             this.hasTemplateApplied = hasTemplateApplied;
-            this.clientId = clientId;
-            this.clientSecret = clientSecret;
-            this.oAuthUrl = oAuthUrl;
-            this.scope = scope;
-            this.grantType = grantType;
         }
 
         public String getUrl() {
@@ -325,26 +279,6 @@ public class WebhookProbeTest {
             return hasTemplateApplied;
         }
 
-        public String getClientId() {
-            return clientId;
-        }
-
-        public String getClientSecret() {
-            return clientSecret;
-        }
-
-        public String getOAuthUrl() {
-            return oAuthUrl;
-        }
-
-        public String getScope() {
-            return scope;
-        }
-
-        public String getGrantType() {
-            return grantType;
-        }
-
         /**
          * WebhookProperties builder class.
          */
@@ -358,11 +292,6 @@ public class WebhookProbeTest {
             private String templatedActionBody;
             private List<Pair<String, String>> headers;
             private boolean hasTemplateApplied;
-            private String clientId;
-            private String clientSecret;
-            private String oAuthUrl;
-            private String scope;
-            private String grantType;
 
             public WebhookPropertiesBuilder setUrl(String url) {
                 this.url = url;
@@ -410,35 +339,9 @@ public class WebhookProbeTest {
                 return this;
             }
 
-            public WebhookPropertiesBuilder setClientId(String clientId) {
-                this.clientId = clientId;
-                return this;
-            }
-
-            public WebhookPropertiesBuilder setClientSecret(String clientSecret) {
-                this.clientSecret = clientSecret;
-                return this;
-            }
-
-            public WebhookPropertiesBuilder setOAuthUrl(String oAuthUrl) {
-                this.oAuthUrl = oAuthUrl;
-                return this;
-            }
-
-            public WebhookPropertiesBuilder setScope(String scope) {
-                this.scope = scope;
-                return this;
-            }
-
-            public WebhookPropertiesBuilder setGrantType(String grantType) {
-                this.grantType = grantType;
-                return this;
-            }
-
             public WebhookProperties build() {
                 return new WebhookProperties(url, httpMethod, authenticationMethod, username, password,
-                        trustSelfSignedCertificate, templatedActionBody, headers, hasTemplateApplied,
-                        clientId, clientSecret, oAuthUrl, scope, grantType);
+                        trustSelfSignedCertificate, templatedActionBody, headers, hasTemplateApplied);
             }
         }
     }

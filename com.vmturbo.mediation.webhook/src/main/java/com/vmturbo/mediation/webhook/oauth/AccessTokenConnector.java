@@ -17,6 +17,8 @@ import com.vmturbo.mediation.connector.common.Query;
 import com.vmturbo.mediation.connector.common.Response;
 import com.vmturbo.mediation.connector.common.http.query.converter.HttpQueryConverter;
 import com.vmturbo.mediation.webhook.connector.WebhookConnector.HttpRequestWithEntity;
+import com.vmturbo.mediation.webhook.connector.WebhookCredentials;
+import com.vmturbo.mediation.webhook.connector.WebhookException;
 import com.vmturbo.mediation.webhook.http.ConnectorCommon;
 
 /**
@@ -24,8 +26,8 @@ import com.vmturbo.mediation.webhook.http.ConnectorCommon;
  */
 public class AccessTokenConnector implements HttpConnector, Closeable {
 
-    private final OAuthCredentials credentials;
-    private final HttpConnectorFactory<HttpConnectorSettings, OAuthCredentials>
+    private final WebhookCredentials credentials;
+    private final HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials>
             httpConnectorFactory;
 
     /**
@@ -34,7 +36,7 @@ public class AccessTokenConnector implements HttpConnector, Closeable {
      * @param credentials the credentials used to construct oauth request.
      * @param timeout the timeout used for the http request.
      */
-    public AccessTokenConnector(@Nonnull OAuthCredentials credentials, int timeout) {
+    public AccessTokenConnector(@Nonnull WebhookCredentials credentials, int timeout) {
         this.credentials = credentials;
         httpConnectorFactory = createConnectorFactory(credentials, timeout);
     }
@@ -45,22 +47,22 @@ public class AccessTokenConnector implements HttpConnector, Closeable {
      * @param credentials the credentials used to construct oauth request.
      * @param connectorFactory connector factory
      */
-    public AccessTokenConnector(@Nonnull OAuthCredentials credentials,
-            HttpConnectorFactory<HttpConnectorSettings, OAuthCredentials> connectorFactory) {
+    public AccessTokenConnector(@Nonnull WebhookCredentials credentials,
+            HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> connectorFactory) {
         this.credentials = credentials;
         this.httpConnectorFactory = connectorFactory;
     }
 
-    protected static HttpConnectorFactory<HttpConnectorSettings, OAuthCredentials> createConnectorFactory(
-            OAuthCredentials credentials, int timeout) {
-        return HttpConnectorFactory.<HttpConnectorSettings, OAuthCredentials>jsonConnectorFactoryBuilder()
-                .setHttpClient(ConnectorCommon.createHttpClient(timeout, credentials.isTrustSelfSignedCertificates()))
+    protected static HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> createConnectorFactory(
+            WebhookCredentials credentials, int timeout) {
+        return HttpConnectorFactory.<HttpConnectorSettings, WebhookCredentials>jsonConnectorFactoryBuilder()
+                .setHttpClient(ConnectorCommon.createHttpClient(timeout, credentials))
                 .registerMethodTypeToQueryConverter(HttpMethodType.POST,
-                        new HttpQueryConverter<HttpUriRequest, AccessTokenQuery, OAuthCredentials>() {
+                        new HttpQueryConverter<HttpUriRequest, AccessTokenQuery, WebhookCredentials>() {
                             @Nonnull
                             @Override
                             public HttpUriRequest convert(@Nonnull AccessTokenQuery httpQuery,
-                                    @Nonnull OAuthCredentials credentials) {
+                                    @Nonnull WebhookCredentials webhookCredentials) {
                                 HttpRequestWithEntity httpRequestWithEntity =
                                         new HttpRequestWithEntity(HttpMethodType.POST.name(),
                                                 credentials.getOAuthUrl());
@@ -84,18 +86,19 @@ public class AccessTokenConnector implements HttpConnector, Closeable {
      * @return the parsed response from the endpoint.
      * @throws InterruptedException if the blocking call was interrupted (ex: probe is
      *         shutting down).
-     * @throws HttpConnectorException if there was an issue contacting the oauth endpoint.
+     * @throws WebhookException if there was an issue contacting the oauth endpoint.
      */
     @Nonnull
     @Override
     public <T extends Response, V extends Query<T>> T execute(@Nonnull V query)
-            throws HttpConnectorException, InterruptedException {
+            throws WebhookException, InterruptedException {
         try {
             return httpConnectorFactory.getConnector(credentials).execute(query);
-        } catch (HttpConnectorException e) {
-            throw new AccessTokenRequestException(
+        } catch (HttpConnectorException originalException) {
+            throw new WebhookException(
                     "Failed to request access token from URL: " + credentials.getOAuthUrl(),
-                    e.getErrorStatus().orElse(null), e.getRawResponse(), e);
+                    originalException.getErrorStatus().orElse(null),
+                    originalException.getRawResponse(), originalException);
         }
     }
 

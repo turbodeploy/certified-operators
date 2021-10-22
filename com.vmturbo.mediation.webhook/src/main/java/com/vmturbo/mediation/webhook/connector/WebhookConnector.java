@@ -46,7 +46,6 @@ public class WebhookConnector implements HttpConnector, Closeable {
 
     private final HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> connectorFactory;
     private final WebhookCredentials credentials;
-    private final WebhookQueryConverter webhookQueryConverter;
 
     /**
      * Constructor for webhook connector.
@@ -57,8 +56,8 @@ public class WebhookConnector implements HttpConnector, Closeable {
     public WebhookConnector(@Nonnull WebhookCredentials webhookCredentials,
             @Nonnull WebhookProperties propertyProvider) {
         this.credentials = Objects.requireNonNull(webhookCredentials);
-        this.webhookQueryConverter = new WebhookQueryConverter(credentials);
-        this.connectorFactory = getConnectorFactory(propertyProvider.getConnectionTimeout());
+        this.connectorFactory = getConnectorFactory(propertyProvider.getConnectionTimeout(),
+                webhookCredentials);
     }
 
     /**
@@ -72,20 +71,20 @@ public class WebhookConnector implements HttpConnector, Closeable {
             @Nonnull HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> connectorFactory) {
         this.credentials = webhookCredentials;
         this.connectorFactory = connectorFactory;
-        this.webhookQueryConverter = new WebhookQueryConverter(credentials);
     }
 
     /**
      * Creates {@link HttpConnectorFactory} instance that used by the Webhook probe.
      *
      * @param timeout connection and socket timeout.
+     * @param webhookCredentials webhook credentials containing details of the connection parameters
      * @return HTTP cached connector factory.
      */
     @Nonnull
     private HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> getConnectorFactory(
-            final int timeout) {
+            final int timeout, WebhookCredentials webhookCredentials) {
         final HttpConnectorFactoryBuilder<HttpConnectorSettings, WebhookCredentials>
-                connectorFactoryBuilder = createConnectorFactoryBuilder(timeout, credentials, webhookQueryConverter)
+                connectorFactoryBuilder = createConnectorFactoryBuilder(timeout, webhookCredentials)
                 // It doesn't hurt to set this, but it won't be used if we manually create the
                 // HTTP client (below).
                 .setTimeout(timeout);
@@ -93,12 +92,13 @@ public class WebhookConnector implements HttpConnector, Closeable {
     }
 
     protected static HttpConnectorFactoryBuilder<HttpConnectorSettings, WebhookCredentials> createConnectorFactoryBuilder(
-            final int timeout, WebhookCredentials webhookCredentials, WebhookQueryConverter webhookQueryConverter) {
+            final int timeout, WebhookCredentials webhookCredentials) {
         // TODO: register responseProcessors for succeeded and failed status codes specified for webhook;
         //  register queryConverters for other http method types
+        WebhookQueryConverter webhookQueryConverter = new WebhookQueryConverter();
         return HttpConnectorFactory.<HttpConnectorSettings, WebhookCredentials>jsonConnectorFactoryBuilder()
                 .setContextCreator(getContextCreator())
-                .setHttpClient(ConnectorCommon.createHttpClient(timeout, webhookCredentials.isTrustSelfSignedCertificates()))
+                .setHttpClient(ConnectorCommon.createHttpClient(timeout, webhookCredentials))
                 .registerMethodTypeToQueryConverter(HttpMethodType.GET, webhookQueryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.POST, webhookQueryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.PUT, webhookQueryConverter)
@@ -181,38 +181,17 @@ public class WebhookConnector implements HttpConnector, Closeable {
     }
 
     /**
-     * Gets the query converter used for converting queries in this connector.
-     *
-     * @return the query converter.
-     */
-    @Nonnull
-    public WebhookQueryConverter getWebhookQueryConverter() {
-        return webhookQueryConverter;
-    }
-
-    /**
      * HttpConnector does not provide a way to set the url directly. As a result, we override it
      * with our url here.
      */
-    public static class WebhookQueryConverter
+    private static class WebhookQueryConverter
             implements HttpQueryConverter<HttpUriRequest, WebhookQuery, WebhookCredentials> {
-
-        private final HttpRequestWithEntity httpRequestWithEntity;
-
-        /**
-         * WebhookQueryConverter constructor.
-         *
-         * @param webhookCredentials the data associated with the webhook request.
-         */
-        public WebhookQueryConverter(WebhookCredentials webhookCredentials) {
-            httpRequestWithEntity = new HttpRequestWithEntity(webhookCredentials.getMethod(),
-                    webhookCredentials.getWebhookUrl());
-        }
-
         @Nonnull
         @Override
         public HttpUriRequest convert(@Nonnull final WebhookQuery webhookPostQuery,
                 @Nonnull final WebhookCredentials webhookCredentials) throws IOException {
+            final HttpRequestWithEntity httpRequestWithEntity = new HttpRequestWithEntity(webhookCredentials.getMethod(),
+                    webhookCredentials.getWebhookUrl());
             // only set the body if it has been set
             if (webhookPostQuery.getBody().isPresent()) {
                 httpRequestWithEntity.setEntity(
@@ -221,17 +200,6 @@ public class WebhookConnector implements HttpConnector, Closeable {
             webhookPostQuery.getHeaders().forEach(httpRequestWithEntity::addHeader);
 
             return httpRequestWithEntity;
-        }
-
-        /**
-         * Overwrites the first header with the same name. The new header will be appended to the
-         * end of the list, if no header with the given name can be found
-         *
-         * @param name the header name.
-         * @param value the header value.
-         */
-        public void setHeader(String name, String value) {
-            httpRequestWithEntity.setHeader(name, value);
         }
     }
 
