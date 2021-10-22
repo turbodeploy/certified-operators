@@ -913,6 +913,97 @@ public class GroupDaoTest {
     }
 
     /**
+     * Tests how tags are deleted.
+     *
+     * @throws StoreOperationException should not happen
+     */
+    @Test
+    public void testDeleteTag() throws StoreOperationException {
+        final String tagName1 = "tag1";
+        final String tagValue11 = "v1";
+        final String tagValue12 = "v2";
+        final String tagName2 = "tag2";
+        final Long groupID = 42L;
+
+        final Tags tags = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())
+                .putTags(tagName2, TagValuesDTO.newBuilder()
+                        .addAllValues(Collections.singletonList(tagValue11)).build()).build();
+
+        // create group to group by id
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition()).build();
+        final Origin origin = createUserOrigin();
+        groupStore.createGroup(groupID, origin, groupDefinition, EXPECTED_MEMBERS, true);
+
+        int result = groupStore.insertTags(groupID, tags);
+        Assert.assertEquals(result, 3);
+
+        int affectedRows = groupStore.deleteTag(groupID, tagName1);
+        assertThat(affectedRows, is(2));
+        Map<String, Set<String>> tagsMap = groupStore.getTags(Arrays.asList(groupID)).get(groupID);
+        // We expect two, one discovered, and one we created (tagName2)
+        Assert.assertThat(tagsMap.size(), is(2));
+        Assert.assertThat(tagsMap.get(tagName1), is(Matchers.nullValue()));
+        Assert.assertThat(tagsMap.get(tagName2), is(Matchers.notNullValue()));
+    }
+
+    /**
+     * Tests how tags are deleted if tag does not exist.
+     *
+     * @throws StoreOperationException should not happen
+     */
+    @Test
+    public void testDeleteTagNotExist() throws StoreOperationException {
+        final Long groupID = 42L;
+        final String notExistTag = "randomTag";
+
+        // create group to group by id
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition()).build();
+        final Origin origin = createUserOrigin();
+        groupStore.createGroup(groupID, origin, groupDefinition, EXPECTED_MEMBERS, true);
+
+        int affectedRows = groupStore.deleteTag(groupID, notExistTag);
+        assertThat(affectedRows, is(0));
+    }
+
+    /**
+     * Tests how tags are deleted.
+     *
+     * @throws StoreOperationException should not happen
+     */
+    @Test
+    public void testDeleteTags() throws StoreOperationException {
+        final String tagName1 = "tag1";
+        final String tagValue11 = "v1";
+        final String tagValue12 = "v2";
+        final String tagName2 = "tag2";
+        final Long groupID = 42L;
+
+        final Tags tags = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())
+                .putTags(tagName2, TagValuesDTO.newBuilder()
+                        .addValues(tagValue11).build()).build();
+
+        // create group to group by id
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition()).build();
+        final Origin origin = createUserOrigin();
+        groupStore.createGroup(groupID, origin, groupDefinition, EXPECTED_MEMBERS, true);
+
+        int result = groupStore.insertTags(groupID, tags);
+        Assert.assertEquals(result, 3);
+
+        groupStore.deleteTags(groupID);
+        Map<String, Set<String>> tagsMap = groupStore.getTags(Arrays.asList(groupID)).get(groupID);
+        // Tags map size is 1, because there exists a discovered one, on that group ID
+        Assert.assertThat(tagsMap.size(), is(1));
+        // Check whether is one of the ones we inserted
+        Assert.assertThat(tagsMap.get(tagName1), is(Matchers.nullValue()));
+        Assert.assertThat(tagsMap.get(tagName2), is(Matchers.nullValue()));
+    }
+
+    /**
      * Tests how groups are filtered in queries that contain "non-equals" tag filters.
      *
      * @throws StoreOperationException on db error

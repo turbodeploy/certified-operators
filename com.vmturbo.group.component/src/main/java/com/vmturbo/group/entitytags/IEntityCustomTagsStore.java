@@ -28,12 +28,13 @@ public interface IEntityCustomTagsStore {
     /**
      * Delete a user defined tag for entity.
      *
-     * @param entityId is the entity oid to attach the tag.
+     * @param entityId is the entity oid to attach the tag
      * @param tagKey tag key
+     * @return the affected rows after the database operation
      *
      * @throws StoreOperationException if the tag with key could not be deleted.
      */
-    void deleteTag(long entityId, @Nonnull String tagKey) throws StoreOperationException;
+    int deleteTag(long entityId, @Nonnull String tagKey) throws StoreOperationException;
 
     /**
      * Delete a list of user defined tags for entity.

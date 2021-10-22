@@ -470,20 +470,29 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Override
-    public void deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException {
+    public int deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException {
+        int affectedRows;
         try {
-            dslContext.deleteFrom(GROUP_TAGS).where(GROUP_TAGS.GROUP_ID.eq(groupId),
-                GROUP_TAGS.TAG_KEY.eq(tagKey)).execute();
+            affectedRows = dslContext.deleteFrom(GROUP_TAGS).where(
+                    GROUP_TAGS.GROUP_ID.eq(groupId),
+                    GROUP_TAGS.TAG_KEY.eq(tagKey),
+                    GROUP_TAGS.TAG_ORIGIN.eq((short)TagOrigin.USER_CREATED.ordinal())
+            ).execute();
         } catch (DataAccessException e) {
             throw new StoreOperationException(Status.INTERNAL,
                     "Could not delete tags for Group: '" + groupId + "' and key: '" + tagKey + "'");
         }
+
+        return affectedRows;
     }
 
     @Override
     public void deleteTags(long groupId) throws StoreOperationException {
         try {
-            dslContext.deleteFrom(GROUP_TAGS).where(GROUP_TAGS.GROUP_ID.eq(groupId)).execute();
+            dslContext.deleteFrom(GROUP_TAGS).where(
+                    GROUP_TAGS.GROUP_ID.eq(groupId),
+                    GROUP_TAGS.TAG_ORIGIN.eq((short)TagOrigin.USER_CREATED.ordinal())
+            ).execute();
         } catch (DataAccessException e) {
             throw new StoreOperationException(Status.INTERNAL,
                     "Could not delete tags for Group: '" + groupId + "'");
