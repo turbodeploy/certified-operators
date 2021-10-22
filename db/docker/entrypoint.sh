@@ -151,12 +151,6 @@ fi
 
 # At this point the DB should be stopped, regardless of the branch taken above
 
-if [ "$USER" == "root" ]; then
-  su mysql -c "/customize_my_cnf.sh $MYSQL_CONF" 2>&1 | log
-else
-  /customize_my_cnf.sh $MYSQL_CONF 2>&1 | log
-fi
-
 # Start the database server, with network connections available
 logmsg "+++ Starting DB Server for use by components"
 exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF > >(log) 2>&1

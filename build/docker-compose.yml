@@ -95,8 +95,6 @@ services:
     mem_limit: ${DB_MEM_LIMIT_MB}M
     depends_on:
       - rsyslog
-    environment:
-        DB_MEM_PCT_FOR_BUFFER_POOL: ${DB_MEM_PCT_FOR_BUFFER_POOL}
 
   zoo1:
     extends:

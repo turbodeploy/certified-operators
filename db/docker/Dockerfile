@@ -31,8 +31,6 @@ RUN echo "[mariadb]" > /etc/yum.repos.d/MariaDB.repo && \
 # The files are copied as root.
 COPY entrypoint.sh /
 COPY my.cnf /etc/mysql/
-COPY customize_my_cnf.sh /
-RUN chmod 755 /customize_my_cnf.sh
 
 # rsyslog
 ADD rsyslog.conf /etc
