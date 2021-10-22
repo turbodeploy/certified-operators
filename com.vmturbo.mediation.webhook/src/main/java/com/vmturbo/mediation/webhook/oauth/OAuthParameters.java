@@ -26,6 +26,11 @@ public class OAuthParameters {
      * the authorization header.
      */
     public static final BasicHttpParameter AUTHORIZATION = new BasicHttpParameter("Authorization");
+    /**
+     * the fresh token header.
+     */
+    public static final BasicHttpParameter REFRESH_TOKEN = new BasicHttpParameter("refresh_token");
+
 
     private OAuthParameters() {}
 }
