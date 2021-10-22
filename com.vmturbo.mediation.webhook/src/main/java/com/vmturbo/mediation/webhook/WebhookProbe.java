@@ -30,6 +30,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.mediation.connector.common.HttpConnectorException;
 import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
 import com.vmturbo.mediation.webhook.connector.WebhookBody;
@@ -39,6 +40,8 @@ import com.vmturbo.mediation.webhook.connector.WebhookException;
 import com.vmturbo.mediation.webhook.http.BasicHttpResponse;
 import com.vmturbo.mediation.webhook.oauth.AccessTokenResponse;
 import com.vmturbo.mediation.webhook.oauth.GrantType;
+import com.vmturbo.mediation.webhook.oauth.OAuthCredentials;
+import com.vmturbo.mediation.webhook.oauth.OAuthParameters;
 import com.vmturbo.mediation.webhook.oauth.TokenManager;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
@@ -58,8 +61,10 @@ import com.vmturbo.platform.sdk.probe.IActionAudit;
 import com.vmturbo.platform.sdk.probe.IActionExecutor;
 import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
+import com.vmturbo.platform.sdk.probe.IProbeDataStoreEntry;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
+import com.vmturbo.platform.sdk.probe.TargetOperationException;
 import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
@@ -68,8 +73,9 @@ import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 public class WebhookProbe
         implements IDiscoveryProbe<WebhookAccount>, IActionExecutor<WebhookAccount>,
         IActionAudit<WebhookAccount> {
+    private static final String WEBHOOK_PROBE_PERSISTENT_DATA = "webhook-probe-persistent-data";
 
-    private static final TokenManager tokenManager = new TokenManager();
+    private TokenManager tokenManager;
 
     private WebhookProperties webhookProperties;
 
@@ -80,6 +86,14 @@ public class WebhookProbe
             @Nullable ProbeConfiguration configuration) {
         final IPropertyProvider propertyProvider = probeContext.getPropertyProvider();
         webhookProperties = new WebhookProperties(propertyProvider);
+        IProbeDataStoreEntry<byte[]> probePersistentData;
+        try {
+            probePersistentData = probeContext.getTargetFeatureCategoryData(WEBHOOK_PROBE_PERSISTENT_DATA);
+        } catch (TargetOperationException e) {
+            logger.error("Was not able to get Webhook probe persistent data.", e);
+            probePersistentData = null;
+        }
+        tokenManager = new TokenManager(probePersistentData);
     }
 
     @Nonnull
@@ -141,7 +155,7 @@ public class WebhookProbe
             }
             try {
                 prepareAndExecuteWebhookQuery(actionEventDTO.getAction());
-            } catch (IOException | WebhookException ex) {
+            } catch (IOException | HttpConnectorException ex) {
                 handleException(ex, actionEventDTO.getAction());
             }
         }
@@ -164,7 +178,7 @@ public class WebhookProbe
             prepareAndExecuteWebhookQuery(actionExecutionDto);
             return new ActionResult(ActionResponseState.SUCCEEDED,
                     "The call to webhook endpoint was successful.");
-        } catch (IOException | WebhookException ex) {
+        } catch (IOException | HttpConnectorException ex) {
             exceptionMessage = handleException(ex, actionExecutionDto);
             return new ActionResult(ActionResponseState.FAILED, exceptionMessage);
         }
@@ -323,14 +337,39 @@ public class WebhookProbe
     }
 
     private void prepareAndExecuteWebhookQuery(final ActionExecutionDTO actionExecutionDto)
-            throws WebhookException, IOException, InterruptedException {
+            throws HttpConnectorException, IOException, InterruptedException {
         WebhookCredentials webhookCredentials = createWebhookCredentials(actionExecutionDto);
+        try {
+            executeWebhookQuery(actionExecutionDto, webhookCredentials);
+        } catch (WebhookException e) {
+            Integer statusCode = e.getResponseCode();
+            if (webhookCredentials.getAuthenticationMethod() == AuthenticationMethod.OAUTH
+                    && statusCode != null && statusCode >= 400 && statusCode < 500) {
+                logger.debug("The call to the endpoint failed with exception for webhook "
+                  + "{}. Will try to refresh token.", webhookCredentials, e);
+                // attempt another webhook execution if we have a new Access Token.
+                if (tokenManager.renewAccessToken(getOAuthCredentials(webhookCredentials))) {
+                    logger.debug("The new access token is the different from the old one. "
+                                + "Using it to make the new call. (webhook info: {})",
+                            webhookCredentials);
+                    executeWebhookQuery(actionExecutionDto, webhookCredentials);
+                    return;
+                } else {
+                    logger.debug("The new access token is the same as old one. Ruling out "
+                      + "expired access token as the cause of exception. (webhook info: {})",
+                            webhookCredentials);
+                }
+            }
+            throw e;
+        }
+    }
+
+
+    private void executeWebhookQuery(final ActionExecutionDTO actionExecutionDto, WebhookCredentials webhookCredentials)
+            throws HttpConnectorException, IOException, InterruptedException {
         try (WebhookConnector webhookConnector = new WebhookConnector(
                 webhookCredentials, webhookProperties)) {
-            if (webhookCredentials.getAuthenticationMethod() == AuthenticationMethod.OAUTH) {
-                // TODO OM-75917 will make use of the access token.
-                AccessTokenResponse accessTokenResponse = tokenManager.requestAccessToken(webhookCredentials);
-            }
+            setAuthorizationHeader(webhookCredentials, webhookConnector);
             final WebhookBody body = getWebhookBody(actionExecutionDto);
             final List<Property> webhookProperties =
                     actionExecutionDto.getWorkflow().getPropertyList();
@@ -340,6 +379,19 @@ public class WebhookProbe
             final BasicHttpResponse basicHttpResponse = webhookConnector.execute(webhookQuery);
             logger.info("The webhook call for action {} succeeded http status code {}.",
                     actionExecutionDto.getActionOid(), basicHttpResponse.getResponseCode());
+        }
+    }
+
+    private void setAuthorizationHeader(@Nonnull WebhookCredentials webhookCredentials,
+            @Nonnull WebhookConnector webhookConnector)
+            throws HttpConnectorException, IOException, InterruptedException {
+        if (webhookCredentials.getAuthenticationMethod() == AuthenticationMethod.OAUTH) {
+            final AccessTokenResponse accessToken = tokenManager.requestAccessToken(
+                    getOAuthCredentials(webhookCredentials));
+            webhookConnector.getWebhookQueryConverter().setHeader(
+                    OAuthParameters.AUTHORIZATION.getParameterId(),
+                    String.format("%s %s", accessToken.getTokenType(),
+                            accessToken.getAccessToken()));
         }
     }
 
@@ -365,5 +417,11 @@ public class WebhookProbe
             // there another cause for the exception. Just return exception message
             return ex.getMessage();
         }
+    }
+
+    private OAuthCredentials getOAuthCredentials(WebhookCredentials credentials) {
+        return credentials.getOAuthCredentials().orElseThrow(
+                () -> new IllegalStateException(
+                        "Missing OAuth fields when Authentication method is OAUTH."));
     }
 }
