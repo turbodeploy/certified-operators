@@ -197,13 +197,11 @@ public class TopologyDataDefinitionServiceTest {
         );
 
         service = new TopologyDataDefinitionService(
-                TopologyDataDefinitionServiceGrpc.newBlockingStub(grpcServer.getChannel()), mapper,
-                false
+                TopologyDataDefinitionServiceGrpc.newBlockingStub(grpcServer.getChannel()), mapper
         );
 
         serviceWithEnabledContextBasedATDs = new TopologyDataDefinitionService(
-                TopologyDataDefinitionServiceGrpc.newBlockingStub(grpcServer.getChannel()), mapper,
-                true
+                TopologyDataDefinitionServiceGrpc.newBlockingStub(grpcServer.getChannel()), mapper
         );
 
         // Mocks for update method
@@ -293,20 +291,22 @@ public class TopologyDataDefinitionServiceTest {
         groupApiDTO.setUuid("123434550");
         Mockito.when(groupsService.getGroupByUuid("123434550", false))
                         .thenReturn(groupApiDTO);
-        List<TopologyDataDefinitionApiDTO> dtos
+        List<TopologyDataDefinitionApiDTO> dtosDirectLink
                         = serviceWithEnabledContextBasedATDs.getAllTopologyDefinitions();
-        assertEquals(3, dtos.size());
+        assertEquals(2, dtosDirectLink.size());
+        List<TopoDataDefContextBasedApiDTO> dtosContextBased = serviceWithEnabledContextBasedATDs.getAllContextBasedTopologyDefinitions();
+        assertEquals(1, dtosContextBased.size());
+
         ObjectMapper objectMapper = new ObjectMapper();
         manualApiDTO.setUuid("123");
         automatedApiDTO.setUuid("456");
         manualContextBasedApiDTO.setUuid("789");
         JSONAssert.assertEquals(objectMapper.writeValueAsString(manualApiDTO),
-                                objectMapper.writeValueAsString(dtos.get(0)), false);
+                                objectMapper.writeValueAsString(dtosDirectLink.get(0)), false);
         JSONAssert.assertEquals(objectMapper.writeValueAsString(automatedApiDTO),
-                                objectMapper.writeValueAsString(dtos.get(1)), false);
+                                objectMapper.writeValueAsString(dtosDirectLink.get(1)), false);
 
-
-        TopologyDataDefinitionApiDTO contextBasedDataDefDTO = dtos.get(2);
+        TopologyDataDefinitionApiDTO contextBasedDataDefDTO = dtosContextBased.get(0);
 
         // Need to convert TopologyDataDefinitionApiDTO into TopoDataDefContextBasedApiDTO
         // for comparison
