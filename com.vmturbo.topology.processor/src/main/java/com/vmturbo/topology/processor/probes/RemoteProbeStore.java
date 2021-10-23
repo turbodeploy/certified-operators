@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
@@ -26,12 +27,15 @@ import com.google.protobuf.util.JsonFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
+import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
@@ -199,7 +203,7 @@ public class RemoteProbeStore implements ProbeStore {
 
             // Store the probe registration
             final long probeRegistrationId = identityProvider_.getProbeRegistrationId(probeInfo, transport);
-            final ProbeRegistrationDescription probeRegistration = new ProbeRegistrationDescription(
+            final ProbeRegistrationDescription probeRegistration = buildProbeRegistrationDescription(
                     probeRegistrationId, probeId, probeInfo, containerInfo);
             final Collection<ProbeRegistrationDescription> probeRegistrations
                     = transportToProbeRegistrations.getOrDefault(transport, new ArrayList<>());
@@ -507,5 +511,35 @@ public class RemoteProbeStore implements ProbeStore {
         throws InvalidProtocolBufferException {
         // Store the probeInfo in consul, using the probeId as the key
         keyValueStore.put(PROBE_KV_STORE_PREFIX + probeId, JsonFormat.printer().print(probeInfo));
+    }
+
+    /**
+     * Constructs a {@link ProbeRegistrationDescription} given the list of inputs.
+     *
+     * @param id the id of the probe registration
+     * @param probeId the id of the probe type
+     * @param probeInfo the info about this probe
+     * @param containerInfo the info about the mediation container
+     */
+    private ProbeRegistrationDescription buildProbeRegistrationDescription(
+            final long id, final long probeId, @Nonnull final ProbeInfo probeInfo,
+            @Nonnull ContainerInfo containerInfo) {
+        final String communicationBindingChannel = Objects.requireNonNull(containerInfo).getCommunicationBindingChannel();
+        final String probeVersion = Objects.requireNonNull(probeInfo).getVersion();
+        final long registeredTime = System.currentTimeMillis();
+        final String displayName;
+        if (Strings.isNullOrEmpty(probeInfo.getDisplayName())) {
+            if (Strings.isNullOrEmpty(communicationBindingChannel)) {
+                displayName = probeInfo.getProbeType() + " Probe " + id;
+            } else {
+                displayName = probeInfo.getProbeType() + " Probe " + communicationBindingChannel;
+            }
+        } else {
+            displayName = probeInfo.getDisplayName();
+        }
+        final String platformVersion = keyValueStore.get(ClusterMgrClient.COMPONENT_VERSION_KEY, "");;
+        final Pair<HealthState, String> health = ProbeVersionFactory.deduceProbeHealth(probeVersion, platformVersion);
+        return new ProbeRegistrationDescription(id, probeId, communicationBindingChannel,
+                probeVersion, registeredTime, displayName, health.getFirst(), health.getSecond());
     }
 }

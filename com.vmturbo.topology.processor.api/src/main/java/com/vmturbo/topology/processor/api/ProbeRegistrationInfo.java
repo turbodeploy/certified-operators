@@ -3,7 +3,10 @@ package com.vmturbo.topology.processor.api;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+
+import com.vmturbo.api.enums.healthCheck.HealthState;
 
 /**
  * Represents a probe registration in topology processor.
@@ -54,4 +57,20 @@ public interface ProbeRegistrationInfo {
      * @return time when the probe is registered
      */
     long getRegisteredTime();
+
+    /**
+     * Return the health state of this probe registration.
+     *
+     * @return the health state of this probe registration
+     */
+    @Nonnull
+    HealthState getHealthState();
+
+    /**
+     * Return status of the probe registration.
+     *
+     * @return status of the probe registration
+     */
+    @Nullable
+    String getStatus();
 }
