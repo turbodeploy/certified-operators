@@ -5,13 +5,11 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.base.Strings;
+import javax.annotation.Nullable;
 
 import io.swagger.annotations.ApiModelProperty;
 
-import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
-import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.topology.processor.api.ProbeRegistrationInfo;
 
 /**
@@ -42,43 +40,44 @@ public class ProbeRegistrationRESTApi {
         @ApiModelProperty(value = "The registered time of the probe.", required = true)
         private final long registeredTime;
 
-        /**
-         * Constructor for empty ProbeRegistrationDescription which will be created in
-         * deserialization, or the probe registration cannot be found in the probe store.
-         */
-        public ProbeRegistrationDescription() {
-            this.id = -1;
-            this.displayName = "";
-            this.probeId = -1;
-            this.communicationBindingChannel = null;
-            this.version = "";
-            this.registeredTime = 0;
-        }
+        @ApiModelProperty(value = "The health state of the probe registration.", required = true)
+        private final HealthState healthState;
+
+        @ApiModelProperty(value = "The status of the probe registration.", required = false)
+        private final String status;
 
         /**
          * Constructs a {@link ProbeRegistrationDescription} given the list of inputs.
          *
          * @param id the id of the probe registration
          * @param probeId the id of the probe type
-         * @param probeInfo the info about this probe
-         * @param containerInfo the info about the mediation container
+         * @param communicationBindingChannel the communication binding channel of the probe registration
+         * @param version the version of the probe
+         * @param registeredTime the registered time of the probe
+         * @param displayName the display name of the probe registration
+         * @param healthState the health state of the probe registration
+         * @param status the status of the probe registration
          */
         public ProbeRegistrationDescription(final long id, final long probeId,
-                @Nonnull final ProbeInfo probeInfo, @Nonnull ContainerInfo containerInfo) {
+                final String communicationBindingChannel, final String version,
+                final long registeredTime, final String displayName, final HealthState healthState,
+                final String status) {
             this.id = id;
             this.probeId = probeId;
-            this.communicationBindingChannel = Objects.requireNonNull(containerInfo).getCommunicationBindingChannel();
-            this.version = Objects.requireNonNull(probeInfo).getVersion();
-            this.registeredTime = System.currentTimeMillis();
-            if (Strings.isNullOrEmpty(probeInfo.getDisplayName())) {
-                if (Strings.isNullOrEmpty(communicationBindingChannel)) {
-                    this.displayName = probeInfo.getProbeType() + " Probe " + id;
-                } else {
-                    this.displayName = probeInfo.getProbeType() + " Probe " + communicationBindingChannel;
-                }
-            } else {
-                this.displayName = probeInfo.getDisplayName();
-            }
+            this.communicationBindingChannel = communicationBindingChannel;
+            this.version = version;
+            this.registeredTime = registeredTime;
+            this.displayName = displayName;
+            this.healthState = healthState;
+            this.status = status;
+        }
+
+        /**
+         * Constructor for empty ProbeRegistrationDescription which will be created in
+         * deserialization, or the probe registration cannot be found in the probe store.
+         */
+        public ProbeRegistrationDescription() {
+            this(-1, -1, null, "", 0, "", HealthState.NORMAL, "");
         }
 
         @Override
@@ -112,6 +111,18 @@ public class ProbeRegistrationRESTApi {
         @Override
         public long getRegisteredTime() {
             return registeredTime;
+        }
+
+        @Nonnull
+        @Override
+        public HealthState getHealthState() {
+            return healthState;
+        }
+
+        @Nullable
+        @Override
+        public String getStatus() {
+            return status;
         }
     }
 
