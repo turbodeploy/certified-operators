@@ -208,13 +208,11 @@ public class ActionClassifierTest {
         actions.add(new Resize(first, vm1, VCPU, 60).take());
         // VM2 scaling from 100 -> 140
         actions.add(new Resize(first, vm2, VCPU, 140).take());
-        // CPU not resizable because of empty rawMaterial map.
-        actions.add(new Resize(first, pm1, CPU, 120).take());
         classifier.classify(actions, first);
 
         assertTrue(actions.get(0).isExecutable());
         assertFalse(actions.get(1).isExecutable());
-        assertFalse(actions.get(2).isExecutable());
+
     }
 
     /**
