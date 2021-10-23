@@ -317,6 +317,10 @@ public class ActionClassifier {
         Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialMapping =
                 RawMaterials.findSellerCommodityAndSupplier(simulationEconomy_,
                         targetEntityCopy, r.getSoldIndex());
+        // mark resize actions without rawMaterials as non-executable.
+        if (rawMaterialMapping.isEmpty()) {
+            return false;
+        }
         double capacityChange = r.getNewCapacity() - r.getOldCapacity();
         for (Pair<CommoditySold, Trader> rawMaterialEntry : rawMaterialMapping.values()) {
             CommoditySold rawMaterial = rawMaterialEntry.first;
