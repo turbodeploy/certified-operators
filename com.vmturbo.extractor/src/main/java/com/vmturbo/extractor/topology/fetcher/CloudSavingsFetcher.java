@@ -4,7 +4,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
@@ -18,6 +17,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntitySavingsStatsRequest;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.ModelDefinitions.EntitySavings;
 import com.vmturbo.extractor.models.Table.Record;
@@ -175,13 +175,17 @@ public class CloudSavingsFetcher {
      * @param statsRecords Stats records fetched from cost component.
      * @param sink Sink to write records to - extractor entity_savings DB table.
      * @throws DataAccessException Thrown on DB access errors.
+     * @throws InterruptedException when interrupted
+     * @throws SQLException when record persisting cannot be started
      */
     @VisibleForTesting
     void writeCloudSavingsData(@Nonnull final Iterator<EntitySavingsStatsRecord> statsRecords,
-            @Nonnull final DslRecordSink sink) throws DataAccessException {
+            @Nonnull final DslRecordSink sink) throws DataAccessException, SQLException, InterruptedException {
         try (TableWriter writer = EntitySavings.TABLE.open(sink,
                 String.format("%s inserter", EntitySavings.name()), logger)) {
-            statsRecords.forEachRemaining(statsRecord -> processRecord(writer, statsRecord));
+            while (statsRecords.hasNext()) {
+                processRecord(writer, statsRecords.next());
+            }
         }
     }
 
@@ -190,9 +194,11 @@ public class CloudSavingsFetcher {
      *
      * @param consumer Writer of postgres DB record.
      * @param statsRecord Stats record read from cost component.
+     * @throws InterruptedException when interrupted
+     * @throws SQLException when record persisting cannot be started
      */
-    private static void processRecord(Consumer<Record> consumer,
-            @Nonnull final EntitySavingsStatsRecord statsRecord) {
+    private static void processRecord(ThrowingConsumer<Record, SQLException> consumer,
+            @Nonnull final EntitySavingsStatsRecord statsRecord) throws SQLException, InterruptedException {
         final Record record = new Record(EntitySavings.TABLE);
         record.set(EntitySavings.TIME, new Timestamp(statsRecord.getSnapshotDate()));
         record.set(EntitySavings.ENTITY_OID, statsRecord.getEntityOid());

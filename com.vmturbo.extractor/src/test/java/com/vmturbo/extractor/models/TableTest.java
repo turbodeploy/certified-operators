@@ -10,9 +10,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.junit.Test;
 
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 
@@ -166,7 +167,7 @@ public class TableTest {
     /**
      * A record sink to use for testing accept/close behavior.
      */
-    private static class TestRecordSink extends ArrayList<Record> implements Consumer<Record> {
+    private static class TestRecordSink extends ArrayList<Record> implements ThrowingConsumer<Record, SQLException> {
         private boolean closed = false;
 
         @Override

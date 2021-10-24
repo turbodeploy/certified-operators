@@ -15,6 +15,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -33,6 +33,7 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.jooq.EnumType;
 
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Table;
 import com.vmturbo.extractor.models.Table.Record;
@@ -78,8 +79,11 @@ public class RecordTestUtil {
      * @param alsoCallRealMethod true for a spy if you want the sink to process the record in
      *                           addition to capturing it
      * @return array into which records will be recorded as they are sent to the sink
+     * @throws InterruptedException when interrupted
+     * @throws SQLException when construction fails
      */
-    public static List<Record> captureSink(Consumer<Record> sink, boolean alsoCallRealMethod) {
+    public static List<Record> captureSink(ThrowingConsumer<Record, SQLException> sink,
+                    boolean alsoCallRealMethod) throws SQLException, InterruptedException {
         List<Record> records = Collections.synchronizedList(new ArrayList<>());
         doAnswer(inv -> {
             final Record r = inv.getArgumentAt(0, Record.class);

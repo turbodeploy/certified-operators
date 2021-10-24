@@ -55,6 +55,7 @@ public class ReportPendingActionWriterTest {
 
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
             .insertTimeoutSeconds(10)
+            .searchBatchSize(10)
             .build();
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);

@@ -67,6 +67,7 @@ public class DslRecordSinkWriterTest {
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)
             .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+            .searchBatchSize(10)
             .build();
 
     private DslRecordSink metricSink;
@@ -107,9 +108,11 @@ public class DslRecordSinkWriterTest {
 
     /**
      * Test that sinks can write data to a database table.
+     * @throws InterruptedException when interrupted
+     * @throws SQLException should not happen
      */
     @Test
-    public void testMetricInserts() {
+    public void testMetricInserts() throws SQLException, InterruptedException {
         metricSink.accept(createRecordByName(METRIC_TABLE, metricData1));
         metricSink.accept(createRecordByName(METRIC_TABLE, metricData2));
         metricSink.accept(null);
@@ -145,9 +148,18 @@ public class DslRecordSinkWriterTest {
             doThrow(new DataAccessException("foo")).when(dsl).transaction(any(TransactionalRunnable.class));
             // ensure it exceeds the default buffer size (1024) in PipedInputStream
             IntStream.range(0, 50).forEach(id -> {
-                metricSink.accept(createRecordByName(METRIC_TABLE, metricData1));
+                try {
+                    metricSink.accept(createRecordByName(METRIC_TABLE, metricData1));
+                } catch (SQLException | InterruptedException e) {
+                    // do not close
+                    return;
+                }
             });
-            metricSink.accept(null);
+            try {
+                metricSink.accept(null);
+            } catch (SQLException | InterruptedException e) {
+                // noop - should not happen
+            }
         });
         // it should not wait forever (finish within 1 minute)
         future.get(1, TimeUnit.MINUTES);

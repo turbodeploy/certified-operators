@@ -49,7 +49,6 @@ public class SchemaCreator implements ISchemaCreator {
     private static final String OID = "oid";
     private static final String NAME = "name";
     private static final String VALUE = "value";
-    private static final int FIELD_NAME_SIZE = 256;
 
     private final DSLContext dsl;
     private final Map<Location, Function<String, String>> tableToCreateTableQuery =
@@ -61,16 +60,12 @@ public class SchemaCreator implements ISchemaCreator {
                                                     (name) -> createMainTable(name,
                                                                     Location.Actions))
                                     .put(Location.Numerics, (name) -> commonTableFields(name)
-                                                    .column(NAME, SQLDataType
-                                                                    .VARCHAR(FIELD_NAME_SIZE)
-                                                                    .nullable(false))
+                                                    .column(NAME, SQLDataType.INTEGER.nullable(false))
                                                     .column(VALUE, DbFieldDescriptor.NUMERIC_DB_TYPE
                                                                     .nullable(false))
                                                     .constraint(DSL.primaryKey(ID)).toString())
-                                    .put(Location.Strings, (name) -> commonTableFields(name).column(
-                                                    NAME,
-                                                    SQLDataType.VARCHAR(FIELD_NAME_SIZE)
-                                                                    .nullable(false))
+                                    .put(Location.Strings, (name) -> commonTableFields(name)
+                                                    .column(NAME, SQLDataType.INTEGER.nullable(false))
                                                     .column(VALUE, SQLDataType.VARCHAR(
                                                                     DbFieldDescriptor.STRING_SIZE)
                                                                     .nullable(false))
@@ -128,9 +123,12 @@ public class SchemaCreator implements ISchemaCreator {
                         // filter out 'oid' and 'type' since they have to be in both tables
                         // and are added explicitly
                         .filter(smm -> smm != SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE
-                                        && smm != SearchMetadataMapping.PRIMITIVE_OID)
+                                        && smm != SearchMetadataMapping.PRIMITIVE_OID
+                                        && smm != SearchMetadataMapping.PRIMITIVE_GROUP_OID
+                                        && smm != SearchMetadataMapping.PRIMITIVE_GROUP_TYPE)
                         .filter(smm -> smm.getDbDescriptor().getLocations().contains(location))
                         .map(SearchMetadataMapping::getDbDescriptor)
+                        .distinct()
                         .forEach(field -> commonFields.column(field.getColumn(),
                                         field.getDbType().nullable(false)));
         return commonFields.constraint(DSL.primaryKey(ID)).toString();

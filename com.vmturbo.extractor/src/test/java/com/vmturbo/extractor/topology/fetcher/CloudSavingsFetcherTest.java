@@ -40,7 +40,6 @@ import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.SavingsType;
-import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -55,8 +54,6 @@ public class CloudSavingsFetcherTest {
     private ExtractorDbConfig dbConfig;
 
     private List<Record> recordsCapture;
-
-    private final DataProvider dataProvider = mock(DataProvider.class);
 
     private WriterConfig writerConfig = mock(WriterConfig.class);
 
@@ -168,9 +165,12 @@ public class CloudSavingsFetcherTest {
 
     /**
      * Verifies that cloud savings data to a fake sink is successful, output data is verified.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws SQLException should not happen
      */
     @Test
-    public void writeCloudSavingsData() {
+    public void writeCloudSavingsData() throws SQLException, InterruptedException {
         // Make up stats records based on the input data set.
         final List<EntitySavingsStatsRecord> statsRecords = inputDataset
                 .stream()

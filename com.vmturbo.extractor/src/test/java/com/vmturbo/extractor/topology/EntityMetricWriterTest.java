@@ -155,7 +155,7 @@ public class EntityMetricWriterTest {
     private List<Record> entitiesUpsertCapture;
     private List<Record> entitiesUpdateCapture;
     private List<Record> metricInsertCapture;
-    private List<Record> fileCapture = new ArrayList();
+    private List<Record> fileCapture = new ArrayList<>();
     private List<Grouping> allGroups = new ArrayList<>();
     private WriterConfig config;
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -214,7 +214,7 @@ public class EntityMetricWriterTest {
         doAnswer(i -> Stream.empty()).when(relatedEntitiesExtractor).getRelatedGroups(anyObject());
         doReturn(Optional.of(relatedEntitiesExtractor)).when(dataExtractionFactory).newRelatedEntitiesExtractor();
         this.fileTableManager = mock(HashedDataManager.class);
-        CloseableConsumer<Record> closeableConsumer = mock(CloseableConsumer.class);
+        CloseableConsumer<Record, SQLException> closeableConsumer = mock(CloseableConsumer.class);
         doAnswer(i -> fileCapture.add(i.getArgumentAt(0, Record.class))).when(closeableConsumer).accept(any(Record.class));
         doReturn(closeableConsumer).when(fileTableManager).open(any(DSLContext.class), any(WriterConfig.class));
         this.writer = spy(new EntityMetricWriter(endpoint,

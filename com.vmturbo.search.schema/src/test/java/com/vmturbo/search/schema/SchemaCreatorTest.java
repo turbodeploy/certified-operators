@@ -34,7 +34,10 @@ public class SchemaCreatorTest {
         ISchemaCreator sc = new SchemaCreator(dsl);
         List<String> queries = sc.createWithoutIndexes("", null);
         Assert.assertEquals(4 + 4, queries.size());
-        Assert.assertEquals(7 + 6 + 5 + 5, colAnswer.getColumns().size());
+        // search_entity: id, oid, type, name, state, environment
+        // search_entity_action: id, oid, type, severity, num_actions
+        // numeric and string: id, oid, field, value
+        Assert.assertEquals(4 + 6 + 5 + 4 + 4, colAnswer.getColumns().size());
     }
 
     /**
@@ -49,7 +52,7 @@ public class SchemaCreatorTest {
         }
 
         @Override
-        public CreateTableColumnStep answer(InvocationOnMock invocation) throws Throwable {
+        public CreateTableColumnStep answer(InvocationOnMock invocation) {
             columns.add(invocation.getArgumentAt(0, String.class));
             return col;
         }

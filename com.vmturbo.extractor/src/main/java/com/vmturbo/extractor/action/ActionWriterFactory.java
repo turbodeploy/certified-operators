@@ -125,11 +125,11 @@ public class ActionWriterFactory {
      * @return SearchPendingActionWriter
      */
     public Optional<SearchPendingActionWriter> getSearchPendingActionWriter() {
-                if (dataProvider.getTopologyGraph() == null) {
-                    logger.warn("Topology graph is not ready, skipping writing search actions for this cycle");
-                    return Optional.empty();
-                }
-                return Optional.of(new SearchPendingActionWriter(dataProvider, searchEndpoint, writerConfig, pool));
+        if (dataProvider.getTopologyGraph() == null) {
+            logger.warn("Topology graph is not ready, skipping writing search actions for this cycle");
+            return Optional.empty();
+        }
+        return Optional.of(new SearchPendingActionWriter(dataProvider, searchEndpoint, writerConfig, pool));
     }
 
     /**

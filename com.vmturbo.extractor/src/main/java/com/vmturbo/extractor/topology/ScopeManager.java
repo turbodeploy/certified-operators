@@ -469,7 +469,7 @@ public class ScopeManager {
         private TempTable<?> tempTable;
 
         ScopeUpdaterSink() {
-            super(dsl, SCOPE_TABLE, config, pool);
+            super(ScopeManager.this.dsl, SCOPE_TABLE, config, pool);
         }
 
         @Override

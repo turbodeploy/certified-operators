@@ -2,12 +2,12 @@ package com.vmturbo.extractor.topology;
 
 import static org.junit.Assert.assertEquals;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -17,6 +17,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.extractor.models.ModelDefinitions.CloudServiceCost;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory.TopDownCostData;
@@ -29,9 +30,12 @@ public class AccountExpensesListenerTest {
 
     /**
      * Checks if the TopDownCostData gets correctly converted into billing expense DB records.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws SQLException should not happen
      */
     @Test
-    public void verifyBillingExpenseConversion() {
+    public void verifyBillingExpenseConversion() throws SQLException, InterruptedException {
         final LocalDateTime today = LocalDate.now().atStartOfDay();
         final LocalDateTime yday = today.minusDays(1);
         final long todayMillis = today.toInstant(ZoneOffset.UTC).toEpochMilli();
@@ -141,7 +145,7 @@ public class AccountExpensesListenerTest {
     /**
      * Dummy output of writer for service data records, used for verification.
      */
-    private static class CloudServiceSink implements Consumer<Record> {
+    private static class CloudServiceSink implements ThrowingConsumer<Record, SQLException> {
         /**
          * All records that were written.
          */

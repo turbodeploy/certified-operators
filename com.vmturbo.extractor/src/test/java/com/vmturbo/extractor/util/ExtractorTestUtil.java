@@ -39,6 +39,7 @@ public class ExtractorTestUtil {
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)
             .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+            .searchBatchSize(10)
             .build();
 
     /**

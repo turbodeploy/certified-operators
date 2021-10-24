@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.models;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -11,14 +12,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import net.jpountz.xxhash.StreamingXXHash64;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
@@ -38,7 +40,7 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
  * proper form.</p>
  */
 public class Table {
-
+    // assumed to be unique for usage in collections' purposes - only single schema is supported
     private final String name;
     private final LinkedHashMap<String, Column<?>> columns = new LinkedHashMap<>();
 
@@ -86,7 +88,7 @@ public class Table {
      * @param logger logger to use for this writer
      * @return TableWriter with the attached sink
      */
-    public TableWriter open(Consumer<Record> sink, String name, Logger logger) {
+    public TableWriter open(ThrowingConsumer<Record, SQLException> sink, String name, Logger logger) {
         return new TableWriter(this, sink, name, logger);
     }
 
@@ -106,6 +108,28 @@ public class Table {
      */
     public Collection<Column<?>> getColumns() {
         return Collections.unmodifiableCollection(columns.values());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final Table t = (Table)o;
+        return Objects.equals(name, t.name);
+    }
+
+    @Override
+    public String toString() {
+        return "Table [name=" + name + ", columns=" + columns + "]";
     }
 
     /**
@@ -167,10 +191,10 @@ public class Table {
     /**
      * Class to manage a record sink attached to a table.
      */
-    public static class TableWriter implements Consumer<Record>, AutoCloseable {
+    public static class TableWriter implements ThrowingConsumer<Record, SQLException>, AutoCloseable {
 
         private final Table table;
-        private final Consumer<Record> sink;
+        private final ThrowingConsumer<Record, SQLException> sink;
         private final Logger logger;
         private final String name;
         private boolean closed = false;
@@ -185,7 +209,7 @@ public class Table {
          * @param name   name of this writer for use in logging
          * @param logger logger to use for summary log after close
          */
-        public TableWriter(Table table, Consumer<Record> sink, String name, Logger logger) {
+        public TableWriter(Table table, ThrowingConsumer<Record, SQLException> sink, String name, Logger logger) {
             this.table = table;
             this.sink = sink;
             this.name = name;
@@ -234,12 +258,12 @@ public class Table {
          * @param full record with full data
          */
         @Override
-        public void accept(Record full) {
+        public void accept(Record full) throws SQLException, InterruptedException {
             if (!closed) {
                 try {
                     sink.accept(full);
                     recordsWritten++;
-                } catch (RuntimeException e) {
+                } catch (RuntimeException | SQLException e) {
                     // failing on a single record shouldn't cause the entire writer to fail, nor
                     // should it cause other writers created in the same try-with-resources block
                     // terminate! We'll produce a summary at close.
@@ -252,7 +276,7 @@ public class Table {
                     }
                 }
             } else {
-                throw new IllegalStateException(
+                throw new SQLException(
                         String.format("TableWriter for table %s is closed", table.getName()));
             }
         }
@@ -264,7 +288,13 @@ public class Table {
          */
         @Override
         public void close() {
-            sink.accept(null);
+            try {
+                sink.accept(null);
+            } catch (SQLException e) {
+                logger.warn("Failed to close the " + TableWriter.class.getSimpleName() + " " + name);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             this.closed = true;
             RECORDS_WRITTEN_GAUGE.labels(table.getName()).setData((double)recordsWritten);
             recordErrorCounts.forEach((eClass, count) ->
@@ -284,6 +314,23 @@ public class Table {
         public Table getTable() {
             return table;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(table, name);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final TableWriter tw = (TableWriter)o;
+            return Objects.equals(table, tw.table) && Objects.equals(name, tw.name);
+        }
     }
 
     /**
@@ -297,6 +344,7 @@ public class Table {
      * closed.</p>
      */
     public static class Record implements AutoCloseable {
+        private static final Logger logger = LogManager.getLogger();
 
         private final Table table;
         private final TableWriter tableWriter;
@@ -457,7 +505,13 @@ public class Table {
 
         @Override
         public void close() {
-            tableWriter.accept(this);
+            try {
+                tableWriter.accept(this);
+            } catch (SQLException e) {
+                logger.warn("Failed to close the " + Record.class.getSimpleName() + " of table " + table.getName());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
 
         /**

@@ -1,10 +1,6 @@
 package com.vmturbo.extractor.action;
 
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
-import static com.vmturbo.extractor.models.ModelDefinitions.NUM_ACTIONS;
-import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_ACTION_TABLE;
-import static com.vmturbo.extractor.models.ModelDefinitions.SEVERITY_ENUM;
-
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -41,24 +37,26 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.severity.SeverityMapper;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.action.PendingActionWriter.IActionWriter;
-import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.DslReplaceSearchRecordSink;
+import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
-import com.vmturbo.extractor.search.EnumUtils.SeverityUtils;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
+import com.vmturbo.search.metadata.SearchMetadataMapping;
 import com.vmturbo.search.metadata.utils.SearchFiltersMapper;
 import com.vmturbo.search.metadata.utils.SearchFiltersMapper.SearchFilterSpec;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -94,6 +92,7 @@ class SearchPendingActionWriter implements IActionWriter {
     private final DbEndpoint dbEndpoint;
     private final WriterConfig writerConfig;
     private final ExecutorService pool;
+    private final Map<Long, GroupType> groupToType;
     private SeverityMap severityMap = SeverityMapper.empty();
 
     private final Long2ObjectMap<EnumMap<InvolvedEntityCalculation, LongSet>>
@@ -107,6 +106,8 @@ class SearchPendingActionWriter implements IActionWriter {
         this.dbEndpoint = dbEndpoint;
         this.writerConfig = writerConfig;
         this.pool = pool;
+        this.groupToType = dataProvider.getAllGroups().collect(Collectors.toMap(Grouping::getId,
+                        group -> group.getDefinition().getType()));
     }
 
     @Override
@@ -144,45 +145,55 @@ class SearchPendingActionWriter implements IActionWriter {
     @Override
     public void write(MultiStageTimer timer)
             throws UnsupportedDialectException, InterruptedException, SQLException {
+        // TODO parallelize calculation and processing using pool
+        // then write fully prepared data sequentially with bulk import
         final SupplyChain supplyChain = calculateRelatedEntities(timer);
 
         // process and write to db
-        try (DSLContext dsl = dbEndpoint.dslContext();
-             TableWriter actionsReplacer = SEARCH_ENTITY_ACTION_TABLE.open(
-                     getSearchActionReplacerSink(dsl), "Action Replacer", logger)) {
-            // write action data for entities (only write those with actions)
-            timer.start("Write action data for search entities");
-            topologyGraph.entities()
-                    .filter(e -> SearchMetadataUtils.hasMetadata(e.getEntityType()))
-                    .parallel().forEach(entity -> {
-                //TODO: comment out when the implementation of the record writers is finished
-                /*
-                final long entityId = entity.getOid();
-                final int entityType = entity.getEntityType();
-                final InvolvedEntityCalculation calcType = getInvolvedEntityCalculation(entityType);final int count = (int)getActionsForEntity(entityId, entityType, calcType, supplyChain).count();
-                if (count > 0) {
-                    actionsReplacer.accept(newActionRecord(entityId, count,
-                            severityMap.getSeverity(entityId)));
-                }*/
-                actionsReplacer.accept(null);
-            });
-            timer.stop();
+        try (DSLContext dsl = dbEndpoint.dslContext()) {
+            // TODO change to backend-specific csv write when security concerns are addressed
+            // (i.e. mysql 'load from infile')
+            // NB this is not transactional connection, we will autocommit every batch
+            dsl.connection(conn -> {
+                try (TableWriter actionsReplacer = ModelDefinitions.SEARCH_ENTITY_ACTION_TABLE.open(
+                                getSearchActionReplacerSink(dsl, conn), "Action Replacer", logger)) {
+                    // write action data for entities (only write those with actions)
+                    timer.start("Write action data for search entities");
+                    for (SupplyChainEntity entity : topologyGraph.entities()
+                                    .filter(e -> SearchMetadataUtils.hasMetadata(e.getEntityType()))
+                                    .collect(Collectors.toSet())) {
+                        final long entityId = entity.getOid();
+                        final int entityType = entity.getEntityType();
+                        final InvolvedEntityCalculation calcType = getInvolvedEntityCalculation(entityType);
+                        final int count = (int)getActionsForEntity(entityId, entityType, calcType,
+                                        supplyChain).count();
+                        if (count > 0) {
+                            actionsReplacer.accept(newActionRecord(entityId, entityType, count,
+                                    severityMap.getSeverity(entityId)));
+                        }
+                    }
+                    timer.stop();
 
-            // write action data for all groups
-            timer.start("Write action data for search groups");
-            if (groupToLeafEntityIds != null) {
-                //TODO: comment out when the implementation of the record writers is finished
-                /*groupToLeafEntityIds.long2ObjectEntrySet().parallelStream()
-                        .forEach(entry -> {
+                    // write action data for all groups
+                    timer.start("Write action data for search groups");
+                    if (groupToLeafEntityIds != null) {
+                        for (Long2ObjectMap.Entry<List<Long>> entry : groupToLeafEntityIds.long2ObjectEntrySet()) {
                             final int count = getActionCountForGroup(entry.getValue(), topologyGraph, supplyChain);
                             if (count > 0) {
-                                final Record record = newActionRecord(entry.getLongKey(), count,
-                                        severityMap.calculateSeverity(entry.getValue()));
+                                final Record record = newActionRecord(entry.getLongKey(),
+                                                groupToType.getOrDefault(entry.getLongKey(),
+                                                                GroupType.REGULAR).ordinal(),
+                                                count,
+                                                severityMap.calculateSeverity(entry.getValue()));
                                 actionsReplacer.accept(record);
                             }
-                        });*/
-            }
-            timer.stop();
+                        }
+                    }
+
+                    actionsReplacer.accept(null);
+                    timer.stop();
+                }
+            });
         }
     }
 
@@ -250,8 +261,9 @@ class SearchPendingActionWriter implements IActionWriter {
     }
 
     @VisibleForTesting
-    DslReplaceRecordSink getSearchActionReplacerSink(final DSLContext dsl) {
-        return new DslReplaceSearchRecordSink(dsl, SEARCH_ENTITY_ACTION_TABLE, Location.Actions, writerConfig, pool, "new");
+    DslReplaceSearchRecordSink getSearchActionReplacerSink(DSLContext dsl, Connection conn) {
+        return new DslReplaceSearchRecordSink(dsl, ModelDefinitions.SEARCH_ENTITY_ACTION_TABLE,
+                        Location.Actions, conn, "new", writerConfig.searchBatchSize());
     }
 
     /**
@@ -299,15 +311,18 @@ class SearchPendingActionWriter implements IActionWriter {
      * Create a new action record.
      *
      * @param oid oid of the entity or group
+     * @param type entity type
      * @param count count of the actions
      * @param severity severity of the action
      * @return new action record
      */
-    private Record newActionRecord(long oid, int count, ActionDTO.Severity severity) {
-        final Record actionRecord = new Record(SEARCH_ENTITY_ACTION_TABLE);
-        actionRecord.set(ENTITY_OID_AS_OID, oid);
-        actionRecord.set(NUM_ACTIONS, count);
-        actionRecord.set(SEVERITY_ENUM, SeverityUtils.protoToDb(severity));
+    private Record newActionRecord(long oid, int type, int count, ActionDTO.Severity severity) {
+        final Record actionRecord = new Record(ModelDefinitions.SEARCH_ENTITY_ACTION_TABLE);
+        actionRecord.set(SearchMetadataMapping.PRIMITIVE_OID.getDbDescriptor().getColumn(), oid);
+        actionRecord.set(SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE.getDbDescriptor().getColumn(), type);
+        actionRecord.set(SearchMetadataMapping.RELATED_ACTION_COUNT.getDbDescriptor().getColumn(), count);
+        actionRecord.set(SearchMetadataMapping.PRIMITIVE_SEVERITY.getDbDescriptor().getColumn(),
+                        severity.ordinal());
         return actionRecord;
     }
 

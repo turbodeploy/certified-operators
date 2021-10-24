@@ -91,7 +91,7 @@ import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
-import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchEntityWriter.PartialEntityInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -196,14 +196,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final long oid = e.getOid();
         logger.debug("Capturing entity data for entity {}", oid);
         oidPack.toIndex(oid);
-        Record entityRecord = new Record(ENTITY_TABLE);
-        final HashMap<String, Object> attrs = new HashMap<>();
-        PartialRecordInfo rec = new PartialRecordInfo(e.getOid(), e.getEntityType(), entityRecord, attrs);
+        PartialEntityInfo rec = new PartialEntityInfo(e.getOid(), e.getEntityType());
         // populate record with data from entity dto per metadata rules
-        tedPatcher.patch(rec, e);
-        rec.finalizeAttrs();
+        tedPatcher.fetch(rec, e);
         // supply chain will be added during finish processing
-        entityRecords.add(entityRecord);
+        entityRecords.addAll(rec.createRecords(ENTITY_TABLE, PatchCase.REPORTING));
         writeMetrics(e, oid, entityType);
         // cache file records, since storage name can only be fetched later
         createFileRecords(e);
@@ -610,12 +607,10 @@ public class EntityMetricWriter extends TopologyWriterBase {
         dataProvider.getAllGroups()
                 .forEach(group -> {
                     logger.debug("Creating record for group {}", group.getId());
-                    Record r = new Record(ENTITY_TABLE);
-                    final PartialRecordInfo rec = new PartialRecordInfo(
-                            group.getId(), group.getDefinition().getType().getNumber(), r, new HashMap<>());
-                    groupPatcher.patch(rec, group);
-                    rec.finalizeAttrs();
-                    entityRecords.add(r);
+                    final PartialEntityInfo rec = new PartialEntityInfo(
+                            group.getId(), group.getDefinition().getType().getNumber());
+                    groupPatcher.fetch(rec, group);
+                    entityRecords.addAll(rec.createRecords(ModelDefinitions.ENTITY_TABLE, PatchCase.REPORTING));
                 });
     }
 
@@ -624,21 +619,22 @@ public class EntityMetricWriter extends TopologyWriterBase {
         dataProvider.getAllTargets()
                 .forEach(target -> {
                     logger.debug("Creating record for target {}", target.oid());
-                    Record r = new Record(ENTITY_TABLE);
-                    final PartialRecordInfo rec = new PartialRecordInfo(
-                            target.oid(), r, new HashMap<>());
-                    targetPatcher.patch(rec, target);
-                    rec.finalizeAttrs();
-                    entityRecords.add(r);
+                    final PartialEntityInfo rec = new PartialEntityInfo(
+                            target.oid());
+                    targetPatcher.fetch(rec, target);
+                    entityRecords.addAll(rec.createRecords(ModelDefinitions.ENTITY_TABLE, PatchCase.REPORTING));
                 });
     }
 
-    private void writeEntityRecords(final DataProvider dataProvider, final TableWriter tableWriter) {
+    private void writeEntityRecords(final DataProvider dataProvider, final TableWriter tableWriter)
+                    throws SQLException, InterruptedException {
         logger.info("Upserting entity records for topology {}", topologyLabel);
         entityHashManager.open(topologyInfo, dsl);
-        entityRecords.stream()
-            .filter(entityHashManager::processEntity)
-            .forEach(tableWriter::accept);
+        for (Record record : entityRecords) {
+            if (ENTITY_TABLE.equals(record.getTable()) && entityHashManager.processEntity(record)) {
+                tableWriter.accept(record);
+            }
+        }
         entityHashManager.close();
     }
 
@@ -724,8 +720,10 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * Write the wasted files records into the table.
      *
      * @param dataProvider data provider
+     * @throws InterruptedException when interrupted
+     * @throws SQLException when failed to initiate writing
      */
-    private void writeFileRecords(DataProvider dataProvider) {
+    private void writeFileRecords(DataProvider dataProvider) throws SQLException, InterruptedException {
         logger.info("Writing file records for topology {}", topologyLabel);
 
         // log all volumes with duplicate files
@@ -736,9 +734,12 @@ public class EntityMetricWriter extends TopologyWriterBase {
             logger.warn("Duplicate files in {}", message);
         }
 
-        try (CloseableConsumer<Record> consumer = fileTableManager.open(dsl, config)) {
-            filesByStorageId.long2ObjectEntrySet().forEach(entry ->
-                    entry.getValue().forEach(consumer));
+        try (CloseableConsumer<Record, SQLException> consumer = fileTableManager.open(dsl, config)) {
+            for (List<Record> files : filesByStorageId.values()) {
+                for (Record record : files) {
+                    consumer.accept(record);
+                }
+            }
         }
     }
 }

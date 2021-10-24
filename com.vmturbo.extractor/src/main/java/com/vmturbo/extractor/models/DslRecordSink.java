@@ -5,30 +5,23 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-import org.jooq.tools.StringUtils;
 import org.postgresql.copy.CopyManager;
 import org.postgresql.jdbc.PgConnection;
 
@@ -37,6 +30,7 @@ import com.vmturbo.extractor.topology.WriterConfig;
 
 /**
  * Record sink that can send records prepared for a given table to the database.
+ * PostgreSQL-specific.
  *
  * <p>An instance of this (or some other) sink is attached to a table in order to prepare a
  * streaming insert operation. While the attachment is in place, records are opened against the
@@ -61,12 +55,9 @@ import com.vmturbo.extractor.topology.WriterConfig;
  * </dl>
  */
 @NotThreadSafe
-public class DslRecordSink implements Consumer<Record> {
-    protected static final Logger logger = LogManager.getLogger();
-
-    private final DSLContext dsl;
-    private final ExecutorService pool;
+public class DslRecordSink extends AbstractRecordSink {
     protected final Table table;
+    private final ExecutorService pool;
     private final WriterConfig config;
     private volatile RecordWriter recordWriter;
 
@@ -79,7 +70,7 @@ public class DslRecordSink implements Consumer<Record> {
      * @param pool   thread pool
      */
     public DslRecordSink(DSLContext dsl, Table table, WriterConfig config, ExecutorService pool) {
-        this.dsl = dsl;
+        super(dsl);
         this.table = table;
         this.config = config;
         this.pool = pool;
@@ -103,7 +94,7 @@ public class DslRecordSink implements Consumer<Record> {
      * @param record record to be inserted, or null to signal end of record stream
      */
     @Override
-    public void accept(final Record record) {
+    public void accept(final Record record) throws SQLException, InterruptedException {
         try {
             if (record == null) {
                 synchronized (this) {
@@ -124,12 +115,12 @@ public class DslRecordSink implements Consumer<Record> {
                         }
                     }
                 } else if (recordWriter.isClosed()) {
-                    throw new IllegalStateException("Attempt to write to closed record writer");
+                    throw new SQLException("Attempt to write to closed record writer");
                 }
                 recordWriter.write(record);
             }
         } catch (IOException e) {
-            logger.error("Failed to create record writer for table: {}", getWriteTableName(), e);
+            throw new SQLException("Failed to create record writer for table: " + getWriteTableName(), e);
         }
     }
 
@@ -143,7 +134,6 @@ public class DslRecordSink implements Consumer<Record> {
      * <p>We use the high-speed Postgres COPY statement, sending records in CSV format.</p>
      */
     class RecordWriter {
-        protected static final int MAX_SQL_LOG_LENGTH = 1000;
         private final PipedOutputStream outputStream;
         private final Collection<Column<?>> columns;
         private final Future<InsertResults> future;
@@ -186,7 +176,7 @@ public class DslRecordSink implements Consumer<Record> {
             long start = System.nanoTime();
             final AtomicLong recordCount = new AtomicLong(0L);
             dsl.transaction(trans -> DSL.using(trans).connection(transConn -> {
-                runPreCopyHook(transConn);
+                runHook(transConn, getPreCopyHookSql(transConn), "pre-copy");
                 try {
                     // execute the copy operation, with data coming from our reader
                     final CopyManager copier = new CopyManager(transConn.unwrap(PgConnection.class));
@@ -197,7 +187,7 @@ public class DslRecordSink implements Consumer<Record> {
                     throw e;
                 }
                 try {
-                    runPostCopyHook(transConn);
+                    runHook(transConn, getPostCopyHookSql(transConn), "post-copy");
                 } catch (SQLException e) {
                     // rolling back, so nothing written
                     recordCount.set(0L);
@@ -207,19 +197,6 @@ public class DslRecordSink implements Consumer<Record> {
             }));
             final long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             return new InsertResults(recordCount.get(), elapsed);
-        }
-
-        private void runPreCopyHook(Connection transConn) throws SQLException {
-            try {
-                for (final String sql : getPreCopyHookSql(transConn)) {
-                    logger.info("Executing pre-copy hook SQL: {}",
-                            StringUtils.abbreviate(sql, MAX_SQL_LOG_LENGTH));
-                    DSL.using(transConn).execute(sql);
-                }
-            } catch (SQLException e) {
-                logger.error("Failed to execute pre-copy hook; will not write any records", e);
-                throw e;
-            }
         }
 
         /**
@@ -239,19 +216,6 @@ public class DslRecordSink implements Consumer<Record> {
                 // failed to write record
                 // report write failure when table detaches
                 recordWriteFailureCount++;
-            }
-        }
-
-        private void runPostCopyHook(Connection transConn) throws SQLException {
-            try {
-                for (final String sql : getPostCopyHookSql(transConn)) {
-                    logger.info("Executing post-copy hook SQL: {}",
-                            StringUtils.abbreviate(sql, MAX_SQL_LOG_LENGTH));
-                    DSL.using(transConn).execute(sql);
-                }
-            } catch (SQLException e) {
-                logger.error("Failed to execute postCopy hook; rolling back all work", e);
-                throw e;
             }
         }
 
@@ -286,40 +250,6 @@ public class DslRecordSink implements Consumer<Record> {
         public boolean isClosed() {
             return closed;
         }
-    }
-
-    /**
-     * Compose sink-specific SQL and perform other operations required before beginning the COPY
-     * operation.
-     *
-     * <p>Throwing an exception will cause the transaction to  roll back.</p>
-     *
-     * <p>Executing the SQL within this statement is perfectly suitable. The only downside is that
-     * built-in logging of the SQL will not occur.</p>
-     *
-     * @param transConn database connection on which COPY will execute
-     * @return list of SQL statements to execute in order
-     * @throws SQLException if there's a DB error
-     */
-    protected List<String> getPreCopyHookSql(final Connection transConn) throws SQLException {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Compose sink-specific SQL and perform other operations required after the COPY operation has
-     * completed.
-     *
-     * <p>Throwing an exception will cause the transaction to  roll back.</p>
-     *
-     * <p>Executing the SQL within this statement is perfectly suitable. The only downside is that
-     * built-in logging of the SQL will not occur.</p>
-     *
-     * @param transConn database connection on which COPY operation executed (still open)
-     * @return SQL statements to execute
-     * @throws SQLException if there's a problem
-     */
-    protected List<String> getPostCopyHookSql(final Connection transConn) throws SQLException {
-        return Collections.emptyList();
     }
 
     protected String getWriteTableName() {

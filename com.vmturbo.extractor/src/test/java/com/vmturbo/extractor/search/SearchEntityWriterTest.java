@@ -24,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,8 +58,8 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.models.Column.JsonString;
-import com.vmturbo.extractor.models.DslRecordSink;
-import com.vmturbo.extractor.models.DslReplaceRecordSink;
+import com.vmturbo.extractor.models.DslReplaceSearchRecordSink;
+import com.vmturbo.extractor.models.Table;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
@@ -135,9 +136,10 @@ public class SearchEntityWriterTest {
         this.writer = spy(new SearchEntityWriter(endpoint,
                 Executors.newSingleThreadScheduledExecutor()));
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
-        DslRecordSink entitiesReplacerSink = mock(DslReplaceRecordSink.class);
+        DslReplaceSearchRecordSink entitiesReplacerSink = mock(DslReplaceSearchRecordSink.class);
         this.entitiesReplacerCapture = captureSink(entitiesReplacerSink, false);
-        doReturn(entitiesReplacerSink).when(writer).getEntityReplacerSink(any(DSLContext.class));
+        doReturn(entitiesReplacerSink).when(writer).getReplacerSink(any(DSLContext.class),
+                        any(Table.class), any(Connection.class));
         doAnswer(a -> Stream.empty()).when(dataProvider).getAllGroups();
         doReturn(Collections.singletonList(dc.getDisplayName())).when(dataProvider)
                 .getRelatedEntityNames(vm.getOid(), DATACENTER);
