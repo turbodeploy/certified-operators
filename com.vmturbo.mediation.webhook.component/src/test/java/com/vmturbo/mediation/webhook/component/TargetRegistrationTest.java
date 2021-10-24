@@ -10,6 +10,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -35,7 +36,7 @@ public class TargetRegistrationTest {
     private static final TargetInfo WEBHOOK_TARGET = new TargetInfo(2L, "Webhook",
             Collections.emptyList(), new TargetSpec(1L, Collections.emptyList(), Optional.empty(),
             "System"),
-            true, "VALID", LocalDateTime.now(), null, null);
+            true, "VALID", LocalDateTime.now(), null, null, HealthState.NORMAL);
 
     private TopologyProcessor topologyProcessor;
 

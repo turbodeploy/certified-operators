@@ -17,6 +17,7 @@ import com.google.common.collect.Lists;
 
 import io.swagger.annotations.ApiModelProperty;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec.Builder;
@@ -109,6 +110,7 @@ public class TargetRESTApi {
         private final LocalDateTime lastValidationTime;
         private final String lastEditingUser;
         private final Long lastEditTime;
+        private final HealthState healthState;
 
         protected TargetInfo() {
             targetId = null;
@@ -120,10 +122,13 @@ public class TargetRESTApi {
             lastValidationTime = null;
             lastEditingUser = null;
             lastEditTime = null;
+            healthState = HealthState.NORMAL;
         }
 
-        public TargetInfo(final Long id, String displayName, final List<String> errors, final TargetSpec spec,
-                        final Boolean probeConnected, String status, LocalDateTime lastValidationTime, final String lastEditingUser, final Long lastEditTime) {
+        public TargetInfo(final Long id, String displayName, final List<String> errors,
+                final TargetSpec spec, final Boolean probeConnected, String status,
+                LocalDateTime lastValidationTime, final String lastEditingUser,
+                final Long lastEditTime, final HealthState healthState) {
             this.targetId = id;
             this.displayName = displayName;
             this.spec = spec;
@@ -133,6 +138,7 @@ public class TargetRESTApi {
             this.lastValidationTime = lastValidationTime;
             this.lastEditingUser = lastEditingUser;
             this.lastEditTime = lastEditTime;
+            this.healthState = healthState;
         }
 
         @ApiModelProperty(value = "If non-null, the id of the target. If null, errors should be non-null.")
@@ -211,6 +217,12 @@ public class TargetRESTApi {
         @Override
         public Long getLastEditTime() {
             return lastEditTime;
+        }
+
+        @Nonnull
+        @Override
+        public HealthState getHealthState() {
+            return healthState;
         }
 
         @Override

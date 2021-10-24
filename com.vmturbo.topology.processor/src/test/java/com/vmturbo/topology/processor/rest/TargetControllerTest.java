@@ -61,6 +61,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.NestedServletException;
 
+import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -131,6 +132,9 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class TargetControllerTest {
 
+    private static final String PLATFORM_VERSION = "8.3.5";
+    private static final String PROBE_VERSION = PLATFORM_VERSION;
+
     private static final SettingPolicyServiceMole settingPolicyServiceMole =
         Mockito.spy(new SettingPolicyServiceMole());
 
@@ -144,7 +148,9 @@ public class TargetControllerTest {
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
         @Bean
         public KeyValueStore keyValueStore() {
-            return mock(KeyValueStore.class);
+            final KeyValueStore kvStore = mock(KeyValueStore.class);
+            when(kvStore.get(ClusterMgrClient.COMPONENT_VERSION_KEY, "")).thenReturn(PLATFORM_VERSION);
+            return kvStore;
         }
 
         @Bean
@@ -677,8 +683,8 @@ public class TargetControllerTest {
         final AccountDefEntry.Builder accountBuilder =
             AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
-        final ProbeInfo info =
-            ProbeInfo.newBuilder(probeInfo).addAccountDefinition(accountBuilder).build();
+        final ProbeInfo info = ProbeInfo.newBuilder(probeInfo).addAccountDefinition(accountBuilder)
+                .setVersion(PROBE_VERSION).build();
         probeStore.registerNewProbe(info, containerInfo, transport);
 
         final long probeId = identityProvider.getProbeId(info);

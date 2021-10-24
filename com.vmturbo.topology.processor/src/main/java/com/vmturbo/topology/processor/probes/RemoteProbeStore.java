@@ -26,6 +26,7 @@ import com.google.protobuf.util.JsonFormat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
@@ -450,6 +451,19 @@ public class RemoteProbeStore implements ProbeStore {
     public Collection<ProbeRegistrationDescription> getAllProbeRegistrations() {
         return transportToProbeRegistrations.values().stream().flatMap(Collection::stream)
                 .collect(Collectors.toList());
+    }
+
+    @Nonnull
+    @Override
+    public Collection<ProbeRegistrationDescription> getProbeRegistrationsForTarget(
+            @Nonnull Target target) {
+        try {
+            return getTransportsForTarget(target).stream()
+                    .flatMap(transport -> transportToProbeRegistrations.getOrDefault(transport, Collections.emptyList()).stream())
+                    .collect(Collectors.toList());
+        } catch (ProbeException e) {
+            return Collections.emptyList();
+        }
     }
 
     /**
