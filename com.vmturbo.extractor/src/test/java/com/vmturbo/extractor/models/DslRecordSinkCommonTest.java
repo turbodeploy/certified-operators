@@ -181,9 +181,12 @@ public class DslRecordSinkCommonTest {
     /**
      * Test that sinks accept the records their given and correctly post those records to the
      * database.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws SQLException should not happen
      */
     @Test
-    public void testSinkAcceptsRecords() {
+    public void testSinkAcceptsRecords() throws SQLException, InterruptedException {
         sink.accept(createRecord(1L, "xxx", 1.0));
         sink.accept(createRecord(2L, "yyy", 1.0));
         sink.accept(null);
@@ -200,9 +203,12 @@ public class DslRecordSinkCommonTest {
 
     /**
      * Test that sinks correctly refuse to accept records after accepting a null record.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws SQLException should not happen
      */
-    @Test(expected = IllegalStateException.class)
-    public void testCantWriteAfterClose() {
+    @Test(expected = SQLException.class)
+    public void testCantWriteAfterClose() throws SQLException, InterruptedException {
         sink.accept(createRecord(1L, "xxx", 1.0));
         sink.accept(null);
         sink.accept(createRecord(2L, "yyy", 1.0));
@@ -212,9 +218,10 @@ public class DslRecordSinkCommonTest {
      * Test that pre-copy hooks are executed as expected.
      *
      * @throws SQLException if there's a problem
+     * @throws InterruptedException when interrupted
      */
     @Test
-    public void testThatPreCopyHooksAreCorrect() throws SQLException {
+    public void testThatPreCopyHooksAreCorrect() throws SQLException, InterruptedException {
         Matcher<Iterable<? extends String>> matcher;
         switch (sinkType) {
             case "insert":
@@ -241,9 +248,10 @@ public class DslRecordSinkCommonTest {
      * Test that post-copy hooks are executed as expected.
      *
      * @throws SQLException if there's an exception.
+     * @throws InterruptedException when interrupted
      */
     @Test
-    public void testThatPostCopyHooksAreCorrect() throws SQLException {
+    public void testThatPostCopyHooksAreCorrect() throws SQLException, InterruptedException {
         Matcher<Iterable<? extends String>> matcher;
         switch (sinkType) {
             case "insert":

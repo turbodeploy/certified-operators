@@ -1,7 +1,6 @@
 package com.vmturbo.extractor.action;
 
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -112,7 +111,6 @@ class ReportPendingActionWriter implements IActionWriter {
         // Done fetching, time to start retching.
         timer.start("Write action data for reporting");
         final long millis = clock.millis();
-        final Timestamp timestamp = new Timestamp(millis);
         try (DSLContext dsl = dbEndpoint.dslContext();
              TableWriter actionSpecReplacer = ActionModel.PendingAction.TABLE.open(
                      getPendingActionReplacerSink(dsl),

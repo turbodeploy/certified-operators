@@ -85,6 +85,7 @@ public class PendingActionWriterTest {
 
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
             .insertTimeoutSeconds(10)
+            .searchBatchSize(10)
             .build();
 
     private ExecutorService pool = mock(ExecutorService.class);

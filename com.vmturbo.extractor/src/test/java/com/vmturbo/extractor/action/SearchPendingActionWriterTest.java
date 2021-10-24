@@ -11,6 +11,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -89,6 +90,7 @@ public class SearchPendingActionWriterTest {
 
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
             .insertTimeoutSeconds(10)
+            .searchBatchSize(10)
             .build();
 
     private DataProvider dataProvider = mock(DataProvider.class);
@@ -136,7 +138,8 @@ public class SearchPendingActionWriterTest {
                 .addEntity(SupplyChainEntity.newBuilder(entityDTO))
                 .build()).when(dataProvider).getTopologyGraph();
         actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
-        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        doReturn(searchActionReplacerSink).when(actionWriter)
+                        .getSearchActionReplacerSink(any(DSLContext.class), any(Connection.class));
         // mock actions
         ActionSpec.Builder actionSpec = ActionSpec.newBuilder()
                 .setRecommendation(Action.newBuilder()
@@ -265,7 +268,8 @@ public class SearchPendingActionWriterTest {
         );
         doReturn(new SupplyChain(entityToRelated, true)).when(dataProvider).getSupplyChain();
         actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
-        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        doReturn(searchActionReplacerSink).when(actionWriter)
+                        .getSearchActionReplacerSink(any(DSLContext.class), any(Connection.class));
         Stream.of(scaleActionSpec, buyRiActionSpec).forEach(actionSpec ->
                 actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())
@@ -278,7 +282,8 @@ public class SearchPendingActionWriterTest {
         // write with partial supply chain and verify
         doReturn(new SupplyChain(entityToRelated, false)).when(dataProvider).getSupplyChain();
         actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
-        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        doReturn(searchActionReplacerSink).when(actionWriter)
+                        .getSearchActionReplacerSink(any(DSLContext.class), any(Connection.class));
         Stream.of(scaleActionSpec, buyRiActionSpec).forEach(actionSpec ->
                 actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())
@@ -401,7 +406,8 @@ public class SearchPendingActionWriterTest {
                         .build()));
         doReturn(new SupplyChain(entityToRelated, true)).when(dataProvider).getSupplyChain();
         actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
-        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        doReturn(searchActionReplacerSink).when(actionWriter)
+                        .getSearchActionReplacerSink(any(DSLContext.class), any(Connection.class));
         Stream.of(scaleActionSpec, moveActionSpec).forEach(actionSpec ->
                 actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())
@@ -415,7 +421,8 @@ public class SearchPendingActionWriterTest {
         searchActionReplacerCapture.clear();
         doReturn(new SupplyChain(entityToRelated, false)).when(dataProvider).getSupplyChain();
         actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
-        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        doReturn(searchActionReplacerSink).when(actionWriter)
+                        .getSearchActionReplacerSink(any(DSLContext.class), any(Connection.class));
         Stream.of(scaleActionSpec, moveActionSpec).forEach(actionSpec ->
                 actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())

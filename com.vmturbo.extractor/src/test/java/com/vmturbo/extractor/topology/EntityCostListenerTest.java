@@ -19,12 +19,12 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -46,8 +46,6 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.DataPacks.DataPack;
-import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.DslRecordSink;
@@ -111,7 +109,6 @@ public class EntityCostListenerTest {
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         DslRecordSink entityCostInserterSink = mock(DslRecordSink.class);
         this.entityCostRecordsCapture = captureSink(entityCostInserterSink, false);
-        final DataPack<Long> oidPack = new LongDataPack();
         this.listener = spy(new EntityCostListener(dataProvider, endpoint,
                 Executors.newSingleThreadScheduledExecutor(), writerConfig, true, realtimeTopologyContextId));
         doReturn(entityCostInserterSink).when(listener).getEntityCostInserterSink();
@@ -174,7 +171,7 @@ public class EntityCostListenerTest {
                 return Optional.empty();
             }
         }).when(bottomUpCostData).getEntityCosts(anyLong());
-        doReturn(Arrays.stream(new long[]{vm1.getOid(), vm2.getOid(), Long.MAX_VALUE}))
+        doReturn(ImmutableSet.of(vm1.getOid(), vm2.getOid(), Long.MAX_VALUE))
                 .when(bottomUpCostData).getEntityOids();
 
         listener.onCostNotificationReceived(CostNotification.newBuilder()

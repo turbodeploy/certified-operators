@@ -14,7 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
-import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchEntityWriter.PartialEntityInfo;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
@@ -26,7 +26,7 @@ public class CommoditiesPatcher implements EntityRecordPatcher<TopologyEntityDTO
     private static final Logger logger = LogManager.getLogger();
 
     @Override
-    public void patch(PartialRecordInfo recordInfo, TopologyEntityDTO entity) {
+    public void fetch(PartialEntityInfo recordInfo, TopologyEntityDTO entity) {
         // find all commodities and commodity attributes defined in metadata and set on jsonb
         final List<SearchMetadataMapping> commodityMetadata =
                 SearchMetadataUtils.getMetadata(recordInfo.getEntityType(), FieldType.COMMODITY);
@@ -43,34 +43,32 @@ public class CommoditiesPatcher implements EntityRecordPatcher<TopologyEntityDTO
                 .filter(cs -> commodityTypes.contains(cs.getCommodityType().getType()))
                 .collect(Collectors.groupingBy(cs -> cs.getCommodityType().getType()));
 
-        final Map<String, Object> attrs = recordInfo.getAttrs();
         commodityMetadata.forEach(metadata -> {
             int commodityType = CommodityTypeUtils.apiToProto(metadata.getCommodityType()).getNumber();
             List<CommoditySoldDTO> commoditySoldDTOs = csByType.get(commodityType);
             if (commoditySoldDTOs != null) {
-                final String jsonKey = metadata.getJsonKeyName();
                 switch (metadata.getCommodityAttribute()) {
                     case USED:
-                        attrs.put(jsonKey, getUsed(commoditySoldDTOs));
+                        recordInfo.putAttr(metadata, getUsed(commoditySoldDTOs));
                         break;
                     case CAPACITY:
-                        attrs.put(jsonKey, getCapacity(commoditySoldDTOs));
+                        recordInfo.putAttr(metadata, getCapacity(commoditySoldDTOs));
                         break;
                     case PEAK:
-                        attrs.put(jsonKey, getPeak(commoditySoldDTOs));
+                        recordInfo.putAttr(metadata, getPeak(commoditySoldDTOs));
                         break;
                     case CURRENT_UTILIZATION:
-                        attrs.put(jsonKey, getCurrentUtilization(commoditySoldDTOs));
+                        recordInfo.putAttr(metadata, getCurrentUtilization(commoditySoldDTOs));
                         break;
                     case WEIGHTED_HISTORICAL_UTILIZATION:
                         // not all commodities have weighted historical utilization
                         getWeightedAverageHistoricalUtilization(commoditySoldDTOs).ifPresent(percentile ->
-                                attrs.put(jsonKey, percentile));
+                        recordInfo.putAttr(metadata, percentile));
                         break;
                     case PERCENTILE_HISTORICAL_UTILIZATION:
                         // not all commodities have percentile historical utilization
                         getPercentileHistoricalUtilization(commoditySoldDTOs).ifPresent(percentile ->
-                            attrs.put(jsonKey, percentile));
+                            recordInfo.putAttr(metadata, percentile));
                         break;
                     default:
                         logger.error("Unsupported commodity attribute: {}",

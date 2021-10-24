@@ -103,9 +103,6 @@ public class TopologyListenerConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private ActionOrchestratorClientConfig actionClientConfig;
-
-    @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
 
     @Autowired
@@ -157,6 +154,9 @@ public class TopologyListenerConfig {
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+
+    @Value("${searchBatchSize:1000}")
+    private int searchBatchSize;
 
     /**
      * Create an instance of our topology listener.
@@ -247,6 +247,7 @@ public class TopologyListenerConfig {
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
                 .unaggregatedCommodities(unaggregatedKeyedCommodityTypes)
+                .searchBatchSize(searchBatchSize)
                 .build();
     }
 

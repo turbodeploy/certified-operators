@@ -1,7 +1,6 @@
 package com.vmturbo.extractor.patchers;
 
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
@@ -16,7 +15,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
-import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchEntityWriter.PartialEntityInfo;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -30,14 +29,12 @@ public class GroupAggregatedCommoditiesPatcher implements EntityRecordPatcher<Da
     private static final Logger logger = LogManager.getLogger();
 
     @Override
-    public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
+    public void fetch(PartialEntityInfo recordInfo, DataProvider dataProvider) {
         final List<SearchMetadataMapping> metadataList = SearchMetadataUtils.getMetadata(
                 recordInfo.getGroupType(), FieldType.AGGREGATE_COMMODITY);
         final long groupId = recordInfo.getOid();
-        final Map<String, Object> attrs = recordInfo.getAttrs();
 
         metadataList.forEach(metadata -> {
-            final String jsonKey = metadata.getJsonKeyName();
             final int commodityType = CommodityTypeUtils.apiToProto(metadata.getCommodityType())
                     .getNumber();
             final CommodityAttribute commodityAttribute = metadata.getCommodityAttribute();
@@ -48,15 +45,15 @@ public class GroupAggregatedCommoditiesPatcher implements EntityRecordPatcher<Da
             switch (commodityAttribute) {
                 case USED:
                     getUsed(entityIdStream, commodityType, commodityAggregation, dataProvider)
-                            .ifPresent(used -> attrs.put(jsonKey, used));
+                            .ifPresent(used -> recordInfo.putAttr(metadata, used));
                     break;
                 case CAPACITY:
                     getCapacity(entityIdStream, commodityType, commodityAggregation, dataProvider)
-                            .ifPresent(capacity -> attrs.put(jsonKey, capacity));
+                            .ifPresent(capacity -> recordInfo.putAttr(metadata, capacity));
                     break;
                 case CURRENT_UTILIZATION:
                     getCurrentUtilization(groupId, entityIdStream, commodityType, commodityAggregation, dataProvider)
-                            .ifPresent(utilization -> attrs.put(jsonKey, utilization));
+                            .ifPresent(utilization -> recordInfo.putAttr(metadata, utilization));
                     break;
                 case WEIGHTED_HISTORICAL_UTILIZATION:
                 case PERCENTILE_HISTORICAL_UTILIZATION:

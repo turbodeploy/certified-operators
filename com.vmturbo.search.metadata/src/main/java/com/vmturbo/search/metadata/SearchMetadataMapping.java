@@ -17,6 +17,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jooq.DataType;
 import org.jooq.impl.SQLDataType;
 
@@ -43,6 +44,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.search.metadata.DbFieldDescriptor.FieldPlacement;
 import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
 import com.vmturbo.search.metadata.utils.MetadataMappingUtils;
 
@@ -505,7 +507,7 @@ public enum SearchMetadataMapping {
     RELATED_VM_COUNT("attrs", "num_vms", RelatedEntitiesProperty.COUNT, Type.INTEGER, EntityType.VirtualMachine),
 
     NUM_WORKLOADS("attrs", "num_workloads", RelatedEntitiesProperty.COUNT, Type.INTEGER,
-            ImmutableSet.of(EntityType.VirtualMachine, EntityType.Application, EntityType.Database)),
+            ImmutableSet.of(EntityType.VirtualMachine, EntityType.ApplicationComponent, EntityType.Database)),
 
     /**
      * Basic fields for group.
@@ -513,7 +515,7 @@ public enum SearchMetadataMapping {
     PRIMITIVE_GROUP_OID("oid", group -> Optional.of(group.getId()), Type.INTEGER, null),
 
     PRIMITIVE_GROUP_TYPE("type", group -> Optional.of(group.getDefinition().getType()),
-            Type.TEXT, GroupType.class),
+            Type.ENUM, GroupType.class),
 
     PRIMITIVE_GROUP_NAME("name", group -> Optional.of(group.getDefinition().getDisplayName()),
             Type.TEXT, null),
@@ -600,6 +602,7 @@ public enum SearchMetadataMapping {
     // Enum class
     private Class<? extends Enum<?>> enumClass;
     // entity fields
+    // TODO strong typing - this opens room for db write errors
     private Function<TopologyEntityDTO, Optional<Object>> topoFieldFunction;
     // related entity
     private Set<EntityType> relatedEntityTypes;
@@ -612,12 +615,15 @@ public enum SearchMetadataMapping {
     private CommodityAttribute commodityAttribute;
     private String commodityUnit;
     // group fields
+    // TODO strong typing, not Object
     private Function<Grouping, Optional<Object>> groupFieldFunction;
     private Aggregation commodityAggregation;
     // used for group members
     private EntityType memberType;
     private boolean direct;
     private MemberFieldApiDTO.Property memberProperty;
+
+    private volatile DbFieldDescriptor<?> dbFieldDescriptor;
 
     /**
      * Constructor of {@link SearchMetadataMapping} for normal table column fields which are
@@ -1048,7 +1054,22 @@ public enum SearchMetadataMapping {
      * @return description for where the field is persisted
      */
     public DbFieldDescriptor<?> getDbDescriptor() {
-        boolean isPrimitive = SearchEntityMetadata.Constants.ENTITY_COMMON_FIELDS.containsValue(this);
+        DbFieldDescriptor<?> ref = dbFieldDescriptor;
+        if (ref == null) {
+            synchronized (this) {
+                ref = dbFieldDescriptor;
+                if (ref == null) {
+                    dbFieldDescriptor = ref = constructDbDescriptor();
+                }
+            }
+        }
+        return ref;
+    }
+
+    private DbFieldDescriptor<?> constructDbDescriptor() {
+        // groups are stored with entities
+        boolean isPrimitive = SearchEntityMetadata.Constants.ENTITY_COMMON_FIELDS.containsValue(this)
+                        || SearchGroupMetadata.Constants.GROUP_FIELDS_SHARED_WITH_ENTITIES.containsValue(this);
         final Set<DbFieldDescriptor.Location> locations = new HashSet<>();
         DataType<?> dbType = API_TYPE_TO_DB_TYPE.get(apiDatatype);
         if (isPrimitive) {
@@ -1066,7 +1087,10 @@ public enum SearchMetadataMapping {
                 dbType = DbFieldDescriptor.NUMERIC_DB_TYPE;
             }
         }
-        return new DbFieldDescriptor(locations, columnName, dbType);
+        return new DbFieldDescriptor(locations,
+                        StringUtils.isEmpty(jsonKeyName) ? columnName : jsonKeyName,
+                        dbType,
+                        isPrimitive ? FieldPlacement.Column : FieldPlacement.Row);
     }
 
     /**
