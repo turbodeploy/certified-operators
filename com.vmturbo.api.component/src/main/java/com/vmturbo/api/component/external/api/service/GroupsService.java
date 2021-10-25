@@ -92,7 +92,6 @@ import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
@@ -162,6 +161,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -1301,6 +1301,20 @@ public class GroupsService implements IGroupsService {
         final DeleteTagsRequest request = DeleteTagsRequest.newBuilder().setGroupOid(oid).build();
         try {
             groupServiceRpc.deleteTags(request);
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException("Unable to delete tag for Group: '" + uuid + "'", e);
+        }
+    }
+
+    @Override
+    public void deleteTagsByGroupUuid(final String uuid, final List<String> tagKeys) throws Exception {
+        final long oid = getGroupOidFromString(uuid);
+        final DeleteTagListRequest request = DeleteTagListRequest.newBuilder()
+                .setOid(oid)
+                .addAllTagKey(tagKeys)
+                .build();
+        try {
+            groupServiceRpc.deleteTagList(request);
         } catch (StatusRuntimeException e) {
             throw new OperationFailedException("Unable to delete tag for Group: '" + uuid + "'", e);
         }

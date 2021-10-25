@@ -282,24 +282,39 @@ public interface IGroupStore {
     int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException;
 
     /**
-     * Delete a user defined group tag for group.
+     * Delete a user defined tag for a group.
      *
-     * @param groupId is the entity oid to attach the tag.
-     * @param tagKey tag key
-     * @return the affected rows after the database operation
+     * @param groupId is the group oid.
+     * @param tagKey is the tag key to delete.
+     * @return the affected rows after the database operation.
      *
      * @throws StoreOperationException if the tag with key could not be deleted.
      */
     int deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException;
 
     /**
-     * Delete a list of user defined group tags for group.
+     * Delete all user defined group tags for a group.
      *
-     * @param groupId is the entity oid to attach the tags.
+     * @param groupId is the group oid to attach the tags.
      *
      * @throws StoreOperationException if the tags for the group could not to be deleted.
      */
     void deleteTags(long groupId) throws StoreOperationException;
+
+    /**
+     * Delete a list of user created tags for a group. Note that it will first check if requested
+     * tag for delete exists, and if it doesn't it will fail. If not it will proceed to the
+     * deletion, but a double delete can still happen, if in the meantime of the "check" another
+     * delete happens.
+     *
+     * @param groupId is the group oid.
+     * @param tagKeys is the list of tag keys to delete.
+     * @return the affected rows after the database operations. This should match the length of the
+     * tag key list.
+     *
+     * @throws StoreOperationException if the tags for the group could not to be deleted.
+     */
+    int deleteTagList(long groupId, Collection<String> tagKeys) throws StoreOperationException;
 
     /**
      * Returns direct static members of the specified group. Method does not perform any

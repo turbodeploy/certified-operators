@@ -12,6 +12,9 @@ import "setting/Setting.proto";
 import "tag/Tag.proto";
 import "CommonDTO.proto";
 
+// TODO: Any common message related with group tags need to move into .tag/Tag.proto to avoid code
+// duplication. Any new code should move there, until this file is consolidated.
+
 // The information about a group in the system
 // A group is a set of entities that can be treated collectively for the
 // purpose of settings, policies, statistics, and other operations.
@@ -640,6 +643,9 @@ service GroupService {
 
     // The rpc call to delete tag for the group id.
     rpc DeleteTag(DeleteTagRequest) returns (DeleteTagResponse);
+
+    // The rpc call to delete a list of tags for the group id.
+    rpc DeleteTagList(.tag.DeleteTagListRequest) returns (.tag.DeleteTagListResponse) {}
 
     // Returns distinct tag values.
     // This is different from GetTags because it does not return per-group tags. Instead, it returns

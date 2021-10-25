@@ -1,5 +1,6 @@
 package com.vmturbo.group.entitytags;
 
+import java.util.Collection;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -37,13 +38,27 @@ public interface IEntityCustomTagsStore {
     int deleteTag(long entityId, @Nonnull String tagKey) throws StoreOperationException;
 
     /**
-     * Delete a list of user defined tags for entity.
+     * Delete all user defined tags for an entity.
      *
-     * @param entityId is the entity oid to attach the tags.
+     * @param entityId is the entity oid upon which all the tags will be deleted.
      *
      * @throws StoreOperationException if the tags for the entity could not to be deleted.
      */
     void deleteTags(long entityId) throws StoreOperationException;
+
+    /**
+     * Delete a list of tags for an entity. Note that it will first check if requested tag for
+     * delete exists, and if it doesn't it will fail. If not it will proceed to the deletion, but a
+     * double delete can still happen, if in the meantime of the "check" another delete happens.
+     *
+     * @param entityId is the entity oid.
+     * @param tagKeys is the list of tag keys to delete.
+     * @return the affected rows after the database operations. This should match the length of the
+     * tag key list.
+     *
+     * @throws StoreOperationException if the tags for the entity could not to be deleted.
+     */
+    int deleteTagList(long entityId, Collection<String> tagKeys) throws StoreOperationException;
 
     /**
      * Get the list of user defined tags for an entity.

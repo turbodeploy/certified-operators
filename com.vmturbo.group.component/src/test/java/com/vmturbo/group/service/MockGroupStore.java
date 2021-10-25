@@ -276,6 +276,11 @@ public class MockGroupStore implements IGroupStore {
     public void deleteTags(long groupId) {
     }
 
+    @Override
+    public int deleteTagList(long groupId, Collection<String> tagKeys) {
+        return 0;
+    }
+
     @Nonnull
     @Override
     public GroupMembersPlain getMembers(@Nonnull Collection<Long> groupId,

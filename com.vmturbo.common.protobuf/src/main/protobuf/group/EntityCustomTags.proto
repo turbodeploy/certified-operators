@@ -6,6 +6,9 @@ option java_package = "com.vmturbo.common.protobuf.group";
 
 import "tag/Tag.proto";
 
+// TODO: Any common message related with group tags need to move into .tag/Tag.proto to avoid code
+// duplication. Any new code should move there, until this file is consolidated.
+
 // User defined tags for entities. These are aimed to persist into the entity_custom_tags db.
 message EntityCustomTags {
     // The entity oid
@@ -76,8 +79,12 @@ service EntityCustomTagsService {
 
     // The rpc call to delete tags.
     rpc DeleteTags(DeleteEntityCustomTagsRequest) returns (DeleteEntityCustomTagsResponse) {}
+
     // The rpc call to delete tag.
     rpc DeleteTag(DeleteEntityCustomTagRequest) returns (DeleteEntityCustomTagResponse) {}
+
+    // The rpc call to delete a list of tags of an entity.
+    rpc DeleteTagList(.tag.DeleteTagListRequest) returns (.tag.DeleteTagListResponse) {}
 
     // The rpc call to get tags based on entity oid.
     rpc GetTags(GetEntityCustomTagsRequest) returns (GetEntityCustomTagsResponse) {}

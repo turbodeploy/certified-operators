@@ -20,6 +20,8 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListRequest;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListResponse;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.entitytags.EntityCustomTagsStore;
@@ -160,6 +162,37 @@ public class EntityCustomTagsRpcServiceTest {
         verify(mockObserver).onNext(
                 EntityCustomTagsOuterClass.GetAllEntityCustomTagsResponse.newBuilder()
                         .addEntityCustomTags(tag)
+                        .build()
+        );
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the deletion of a tag list using the gRPC service.
+     *
+     * @throws StoreOperationException should not happen.
+     */
+    @Test
+    public void testDeleteTagList() throws StoreOperationException {
+
+        final DeleteTagListRequest request =
+                DeleteTagListRequest.newBuilder()
+                        .setOid(ENTITY_ID)
+                        .addTagKey(tagName1)
+                        .addTagKey(tagName2)
+                        .build();
+        final StreamObserver<DeleteTagListResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        final int affectedRows = 3;
+
+        when(entityCustomTagsStore.deleteTagList(ENTITY_ID, Arrays.asList(tagName1, tagName2)))
+                .thenReturn(affectedRows);
+        entityCustomTagsService.deleteTagList(request, mockObserver);
+
+        verify(mockObserver).onNext(
+                DeleteTagListResponse.newBuilder()
+                        .setAffectedRows(affectedRows)
                         .build()
         );
         verify(mockObserver).onCompleted();

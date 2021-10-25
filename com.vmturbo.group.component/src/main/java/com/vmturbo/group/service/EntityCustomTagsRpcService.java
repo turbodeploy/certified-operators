@@ -21,6 +21,8 @@ import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetAllEntity
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetEntityCustomTagsRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetEntityCustomTagsResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceImplBase;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListRequest;
+import com.vmturbo.common.protobuf.tag.Tag.DeleteTagListResponse;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.entitytags.EntityCustomTagsStore;
 
@@ -136,6 +138,36 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
         }
 
         responseObserver.onNext(DeleteEntityCustomTagResponse.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteTagList(DeleteTagListRequest request,
+            StreamObserver<DeleteTagListResponse> responseObserver) {
+        if (!request.hasOid()) {
+            final String errMsg =
+                    "Incoming EntityCustomTags delete request does not contain entity id: "
+                            + request;
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        int affectedRows;
+        try {
+            affectedRows = entityCustomTagsStore.deleteTagList(request.getOid(), request.getTagKeyList());
+        } catch (StoreOperationException e) {
+            logger.error("Could not delete tags for Entity: '" + request.getOid()
+                    + "' and Keys: '" + request.getTagKeyList() + "'");
+            responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
+            return;
+        }
+
+        responseObserver.onNext(
+                DeleteTagListResponse.newBuilder()
+                        .setAffectedRows(affectedRows)
+                        .build()
+        );
         responseObserver.onCompleted();
     }
 

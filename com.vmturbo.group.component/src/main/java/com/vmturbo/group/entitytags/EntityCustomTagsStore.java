@@ -6,10 +6,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -72,6 +74,55 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
             throw new StoreOperationException(Status.INTERNAL,
                     "Could not delete tags for Entity: '" + entityId + "'");
         }
+    }
+
+    /**
+     * Delete a list of tags for an entity. Note that it will first check if requested tag for
+     * delete exists, and if it doesn't it will fail. If not it will proceed to the deletion, but a
+     * double delete can still happen, if in the meantime of the "check" another delete happens.
+     *
+     * @param entityId is the entity oid.
+     * @param tagKeys is the list of tag keys to delete.
+     * @return the affected rows after the database operations.
+     *
+     * @throws StoreOperationException if the tags for the entity could not to be deleted.
+     */
+    @Override
+    public int deleteTagList(long entityId, Collection<String> tagKeys) throws StoreOperationException {
+        Set<String> tagSet = new HashSet<>(tagKeys);
+        // Fetch tag records to see if exist
+        Collection<? extends EntityCustomTagsRecord> tagRecords =
+                dslContext.selectFrom(ENTITY_CUSTOM_TAGS)
+                .where(ENTITY_CUSTOM_TAGS.ENTITY_ID.eq(entityId),
+                        ENTITY_CUSTOM_TAGS.TAG_KEY.in(tagSet)
+                ).fetch();
+
+        // Filter out the fetched tag keys, for proper error message if needed
+        Set<String> tagKeysNotFetched = new HashSet<>(tagKeys);
+        tagKeysNotFetched.removeAll(
+                tagRecords.stream().map(EntityCustomTagsRecord::getTagKey)
+                .collect(Collectors.toSet())
+        );
+        if (!tagKeysNotFetched.isEmpty()) {
+            throw new StoreOperationException(Status.NOT_FOUND,
+                    "No such tag(s) with tag key(s): '" + tagKeysNotFetched + " for entity '"
+                            + entityId + "'");
+        }
+
+        int affectedRows;
+        try {
+            // This executes delete in multiple rows. If this is expected to be used for delete on
+            // many tags, then we need to do a batch execute instead.
+            affectedRows = dslContext.deleteFrom(ENTITY_CUSTOM_TAGS).where(
+                    ENTITY_CUSTOM_TAGS.ENTITY_ID.eq(entityId),
+                    ENTITY_CUSTOM_TAGS.TAG_KEY.in(tagSet)
+            ).execute();
+        } catch (DataAccessException e) {
+            throw new StoreOperationException(Status.INTERNAL,
+                    "Could not delete tags for Entity: '" + entityId + "'");
+        }
+
+        return affectedRows;
     }
 
     @Override
