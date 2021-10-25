@@ -37,7 +37,11 @@ import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ConnectionTimeOutErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DataIsMissingErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DelayedDataErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.InternalProbeErrorType;
 
 /**
  * Tests the work of {@link HealthDataAggregator}.
@@ -75,11 +79,17 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         healthOfTargets.put(2L, makeHealthMinor(TargetHealthSubCategory.VALIDATION, "pendingValidationA",
                         "Pending Validation."));
         healthOfTargets.put(3L, makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryA",
-                        ErrorType.DATA_IS_MISSING, "Data is missing.", 1_000_000, 2));
+                ErrorTypeInfo.newBuilder().setDataIsMissingErrorType(
+                        DataIsMissingErrorType.getDefaultInstance()).build(),
+                "Data is missing.", 1_000_000, 2));
         healthOfTargets.put(4L, makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryB",
-                        ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 4));
+                ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(
+                        ConnectionTimeOutErrorType.getDefaultInstance()).build(),
+                "Connection timeout.", 1_000_000, 4));
         healthOfTargets.put(5L, makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryC",
-                        ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 3));
+                ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(
+                        ConnectionTimeOutErrorType.getDefaultInstance()).build(),
+                "Connection timeout.", 1_000_000, 3));
         defaultMockTargetHealth(healthOfTargets);
 
         HealthCheckCategory checkCategory = HealthCheckCategory.TARGET;
@@ -166,11 +176,14 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         List<Long> ids = Lists.newArrayList(0L, 1L, 2L);
         List<TargetHealth> healths = Lists.newArrayList(
             makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryParent",
-                ErrorType.DATA_IS_MISSING, "Data is missing.", 1_000_000, 3),
+                ErrorTypeInfo.newBuilder().setDataIsMissingErrorType(DataIsMissingErrorType.getDefaultInstance()).build(),
+                    "Data is missing.", 1_000_000, 3),
             makeHealthCritical(TargetHealthSubCategory.VALIDATION, "failedDiscoveryDerivedA",
-                ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 4),
+                ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(ConnectionTimeOutErrorType.getDefaultInstance()).build(),
+                    "Connection timeout.", 1_000_000, 4),
             makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryDerivedB",
-                ErrorType.INTERNAL_PROBE_ERROR, "Probe error.", 1_000_000, 3));
+                ErrorTypeInfo.newBuilder().setInternalProbeErrorType(InternalProbeErrorType.getDefaultInstance()).build(),
+                    "Probe error.", 1_000_000, 3));
         List<List<Long>> derived = Lists.newArrayList(Lists.newArrayList(1L, 2L), Lists.newArrayList(), Lists.newArrayList());
         List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L), Lists.newArrayList(0L));
         List<Boolean> hidden = Lists.newArrayList(false, true, true);
@@ -200,7 +213,8 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         List<TargetHealth> healths = Lists.newArrayList(
             makeHealthMinor(TargetHealthSubCategory.VALIDATION, "pendingValidationParent", "Pending Validation."),
             makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryDerived",
-                ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 4));
+                    ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(ConnectionTimeOutErrorType.getDefaultInstance()).build(),
+                    "Connection timeout.", 1_000_000, 4));
         List<List<Long>> derived = Lists.newArrayList(Lists.newArrayList(1L), Lists.newArrayList());
         List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L));
         List<Boolean> hidden = Lists.newArrayList(false, true);
@@ -225,11 +239,13 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
     public void testFailingHiddenTargetNoDoubleCount() {
         final String tooOldDataMessage = "The data is too old.";
         List<Long> ids = Lists.newArrayList(0L, 1L);
+        ErrorTypeInfo delayedDataErrorType = ErrorTypeInfo.newBuilder().setDelayedDataErrorType(
+                DelayedDataErrorType.getDefaultInstance()).build();
         List<TargetHealth> healths = Lists.newArrayList(
-            makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryParent",
-                            ErrorType.DELAYED_DATA, tooOldDataMessage),
-            makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryDerived",
-                            ErrorType.DELAYED_DATA, tooOldDataMessage));
+                makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryParent",
+                        delayedDataErrorType, tooOldDataMessage),
+                makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryDerived",
+                        delayedDataErrorType, tooOldDataMessage));
         List<List<Long>> derived = Lists.newArrayList(Lists.newArrayList(1L), Lists.newArrayList());
         List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L));
         List<Boolean> hidden = Lists.newArrayList(false, true);

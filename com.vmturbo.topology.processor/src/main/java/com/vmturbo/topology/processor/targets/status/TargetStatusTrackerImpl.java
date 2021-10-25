@@ -2,8 +2,11 @@ package com.vmturbo.topology.processor.targets.status;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,7 +29,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.operation.Operation;
@@ -219,8 +222,14 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
      * @param discovery failed discovery to store
      */
     private void storeFailedDiscovery(final long targetId, final Discovery discovery) {
-        final DiscoveryFailure discoveryFailure = targetToFailedDiscoveries
-                .computeIfAbsent(targetId, k -> new DiscoveryFailure(discovery));
+        final DiscoveryFailure discoveryFailure;
+        if (targetToFailedDiscoveries.containsKey(targetId)) {
+            discoveryFailure = targetToFailedDiscoveries.get(targetId);
+            discoveryFailure.mergeNewInfo(discovery);
+        } else {
+            discoveryFailure = targetToFailedDiscoveries
+                    .computeIfAbsent(targetId, k -> new DiscoveryFailure(discovery));
+        }
         discoveryFailure.incrementFailsCount();
         LOGGER.debug("Target {} discovery was failed in {} with {} fails", targetId,
                 discoveryFailure.getFailTime(), discoveryFailure.getFailsCount());
@@ -242,7 +251,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     public static class DiscoveryFailure {
         private final LocalDateTime failTime;
         private int failsCount;
-        private ErrorType firstFailedDiscoveryErrorType;
+        private final Collection<ErrorTypeInfo> failedDiscoveryErrorTypeInfos = new HashSet<>();
         private String firstFailedDiscoveryErrorText;
 
         /**
@@ -252,15 +261,24 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         public DiscoveryFailure(Discovery discovery) {
             failTime = discovery.getCompletionTime();
             failsCount = 0;
-            List<ErrorType> errorTypes = discovery.getErrorTypes();
-            if (!errorTypes.isEmpty())  {
-                firstFailedDiscoveryErrorType = errorTypes.get(0);
+            List<ErrorTypeInfo> errorTypeInfos = new ArrayList<>(discovery.getErrorTypeInfos());
+            if (!errorTypeInfos.isEmpty())  {
+                failedDiscoveryErrorTypeInfos.addAll(errorTypeInfos);
             } else {
                 LOGGER.warn("Had a discovery failure for target with id {} but "
                         + "the error type is not set", discovery.getTargetId());
             }
-            List<String> errorTexts = discovery.getErrors();
-            if (!errorTexts.isEmpty())    {
+            recordFirstFailedDiscoveredErrorText(discovery);
+        }
+
+        private void mergeNewInfo(final Discovery discovery) {
+            this.getErrorTypeInfos().addAll(discovery.getErrorTypeInfos());
+            recordFirstFailedDiscoveredErrorText(discovery);
+        }
+
+        private void recordFirstFailedDiscoveredErrorText(final Discovery discovery) {
+            final List<String> errorTexts = discovery.getErrors();
+            if (!errorTexts.isEmpty()) {
                 firstFailedDiscoveryErrorText = errorTexts.get(0);
             } else {
                 LOGGER.warn("Have had a discovery failure for target with id {} "
@@ -295,10 +313,10 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
 
         /**
          * Get first failed discovery error type.
-         * @return {@link ErrorType} object
+         * @return {@link ErrorTypeInfo} object
          */
-        public ErrorType getErrorType() {
-            return firstFailedDiscoveryErrorType;
+        public Collection<ErrorTypeInfo> getErrorTypeInfos() {
+            return failedDiscoveryErrorTypeInfos;
         }
 
         /**
@@ -312,7 +330,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         @Override
         public String toString() {
             return FormattedString.format("Failed {} consecutive times starting at {}. First failure: {} - {}",
-                    failsCount, failTime, firstFailedDiscoveryErrorType, firstFailedDiscoveryErrorText);
+                    failsCount, failTime, failedDiscoveryErrorTypeInfos, firstFailedDiscoveryErrorText);
         }
     }
 

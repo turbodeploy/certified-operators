@@ -16,12 +16,18 @@ import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ConnectionTimeOutErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DelayedDataErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DuplicationErrorType;
 
 /**
  * Contains tests for {@link HealthDataMapper}.
  */
 public class HealthDataMapperTest extends HealthChecksTestBase {
+
+     private static final ErrorTypeInfo connectionErrorTypeInfo = ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(
+            ConnectionTimeOutErrorType.getDefaultInstance()).build();
 
     /**
      * A general test for the aggregateTargetHealthInfoToDTO(...) method.
@@ -30,10 +36,10 @@ public class HealthDataMapperTest extends HealthChecksTestBase {
     public void testAggregateValidationDiscoveryInfoToDTO() {
         TargetHealth validationSuccessful = makeHealthNormal(TargetHealthSubCategory.VALIDATION, "normallyValidated");
         TargetHealth validaionFailed = makeHealthCritical(TargetHealthSubCategory.VALIDATION, "validationFailed",
-                        ErrorType.CONNECTION_TIMEOUT, "Validation connection timeout.", 1_000_000, 1);
+                connectionErrorTypeInfo, "Validation connection timeout.", 1_000_000, 1);
         TargetHealth discoverySuccessful = makeHealthNormal(TargetHealthSubCategory.DISCOVERY, "normallyDiscovered");
         TargetHealth discoveryPending = makeHealthMinor(TargetHealthSubCategory.DISCOVERY, "discoveryPending",
-                        "Discovery pending.");
+                "Discovery pending.");
 
         Map<Long, TargetDetails> targetDetails = new HashMap<>();
         targetDetails.put(0L, createTargetDetails(0L, validationSuccessful, new ArrayList<>(), new ArrayList<>(), false));
@@ -63,11 +69,14 @@ public class HealthDataMapperTest extends HealthChecksTestBase {
         TargetHealth discoveryPending = makeHealthMinor(TargetHealthSubCategory.DISCOVERY, "discoveryPending",
                         "Discovery pending.");
         TargetHealth discoveryFailed = makeHealthCritical(TargetHealthSubCategory.DISCOVERY, "discoveryFailed",
-                        ErrorType.CONNECTION_TIMEOUT, "Discovery connection timeout.", 1_000_000, 6);
+                connectionErrorTypeInfo, "Discovery connection timeout.", 1_000_000, 6);
         TargetHealth duplicationFound = makeHealthCritical(TargetHealthSubCategory.DUPLICATION, "duplication",
-                        ErrorType.DUPLICATION, "Duplication found.", 1_000_001);
+                        ErrorTypeInfo.newBuilder().setDuplicationErrorType(DuplicationErrorType.getDefaultInstance())
+                                .build(), "Duplication found.", 1_000_001);
         TargetHealth targetWithDelayedData = makeHealthCritical(TargetHealthSubCategory.DELAYED_DATA,
-                        "targetWithDelayedData", ErrorType.DELAYED_DATA, "Too old data.");
+                "targetWithDelayedData", ErrorTypeInfo.newBuilder()
+                        .setDelayedDataErrorType(DelayedDataErrorType.getDefaultInstance()).build(),
+                "Too old data.");
 
         Map<Long, TargetDetails> targetDetails = new HashMap<>();
         targetDetails.put(0L, createTargetDetails(0L, validationSuccessful, new ArrayList<>(), new ArrayList<>(), false));

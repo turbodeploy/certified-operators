@@ -108,7 +108,7 @@ message TargetHealth {
   optional TargetHealthSubCategory subcategory = 2;
 
   // The type of error that happened. May be unset if there is no error.
-  optional common_dto.ErrorDTO.ErrorType error_type = 3;
+  optional common_dto.ErrorDTO.ErrorType error_type = 3 [deprecated = true];
 
   // Deprecated - use message_text.
   optional string error_text = 4 [deprecated = true];
@@ -143,6 +143,9 @@ message TargetHealth {
 
   // A timestamp for the moment the check is done.
   optional int64 time_of_check = 14;
+
+  // more details about target errors if available.
+  repeated common_dto.ErrorTypeInfo error_type_info = 15;
 }
 
 // Determines the amount of detail that will be returned in the TargetDetails protobuf

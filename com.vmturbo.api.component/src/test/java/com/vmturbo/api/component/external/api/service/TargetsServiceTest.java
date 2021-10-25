@@ -108,6 +108,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.target.TargetOperationStageApiDTO;
+import com.vmturbo.api.dto.target.TargetType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
@@ -2277,7 +2278,8 @@ public class TargetsServiceTest {
     public void testGetTargetWithBasic() throws Exception {
         final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
         doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
-        final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.BASIC);
+        final TargetApiDTO targetApiDTO = targetsService.getTarget(
+                "1", TargetDetailLevel.BASIC, TargetType.PRIMARY);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
         assertNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
@@ -2302,7 +2304,8 @@ public class TargetsServiceTest {
         doReturn(Arrays.asList(targetInfo1, targetInfo2)).when(topologyProcessor).getTargets(anyList());
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.BASIC,
-                new TargetPaginationRequest(null, null, true, null));
+                new TargetPaginationRequest(null, null, true, null),
+                TargetType.PRIMARY);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
@@ -2353,7 +2356,8 @@ public class TargetsServiceTest {
         mockTargetHealth(healthMap);
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH,
-                new TargetPaginationRequest(null, null, true, null));
+                new TargetPaginationRequest(null, null, true, null),
+                TargetType.PRIMARY);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
@@ -2403,7 +2407,8 @@ public class TargetsServiceTest {
         mockTargetHealth(healthMap);
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH_DETAILS,
-                new TargetPaginationRequest(null, null, true, null));
+                new TargetPaginationRequest(null, null, true, null),
+                TargetType.PRIMARY);
         verify(targetDetailsMapper, times(2)).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
@@ -2499,7 +2504,8 @@ public class TargetsServiceTest {
 
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH_DETAILS,
-                new TargetPaginationRequest(null, null, true, null));
+                new TargetPaginationRequest(null, null, true, null),
+                TargetType.PRIMARY);
         verify(targetDetailsMapper, times(1)).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         assertNotNull(targetPaginationResponse.getRawResults().get(0).getHealth());
