@@ -41,6 +41,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
@@ -49,6 +50,7 @@ import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.Conditiona
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitterTest.CountDownSubmitter;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -64,6 +66,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -212,7 +215,6 @@ public class AutomatedActionExecutorTest {
 
         final ActionTranslation translation = new ActionTranslation(crossTargetRec);
         translation.setPassthroughTranslationSuccess();
-        when(crossTargetAction.getState()).thenReturn(ActionState.IN_PROGRESS);
         when(crossTargetAction.getActionTranslation()).thenReturn(translation);
         when(crossTargetAction.getWorkflow(workflowStore, crossTargetAction.getState())).thenReturn(
                 Optional.empty());
@@ -413,7 +415,6 @@ public class AutomatedActionExecutorTest {
         when(goodAction.getActionTranslation()).thenReturn(translation);
         when(goodAction.getWorkflow(workflowStore, goodAction.getState())).thenReturn(Optional.empty());
         when(goodAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
-        when(goodAction.getState()).thenReturn(ActionState.IN_PROGRESS);
         ActionDTO.ActionSpec actionSpec =
             ActionDTO.ActionSpec.newBuilder().setRecommendation(rec).build();
         when(actionTranslator.translateToSpec(goodAction)).thenReturn(actionSpec);
@@ -675,6 +676,63 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(manualAcceptedAction, Mockito.never()).receive(isA(ManualAcceptanceEvent.class));
     }
 
+    /**
+     * Unit test to simulate an IN_PROGRESS action going through executeAutomatedFromStore()
+     * and a READY action going through executeAutomatedFromStore().
+     *
+     * @throws WorkflowStoreException if unable to get workflow.
+     * @throws InterruptedException if execution task goes wrong.
+     */
+    @Test
+    public void testInProgressAndReadyActionsInExecuteAutomatedFromStore()
+            throws WorkflowStoreException, InterruptedException {
+        final long actionId = 12345L;
+        final ActionDTO.Action rec = makeActionRec(actionId,
+                makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
+        final ActionTranslation translation = new ActionTranslation(rec);
+        translation.setPassthroughTranslationSuccess();
+        ActionModeCalculator actionModeCalculator = spy(new ActionModeCalculator());
+        IdentityGenerator.initPrefix(0);
+        final Action action = spy(new Action(rec, 10000L, actionModeCalculator, IdentityGenerator
+                .next()));
+        // Set up the action to be IN_PROGRESS state.
+        setUpMocks(action, actionId, rec);
+        when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
+        when(action.getSchedule()).thenReturn(Optional.empty());
+        when(action.getState()).thenReturn(ActionState.IN_PROGRESS);
+        when(action.getWorkflow(any(), eq(ActionState.IN_PROGRESS))).thenReturn(Optional.empty());
+        when(actionTargetSelector.getTargetsForActions(any(), any(), any()))
+                .thenReturn(Collections.singletonMap(actionId, actionTargetInfo(targetId1)));
+        when(action.getActionTranslation()).thenReturn(translation);
+        when(action.getWorkflow(workflowStore, action.getState())).thenReturn(Optional.empty());
+        when(action.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
+        when(action.getState()).thenReturn(ActionState.IN_PROGRESS);
+        ActionDTO.ActionSpec actionSpec =
+                ActionDTO.ActionSpec.newBuilder().setRecommendation(rec).build();
+        when(actionTranslator.translateToSpec(action)).thenReturn(actionSpec);
+        executeAndWaitForCompletion(1);
+        // IN_PROGRESS state action would not receive an AutomaticAcceptanceEvent nor a QueuedEvent.
+        Mockito.verify(action, never()).receive(any(ActionEvent.class));
+
+        // Set up the action to be READY state.
+        when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
+        when(action.getSchedule()).thenReturn(Optional.empty());
+        when(action.getState()).thenReturn(ActionState.READY);
+        when(action.getWorkflow(any(), eq(ActionState.READY))).thenReturn(Optional.empty());
+        when(actionTargetSelector.getTargetsForActions(any(), any(), any()))
+                .thenReturn(Collections.singletonMap(actionId, actionTargetInfo(targetId1)));
+        when(action.getActionTranslation()).thenReturn(translation);
+        when(action.getWorkflow(workflowStore, action.getState())).thenReturn(Optional.empty());
+        when(action.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
+        when(action.getState()).thenReturn(ActionState.READY);
+        when(actionTranslator.translateToSpec(action)).thenReturn(actionSpec);
+        executeAndWaitForCompletion(1);
+        // IN_PROGRESS state action would receive an AutomaticAcceptanceEvent and then a QueuedEvent.
+        Mockito.verify(action).receive(isA(AutomaticAcceptanceEvent.class));
+        Mockito.verify(action).receive(isA(QueuedEvent.class));
+
+    }
+
     private ActionDTO.Action makeActionRec(long actionId, ActionInfo info) {
         return ActionDTO.Action.newBuilder()
             .setId(actionId)
@@ -704,8 +762,8 @@ public class AutomatedActionExecutorTest {
         setUpMocks(action, id, recommendation);
         when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
         when(action.getSchedule()).thenReturn(Optional.empty());
-        when(action.getState()).thenReturn(ActionState.IN_PROGRESS);
-        when(action.getWorkflow(any(), eq(ActionState.IN_PROGRESS))).thenReturn(Optional.empty());
+        when(action.getState()).thenReturn(ActionState.READY);
+        when(action.getWorkflow(any(), eq(ActionState.READY))).thenReturn(Optional.empty());
     }
 
     private void setUpMocksForManuallyAcceptedAction(@Nonnull Action action, long id,
@@ -713,8 +771,8 @@ public class AutomatedActionExecutorTest {
             boolean isActiveExecutionSchedule) throws WorkflowStoreException {
         setUpMocks(action, id, recommendation);
         when(action.getMode()).thenReturn(ActionMode.MANUAL);
-        when(action.getState()).thenReturn(ActionState.IN_PROGRESS);
-        when(action.getWorkflow(any(), eq(ActionState.IN_PROGRESS))).thenReturn(Optional.empty());
+        when(action.getState()).thenReturn(ActionState.READY);
+        when(action.getWorkflow(any(), eq(ActionState.READY))).thenReturn(Optional.empty());
 
         when(actionSchedule.isActiveSchedule()).thenReturn(isActiveExecutionSchedule);
         when(actionSchedule.getAcceptingUser()).thenReturn("administrator");
