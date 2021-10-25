@@ -18,17 +18,15 @@ import com.vmturbo.mediation.connector.common.HttpConnectorSettings;
 import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.connector.common.ParametersBasedHttpBody;
 import com.vmturbo.mediation.connector.common.http.HttpParameter;
-import com.vmturbo.mediation.webhook.connector.WebhookCredentials;
 import com.vmturbo.mediation.webhook.connector.WebhookException;
-import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 
 /**
  * Class to test AccessTokenConnector.
  */
 public class AccessTokenConnectorTest {
 
-    private WebhookCredentials credentials;
-    private HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> connectorFactory;
+    private OAuthCredentials credentials;
+    private HttpConnectorFactory<HttpConnectorSettings, OAuthCredentials> connectorFactory;
     private AccessTokenConnector accessTokenConnector;
     private HttpConnector httpConnector;
     private AccessTokenQuery accessTokenQuery;
@@ -38,9 +36,7 @@ public class AccessTokenConnectorTest {
      */
     @Before
     public void init() {
-        credentials = new WebhookCredentials("http://fake_webhook:142/endpoint",
-                HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null, false,
-                "http://google.com", "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide");
+        credentials = new OAuthCredentials("http://google.com", "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
         connectorFactory = Mockito.spy(
                 AccessTokenConnector.createConnectorFactory(credentials, 30000));
         accessTokenConnector = new AccessTokenConnector(credentials, connectorFactory);
@@ -60,7 +56,7 @@ public class AccessTokenConnectorTest {
      *
      * @throws Exception {@link WebhookException} should be thrown.
      */
-    @Test(expected = WebhookException.class)
+    @Test(expected = AccessTokenRequestException.class)
     public void testFailedAccessTokenRequestResponse() throws Exception {
         // ARRANGE
         Mockito.when(connectorFactory.getConnector(credentials)).thenReturn(httpConnector);
@@ -103,7 +99,7 @@ public class AccessTokenConnectorTest {
      *
      * @throws Exception a WebhookException should be thrown.
      */
-    @Test(expected = WebhookException.class)
+    @Test(expected = AccessTokenRequestException.class)
     public void testUnableToInitializeConnection() throws Exception {
         when(connectorFactory.getConnector(credentials)).thenThrow(
                 new HttpConnectorException("Testing connection initialization issue"));
