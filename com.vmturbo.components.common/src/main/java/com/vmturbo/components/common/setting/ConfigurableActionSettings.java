@@ -253,6 +253,18 @@ public enum ConfigurableActionSettings {
             EntityType.STORAGE_CONTROLLER, EntityType.APPLICATION_COMPONENT)),
 
     /**
+     * Horizontal Scale Up action automation mode.
+     */
+    HorizontalScaleUp("horizontalScaleUp", "Horizontal Scale Up",
+                      EnumSet.of(EntityType.SERVICE)),
+
+    /**
+     * Horizontal Scale Down action automation mode.
+     */
+    HorizontalScaleDown("horizontalScaleDown", "Horizontal Scale Down",
+                      EnumSet.of(EntityType.SERVICE)),
+
+    /**
      * Reconfigure action automation mode (not executable).
      */
     Reconfigure("reconfigure", "Reconfigure",

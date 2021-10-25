@@ -208,7 +208,7 @@ public class SettingsMapperTest {
                 ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper,
                 ImmutableMap.of(
                         Feature.CloudScaleEnhancement, true,
-                        Feature.ApplicationMinMaxReplicas, true));
+                        Feature.ServiceHorizontalScale, true));
 
         final Map<String, SettingsManagerApiDTO> mgrsByUuid = mapper.toManagerDtos(
                 Arrays.asList(settingSpec1, SETTING_SPEC_3, SETTING_SPEC_4), Optional.empty(), false).stream()
@@ -1797,11 +1797,11 @@ public class SettingsMapperTest {
                 ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper,
                 ImmutableMap.of(
                         Feature.CloudScaleEnhancement, true,
-                        Feature.ApplicationMinMaxReplicas, false));
+                        Feature.ServiceHorizontalScale, false));
         final Map<String, Set<String>> disabledSettings = mapper.getDisabledSettings();
         final Map<String, Set<String>> expected = SettingsMapper.featureToSettingsMap
-                .getOrDefault(Feature.ApplicationMinMaxReplicas, Collections.emptyMap());
-        Assert.assertEquals(1, disabledSettings.size());
+                .getOrDefault(Feature.ServiceHorizontalScale, Collections.emptyMap());
+        Assert.assertEquals(2, disabledSettings.size());
         Assert.assertEquals(expected, disabledSettings);
     }
 
