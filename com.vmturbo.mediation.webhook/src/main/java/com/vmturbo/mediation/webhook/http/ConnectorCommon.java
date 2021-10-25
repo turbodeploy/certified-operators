@@ -14,8 +14,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.ssl.SSLContexts;
 
-import com.vmturbo.mediation.webhook.connector.WebhookCredentials;
-
 /**
  * Class that holds common connector components.
  */
@@ -55,13 +53,13 @@ public class ConnectorCommon {
      * Constructs a http client to be used by a httpConnector.
      *
      * @param timeout the timeout used for a request.
-     * @param webhookCredentials the credentials needed to construct the request.
+     * @param isTrustSelfSignedCertificates if the request should trust any certificate.
      * @return  the http client.
      */
     public static CloseableHttpClient createHttpClient(final int timeout,
-            WebhookCredentials webhookCredentials) {
+            boolean isTrustSelfSignedCertificates) {
         HttpClientBuilder builder = HttpClientBuilder.create();
-        if (webhookCredentials.isTrustSelfSignedCertificates()) {
+        if (isTrustSelfSignedCertificates) {
             ConnectorCommon.trustAllCertificates(builder);
         }
         // Set the timeout

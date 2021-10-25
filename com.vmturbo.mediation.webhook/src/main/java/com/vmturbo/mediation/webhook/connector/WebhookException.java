@@ -1,16 +1,13 @@
 package com.vmturbo.mediation.webhook.connector;
 
-import com.vmturbo.mediation.connector.common.HttpConnectorException;
+import com.vmturbo.mediation.webhook.http.BasicHttpException;
 
 /**
  * The wrapper exception class for all Webhook operation errors.
  */
-public class WebhookException extends HttpConnectorException {
+public class WebhookException extends BasicHttpException {
 
     private static final long serialVersionUID = -7270838047059539519L;
-
-    private final Integer responseCode;
-    private final String responseBody;
 
     /**
      * Constructor when a http status code resulted in the exception.
@@ -21,9 +18,7 @@ public class WebhookException extends HttpConnectorException {
      * @param cause the cause for the exception.
      */
     public WebhookException(String msg, Integer responseCode, String responseBody, final Throwable cause) {
-        super(msg, cause);
-        this.responseCode = responseCode;
-        this.responseBody = responseBody;
+        super(msg, responseCode, responseBody, cause);
     }
 
     /**
@@ -32,16 +27,6 @@ public class WebhookException extends HttpConnectorException {
      * @param msg The input exception message.
      */
     public WebhookException(String msg) {
-        super(msg);
-        this.responseCode = null;
-        this.responseBody = null;
-    }
-
-    public Integer getResponseCode() {
-        return responseCode;
-    }
-
-    public String getResponseBody() {
-        return responseBody;
+        super(msg, null, null, null);
     }
 }

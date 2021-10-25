@@ -15,6 +15,7 @@ import com.vmturbo.mediation.connector.common.HttpConnectorFactory;
 import com.vmturbo.mediation.connector.common.HttpConnectorSettings;
 import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
+import com.vmturbo.mediation.webhook.connector.WebhookConnector.WebhookQueryConverter;
 import com.vmturbo.mediation.webhook.http.BasicHttpResponse;
 import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 
@@ -39,7 +40,7 @@ public class WebhookConnectorTest {
                 null, false, null, null, null,
                 null, null);
         connectorFactory = Mockito.spy(WebhookConnector.createConnectorFactoryBuilder(30000,
-                webhookCredentials).build());
+                webhookCredentials, new WebhookQueryConverter(webhookCredentials)).build());
         webhookConnector = new WebhookConnector(webhookCredentials, connectorFactory);
         httpConnector = Mockito.spy(HttpConnector.class);
         webhookPostQuery = new WebhookQuery(HttpMethodType.POST,
