@@ -164,12 +164,13 @@ public class TargetMapper {
      * @throws CommunicationException if an error occurs, which will map to a 500 status error code
      */
     public TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo,
-                                            @Nonnull final Map<Long, ProbeInfo> probeMap)
+                                           @Nonnull final Map<Long, ProbeInfo> probeMap)
             throws CommunicationException {
         Objects.requireNonNull(targetInfo);
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(targetInfo.getId()));
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
+        targetApiDTO.setHealthState(targetInfo.getHealthState());
         targetApiDTO.setReadonly(targetInfo.isReadOnly());
 
         // set the last edit user/time
