@@ -570,6 +570,7 @@ public class TestUtils {
             .build()));
         rawMap.put(TestUtils.VMEM.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
             new RawMaterial(TestUtils.MEM.getType(), false, false),
+            new RawMaterial(TestUtils.VMEM.getType(), true, false),
             new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false, false)))));
         rawMap.put(TestUtils.DBMEM.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
             new RawMaterial(TestUtils.VMEM.getType(), false, false)))));

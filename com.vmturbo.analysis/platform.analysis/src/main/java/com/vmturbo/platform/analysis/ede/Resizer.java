@@ -374,7 +374,10 @@ public class Resizer {
             CommoditySold rawMaterial = rawMaterialEntry.getValue().first;
             boolean proceedWithNonExecutableAxn = false;
             if (rawMaterial != null
-                    && (resizeCommodity.getEffectiveCapacity() + capacityIncrement > rawMaterial.getEffectiveCapacity())) {
+                && (resizeCommodity.getEffectiveCapacity() + capacityIncrement
+                        > rawMaterial.getEffectiveCapacity())
+                    || (rawMaterial.getQuantity() + capacityIncrement
+                            > rawMaterial.getEffectiveCapacity())) {
                 if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
                     logger.info("Cannot resize {}/{} further up. Current capacity {} + capacityIncrement {} "
                                     + "is above raw material capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),

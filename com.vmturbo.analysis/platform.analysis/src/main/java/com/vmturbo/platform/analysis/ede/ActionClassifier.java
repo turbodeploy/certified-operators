@@ -260,7 +260,7 @@ public class ActionClassifier {
                                 : null;
                         // mark action as non-executable if targetEntityCopy is NULL
                         boolean executable = targetCopy != null &&
-                                checkAndMarkResizeUp(r, targetCopy);
+                                checkIfResizeUpIsExecutable(r, targetCopy);
                         if (executable) {
                             // update usage on rawMaterial in the simulation economy
                             Resizer.resizeDependentCommodities(simulationEconomy_, targetCopy,
@@ -268,6 +268,8 @@ public class ActionClassifier {
                                     r.getSoldIndex(), r.getNewCapacity(),
                                     r.getResizedCommodity().isHistoricalQuantitySet(), false);
                             r.setExecutable(true);
+                        } else {
+                            r.setExecutable(false);
                         }
                     } catch (Exception ex) {
                         r.setExecutable(false);
@@ -312,16 +314,19 @@ public class ActionClassifier {
      *
      * @return true if the resize UP is executable.
      */
-    boolean checkAndMarkResizeUp(Resize r, Trader targetEntityCopy) {
+    boolean checkIfResizeUpIsExecutable(Resize r, Trader targetEntityCopy) {
         Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialMapping =
                 RawMaterials.findSellerCommodityAndSupplier(simulationEconomy_,
                         targetEntityCopy, r.getSoldIndex());
+        // mark resize actions without rawMaterials as non-executable.
+        if (rawMaterialMapping.isEmpty()) {
+            return false;
+        }
         double capacityChange = r.getNewCapacity() - r.getOldCapacity();
         for (Pair<CommoditySold, Trader> rawMaterialEntry : rawMaterialMapping.values()) {
             CommoditySold rawMaterial = rawMaterialEntry.first;
             if (rawMaterial.getQuantity() + capacityChange >
                     rawMaterial.getEffectiveCapacity()) {
-                r.setExecutable(false);
                 return false;
             }
         }

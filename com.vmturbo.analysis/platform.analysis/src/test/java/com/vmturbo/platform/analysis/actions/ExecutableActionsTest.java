@@ -213,9 +213,9 @@ public class ExecutableActionsTest {
         try {
             classifier = new ActionClassifier(economy);
             classifier.classify(actions, economy);
-            // resize up executable, resize down executable
+            // resize up not executable because of absense of rawMaterials, resize down executable
             assertTrue(actions.size() == 1);
-            assertTrue(classifier.getExecutable() == 1);
+            assertTrue(classifier.getExecutable() == 0);
             logger.info(classifier.getExecutable());
         }
         catch (Exception e) {
