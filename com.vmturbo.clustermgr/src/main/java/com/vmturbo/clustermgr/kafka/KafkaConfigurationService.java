@@ -1,5 +1,8 @@
 package com.vmturbo.clustermgr.kafka;
 
+import static com.vmturbo.components.api.security.KafkaTlsUtil.addSecurityProps;
+import static com.vmturbo.components.common.config.SensitiveDataUtil.safeLogger;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,7 +11,9 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -36,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.yaml.snakeyaml.Yaml;
 
 import com.vmturbo.components.api.BaseKafkaConfig;
+import com.vmturbo.components.api.security.KafkaTlsProperty;
 import com.vmturbo.components.common.config.IConfigSource;
 
 /**
@@ -73,11 +79,16 @@ public class KafkaConfigurationService {
 
     private final IConfigSource configSource;
 
+    private final Optional<KafkaTlsProperty> kafkaTlsProperty;
+
     /**
      * Create a KafkaConfigurationService based on the configuration source.
      * @param configSource the config source to read property values from.
+     * @param kafkaTlsProperty the security configuration for mTLS connection
      */
-    public KafkaConfigurationService(IConfigSource configSource) {
+    public KafkaConfigurationService(final IConfigSource configSource, final Optional<KafkaTlsProperty> kafkaTlsProperty) {
+        this.kafkaTlsProperty = kafkaTlsProperty;
+
         this.kafkaBootstrapServers = configSource.getProperty("kafkaServers", String.class, null);
         if (Strings.isNullOrEmpty(kafkaBootstrapServers)) {
             throw new IllegalArgumentException("bootstrapServers must have a value.");
@@ -209,10 +220,19 @@ public class KafkaConfigurationService {
             // minimum of 10 seconds to give the admin client time to actually do stuff.
             props.put("request.timeout.ms", Math.max(10000, 1000 * kafkaConfigMaxRetryTimeSecs));
         }
-
-        log.info("Creating kafka admin client with properties {}", props);
-
+        kafkaTlsProperty.ifPresent(tlsProperty -> {
+            addSecurityProps(props, tlsProperty);
+        });
+        logAdminClientProperty(props);
         return AdminClient.create(props);
+    }
+
+    // Helper to avoid logging sensitive data, such as password
+    private void logAdminClientProperty(final Properties properties) {
+        log.info("Creating kafka admin client with properties: \n");
+        for (Entry entry : properties.entrySet()) {
+            safeLogger(entry.getKey(), String.valueOf(entry.getValue()), log);
+        }
     }
 
     /**

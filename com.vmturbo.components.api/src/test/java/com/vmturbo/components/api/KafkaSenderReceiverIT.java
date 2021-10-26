@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -85,7 +86,8 @@ public class KafkaSenderReceiverIT {
     public void init() throws Exception {
         kafkaConsumer =
                 new KafkaMessageConsumer(kafkaServer.getBootstrapServers(), "test-consumer-group");
-        kafkaProducer = new KafkaMessageProducer(kafkaServer.getBootstrapServers(), "", Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        kafkaProducer = new KafkaMessageProducer(kafkaServer.getBootstrapServers(), "", Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Optional
+                .empty());
         threadPool = Executors.newCachedThreadPool();
     }
 

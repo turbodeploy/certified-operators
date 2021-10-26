@@ -1,5 +1,7 @@
 package com.vmturbo.components.api.client;
 
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,7 +35,8 @@ public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
         if (useLocalBus()) {
             return LocalBus.getInstance();
         } else {
-            return new KafkaMessageConsumer(bootstrapServer(), consumerGroup, kafkaNamespacePrefix());
+            return new KafkaMessageConsumer(bootstrapServer(), consumerGroup,
+                    kafkaNamespacePrefix(), Optional.of(kafkaTlsProperty()));
         }
 
     }

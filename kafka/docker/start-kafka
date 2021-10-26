@@ -34,8 +34,66 @@ KAFKA_PARAMS="$KAFKA_PARAMS --override log.dirs=$KAFKA_DATA_DIR"
 # the docker network) accessible broker addresses.
 # For more info, see
 #   https://cwiki.apache.org/confluence/display/KAFKA/KIP-103%3A+Separation+of+Internal+and+External+traffic
+
 KAFKA_PARAMS="$KAFKA_PARAMS --override inter.broker.listener.name=INTERNAL"
-KAFKA_PARAMS="$KAFKA_PARAMS --override listener.security.protocol.map=PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+
+# mTLS credential file injected from K8S secret.
+mtlsfile='/vault/mtlsSecrets/mtls-creds'
+
+TLS_KEYSTORE="TLS_KEYSTORE"
+TLS_KEYSTORE_PASS="TLS_KEYSTORE_PASS"
+TLS_KEY_PASS="TLS_KEY_PASS"
+TLS_TRUSTSTORE="TLS_TRUSTSTORE"
+TLS_TRUSTSTORE_PASS="TLS_TRUSTSTORE_PASS"
+
+# Read mTLS credential file
+# [[:blank:]] is a POSIX regex class (remove spaces, tabs...), see http://www.regular-expressions.info/posixbrackets.html
+# <(grep ""  is a solution to the 'no terminal newline' problem
+while IFS=: read -r key value; do
+    if [ "$key" = "$TLS_KEYSTORE" ]; then
+        KAFKA_TLS_KEYSTORE="${value//[[:blank:]]/}"
+    elif [ "$key" = "$TLS_KEYSTORE_PASS" ]; then
+        KAFKA_TLS_KEYSTORE_PASS="${value//[[:blank:]]/}"
+    elif [ "$key" = "$TLS_KEY_PASS" ]; then
+        KAFKA_TLS_KEY_PASS="${value//[[:blank:]]/}"
+    elif [ "$key" = "$TLS_TRUSTSTORE" ]; then
+        KAFKA_TLS_TRUSTSTORE="${value//[[:blank:]]/}"
+    elif [ "$key" = "$TLS_TRUSTSTORE_PASS" ]; then
+        KAFKA_TLS_TRUSTSTORE_PASS="${value//[[:blank:]]/}"
+    else
+        echo "Unknown key and value:"
+        echo "$key"
+    fi
+done <  <(grep "" "$mtlsfile")
+
+if [ "$KAFKA_TLS_ENABLED" = "true" ] && [ -n "$KAFKA_TLS_KEYSTORE" ] && [ -n "$KAFKA_TLS_KEYSTORE_PASS" ] && [ -n "$KAFKA_TLS_KEY_PASS" ] && [ -n "$KAFKA_TLS_TRUSTSTORE" ] && [ -n "$KAFKA_TLS_TRUSTSTORE_PASS" ]; then
+    # add configuration for mTLS
+    KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.keystore.location=$KAFKA_TLS_KEYSTORE"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.keystore.password=$KAFKA_TLS_KEYSTORE_PASS"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.key.password=$KAFKA_TLS_KEY_PASS"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.truststore.location=$KAFKA_TLS_TRUSTSTORE"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.truststore.password=$KAFKA_TLS_TRUSTSTORE_PASS"
+
+    # add TLS protocol, default to TLS 1.2
+    if [ -n "$KAFKA_TLS_ENABLED_PROTOCOLS" ]; then
+      KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.enabled.protocols=$KAFKA_TLS_ENABLED_PROTOCOLS"
+    else
+      KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.enabled.protocols=TLSv1.2"
+    fi
+
+    # Customized socket request max byte for TLS. Prevent InvalidReceiveException: Invalid receive (size = 369296129 larger than 104857600)
+    if [ -n "$KAFKA_SOCKET_REQUEST_MAX_BYTE" ]; then
+      KAFKA_PARAMS="$KAFKA_PARAMS --override socket.request.max.bytes=$KAFKA_SOCKET_REQUEST_MAX_BYTE"
+    else
+      KAFKA_PARAMS="$KAFKA_PARAMS --override socket.request.max.bytes=370296129"
+    fi
+
+    KAFKA_PARAMS="$KAFKA_PARAMS --override ssl.enabled.protocols=$KAFKA_TLS_ENABLED_PROTOCOLS"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override listener.security.protocol.map=PLAINTEXT:PLAINTEXT,INTERNAL:SSL,EXTERNAL:PLAINTEXT"
+else
+    KAFKA_PARAMS="$KAFKA_PARAMS --override listener.security.protocol.map=PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+fi
+
 if [ -n "$KAFKA_EXTERNAL_BROKER_ADDRESS" ] && [ -n "$KAFKA_EXTERNAL_PORT" ]; then
     # add configuration for supporting both internal and external access
     KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=INTERNAL://0.0.0.0:$KAFKA_INTERNAL_PORT,EXTERNAL://0.0.0.0:$KAFKA_EXTERNAL_PORT"

@@ -1,5 +1,7 @@
 package com.vmturbo.clustermgr.kafka;
 
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +26,7 @@ public class KafkaConfigurationServiceConfig extends BaseKafkaConfig {
 
     @Bean
     public KafkaConfigurationService kafkaConfigurationService() {
-        return new KafkaConfigurationService(configSource());
+        return new KafkaConfigurationService(configSource(), Optional.of(kafkaTlsProperty()));
     }
 
 }
