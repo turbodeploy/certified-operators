@@ -3,7 +3,8 @@ package com.vmturbo.components.common.config;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_COMPONENT_TYPE;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_PROPERTIES_YAML_PATH;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_SECRETS_YAML_PATH;
-import static com.vmturbo.components.common.config.SensitiveDataUtil.hasSensitiveData;
+import static com.vmturbo.components.common.BaseVmtComponent.PROP_TLS_SECRETS_YAML_PATH;
+import static com.vmturbo.components.common.config.SensitiveDataUtil.safeLogger;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -53,6 +54,9 @@ public class PropertiesLoader {
     private static final String DEFAULT_SECRETS_YAML_FILE_PATH =
             "file:/vault/secrets/db-creds";
 
+    private static final String DEFAULT_TLS_SECRETS_YAML_FILE_PATH =
+            "file:/vault/mtlsSecrets/mtls-creds";
+
     private static final String CONFIG = "config";
     /**
      * The config source name for the properties read from "properties.yaml".
@@ -63,7 +67,6 @@ public class PropertiesLoader {
      * The config source name for the properties read from the "CONFIG" resource.
      */
     private static final String OTHER_PROPERTIES_CONFIG_SOURCE = "other-properties";
-    private static final String ASTERISKS = "xxxxx";
 
     private PropertiesLoader() {
     }
@@ -86,9 +89,14 @@ public class PropertiesLoader {
         final String secretYamlFilePath = EnvironmentUtils
                 .getOptionalEnvProperty(PROP_SECRETS_YAML_PATH)
                 .orElse(DEFAULT_SECRETS_YAML_FILE_PATH);
+
+        final String tlsSecretYamlFilePath = EnvironmentUtils
+                .getOptionalEnvProperty(PROP_TLS_SECRETS_YAML_PATH)
+                .orElse(DEFAULT_TLS_SECRETS_YAML_FILE_PATH);
+
         final String componentType = applicationContext.getEnvironment().getRequiredProperty(PROP_COMPONENT_TYPE);
         final PropertySource<?> mergedPropertyConfiguration =
-            fetchConfigurationProperties(componentType, propertiesYamlFilePath, secretYamlFilePath);
+            fetchConfigurationProperties(componentType, propertiesYamlFilePath, secretYamlFilePath, tlsSecretYamlFilePath);
         applicationContext.getEnvironment().getPropertySources()
             .addFirst(mergedPropertyConfiguration);
         // Fetch other configuration properties from files compiled into the component
@@ -130,6 +138,7 @@ public class PropertiesLoader {
      *                      subsection of the properties.yaml file
      * @param propertiesYamlFilePath the file path to fetch the "properties.yaml" file from
      * @param secretYamlFilePath the file path to fetch the secrets
+     * @param tlsSecretYamlFilePath the file path to fetch the TLS secrets
      * @return a PropertySource containing the configuration properties loaded from the
      * given configuration file path
      * @throws ContextConfigurationException if there is a problem reading the "properties.yaml"
@@ -138,10 +147,12 @@ public class PropertiesLoader {
     @VisibleForTesting
     static PropertySource<?> fetchConfigurationProperties(@Nonnull final String componentType,
             @Nonnull final String propertiesYamlFilePath,
-            @Nonnull final String secretYamlFilePath) throws ContextConfigurationException {
+            @Nonnull final String secretYamlFilePath,
+            @Nonnull final String tlsSecretYamlFilePath) throws ContextConfigurationException {
         try {
             final Properties yamlProperties = getProperties(componentType, propertiesYamlFilePath);
             getSecrets(componentType, secretYamlFilePath).ifPresent(yamlProperties::putAll);
+            getTlsSecrets(componentType, tlsSecretYamlFilePath).ifPresent(yamlProperties::putAll);
             // populate a PropertySource with the config properties from the yaml file
             return new PropertiesPropertySource(PROPERTIES_YAML_CONFIG_SOURCE, yamlProperties);
         } catch (IOException e) {
@@ -172,6 +183,19 @@ public class PropertiesLoader {
             return Optional.of(yamlProperties);
         } catch (FileNotFoundException e) {
             logger.info("The DB secret file: {} doesn't exist, skip loading secrets.", secretYamlFilePath);
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<Properties> getTlsSecrets(@Nonnull String componentType,
+            @Nonnull String tlsSecretYamlFilePath) throws IOException {
+        try {
+            // log the properties for debugging
+            logger.info("Trying to load mTLS secrets from: {}", tlsSecretYamlFilePath);
+            final Properties yamlProperties = TlsSecretPropertiesReader.readSecretFile(tlsSecretYamlFilePath);
+            return Optional.of(yamlProperties);
+        } catch (FileNotFoundException e) {
+            logger.info("The mTLS secret file: {} doesn't exist, skip loading secrets.", tlsSecretYamlFilePath);
         }
         return Optional.empty();
     }
@@ -306,14 +330,6 @@ public class PropertiesLoader {
                 str += "... [" + (originalLength - str.length() + " bytes truncated]");
             }
         }
-        safeLogger(key, str);
-    }
-
-    private static void safeLogger(@Nonnull final Object key, @Nonnull final String value) {
-        if (hasSensitiveData(key)) {
-            logger.info("       {} = '{}'", key, ASTERISKS);
-        } else {
-            logger.info("       {} = '{}'", key, value);
-        }
+        safeLogger(key, str, logger);
     }
 }

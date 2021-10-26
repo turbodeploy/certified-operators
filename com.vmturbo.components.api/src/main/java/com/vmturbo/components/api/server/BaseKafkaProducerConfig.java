@@ -1,5 +1,7 @@
 package com.vmturbo.components.api.server;
 
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -74,7 +76,8 @@ public class BaseKafkaProducerConfig extends BaseKafkaConfig {
             return LocalBus.getInstance();
         } else {
             return new KafkaMessageProducer(bootstrapServer(), kafkaNamespacePrefix(),
-                maxRequestSizeBytes, recommendedRequestSizeBytes, maxBlockMs, deliveryTimeoutMs, totalSendRetrySecs);
+                    maxRequestSizeBytes, recommendedRequestSizeBytes, maxBlockMs, deliveryTimeoutMs,
+                    totalSendRetrySecs, Optional.of(kafkaTlsProperty()));
         }
     }
 }

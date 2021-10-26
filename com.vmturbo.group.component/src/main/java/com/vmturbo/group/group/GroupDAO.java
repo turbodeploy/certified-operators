@@ -499,6 +499,58 @@ public class GroupDAO implements IGroupStore {
         }
     }
 
+    /**
+     * Delete a list of user created tags for a group. Note that it will first check if requested
+     * tag for delete exists, and if it doesn't it will fail. If not it will proceed to the
+     * deletion, but a double delete can still happen, if in the meantime of the "check" another
+     * delete happens.
+     *
+     * @param groupId is the group oid.
+     * @param tagKeys is the list of tag keys to delete.
+     * @return the affected rows after the database operations.
+     *
+     * @throws StoreOperationException if the tags for the group could not to be deleted.
+     */
+    @Override
+    public int deleteTagList(long groupId, Collection<String> tagKeys) throws StoreOperationException {
+        Set<String> tagSet = new HashSet<>(tagKeys);
+        // Fetch tag records to see if exist
+        Collection<? extends GroupTagsRecord> tagRecords =
+                dslContext.selectFrom(GROUP_TAGS)
+                        .where(GROUP_TAGS.GROUP_ID.eq(groupId),
+                                GROUP_TAGS.TAG_KEY.in(tagSet),
+                                GROUP_TAGS.TAG_ORIGIN.eq((short)TagOrigin.USER_CREATED.ordinal())
+                        ).fetch();
+
+        // Filter out the fetched tag keys, for proper error message if needed
+        Set<String> tagKeysNotFetched = new HashSet<>(tagKeys);
+        tagKeysNotFetched.removeAll(
+                tagRecords.stream().map(GroupTagsRecord::getTagKey)
+                .collect(Collectors.toSet())
+        );
+        if (!tagKeysNotFetched.isEmpty()) {
+            throw new StoreOperationException(Status.NOT_FOUND,
+                    "No such tag(s) with tag key(s): '" + tagKeysNotFetched + " for group '"
+                            + groupId + "'");
+        }
+
+        int affectedRows;
+        try {
+            // This executes delete in multiple rows. If this is expected to be used for delete on
+            // many tags, then we need to do a batch execute instead.
+            affectedRows = dslContext.deleteFrom(GROUP_TAGS).where(
+                    GROUP_TAGS.GROUP_ID.eq(groupId),
+                    GROUP_TAGS.TAG_KEY.in(tagSet),
+                    GROUP_TAGS.TAG_ORIGIN.eq((short)TagOrigin.USER_CREATED.ordinal())
+            ).execute();
+        } catch (DataAccessException e) {
+            throw new StoreOperationException(Status.INTERNAL,
+                    "Could not delete tags for Group: '" + groupId + "'");
+        }
+
+        return affectedRows;
+    }
+
     @Override
     public int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException {
         Collection<Query> queries = insertCustomTags(dslContext, tags, groupId,

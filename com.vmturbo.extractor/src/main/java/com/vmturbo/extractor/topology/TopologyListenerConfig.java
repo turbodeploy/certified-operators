@@ -104,9 +104,6 @@ public class TopologyListenerConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private ActionOrchestratorClientConfig actionClientConfig;
-
-    @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
 
     @Autowired
@@ -158,6 +155,9 @@ public class TopologyListenerConfig {
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+
+    @Value("${searchBatchSize:1000}")
+    private int searchBatchSize;
 
     /**
      * The interval for extracting entity/group and sending to Kafka. Default to broadcast schedule.
@@ -254,6 +254,7 @@ public class TopologyListenerConfig {
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
                 .unaggregatedCommodities(unaggregatedKeyedCommodityTypes)
+                .searchBatchSize(searchBatchSize)
                 .build();
     }
 

@@ -101,6 +101,13 @@ public enum SearchGroupMetadata {
                 .put(RelatedActionFieldApiDTO.actionCount(), SearchMetadataMapping.RELATED_ACTION_COUNT)
                 .build();
 
+        static final Map<FieldApiDTO, SearchMetadataMapping> GROUP_FIELDS_SHARED_WITH_ENTITIES = ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
+                        .put(PrimitiveFieldApiDTO.oid(), SearchMetadataMapping.PRIMITIVE_GROUP_OID)
+                        .put(PrimitiveFieldApiDTO.groupType(), SearchMetadataMapping.PRIMITIVE_GROUP_TYPE)
+                        .put(PrimitiveFieldApiDTO.name(), SearchMetadataMapping.PRIMITIVE_GROUP_NAME)
+                        .put(PrimitiveFieldApiDTO.severity(), SearchMetadataMapping.PRIMITIVE_SEVERITY)
+                        .build();
+
         static final Map<FieldApiDTO, SearchMetadataMapping> RESOURCE_GROUP_METADATA = ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
                 // common fields
                 .putAll(GROUP_COMMON_FIELDS)

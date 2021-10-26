@@ -15,7 +15,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
-import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchEntityWriter.PartialEntityInfo;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -38,7 +38,7 @@ public class RelatedGroupsPatcher implements EntityRecordPatcher<DataProvider> {
     private static final Logger logger = LogManager.getLogger();
 
     @Override
-    public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
+    public void fetch(PartialEntityInfo recordInfo, DataProvider dataProvider) {
         final List<SearchMetadataMapping> metadataMappings = SearchMetadataUtils.getMetadata(
                 recordInfo.getEntityType(), FieldType.RELATED_GROUP);
 
@@ -69,13 +69,13 @@ public class RelatedGroupsPatcher implements EntityRecordPatcher<DataProvider> {
 
             switch (metadata.getRelatedGroupProperty()) {
                 case COUNT:
-                    recordInfo.putAttrs(metadata.getJsonKeyName(), relatedGroups.count());
+                    recordInfo.putAttr(metadata, relatedGroups.count());
                     break;
                 case NAMES:
                     List<String> groupNames = relatedGroups.map(g -> g.getDefinition().getDisplayName())
                             .collect(Collectors.toList());
                     if (!groupNames.isEmpty()) {
-                        recordInfo.putAttrs(metadata.getJsonKeyName(), groupNames);
+                        recordInfo.putAttr(metadata, groupNames);
                     }
                     break;
                 default:

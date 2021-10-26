@@ -49,6 +49,7 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
@@ -79,12 +80,6 @@ public class MapperConfig {
      */
     @Value("${entityDetailsEnabled:false}")
     private boolean entityDetailsEnabled;
-
-    /**
-     * Enable min/max replicas settings.
-     */
-    @Value("${enableApplicationMinMaxReplicas:false}")
-    private boolean enableApplicationMinMaxReplicas;
 
     /**
      * Enable reservation related enhancements.
@@ -330,7 +325,7 @@ public class MapperConfig {
                 scheduleMapper(),
                 ImmutableMap.of(
                         Feature.CloudScaleEnhancement, enableCloudScaleEnhancement,
-                        Feature.ApplicationMinMaxReplicas, enableApplicationMinMaxReplicas));
+                        Feature.ServiceHorizontalScale, FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()));
     }
 
     @Bean

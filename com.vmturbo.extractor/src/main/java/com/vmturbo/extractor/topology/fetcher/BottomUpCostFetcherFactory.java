@@ -8,9 +8,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
 
@@ -100,8 +100,8 @@ public class BottomUpCostFetcherFactory {
             this.snapshotTime = snapshotTime;
         }
 
-        public LongStream getEntityOids() {
-            return entityCosts.keySet().stream().mapToLong(Long::longValue);
+        public Set<Long> getEntityOids() {
+            return entityCosts.keySet();
         }
 
         /**

@@ -29,12 +29,13 @@ public class SensitiveDataUtilTest {
      */
     @Test
     public void testGetSensitiveKey() {
-        Set<String> sensitiveKeySet =
-                ImmutableSet.of("arangodbPass", "userPassword", "sslKeystorePassword",
-                        "readonlyPassword", "dbRootPassword", "actionDbPassword", "authDbPassword",
-                        "costDbPassword", "groupComponentDbPassword", "historyDbPassword",
-                        "clustermgrDbPassword", "planDbPassword", "topologyProcessorDbPassword",
-                        "repositoryDbPassword", "intersightClientSecret", "marketDbPassword", "apiDbPassword");
+        Set<String> sensitiveKeySet = ImmutableSet.of("arangodbPass", "userPassword",
+                "sslKeystorePassword", "readonlyPassword", "dbRootPassword", "actionDbPassword",
+                "authDbPassword", "costDbPassword", "groupComponentDbPassword", "historyDbPassword",
+                "clustermgrDbPassword", "planDbPassword", "topologyProcessorDbPassword",
+                "repositoryDbPassword", "intersightClientSecret", "marketDbPassword",
+                "apiDbPassword", "ssl.keystore.password", "ssl.key.password",
+                "ssl.truststore.password");
         assertEquals(sensitiveKeySet, getSensitiveKey());
     }
 }

@@ -11,7 +11,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
-import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchEntityWriter.PartialEntityInfo;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
@@ -22,7 +22,7 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
 public class RelatedEntitiesPatcher implements EntityRecordPatcher<DataProvider> {
 
     @Override
-    public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
+    public void fetch(PartialEntityInfo recordInfo, DataProvider dataProvider) {
         final List<SearchMetadataMapping> metadataMappings = SearchMetadataUtils.getMetadata(
                 recordInfo.getEntityType(), FieldType.RELATED_ENTITY);
         // collect all related names first for use by all cases below
@@ -42,11 +42,11 @@ public class RelatedEntitiesPatcher implements EntityRecordPatcher<DataProvider>
                 case NAMES:
                     // do not persist if it's empty to save space
                     if (!relatedEntityNames.isEmpty()) {
-                        recordInfo.putAttrs(metadata.getJsonKeyName(), relatedEntityNames);
+                        recordInfo.putAttr(metadata, relatedEntityNames);
                     }
                     break;
                 case COUNT:
-                    recordInfo.putAttrs(metadata.getJsonKeyName(), relatedEntityNames.size());
+                    recordInfo.putAttr(metadata, relatedEntityNames.size());
                     break;
             }
         });

@@ -4,6 +4,7 @@ import static com.vmturbo.group.GroupMockUtil.mockEnvironment;
 import static com.vmturbo.group.db.tables.GroupSupplementaryInfo.GROUP_SUPPLEMENTARY_INFO;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 import java.util.ArrayList;
@@ -1001,6 +1002,77 @@ public class GroupDaoTest {
         // Check whether is one of the ones we inserted
         Assert.assertThat(tagsMap.get(tagName1), is(Matchers.nullValue()));
         Assert.assertThat(tagsMap.get(tagName2), is(Matchers.nullValue()));
+    }
+
+    /**
+     * Test the case of deleting a user defined tag list for a group.
+     *
+     * @throws StoreOperationException should not happen.
+     */
+    @Test
+    public void deleteTagListTest() throws StoreOperationException {
+        final String notDeleted = "notDeleted";
+        final String tagName1 = "tag1";
+        final String tagName2 = "tag2";
+        final String tagValue1 = "v1";
+        final String tagValue2 = "v2";
+        final long groupId = 42L;
+
+        final Tags tags = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue1, tagValue2)).build())
+                .putTags(tagName2, TagValuesDTO.newBuilder()
+                        .addValues(tagValue1).build())
+                .putTags(notDeleted, TagValuesDTO.newBuilder()
+                        .addValues(tagValue1).build())
+                .build();
+
+        // create group to group by id
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition()).build();
+        final Origin origin = createUserOrigin();
+        groupStore.createGroup(groupId, origin, groupDefinition, EXPECTED_MEMBERS, true);
+
+        int num = groupStore.insertTags(groupId, tags);
+        assertThat(num, is(4));
+
+        int affectedRows = groupStore.deleteTagList(
+                groupId,
+                Arrays.asList(tagName1, tagName2)
+        );
+        assertThat(affectedRows, is(3));
+
+
+        Map<String, Set<String>> tagsMap = groupStore.getTags(Arrays.asList(groupId)).get(groupId);
+
+    assertThat(tagsMap, is(notNullValue()));
+    // "tag" is inherited from group definition, as a discovered tag, thus we expect size 2
+    assertThat(tagsMap.size(), is(2));
+
+    Set<String> values = tagsMap.get(notDeleted);
+    assertThat(values, is(notNullValue()));
+    assertThat(values.size(), is(1));
+    assertThat(values.toArray()[0], is(tagValue1));
+}
+
+    /**
+     * Test the case of deleting a tag list for an entity that does not exist.
+     *
+     * @throws StoreOperationException due to deleting a tag that does not exist.
+     */
+    @Test(expected = StoreOperationException.class)
+    public void deleteTagListNotExistTest() throws StoreOperationException {
+        final long groupId = 42L;
+        final String tagName = "someNonExistingTag";
+
+        // create group to group by id
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition()).build();
+        final Origin origin = createUserOrigin();
+        groupStore.createGroup(groupId, origin, groupDefinition, EXPECTED_MEMBERS, true);
+
+        groupStore.deleteTagList(
+                groupId,
+                Arrays.asList(tagName)
+        );
     }
 
     /**

@@ -37,4 +37,11 @@ public interface WriterConfig {
      * @return multimap of qualifying combos
      */
     Multimap<CommodityType, EntityType> unaggregatedCommodities();
+
+    /**
+     * Batch size for persisting search tables' temporary records when using JDBC batch inserts.
+     *
+     * @return batch size for search persistence
+     */
+    int searchBatchSize();
 }

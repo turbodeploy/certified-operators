@@ -211,4 +211,50 @@ public class EntityCustomTagsStoreTest {
         Assert.assertThat(tagsMap.get(tagName1), is(Matchers.nullValue()));
         Assert.assertThat(tagsMap.get(tagName2), is(Matchers.nullValue()));
     }
+
+    /**
+     * Test the case of deleting a tag list for an entity.
+     *
+     * @throws StoreOperationException should not happen.
+     */
+    @Test
+    public void deleteTagListTest() throws StoreOperationException {
+        final String notDeleted = "notDeleted";
+        final Tags tags = Tags.newBuilder()
+                .putTags(tagName1, TagValuesDTO.newBuilder()
+                        .addAllValues(Arrays.asList(tagValue1, tagValue2)).build())
+                .putTags(tagName2, TagValuesDTO.newBuilder()
+                        .addValues(tagValue1).build())
+                .putTags(notDeleted, TagValuesDTO.newBuilder()
+                        .addValues(tagValue1).build())
+                .build();
+        entityCustomTagsStore.insertTags(ENTITY_ID, tags);
+
+        int affectedRows = entityCustomTagsStore.deleteTagList(
+                ENTITY_ID,
+                Arrays.asList(tagName1, tagName2)
+        );
+        assertThat(affectedRows, is(3));
+
+        Map<String, TagValuesDTO> tagsMap = entityCustomTagsStore.getTags(ENTITY_ID).getTagsMap();
+        assertThat(tagsMap.size(), is(1));
+
+        TagValuesDTO values = tagsMap.get(notDeleted);
+        assertThat(values, is(notNullValue()));
+        assertThat(values.getValuesList().size(), is(1));
+        assertThat(values.getValuesList().get(0), is(tagValue1));
+    }
+
+    /**
+     * Test the case of deleting a tag list for an entity that does not exist.
+     *
+     * @throws StoreOperationException due to deleting a tag that does not exist.
+     */
+    @Test(expected = StoreOperationException.class)
+    public void deleteTagListNotExistTest() throws StoreOperationException {
+        entityCustomTagsStore.deleteTagList(
+                ENTITY_ID,
+                Arrays.asList(tagName1)
+        );
+    }
 }

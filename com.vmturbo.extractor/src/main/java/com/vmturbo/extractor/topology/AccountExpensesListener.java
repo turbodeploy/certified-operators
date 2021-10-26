@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -18,10 +17,12 @@ import com.google.common.collect.ImmutableList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.cost.api.CostNotificationListener;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
@@ -143,18 +144,20 @@ public class AccountExpensesListener implements CostNotificationListener {
      * @param consumer Consumer that accepts the records to be written.
      * @param expenseData Billing expense data to write.
      * @return Number of accounts for which records were written.
+     * @throws InterruptedException when interrupted
+     * @throws SQLException when failed to initiate data writing
      */
     @VisibleForTesting
-    static int consumeAccountExpenses(Consumer<Record> consumer,
-            @Nonnull final TopDownCostData expenseData) {
+    static int consumeAccountExpenses(ThrowingConsumer<Record, SQLException> consumer,
+            @Nonnull final TopDownCostData expenseData) throws SQLException, InterruptedException {
         final AtomicInteger accountCount = new AtomicInteger();
 
         final Set<Timestamp> usageDates = new HashSet<>();
         final AtomicInteger serviceCount = new AtomicInteger();
-        expenseData.getAllAccountExpenses().forEach(accountExpense -> {
+        for (AccountExpenses accountExpense : expenseData.getAllAccountExpenses()) {
             if (!accountExpense.hasAccountExpensesInfo() || !accountExpense.hasAssociatedAccountId()
                     || !accountExpense.hasExpensesDate()) {
-                return;
+                continue;
             }
             final long accountId = accountExpense.getAssociatedAccountId();
             final Timestamp snapshotTimestamp = new Timestamp(accountExpense.getExpensesDate());
@@ -162,15 +165,14 @@ public class AccountExpensesListener implements CostNotificationListener {
             final List<ServiceExpenses> services =
                     accountExpense.getAccountExpensesInfo().getServiceExpensesList();
 
-            services.stream()
-                    .filter(ServiceExpenses::hasAssociatedServiceId)
-                    .filter(ServiceExpenses::hasExpenses)
-                    .map(svc -> accountExpenseRecord(snapshotTimestamp, accountId, svc))
-                    .map(Record.class::cast)
-                    .forEach(consumer);
+            for (ServiceExpenses service : services) {
+                if (service.hasAssociatedServiceId() && service.hasExpenses()) {
+                    consumer.accept(accountExpenseRecord(snapshotTimestamp, accountId, service));
+                }
+            }
             usageDates.add(snapshotTimestamp);
             serviceCount.addAndGet(services.size());
-        });
+        }
         logger.info("Processed {} cloud service expenses for {} accounts. Dates: {}.",
                 serviceCount.get(), accountCount.get(), usageDates);
         return accountCount.get();

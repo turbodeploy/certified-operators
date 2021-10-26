@@ -109,7 +109,7 @@ public class BottomUpCostFetcherFactoryTest {
         assertThat(entityCosts.isEmpty(), is(false));
 
         // our entity oids should run from 1 through to nCombo
-        Long[] oids = entityCosts.getEntityOids().boxed().toArray(Long[]::new);
+        Long[] oids = entityCosts.getEntityOids().toArray(new Long[]{});
         final Long[] expectedOids = LongStream.rangeClosed(1, 2 * nCombo).boxed().toArray(Long[]::new);
         assertThat(oids, is(arrayContainingInAnyOrder(expectedOids)));
 

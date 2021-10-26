@@ -1,5 +1,7 @@
 package com.vmturbo.components.api.client;
 
+import static com.vmturbo.components.api.security.KafkaTlsUtil.addSecurityProps;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -10,6 +12,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -20,7 +23,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -50,6 +52,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.components.api.security.KafkaTlsProperty;
 import com.vmturbo.components.api.tracing.Tracing;
 
 /**
@@ -137,7 +140,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
      * @param consumerGroup the consumer group name
      */
     public KafkaMessageConsumer(@Nonnull String bootstrapServer, @Nonnull String consumerGroup) {
-        this(bootstrapServer, consumerGroup, "");
+        this(bootstrapServer, consumerGroup, "", Optional.empty());
     }
 
     /**
@@ -148,8 +151,8 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
      * @param consumerGroup the consumer group name
      * @param namespacePrefix the namespace prefix to be added to the topics and consumer groups
      */
-    public KafkaMessageConsumer(@Nonnull String bootstrapServer, @Nonnull String consumerGroup,
-                                @Nonnull String namespacePrefix) {
+    public KafkaMessageConsumer(final String bootstrapServer, final String consumerGroup,
+            final String namespacePrefix, final Optional<KafkaTlsProperty> kafkaTlsProperty) {
         this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
         final String namespacedConsumerGroup =
                 namespacePrefix + Objects.requireNonNull(consumerGroup);
@@ -165,6 +168,10 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
         props.put("max.poll.interval.ms", 300000);
         props.put("fetch.max.bytes", 67108864);
         props.put("auto.offset.reset", "earliest");
+        kafkaTlsProperty.ifPresent(tlsProperty -> {
+            addSecurityProps(props, tlsProperty);
+        });
+
         consumer = new TracingKafkaConsumer<>(new KafkaConsumer<>(props), Tracing.tracer());
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("kconsumer-%d").build();

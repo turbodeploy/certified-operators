@@ -462,16 +462,10 @@ public class WorkflowsService implements IWorkflowsService {
      */
     private static void validateOAuthData(@Nonnull OAuthDataApiDTO oAuthData) {
         final String clientId = oAuthData.getClientId();
-        final String clientSecret = oAuthData.getClientSecret();
         final String authorizationServerUrl = oAuthData.getAuthorizationServerUrl();
-        final String scope = oAuthData.getScope();
 
         if (StringUtils.isBlank(clientId)) {
             throw new IllegalArgumentException("The client ID cannot be empty.");
-        }
-
-        if (StringUtils.isBlank(clientSecret)) {
-            throw new IllegalArgumentException("The client secret cannot be empty.");
         }
 
         if (StringUtils.isBlank(authorizationServerUrl)) {

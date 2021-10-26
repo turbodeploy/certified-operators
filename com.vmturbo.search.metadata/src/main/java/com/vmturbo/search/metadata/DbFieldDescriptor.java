@@ -1,6 +1,6 @@
 package com.vmturbo.search.metadata;
 
-import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 import org.jooq.DataType;
@@ -25,21 +25,9 @@ public class DbFieldDescriptor<DbValueT> {
     // some fields e.g. oid and type go into more than one table - for pagination
     private final Set<Location> locations;
     private final String column;
+    private final FieldPlacement placement;
     // this is backend-specific i.e. jOOQ
     private final DataType<DbValueT> dbType;
-
-    /**
-     * Construct the field db storage description.
-     *
-     * @param location table
-     * @param column column name
-     * @param dbType db type e.g. "varchar"
-     */
-    public DbFieldDescriptor(Location location, String column, DataType<DbValueT> dbType) {
-        this.locations = Collections.singleton(location);
-        this.column = column;
-        this.dbType = dbType;
-    }
 
     /**
      * Construct the field db storage description.
@@ -47,11 +35,14 @@ public class DbFieldDescriptor<DbValueT> {
      * @param locations tables to contain that field
      * @param column column name
      * @param dbType db type e.g. "varchar"
+     * @param placement how the field is stored within the table
      */
-    public DbFieldDescriptor(Set<Location> locations, String column, DataType<DbValueT> dbType) {
+    public DbFieldDescriptor(Set<Location> locations, String column, DataType<DbValueT> dbType,
+                    FieldPlacement placement) {
         this.locations = locations;
         this.column = column;
         this.dbType = dbType;
+        this.placement = placement;
     }
 
     public Set<Location> getLocations() {
@@ -64,6 +55,35 @@ public class DbFieldDescriptor<DbValueT> {
 
     public DataType<DbValueT> getDbType() {
         return dbType;
+    }
+
+    public FieldPlacement getPlacement() {
+        return placement;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(locations, column, dbType, placement);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final DbFieldDescriptor<?> t = (DbFieldDescriptor)o;
+        return Objects.equals(locations, t.locations) && Objects.equals(column, t.column)
+                        && Objects.equals(dbType, t.dbType)
+                        && Objects.equals(placement, t.placement);
+    }
+
+    @Override
+    public String toString() {
+        return "DbFieldDescriptor [locations=" + locations + ", column=" + column + ", placement="
+                        + placement + "]";
     }
 
     /**
@@ -100,5 +120,38 @@ public class DbFieldDescriptor<DbValueT> {
         public String getTable() {
             return table;
         }
+
+        /**
+         * ValueOf from table name, case insensitive.
+         *
+         * @param name table name
+         * @return enum value, null if not found
+         */
+        public static Location fromName(String name) {
+            for (Location loc : values()) {
+                if (loc.getTable().equalsIgnoreCase(name)) {
+                    return loc;
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Field placement inside a table.
+     */
+    public enum FieldPlacement {
+        /**
+         * A column in the Location table.
+         */
+        Column,
+        /**
+         * A row in the specific value-type Location table with predefined columns for oid/fieldname/fieldvalue.
+         */
+        Row,
+        /**
+         * Part of the composite predefined field ("attrs") in the Location table.
+         */
+        Json
     }
 }

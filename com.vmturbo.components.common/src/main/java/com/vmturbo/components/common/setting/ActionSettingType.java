@@ -70,6 +70,14 @@ public enum ActionSettingType {
                             .build(),
                         ActionMode.class);
                     break;
+                case HorizontalScaleUp:
+                case HorizontalScaleDown:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.DISABLED, null, null,
+                        ImmutableMap.<EntityType, ActionMode>builder()
+                            .put(EntityType.SERVICE, ActionMode.DISABLED)
+                            .build(),
+                        ActionMode.class);
+                    break;
                 case Resize:
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null, null,
                         ImmutableMap.<EntityType, ActionMode>builder()

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -79,9 +80,12 @@ public class HistoricalPendingCountReceiverTest {
 
     /**
      * Set up the mocks.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws SQLException should not happen
      */
     @Before
-    public void setup() {
+    public void setup() throws SQLException, InterruptedException {
         when(extractorFeatureFlagsMock.isReportingActionIngestionEnabled()).thenReturn(true);
 
         // Spy so that we can record the results written to the database (via the sink).
@@ -144,9 +148,12 @@ public class HistoricalPendingCountReceiverTest {
 
     /**
      * Test that the receiver can accept and process an action stats rollup message.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws SQLException should not happen
      */
     @Test
-    public void testAcceptRollupWithActionGroup() {
+    public void testAcceptRollupWithActionGroup() throws SQLException, InterruptedException {
         // prepare
         ActionRollupNotification rollupNotification = ActionRollupNotification.newBuilder()
                 .addHourlyActionStats(HourlyActionStat.newBuilder()

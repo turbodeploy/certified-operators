@@ -24,6 +24,7 @@ import org.jooq.Field;
 import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
 
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.topology.WriterConfig;
@@ -88,13 +89,18 @@ public class HashedDataManager {
      * @param config writer config data
      * @return a record consumer that is also auto-closeable
      */
-    public CloseableConsumer<Record> open(DSLContext dsl, WriterConfig config) {
+    public CloseableConsumer<Record, SQLException> open(DSLContext dsl, WriterConfig config) {
         if (priorHashes == null) {
             priorHashes = loadHashesFromDatabase(dsl);
         }
         this.sink = getUpserter(dsl, config);
         this.writer = table.open(sink, String.format("%s Upserter", table.getName()), logger);
-        return new CloseableConsumer<>(this::processRecord, this::finish);
+        return new CloseableConsumer<>(new ThrowingConsumer<Record, SQLException>() {
+            @Override
+            public void accept(Record record) throws SQLException, InterruptedException {
+                processRecord(record);
+            }
+        }, this::finish);
     }
 
     private DslUpsertRecordSink getUpserter(DSLContext dsl, WriterConfig config) {
@@ -112,7 +118,7 @@ public class HashedDataManager {
         };
     }
 
-    private void processRecord(final Record record) {
+    private void processRecord(final Record record) throws SQLException, InterruptedException {
         long hash = record.getXxHash(hashCols);
         currentHashes.add(hash);
         if (priorHashes.contains(hash)) {
@@ -155,21 +161,22 @@ public class HashedDataManager {
      * attempts to pass additional values to {@link #accept(Object)} throw an exception.
      *
      * @param <T> type of consumed object
+     * @param <E> type of exception thrown
      */
-    public static class CloseableConsumer<T> implements Consumer<T>, AutoCloseable {
+    public static class CloseableConsumer<T, E extends Exception> implements ThrowingConsumer<T, E>, AutoCloseable {
 
         private boolean isOpen;
-        private final Consumer<T> onAccept;
+        private final ThrowingConsumer<T, E> onAccept;
         private final Runnable onClose;
 
-        CloseableConsumer(Consumer<T> onAccept, Runnable onClose) {
+        CloseableConsumer(ThrowingConsumer<T, E> onAccept, Runnable onClose) {
             this.onAccept = onAccept;
             this.onClose = onClose;
             this.isOpen = true;
         }
 
         @Override
-        public void accept(final T t) {
+        public void accept(final T t) throws E, InterruptedException {
             if (isOpen) {
                 onAccept.accept(t);
             } else {

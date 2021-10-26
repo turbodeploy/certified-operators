@@ -27,6 +27,7 @@ import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.enums.SavingsType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.tables.Metric;
+import com.vmturbo.search.metadata.DbFieldDescriptor;
 import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
@@ -54,6 +55,10 @@ public class ModelDefinitions {
      * ENTITY_NAME column.
      */
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
+    /**
+     * FIELD_NAME column.
+     */
+    public static final Column<Integer> FIELD_NAME = Column.intColumn("name");
     /**
      * ATTRS column.
      */
@@ -233,7 +238,7 @@ public class ModelDefinitions {
                         .put(SQLDataType.TINYINT, (name) -> Column.shortColumn(name))
                         .put(SQLDataType.SMALLINT, (name) -> Column.intColumn(name))
                         .put(SQLDataType.BIGINT, (name) -> Column.longColumn(name))
-                        .put(SQLDataType.VARCHAR, (name) -> Column.stringColumn(name))
+                        .put(SQLDataType.VARCHAR(DbFieldDescriptor.STRING_SIZE), (name) -> Column.stringColumn(name))
                         .build();
 
     /**
@@ -252,13 +257,13 @@ public class ModelDefinitions {
      * SEARCH_ENTITY_STRING_TABLE.
      */
     public static final Table SEARCH_ENTITY_STRING_TABLE = Table.named(Location.Strings.getTable())
-                    .withColumns(getSearchColumns(Location.Strings)).build();
+                    .withColumns(ENTITY_OID_AS_OID, FIELD_NAME, STRING_VALUE).build();
 
     /**
      * SEARCH_ENTITY_NUMERIC_TABLE.
      */
     public static final Table SEARCH_ENTITY_NUMERIC_TABLE = Table.named(Location.Numerics.getTable())
-                    .withColumns(getSearchColumns(Location.Numerics)).build();
+                    .withColumns(ENTITY_OID_AS_OID, FIELD_NAME, DOUBLE_VALUE).build();
 
     /**
      * SEARCH_MODEL.
