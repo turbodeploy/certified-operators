@@ -15,6 +15,8 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import net.jpountz.xxhash.StreamingXXHash64;
 
 import org.apache.logging.log4j.LogManager;
@@ -191,6 +193,7 @@ public class Table {
     /**
      * Class to manage a record sink attached to a table.
      */
+    @NotThreadSafe
     public static class TableWriter implements ThrowingConsumer<Record, SQLException>, AutoCloseable {
 
         private final Table table;
@@ -288,19 +291,21 @@ public class Table {
          */
         @Override
         public void close() {
-            try {
-                sink.accept(null);
-            } catch (SQLException e) {
-                logger.warn("Failed to close the " + TableWriter.class.getSimpleName() + " " + name);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            if (!closed) {
+                try {
+                    sink.accept(null);
+                } catch (SQLException e) {
+                    logger.warn("Failed to close the " + TableWriter.class.getSimpleName() + " " + name, e);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                this.closed = true;
+                RECORDS_WRITTEN_GAUGE.labels(table.getName()).setData((double)recordsWritten);
+                recordErrorCounts.forEach((eClass, count) ->
+                        logger.warn("Writer {} failed {} record insertions due to {}",
+                                name, count, eClass.getName()));
+                logger.info("Writer {} wrote {} records", name, recordsWritten);
             }
-            this.closed = true;
-            RECORDS_WRITTEN_GAUGE.labels(table.getName()).setData((double)recordsWritten);
-            recordErrorCounts.forEach((eClass, count) ->
-                    logger.warn("Writer {} failed {} record insertions due to {}",
-                            name, count, eClass.getName()));
-            logger.info("Writer {} wrote {} records", name, recordsWritten);
         }
 
         public long getRecordsWritten() {

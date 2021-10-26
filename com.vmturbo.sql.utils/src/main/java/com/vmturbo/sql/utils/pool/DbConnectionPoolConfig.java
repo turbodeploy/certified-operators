@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -62,7 +63,7 @@ public class DbConnectionPoolConfig {
      * @param poolName The name of the connection pool.
      * @return a HikariDataSource, providing a pool of database connections
      */
-    public static HikariDataSource getPooledDataSource(final String dbUrl,
+    public static DataSource getPooledDataSource(final String dbUrl,
            final String dbUsername, final String dbPassword, final int minPoolSize,
            final int maxPoolSize, @Nullable final Integer dbKeepAliveIntervalMinutes,
            @Nonnull final String poolName) {

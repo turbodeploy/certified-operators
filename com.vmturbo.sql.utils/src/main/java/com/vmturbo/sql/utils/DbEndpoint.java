@@ -138,6 +138,7 @@ public class DbEndpoint {
     private boolean retriesCompleted = false;
     private Throwable failureCause;
     private final DbEndpointCompleter endpointCompleter;
+    private DataSourceConnectionProvider connectionProvider;
 
     DbEndpoint(DbEndpointConfig config, DbEndpointCompleter endpointCompleter) {
         this.config = config;
@@ -217,18 +218,24 @@ public class DbEndpoint {
     }
 
     /**
-     * Get a connection provider bound to this endpoint.
+     * Get a jooq's connection provider bound to this endpoint.
+     * There is only a single provider per endpoint.
+     * So if adapter supports pooling, all DSL contexts created from this endpoint instance
+     * will be using same single pool.
      *
      * @return the connection provider
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
      */
-    private DataSourceConnectionProvider connectionProvider()
+    private synchronized DataSourceConnectionProvider connectionProvider()
             throws UnsupportedDialectException, SQLException {
-        return new DataSourceConnectionProvider(
-                new TransactionAwareDataSourceProxy(
-                        new LazyConnectionDataSourceProxy(
-                                adapter.getDataSource(true))));
+        if (connectionProvider == null) {
+            connectionProvider = new DataSourceConnectionProvider(
+                            new TransactionAwareDataSourceProxy(
+                                    new LazyConnectionDataSourceProxy(
+                                            adapter.getDataSource(true))));
+        }
+        return connectionProvider;
     }
 
     /**

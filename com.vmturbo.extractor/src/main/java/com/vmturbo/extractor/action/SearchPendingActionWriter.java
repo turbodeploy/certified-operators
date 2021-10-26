@@ -189,8 +189,6 @@ class SearchPendingActionWriter implements IActionWriter {
                             }
                         }
                     }
-
-                    actionsReplacer.accept(null);
                     timer.stop();
                 }
             });
