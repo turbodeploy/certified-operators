@@ -23,6 +23,7 @@ public class PropertiesLoaderTest {
     private static final String BAD_TEST_YAML_FILE_PATH = "other-properties/doesnt-exist.yaml";
     private static final String GOOD_OTHER_PROPERTIES_RESOURCE = "other-properties";
     private static final String GOOD_TEST_SECRET_FILE_PATH = "secretMap/sample_file_username_password_secret";
+    private static final String GOOD_TEST_TLS_SECRET_FILE_PATH = "secretMap/sample_file_TLS_secret";
 
     /**
      * Test reading properties.yaml and secret file, and merging the different sections to return
@@ -43,7 +44,7 @@ public class PropertiesLoaderTest {
     public void testPropertiesYamlReaderSuccess() throws ContextConfigurationException {
         // act
         final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
-            COMPONENT_TYPE, GOOD_TEST_YAML_FILE_PATH, BAD_TEST_YAML_FILE_PATH);
+            COMPONENT_TYPE, GOOD_TEST_YAML_FILE_PATH, BAD_TEST_YAML_FILE_PATH, GOOD_TEST_TLS_SECRET_FILE_PATH);
         // assert
         assertThat(propertiesSource.getProperty("foo"), equalTo("123"));
         assertThat(propertiesSource.getProperty("bar"), equalTo("789"));
@@ -75,7 +76,7 @@ public class PropertiesLoaderTest {
     public void testPropertiesYamlReaderSuccessWithSecret() throws ContextConfigurationException {
         // act
         final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
-                XL_COMPONENT_TYPE, GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH);
+                XL_COMPONENT_TYPE, GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH, GOOD_TEST_TLS_SECRET_FILE_PATH);
         // assert
         assertThat(propertiesSource.getProperty("foo"), equalTo("123"));
         assertThat(propertiesSource.getProperty("bar"), equalTo("789"));
@@ -100,7 +101,7 @@ public class PropertiesLoaderTest {
     public void testPropertiesYamlReaderSuccessWithRepositorySecret() throws ContextConfigurationException {
         // act
         final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
-                "repository", GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH);
+                "repository", GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH, GOOD_TEST_TLS_SECRET_FILE_PATH);
         // assert
         assertThat(propertiesSource.getProperty("repositoryDbUsername"), equalTo("v-kubernetes-coke-plan--3AvWqRZs"));
         assertThat(propertiesSource.getProperty("repositoryDbPassword"), equalTo("A1a-9Y9tLPAX2NXOJYb9"));
@@ -115,7 +116,7 @@ public class PropertiesLoaderTest {
     public void testPropertiesYamlReaderMissingFile() throws ContextConfigurationException {
         // act
         PropertiesLoader.fetchConfigurationProperties(COMPONENT_TYPE, BAD_TEST_YAML_FILE_PATH,
-                GOOD_TEST_YAML_FILE_PATH);
+                GOOD_TEST_YAML_FILE_PATH, GOOD_TEST_TLS_SECRET_FILE_PATH);
         // assert
         fail("Should never reach here - exception should have been thrown");
     }

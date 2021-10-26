@@ -148,6 +148,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     public static final String PROP_SECRETS_YAML_PATH = "secretsYamlPath";
 
     /**
+     * The path to the mTLS secret file used to load external secret properties
+     * prior to Spring configuration.
+     */
+    public static final String PROP_TLS_SECRETS_YAML_PATH = "tlsSecretsYamlPath";
+
+    /**
      * The environment key for the port number for the Jetty instance for each component.
      */
     public static final String PROP_serverHttpPort = "serverHttpPort";

@@ -1,8 +1,11 @@
 package com.vmturbo.components.api.server;
 
+import static com.vmturbo.components.api.security.KafkaTlsUtil.addSecurityProps;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -34,6 +37,7 @@ import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.ConfigurableBackoffStrategy;
 import com.vmturbo.components.api.RetriableOperation.ConfigurableBackoffStrategy.BackoffType;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
+import com.vmturbo.components.api.security.KafkaTlsProperty;
 import com.vmturbo.components.api.tracing.TracingKafkaProducerInterceptor;
 
 /**
@@ -109,14 +113,12 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
      *                       deliveryTimeout >= totalRetrySecs, then all retries are silently handled
      *                       by the kafka producer internally, and we will only see one exception if
      *                       the total delivery time elapses.
+     * @param kafkaTlsProperty TLS properties
      */
-    public KafkaMessageProducer(@Nonnull String bootstrapServer,
-                                @Nonnull String namespacePrefix,
-                                final int maxRequestSizeBytes,
-                                final int recommendedRequestSizeBytes,
-                                final int maxBlockMs,
-                                final int deliveryTimeoutMs,
-                                final int totalSendRetrySecs) {
+    public KafkaMessageProducer(@Nonnull String bootstrapServer, @Nonnull String namespacePrefix,
+            final int maxRequestSizeBytes, final int recommendedRequestSizeBytes,
+            final int maxBlockMs, final int deliveryTimeoutMs, final int totalSendRetrySecs,
+            final Optional<KafkaTlsProperty> kafkaTlsProperty) {
         this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
         this.maxRequestSizeBytes = maxRequestSizeBytes;
         this.recommendedRequestSizeBytes = recommendedRequestSizeBytes;
@@ -138,6 +140,8 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", ByteArraySerializer.class.getName());
         props.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingKafkaProducerInterceptor.class.getName());
+
+        kafkaTlsProperty.ifPresent(tlsProperty -> addSecurityProps(props, tlsProperty));
 
         producer = new KafkaProducer<>(props);
         // if we are using a total retry window greater than the kafka retry window, log it, since it

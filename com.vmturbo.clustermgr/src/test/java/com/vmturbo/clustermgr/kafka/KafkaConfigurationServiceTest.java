@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
@@ -42,7 +43,8 @@ public class KafkaConfigurationServiceTest {
 
     @Test
     public void testKafkaConfigurationLoad() {
-        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource);
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource,
+                Optional.empty());
 
         String testConfigFile = "src/test/resources/kafka-test-config.yml";
         KafkaConfiguration config = kafkaConfigurationService.readKafkaConfiguration(testConfigFile);
@@ -78,7 +80,8 @@ public class KafkaConfigurationServiceTest {
         String namespace = "namespace";
         String namespacePrefix = namespace + ".";
         configSource.setProperty("kafkaNamespace", namespace);
-        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource);
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource,
+                Optional.empty());
 
         String testConfigFile = "src/test/resources/kafka-test-config.yml";
         KafkaConfiguration config = kafkaConfigurationService.readKafkaConfiguration(testConfigFile);
@@ -103,7 +106,8 @@ public class KafkaConfigurationServiceTest {
      */
     @Test
     public void testKafkaConfigurationTopicProperties() {
-        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource);
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource,
+                Optional.empty());
 
         String testConfigFile = "src/test/resources/kafka-test-config.yml";
         KafkaConfiguration config = kafkaConfigurationService.readKafkaConfiguration(testConfigFile);
@@ -142,7 +146,8 @@ public class KafkaConfigurationServiceTest {
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("bootstrapServers must have a value.");
         configSource.setProperty("kafkaServers", "");
-        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource);
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource,
+                Optional.empty());
     }
 
     @Test
@@ -151,7 +156,8 @@ public class KafkaConfigurationServiceTest {
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("kafka.config.max.retry.time.secs cannot be less than zero.");
         configSource.setProperty("kafka.config.max.retry.time.secs", -1);
-        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource);
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService(configSource,
+                Optional.empty());
     }
 
 }

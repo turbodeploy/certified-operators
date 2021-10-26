@@ -5,11 +5,16 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+
+import com.vmturbo.components.api.security.KafkaTlsProperty;
+import com.vmturbo.components.api.security.TlsConfig;
 
 /**
  * Base configuration for Kafka, holding kafka servers initial list as well as the namespace used
  * for prefix of all topics and consumer groups to support multi XL deployments on a single Kafka.
  */
+@Import(TlsConfig.class)
 public class BaseKafkaConfig  {
     private static final String PREFIX_DELIM = ".";
 
@@ -26,6 +31,22 @@ public class BaseKafkaConfig  {
     @Value("${kafkaServers:none}")
     private String bootstrapServer;
 
+    @Value("${KAFKA_TLS_ENABLED:false}")
+    private Boolean tlsEnabled;
+
+    @Value("${KAFKA_TLS_ENABLED_PROTOCOLS:TLSv1.2}")
+    private String tlsEnabledProtocols;
+
+    /**
+     * TLS configuration.
+     *
+     * @return TLS configuration.
+     */
+    @Bean
+    public TlsConfig tlsConfig() {
+        return new TlsConfig();
+    }
+
     /**
      * Returns bootstrap servers list.
      * @return bootstrap servers list
@@ -33,6 +54,13 @@ public class BaseKafkaConfig  {
     @Bean
     protected String bootstrapServer() {
         return bootstrapServer;
+    }
+
+    @Bean
+    protected KafkaTlsProperty kafkaTlsProperty() {
+        return new KafkaTlsProperty(tlsEnabled, tlsConfig().tlsKeyStore(),
+                tlsConfig().tlsKeystorePass(), tlsConfig().tlsKeyPass(),
+                tlsConfig().tlsTrustStore(), tlsConfig().tlsTrustStorePass(), tlsEnabledProtocols);
     }
 
     /**
