@@ -27,7 +27,7 @@ public class StaleDataLoggingConsumer implements StaleDataConsumer {
         List<Entry<Long, TargetHealth>> unhealthyTargets = targetToTargetHealth
                 .entrySet()
                 .stream()
-                .filter(entry -> entry.getValue().hasErrorType())
+                .filter(entry -> (entry.getValue().hasErrorType() || !entry.getValue().getErrorTypeInfoList().isEmpty()))
                 .collect(Collectors.toList());
 
         String header = getHeader();

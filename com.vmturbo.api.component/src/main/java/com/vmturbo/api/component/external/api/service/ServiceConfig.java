@@ -5,6 +5,8 @@ import java.time.Duration;
 
 import javax.servlet.ServletContext;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,8 +14,6 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
-
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
@@ -71,6 +71,8 @@ import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvide
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.securestorage.SecureStorageClient;
+import com.vmturbo.common.api.crypto.CryptoFacility;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
@@ -78,8 +80,6 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 import com.vmturbo.components.common.utils.BuildProperties;
-import com.vmturbo.common.api.utils.EnvironmentUtils;
-import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.repository.api.RepositoryClient;

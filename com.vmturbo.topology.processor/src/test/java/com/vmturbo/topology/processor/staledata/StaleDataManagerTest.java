@@ -31,25 +31,27 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ConnectionTimeOutErrorType;
 import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 
 /**
  * Tests the {@link StaleDataManager} class.
  */
 public class StaleDataManagerTest {
-
+private static final ErrorTypeInfo connectionTimeoutError = ErrorTypeInfo.newBuilder()
+        .setConnectionTimeOutErrorType(ConnectionTimeOutErrorType.getDefaultInstance()).build();
     private static final Map<Long, TargetHealth> dummyHealths =
             new ImmutableMap.Builder<Long, TargetHealth>()
                     .put(1L, TargetHealth
                             .newBuilder()
-                            .setErrorType(ErrorType.CONNECTION_TIMEOUT)
+                            .addErrorTypeInfo(connectionTimeoutError)
                             .setTargetName("target1")
                             .setSubcategory(TargetHealthSubCategory.DISCOVERY)
                             .build())
                     .put(2L, TargetHealth
                             .newBuilder()
-                            .setErrorType(ErrorType.CONNECTION_TIMEOUT)
+                            .addErrorTypeInfo(connectionTimeoutError)
                             .setTargetName("target1")
                             .setSubcategory(TargetHealthSubCategory.DISCOVERY)
                             .build())

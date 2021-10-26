@@ -34,6 +34,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
@@ -64,6 +65,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthSummaryApiDTO;
+import com.vmturbo.api.dto.target.TargetType;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.TargetStatsGroupBy;
@@ -138,6 +140,11 @@ public class TargetsService implements ITargetsService {
             = ImmutableMap.of(TargetDetailLevel.HEALTH, TargetDTO.TargetDetailLevel.HEALTH_ONLY,
                 TargetDetailLevel.HEALTH_DETAILS, TargetDTO.TargetDetailLevel.FULL);
 
+    /**
+     * Default target type that is used when querying for target details.
+     */
+    private static final TargetType DEFAULT_TARGET_TYPE = TargetType.PRIMARY;
+
     private final Logger logger = LogManager.getLogger();
 
     private final TopologyProcessor topologyProcessor;
@@ -179,22 +186,22 @@ public class TargetsService implements ITargetsService {
     /**
      * Constructs the TargetsService and injects the provided dependencies.
      *
-     * @param topologyProcessor the topology processor service.
-     * @param targetValidationTimeout how long until validation times out.
+     * @param topologyProcessor            the topology processor service.
+     * @param targetValidationTimeout      how long until validation times out.
      * @param targetValidationPollInterval the amount of time between validation status polls.
-     * @param targetDiscoveryTimeout how long until discovery times out.
-     * @param targetDiscoveryPollInterval the amount of time between discovery status polls.
-     * @param licenseCheckClient the client to check license status.
-     * @param apiComponentTargetListener the target status listener.
-     * @param repositoryApi the client to the respository.
-     * @param actionSpecMapper the mapper for converting actions.
-     * @param actionSearchUtil the client for searching for actions.
-     * @param apiWebsocketHandler the websocket for target updates.
-     * @param targetsService the internal target service.
-     * @param paginationMapper the mapper for converting pages.
-     * @param targetDetailsMapper the target details mapper.
-     * @param allowTargetManagement whether or not to allow target management.
-     * @param apiPaginationDefaultLimit the default page limit on number of entities.
+     * @param targetDiscoveryTimeout       how long until discovery times out.
+     * @param targetDiscoveryPollInterval  the amount of time between discovery status polls.
+     * @param licenseCheckClient           the client to check license status.
+     * @param apiComponentTargetListener   the target status listener.
+     * @param repositoryApi                the client to the respository.
+     * @param actionSpecMapper             the mapper for converting actions.
+     * @param actionSearchUtil             the client for searching for actions.
+     * @param apiWebsocketHandler          the websocket for target updates.
+     * @param targetsService               the internal target service.
+     * @param paginationMapper             the mapper for converting pages.
+     * @param targetDetailsMapper          the target details mapper.
+     * @param allowTargetManagement        whether or not to allow target management.
+     * @param apiPaginationDefaultLimit    the default page limit on number of entities.
      */
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
@@ -246,7 +253,8 @@ public class TargetsService implements ITargetsService {
             SearchTargetsRequest request = createSearchTargetRequest(null, null, null, null);
             final SearchTargetsResponse searchResponse = targetsService.searchTargets(request);
 
-            return getTargetApiDto(searchResponse.getTargetsList(), getProbeIdToProbeInfoMap());
+            return getTargetApiDto(searchResponse.getTargetsList(), getProbeIdToProbeInfoMap(),
+                    DEFAULT_TARGET_TYPE);
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
@@ -259,7 +267,8 @@ public class TargetsService implements ITargetsService {
            @Nullable final String query,
            @Nullable final String targetCategory,
            @Nullable final TargetDetailLevel targetDetailLevel,
-           @Nonnull final TargetPaginationRequest paginationRequest) {
+           @Nullable final TargetPaginationRequest paginationRequest,
+           @Nullable TargetType targetType) {
         try {
             final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
 
@@ -284,8 +293,9 @@ public class TargetsService implements ITargetsService {
                 query, paginationRequest, probeTypes);
             final SearchTargetsResponse searchResponse = targetsService.searchTargets(request);
 
-            final List<TargetApiDTO> targetList = getTargetApiDto(searchResponse.getTargetsList(), probeMap);
-            decorateWithDetails(targetList, targetDetailLevel);
+            final List<TargetApiDTO> targetList = getTargetApiDto(searchResponse.getTargetsList(),
+                    probeMap, targetType);
+            decorateWithDetails(targetList, targetDetailLevel, targetType);
 
             if (searchResponse.hasPaginationResponse()) {
                 final int totalRecords = searchResponse.getPaginationResponse().getTotalRecordCount();
@@ -300,8 +310,11 @@ public class TargetsService implements ITargetsService {
         }
     }
 
-    private List<TargetApiDTO> getTargetApiDto(List<Long> targetIds, Map<Long, ProbeInfo> probeMap)
-          throws CommunicationException {
+    private List<TargetApiDTO> getTargetApiDto(
+            List<Long> targetIds,
+            Map<Long, ProbeInfo> probeMap,
+            TargetType targetType)
+            throws CommunicationException {
 
         // get the information for the targets
         Map<Long, TargetInfo> targetInfos = targetIds.isEmpty() ? Collections.emptyMap()
@@ -318,7 +331,7 @@ public class TargetsService implements ITargetsService {
             final TargetInfo targetInfo = targetInfos.get(targetId);
             if (targetInfo != null) {
                 targetList.add(createTargetDtoWithRelationships(targetInfo, derivedTargetMap,
-                    probeMap));
+                    probeMap, targetType));
             } else {
                 logger.error("Target with id {} cannot be retrieved.", targetId);
             }
@@ -460,7 +473,9 @@ public class TargetsService implements ITargetsService {
         return Collections.singletonList(statSnapshotApiDTO);
     }
 
-    private void decorateWithDetails(List<TargetApiDTO> targets, TargetDetailLevel apiDetailLevel) {
+    private void decorateWithDetails(@Nonnull List<TargetApiDTO> targets,
+                                     @Nullable TargetDetailLevel apiDetailLevel,
+                                     @Nullable TargetType targetType) {
         // Fetch additional details if necessary.
         // TODO (roman, Jun 30 2021): In the future there should be a single search call to
         // the topology processor, instead of search -> get targets -> get details.
@@ -469,29 +484,19 @@ public class TargetsService implements ITargetsService {
             Set<Long> targetIds = targets.stream()
                 .map(target -> Long.parseLong(target.getUuid()))
                 .collect(Collectors.toSet());
-            Map<Long, TargetDetails> detailsByTarget = targetsService.getTargetDetails(GetTargetDetailsRequest.newBuilder()
+            if (TargetType.DERIVED.equals(targetType)) {
+                checkAndAddDerivedTargetIds(targetIds, targets);
+            }
+            Map<Long, TargetDetails> detailsByTarget = targetsService.getTargetDetails(
+                    GetTargetDetailsRequest.newBuilder()
                     .addAllTargetIds(targetIds)
                     .setDetailLevel(detailLevel)
                     .build()).getTargetDetailsMap();
             for (TargetApiDTO targetApiDTO : targets) {
-                TargetDetails details = detailsByTarget.get(Long.parseLong(targetApiDTO.getUuid()));
-                if (details != null) {
-                    if (details.hasHealthDetails()) {
-                        TargetHealthApiDTO targetHealth = HealthDataMapper.mapTargetHealthInfoToDTO(
-                                details.getTargetId(), details.getHealthDetails());
-                        TargetHealthSummaryApiDTO targetHealthSummary =
-                                new TargetHealthSummaryApiDTO();
-                        targetHealthSummary.setHealthState(targetHealth.getHealthState());
-                        targetHealthSummary.setTimeOfLastSuccessfulDiscovery(
-                                targetHealth.getTimeOfLastSuccessfulDiscovery());
-                        targetApiDTO.setHealthSummary(targetHealthSummary);
-                        if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
-                            targetApiDTO.setHealth(targetHealth);
-                        }
-                    }
-                    if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
-                        targetApiDTO.setLastTargetOperationStages(
-                                targetDetailsMapper.convertToTargetOperationStages(details));
+                addTargetHealthData(detailLevel, targetApiDTO, detailsByTarget);
+                if (TargetType.DERIVED.equals(targetType) && !CollectionUtils.isEmpty(targetApiDTO.getDerivedTargets())) {
+                    for (final TargetApiDTO derivedTarget : targetApiDTO.getDerivedTargets()) {
+                        addTargetHealthData(detailLevel, derivedTarget, detailsByTarget);
                     }
                 }
             }
@@ -499,34 +504,95 @@ public class TargetsService implements ITargetsService {
 
     }
 
+    private void checkAndAddDerivedTargetIds(@Nonnull final Set<Long> targetIds,
+                                             @Nonnull final List<TargetApiDTO> targets) {
+        targets.forEach(target -> {
+            if (!CollectionUtils.isEmpty(target.getDerivedTargets())) {
+                targetIds.addAll(target.getDerivedTargets().stream()
+                        .filter(Objects::nonNull)
+                        .map(derivedTarget ->
+                        Long.parseLong(derivedTarget.getUuid())).collect(Collectors.toSet()));
+            }
+        });
+
+    }
+
+    private void addTargetHealthData(@Nonnull final TargetDTO.TargetDetailLevel detailLevel,
+                                     @Nonnull final TargetApiDTO targetApiDTO,
+                                     @Nonnull final Map<Long, TargetDetails> detailsByTarget) {
+        final TargetDetails details = detailsByTarget.get(Long.parseLong(targetApiDTO.getUuid()));
+        if (details == null) {
+            logger.debug("No {} level details found for {}", detailLevel, targetApiDTO.getUuid());
+            return;
+        }
+        if (details.hasHealthDetails()) {
+            TargetHealthApiDTO targetHealth = HealthDataMapper.mapTargetHealthInfoToDTO(details.getTargetId(),
+                    details.getHealthDetails());
+            TargetHealthSummaryApiDTO targetHealthSummary =
+                    new TargetHealthSummaryApiDTO();
+            targetHealthSummary.setHealthState(targetHealth.getHealthState());
+            targetHealthSummary.setTimeOfLastSuccessfulDiscovery(
+                    targetHealth.getTimeOfLastSuccessfulDiscovery());
+            targetApiDTO.setHealthSummary(targetHealthSummary);
+            if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
+                targetApiDTO.setHealth(targetHealth);
+            }
+        }
+        if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
+            targetApiDTO.setLastTargetOperationStages(targetDetailsMapper
+                    .convertToTargetOperationStages(details));
+        }
+    }
+
+    /**
+     * Return information about the given target. This largely contains information from the
+     *       associated probe. This is a blocking call that makes network requests of the
+     *       Topology-Processor.
+     * @param uuid              the unique ID for the target.
+     * @param targetDetailLevel how much detail about the target should be returned.
+     *                          Null targetDetailLevel means assume TargetDetailLevel.BASIC.
+     * @return an {@link TargetApiDTO} containing the uuid of the target, plus the info from the
+     * related probe.
+     * @throws UnknownObjectException if target is not found.
+     */
+    public TargetApiDTO getTarget(
+            @Nonnull final String uuid,
+            @Nullable final TargetDetailLevel targetDetailLevel) throws UnknownObjectException {
+        return getTarget(uuid, targetDetailLevel, DEFAULT_TARGET_TYPE);
+    }
+
     /**
      * Return information about the given target. This largely contains information from the
      * associated probe. This is a blocking call that makes network requests of the
      * Topology-Processor.
      *
-     * @param uuid the unique ID for the target
-     * @param targetDetailLevel how much detail about the target should be returned.
-     *        Null targetDetailLevel means assume TargetDetailLevel.BASIC.
+     * @param uuid                         the unique ID for the target
+     * @param targetDetailLevel            how much detail about the target should be returned.
+     *                                     Null targetDetailLevel means assume TargetDetailLevel.BASIC.
+     * @param targetType {@link TargetType} to check if {@link TargetApiDTO} should include
+     *                                     hidden derived target.
      * @return an {@link TargetApiDTO} containing the uuid of the target, plus the info from the
-     *         related probe.
+     * related probe.
+     * @throws UnknownObjectException if target is not found.
      */
     @Override
     @Nonnull
     public TargetApiDTO getTarget(
             @Nonnull final String uuid,
-            @Nullable final TargetDetailLevel targetDetailLevel) throws UnknownObjectException {
-        // TODO(OM-72234): Implement targetDetailLevel
+            @Nullable final TargetDetailLevel targetDetailLevel,
+            @Nullable TargetType targetType) throws UnknownObjectException {
         logger.debug("Get target {}", uuid);
         // assumes target uuid's are long's in XL
-        long targetId = Long.valueOf(uuid);
+        long targetId = Long.parseLong(uuid);
         try {
             TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
             Map<Long, TargetInfo> derivedTargetMap =
-                getDerivedTargetsMap(Collections.singletonList(targetInfo));
+                    getDerivedTargetsMap(Collections.singletonList(targetInfo));
             TargetApiDTO targetApiDTO = createTargetDtoWithRelationships(targetInfo,
-                derivedTargetMap, getProbeIdToProbeInfoMap());
+                    derivedTargetMap, getProbeIdToProbeInfoMap(), targetType);
 
-            decorateWithDetails(Collections.singletonList(targetApiDTO), targetDetailLevel);
+            decorateWithDetails(Collections.singletonList(targetApiDTO), targetDetailLevel,
+                    targetType);
 
             return targetApiDTO;
         } catch (TopologyProcessorException e) {
@@ -1149,21 +1215,43 @@ public class TargetsService implements ITargetsService {
      * Creates a {@link TargetApiDTO} instance from information in a {@link TargetInfo} object
      * by mapProbeInfoToDTO() and sets the "derived targets" attribute of the target.
      *
-     * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor.
+     * @param targetInfo            the {@link TargetInfo} structure returned from the Topology-Processor.
+     * @param derivedTargetMap      the map from derived target ids to their info.
+     * @param probeIdToProbeInfoMap A map of probeInfo indexed by probeId.
+     * @return a {@link TargetApiDTO} containing the target information and its derived targets
+     *      * relationships.
+     */
+    private TargetApiDTO createTargetDtoWithRelationships(
+            final TargetInfo targetInfo,
+            final Map<Long, TargetInfo> derivedTargetMap,
+            final Map<Long, ProbeInfo> probeIdToProbeInfoMap) {
+        return createTargetDtoWithRelationships(targetInfo, derivedTargetMap,
+                probeIdToProbeInfoMap, DEFAULT_TARGET_TYPE);
+    }
+
+    /**
+     * Creates a {@link TargetApiDTO} instance from information in a {@link TargetInfo} object
+     * by mapProbeInfoToDTO() and sets the "derived targets" attribute of the target.
+     *
+     * @param targetInfo       the {@link TargetInfo} structure returned from the Topology-Processor.
      * @param derivedTargetMap the map from derived target ids to their info.
-     * @param probeMap A map of probeInfo indexed by probeId.
+     * @param probeMap         A map of probeInfo indexed by probeId.
+     * @param targetType  {@link TargetType} to check if {@link TargetApiDTO} should include
+     *                                     hidden derived target.
      * @return a {@link TargetApiDTO} containing the target information and its derived targets
      * relationships.
      */
-    private TargetApiDTO createTargetDtoWithRelationships(@Nonnull final TargetInfo targetInfo,
-                                                          @Nonnull final Map<Long, TargetInfo> derivedTargetMap,
-                                                          @Nonnull final Map<Long, ProbeInfo> probeMap) {
-
+    private TargetApiDTO createTargetDtoWithRelationships(
+            @Nonnull final TargetInfo targetInfo,
+            @Nonnull final Map<Long, TargetInfo> derivedTargetMap,
+            @Nonnull final Map<Long, ProbeInfo> probeMap,
+            @Nullable TargetType targetType) {
         try {
             TargetApiDTO targetApiDTO = targetMapper.mapTargetInfoToDTO(targetInfo, probeMap);
             targetApiDTO.setDerivedTargets(
                     convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds().stream()
-                            .map(String::valueOf).collect(Collectors.toList()), derivedTargetMap, probeMap));
+                            .map(String::valueOf).collect(Collectors.toList()), derivedTargetMap, probeMap,
+                            targetType));
             return targetApiDTO;
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -1177,13 +1265,15 @@ public class TargetsService implements ITargetsService {
      * @param derivedTargetIds a List of derived target's ids that associated with a parent target.
      * @param derivedTargetMap The map from the id of derived target its info.
      * @param probeMap A map of probeInfo objects indexed by probeId.
+     * @param targetType {@link TargetType} to indicate if we should skip over hidden derived targets.
      * @return List of {@link TargetApiDTO}s containing the target information from their
      * {@link TargetInfo}s.
      */
     private List<TargetApiDTO> convertDerivedTargetInfosToDtos(
             @Nonnull final List<String> derivedTargetIds,
             @Nonnull final Map<Long, TargetInfo> derivedTargetMap,
-            @Nonnull final Map<Long, ProbeInfo> probeMap) {
+            @Nonnull final Map<Long, ProbeInfo> probeMap,
+            @Nullable TargetType targetType) {
         if (derivedTargetIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -1192,7 +1282,7 @@ public class TargetsService implements ITargetsService {
         derivedTargetIds.forEach(targetId -> {
             TargetInfo targetInfo = derivedTargetMap.get(Long.parseLong(targetId));
             if (targetInfo != null) {
-                if (targetInfo.isHidden()) {
+                if (targetInfo.isHidden() && !TargetType.DERIVED.equals(targetType)) {
                     logger.debug("Skip the conversion of a hidden derived target: {}", targetId);
                 } else {
                     try {
