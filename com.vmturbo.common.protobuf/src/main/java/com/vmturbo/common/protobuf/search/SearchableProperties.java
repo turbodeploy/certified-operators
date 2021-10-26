@@ -22,6 +22,8 @@ public class SearchableProperties {
 
     public static final String COMMODITY_SOLD_LIST_PROPERTY_NAME = "commoditySoldList";
 
+    public static final String COMMODITY_BOUGHT_LIST_PROPERTY_NAME = "commodityBoughtList";
+
     public static final String COMMODITY_TYPE_PROPERTY_NAME = "type";
 
     public static final String COMMODITY_CAPACITY_PROPERTY_NAME = "capacity";

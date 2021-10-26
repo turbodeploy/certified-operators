@@ -1,6 +1,7 @@
 package com.vmturbo.repository.listener.realtime;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -8,8 +9,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
@@ -27,6 +30,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.components.api.CompressedProtobuf;
 import com.vmturbo.components.api.SharedByteBuffer;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.SearchableProps;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 import com.vmturbo.topology.graph.ThinSearchableProps;
@@ -46,6 +51,7 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
     private final SearchableProps searchableProps;
 
     private final List<SoldCommodity> soldCommodities;
+    private final Collection<BoughtCommodity> boughtCommodityTypes;
 
     private final CompressedProtobuf<TopologyEntityDTO, TopologyEntityDTO.Builder> entity;
 
@@ -72,6 +78,14 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
         entity = CompressedProtobuf.compress(src.toBuilder()
             .build(), sharedCompressionBuffer);
         this.searchableProps = ThinSearchableProps.newProps(tags, this, src);
+        final ImmutableSet.Builder<BoughtCommodity> builder = ImmutableSet.builder();
+        src.getCommoditiesBoughtFromProvidersList()
+                        .forEach(cbfp -> cbfp.getCommodityBoughtList().stream()
+                                        .map(cb -> cb.getCommodityType().getType())
+                                        .filter(SearchableProps.SEARCHABLE_COMM_TYPES::contains)
+                                        .forEach(type -> builder.add(new BoughtCommodity(
+                                                        cbfp.getProviderEntityType(), type))));
+        boughtCommodityTypes = builder.build();
     }
 
     /**
@@ -107,6 +121,14 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
                 .filter(comm -> comm.getType() == type)
                 .mapToDouble(SoldCommodity::getCapacity)
                 .findFirst().orElse(-1);
+    }
+
+    @Override
+    public boolean hasBoughtCommodity(@Nonnull CommodityType commodityType,
+                    @Nullable EntityType providerType) {
+        return boughtCommodityTypes.stream().filter(bc -> providerType == null
+                                        || providerType.getNumber() == bc.getProviderType())
+                        .anyMatch(bc -> bc.getType() == commodityType.getNumber());
     }
 
     @Override
@@ -219,6 +241,27 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
                                             .setDisplayName(e.getDisplayName())
                                             .build()));
         return result;
+    }
+
+    /**
+     * Thin class for bought commodities, containing only the fields we need for filtering.
+     */
+    public static class BoughtCommodity {
+        private final int type;
+        private final int providerType;
+
+        private BoughtCommodity(int providerType, int type) {
+            this.type = type;
+            this.providerType = providerType;
+        }
+
+        public int getType() {
+            return type;
+        }
+
+        public int getProviderType() {
+            return providerType;
+        }
     }
 
     /**

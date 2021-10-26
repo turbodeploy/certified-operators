@@ -21,7 +21,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -56,11 +55,13 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirect
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CustomControllerInfo;
@@ -73,6 +74,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Workloa
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.topology.graph.TestGraphEntity;
@@ -691,6 +693,40 @@ public class TopologyFilterFactoryTest {
                         .setNumCpus(value * cpsr), SearchableProperties.VM_INFO_SOCKETS);
     }
 
+    /**
+     * Checks that only filter by bought commodity types is working as expected.
+     */
+    @Test
+    public void checkHasBoughtCommoditiesFilter() {
+        final CommoditiesBoughtFromProvider.Builder cbfp =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(3L)
+                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                        .setCommodityType(CommodityType.newBuilder()
+                                                                        .setType(CommodityDTO.CommodityType.CLUSTER_VALUE)));
+        final TestGraphEntity vm1 = TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_MACHINE)
+                        .addBoughtFromProvider(cbfp.build()).build();
+        final TestGraphEntity vm2 =
+                        TestGraphEntity.newBuilder(2L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final Search.PropertyFilter internalPropertyFilter = Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.COMMODITY_TYPE_PROPERTY_NAME)
+                        .setStringFilter(StringFilter.newBuilder()
+                                        .addOptions(CommodityDTO.CommodityType.CLUSTER.name())
+                                        .build()).build();
+        final ListFilter listFilter = ListFilter.newBuilder().setObjectFilter(
+                                        ObjectFilter.newBuilder().addFilters(internalPropertyFilter).build())
+                        .build();
+        final SearchFilter searchFilter = SearchFilter.newBuilder().setPropertyFilter(
+                        Search.PropertyFilter.newBuilder().setPropertyName(
+                                                        SearchableProperties.COMMODITY_BOUGHT_LIST_PROPERTY_NAME)
+                                        .setListFilter(listFilter).build()).build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter =
+                        (PropertyFilter<TestGraphEntity>)filter;
+        Assert.assertThat(propertyFilter.test(vm1, graph), CoreMatchers.is(true));
+        Assert.assertThat(propertyFilter.test(vm2, graph), CoreMatchers.is(false));
+    }
+
     private void checkObjectIntegerFilter(
                     BiFunction<VirtualMachineInfo.Builder, Integer, VirtualMachineInfo.Builder> builderConfigurator,
                     String property) {
@@ -788,7 +824,8 @@ public class TopologyFilterFactoryTest {
         assertEquals(hotSupport != positiveMatch, propertyFilter.test(vm2, graph));
     }
 
-    private TestGraphEntity createVm(int commodityTypeNumber, Builder vmHotResizeInfo, long oid) {
+    private static TestGraphEntity createVm(int commodityTypeNumber, Builder vmHotResizeInfo,
+                    long oid) {
         return TestGraphEntity.newBuilder(oid, ApiEntityType.VIRTUAL_MACHINE)
                 .addCommSold(CommoditySoldDTO.newBuilder()
                         .setCommodityType(

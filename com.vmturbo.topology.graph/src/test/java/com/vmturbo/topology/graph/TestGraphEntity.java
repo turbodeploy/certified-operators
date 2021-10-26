@@ -1,13 +1,16 @@
 package com.vmturbo.topology.graph;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -21,9 +24,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResi
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 import com.vmturbo.topology.graph.ThinSearchableProps.CommodityValueFetcher;
 import com.vmturbo.topology.graph.util.BaseGraphEntity;
@@ -45,6 +51,7 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
     private TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.getDefaultInstance();
 
     private final List<CommoditySoldDTO> commsSoldByType = new ArrayList<>();
+    private final Collection<CommoditiesBoughtFromProvider> boughtCommodities = new ArrayList<>();
 
     private final Map<String, List<String>> tags = new HashMap<>();
 
@@ -149,6 +156,15 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
     }
 
     @Override
+    public boolean hasBoughtCommodity(@Nonnull CommodityType commodityType, @Nullable EntityType providerType) {
+        return boughtCommodities.stream().filter(cbfp -> providerType == null
+                                        || providerType.getNumber() == cbfp.getProviderEntityType())
+                        .anyMatch(cbfp -> cbfp.getCommodityBoughtList().stream()
+                                        .anyMatch(cb -> cb.getCommodityType().getType()
+                                                        == commodityType.getNumber()));
+    }
+
+    @Override
     public float getCommodityUsed(final int type) {
         return (float)commsSoldByType.stream()
             .filter(comm -> comm.getCommodityType().getType() == type)
@@ -244,6 +260,11 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
 
         public Builder addCommSold(final CommoditySoldDTO commSold) {
             graphEntity.commsSoldByType.add(commSold);
+            return this;
+        }
+
+        public Builder addBoughtFromProvider(final CommoditiesBoughtFromProvider cbfp) {
+            graphEntity.boughtCommodities.add(cbfp);
             return this;
         }
 

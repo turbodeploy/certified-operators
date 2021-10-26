@@ -15,6 +15,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.KubernetesServiceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -74,6 +76,18 @@ public class ThickSearchableProps implements SearchableProps {
         // but we want to guard against tag changes during stitching,
         // so we return a "fresh" index every time.
         return DefaultTagIndex.singleEntity(entityOrBldr.getOid(), entityOrBldr.getTags());
+    }
+
+    @Override
+    public boolean hasBoughtCommodity(@Nonnull CommodityType commodityType,
+                    @Nullable EntityType providerType) {
+        return entityOrBldr.getCommoditiesBoughtFromProvidersOrBuilderList().stream().filter(cbfp ->
+                                        providerType == null
+                                                        || providerType.getNumber() == cbfp.getProviderEntityType())
+                        .flatMap(cbfp -> cbfp.getCommodityBoughtList().stream()
+                                        .map(cb -> cb.getCommodityType().getType())
+                                        .filter(SEARCHABLE_COMM_TYPES::contains))
+                        .anyMatch(type -> type == commodityType.getNumber());
     }
 
     @Override
