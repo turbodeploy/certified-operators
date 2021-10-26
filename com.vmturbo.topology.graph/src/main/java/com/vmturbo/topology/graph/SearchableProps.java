@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 
@@ -28,7 +29,8 @@ public interface SearchableProps {
      */
     Set<Integer> SEARCHABLE_COMM_TYPES =
             ImmutableSet.of(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE,
-                CommodityType.ACTIVE_SESSIONS_VALUE, CommodityType.TOTAL_SESSIONS_VALUE);
+                CommodityType.ACTIVE_SESSIONS_VALUE, CommodityType.TOTAL_SESSIONS_VALUE,
+                            CommodityType.CLUSTER_VALUE);
 
     /**
      * Get the {@link TagIndex} for the topology graph. We do not expose tags on a per-entity basis
@@ -38,6 +40,19 @@ public interface SearchableProps {
      */
     @Nonnull
     TagIndex getTagIndex();
+
+    /**
+     * Checks whether entity has bought commodity of the specified {@link CommodityType}. Returns
+     * {@code true} in case it has such a commodity, otherwise it returns {@code false}.
+     *
+     * @param commodityType type of the commodity which existence has to be
+     *                 verified.
+     * @param providerType type of the provider that from which commodity has to be bought.
+     * @return {@code true} in case entity has a commodity with that type, otherwise returns
+     *                 {@code false}.
+     */
+    boolean hasBoughtCommodity(@Nonnull CommodityType commodityType,
+                    @Nullable EntityType providerType);
 
     /**
      * Get the used value of a particular commodity type. We do not return a "commodity" object to

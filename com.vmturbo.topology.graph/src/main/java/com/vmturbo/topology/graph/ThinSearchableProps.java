@@ -16,6 +16,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.KubernetesServiceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -45,6 +47,11 @@ public class ThinSearchableProps implements SearchableProps {
     @Override
     public TagIndex getTagIndex() {
         return tagIndex;
+    }
+
+    @Override
+    public boolean hasBoughtCommodity(@Nonnull CommodityType commodityType, @Nullable EntityType providerType) {
+        return commodities.hasBoughtCommodity(commodityType, providerType);
     }
 
     @Override
@@ -80,6 +87,19 @@ public class ThinSearchableProps implements SearchableProps {
          */
         float getCommodityCapacity(int type);
 
+        /**
+         * Checks whether entity has bought commodity of the specified {@link CommodityType}.
+         * Returns {@code true} in case it has such a commodity, otherwise it returns {@code
+         * false}.
+         *
+         * @param commodityType type of the commodity which existence has to be
+         *                 verified.
+         * @param providerType  type of the provider from which commodity is expected to be bought.
+         * @return {@code true} in case entity has a commodity with that type, otherwise
+         *                 returns {@code false}.
+         */
+        boolean hasBoughtCommodity(@Nonnull CommodityType commodityType,
+                        @Nullable EntityType providerType);
 
         /**
          * Return used value.
