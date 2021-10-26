@@ -790,7 +790,7 @@ public class Analysis {
                                         .filter(entity -> !entity.getDeleted())
                                         .map(ProjectedTopologyEntity::getEntity));
                                 converter.getProjectedRICoverageCalculator()
-                                    .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
+                                    .addRICoverageToProjectedRICoverage(cloudCostData.getFilteredRiCoverageByEntityId());
                             }
 
                             // If this is a migrate to cloud plan, send a request to the cost component to start cloud commitment
