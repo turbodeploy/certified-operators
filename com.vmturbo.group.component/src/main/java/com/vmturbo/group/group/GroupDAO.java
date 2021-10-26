@@ -530,8 +530,8 @@ public class GroupDAO implements IGroupStore {
         );
         if (!tagKeysNotFetched.isEmpty()) {
             throw new StoreOperationException(Status.NOT_FOUND,
-                    "No such tag(s) with tag key(s): '" + tagKeysNotFetched + " for group '"
-                            + groupId + "'");
+                    "No such user defined tag(s) with tag key(s): '" + tagKeysNotFetched
+                            + " for group '" + groupId + "'");
         }
 
         int affectedRows;

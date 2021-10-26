@@ -88,7 +88,8 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
         try {
             entityCustomTagsStore.deleteTags(request.getEntityOid());
         } catch (StoreOperationException e) {
-            logger.error("Could not delete tags for Entity: '" + request.getEntityOid() + "'");
+            logger.error("Could not delete user defined  tags for Entity: '"
+                    + request.getEntityOid() + "'");
             responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
             return;
         }
@@ -123,15 +124,15 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
             // We need to fail if no tag was deleted to inform the client that nothing was actually
             // deleted.
             if (affectedRows == 0) {
-                final String errMsg = "Could not delete tags for Entity: '" + request.getEntityOid() + "' no such tag Key: '"
-                        + request.getTagKey();
+                final String errMsg = "Could not delete user defined tags for Entity: '"
+                        + request.getEntityOid() + "' no such tag Key: '" + request.getTagKey();
 
                 logger.error(errMsg);
                 responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
                 return;
             }
         } catch (StoreOperationException e) {
-            logger.error("Could not delete tags for Entity: '" + request.getEntityOid()
+            logger.error("Could not delete user defined tag for Entity: '" + request.getEntityOid()
                     + "' and Key: '" + request.getTagKey() + "'");
             responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
             return;
@@ -155,9 +156,10 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
 
         int affectedRows;
         try {
-            affectedRows = entityCustomTagsStore.deleteTagList(request.getOid(), request.getTagKeyList());
+            affectedRows = entityCustomTagsStore.deleteTagList(request.getOid(),
+                    request.getTagKeyList());
         } catch (StoreOperationException e) {
-            logger.error("Could not delete tags for Entity: '" + request.getOid()
+            logger.error("Could not delete user defined tags for Entity: '" + request.getOid()
                     + "' and Keys: '" + request.getTagKeyList() + "'");
             responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
             return;
