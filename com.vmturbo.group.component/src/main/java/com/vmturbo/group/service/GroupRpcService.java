@@ -962,15 +962,16 @@ public class GroupRpcService extends GroupServiceImplBase {
                 // We need to fail if no tag was deleted to inform the client that nothing was actually
                 // deleted.
                 if (affectedRows == 0) {
-                    final String errMsg = "Could not delete tags for Group: '"
-                            + request.getGroupOid() + "' no such tag Key: '" + request.getTagKey();
+                    final String errMsg = "Could not delete user defined tag for Group: '"
+                            + request.getGroupOid() + "' no such user defined tag with Key: '"
+                            + request.getTagKey();
 
                     logger.error(errMsg);
                     responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
                     return;
                 }
             } catch (StoreOperationException e) {
-                logger.error("Could not delete tags for Group: '" + request.getGroupOid()
+                logger.error("Could not delete user defined tag for Group: '" + request.getGroupOid()
                         + "' and Key: '" + request.getTagKey() + "'");
                 responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
                 return;
@@ -996,7 +997,8 @@ public class GroupRpcService extends GroupServiceImplBase {
             try {
                 stores.getGroupStore().deleteTags(request.getGroupOid());
             } catch (StoreOperationException e) {
-                logger.error("Could not delete tags for Group: '" + request.getGroupOid() + "'");
+                logger.error("Could not delete user defined tags for Group: '"
+                        + request.getGroupOid() + "'");
                 responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
                 return;
             }
@@ -1023,7 +1025,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                 affectedRows = stores.getGroupStore().deleteTagList(request.getOid(),
                         request.getTagKeyList());
             } catch (StoreOperationException e) {
-                logger.error("Could not delete tags for Group: '" + request.getOid() + "'");
+                logger.error("Could not delete user defined tags for Group: '"
+                        + request.getOid() + "'");
                 responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
                 return;
             }
