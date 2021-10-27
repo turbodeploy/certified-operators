@@ -110,6 +110,9 @@ message TypeSpecificInfo {
 
         // The number of cores which is provided by one socket
         optional int32 coresPerSocketRatio = 14 [default = 1];
+
+        // The mark that shows whether cores per socket property of the VM can be changed or not
+        optional bool coresPerSocketChangeable = 15 [default = false];
     }
 
     // Properties unique to a PhysicalMachine in the model
