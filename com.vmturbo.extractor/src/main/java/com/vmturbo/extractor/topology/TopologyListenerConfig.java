@@ -405,7 +405,7 @@ public class TopologyListenerConfig {
      */
     @Bean
     public EntityHashManager entityHashManager() {
-        return new EntityHashManager(oidPack(), writerConfig());
+        return new EntityHashManager(oidPack(), dbConfig.getDbFetchSize());
     }
 
     /**
@@ -416,7 +416,7 @@ public class TopologyListenerConfig {
     @Bean
     public ScopeManager scopeManager() {
         return new ScopeManager(oidPack(),
-                dbConfig.ingesterEndpoint(), writerConfig(), pool());
+                dbConfig.ingesterEndpoint(), writerConfig(), pool(), dbConfig.getDbFetchSize());
     }
 
     /**

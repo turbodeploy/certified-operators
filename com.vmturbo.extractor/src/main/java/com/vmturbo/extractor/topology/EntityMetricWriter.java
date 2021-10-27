@@ -129,7 +129,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private final List<Record> entityRecords = new ArrayList<>();
 
-    private final List<Record> metricRecords = new ArrayList<>();
+    /**
+     * Metric writer sink, this is initialized only in the startTopology(), after the config
+     * object has been set, as config is not yet available in the constructor.
+     */
+    private TableWriter metricInserter;
     private final EntityHashManager entityHashManager;
 
     /**
@@ -142,7 +146,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private final DataPack<Long> oidPack;
     private final DataExtractionFactory dataExtractionFactory;
     private final ScopeManager scopeManager;
-    private HashedDataManager fileTableManager;
+    private final HashedDataManager fileTableManager;
     private DSLContext dsl;
     // Holds all volumes with duplicate files together with a comma-separated list of the targets
     // the discovered the entity.
@@ -182,6 +186,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         super.startTopology(topologyInfo, config, timer);
         logger.info("Starting to process topology {}", topologyLabel);
         this.dsl = dbEndpoint.dslContext();
+        // Create the sink here now that the config is available.
+        this.metricInserter = METRIC_TABLE.open(getMetricInserterSink(), "Metric Inserter", logger);
         return this::writeEntity;
     }
 
@@ -291,7 +297,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final String type = CommodityType.forNumber(typeNo).name();
         final Double sumUsed = reduceCommodityCollection(boughtCommodities, CommodityBoughtDTO::hasUsed, CommodityBoughtDTO::getUsed, Double::sum);
         final Double sumUsedPeak = reduceCommodityCollection(boughtCommodities, CommodityBoughtDTO::hasPeak, CommodityBoughtDTO::getPeak, Double::sum);
-        metricRecords.add(getBoughtCommodityRecord(oid, entityType, type, null, sumUsed, sumUsedPeak, producer));
+        writeMetricRecord(getBoughtCommodityRecord(oid, entityType, type, null, sumUsed, sumUsedPeak, producer));
     }
 
     /**
@@ -317,7 +323,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
                         cb.hasUsed() ? cb.getUsed() : null,
                         cb.hasPeak() ? cb.getPeak() : null,
                         producer))
-                .forEach(metricRecords::add);
+                .forEach(this::writeMetricRecord);
     }
 
     /**
@@ -377,7 +383,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final Double sumUsed = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasUsed, CommoditySoldDTO::getUsed, Double::sum);
         final Double sumUsedPeak = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasPeak, CommoditySoldDTO::getPeak, Double::sum);
         final Double sumCap = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasCapacity, CommoditySoldDTO::getCapacity, Double::sum);
-        metricRecords.add(getSoldCommodityRecord(oid, entityType, type.name(), null, sumUsed, sumUsedPeak, sumCap));
+        writeMetricRecord(getSoldCommodityRecord(oid, entityType, type.name(), null, sumUsed, sumUsedPeak, sumCap));
     }
 
     /**
@@ -421,7 +427,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
                         cs.hasUsed() ? cs.getUsed() : null,
                         cs.hasPeak() ? cs.getPeak() : null,
                         cs.hasCapacity() ? cs.getCapacity() : null))
-                .forEach(metricRecords::add);
+                .forEach(this::writeMetricRecord);
     }
 
     /**
@@ -536,13 +542,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
         // now write everything out!
         try (TableWriter entitiesUpserter = ENTITY_TABLE.open(
                 getEntityUpsertSink(upsertConflicts, upsertUpdates),
-                "Entities Upserter", logger);
-             TableWriter metricInserter = METRIC_TABLE.open(
-                     getMetricInserterSink(), "Metric Inserter", logger)) {
+                "Entities Upserter", logger)) {
             writeEntityRecords(dataProvider, entitiesUpserter);
             writeClusterStats(dataProvider);
-            writeMetricRecords(metricInserter);
             writeFileRecords(dataProvider);
+        } finally {
+            // We are done with metric records writer, so close it.
+            metricInserter.close();
         }
         return n;
     }
@@ -648,7 +654,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
                     if (propsToDbType.containsKey(record.getName())) {
                         Record clusterRecord = createClusterRecord(oid, record,
                             snapshot.getSnapshotDate());
-                        metricRecords.add(clusterRecord);
+                        writeMetricRecord(clusterRecord);
                     } else {
                         logger.error("Cluster property type {} can't be translated into a "
                             + "metric type", record.getName());
@@ -702,18 +708,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
         scopeManager.addInCurrentScope(oid, true, targetIds.toLongArray());
     }
 
-    private void writeMetricRecords(TableWriter tableWriter) {
-        logger.info("Inserting metric records for topology {}", topologyLabel);
-        final Timestamp time = new Timestamp(topologyInfo.getCreationTime());
-        metricRecords.forEach(record -> {
-            try (Record r = tableWriter.open(record)) {
-                // For some metrics, such as headroom, we want to preserve their original
-                // timestamp and not overwrite it with the topology creation time
-                if (r.get(TIME) == null) {
-                    r.set(TIME, time);
-                }
+    private void writeMetricRecord(@Nonnull final Record record) {
+        try (Record r = metricInserter.open(record)) {
+            // For some metrics, such as headroom, we want to preserve their original
+            // timestamp and not overwrite it with the topology creation time
+            if (r.get(TIME) == null) {
+                r.set(TIME, topologyCreationTime);
             }
-        });
+        }
     }
 
     /**

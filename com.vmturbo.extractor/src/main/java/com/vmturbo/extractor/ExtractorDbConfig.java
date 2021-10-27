@@ -103,6 +103,13 @@ public class ExtractorDbConfig {
     private int dbSizeMonitorPersistedFrequency;
 
     /**
+     * How big should DB fetch chunks should be. This setting needs to be used when streaming
+     * DB query results, otherwise jOOQ will end up reading all results.
+     */
+    @Value("${dbFetchSize:10000}")
+    private int dbFetchSize;
+
+    /**
      * Create a new {@link DbSizeMonitor} to be activated after component startup.
      *
      * @return the size monitor instance
@@ -230,5 +237,14 @@ public class ExtractorDbConfig {
         return new FlywayCallback[]{
                 new ResetChecksumsForTimescaleDB201Migrations()
         };
+    }
+
+    /**
+     * Gets Db query chunk fetch size.
+     *
+     * @return Fetch size.
+     */
+    public int getDbFetchSize() {
+        return dbFetchSize;
     }
 }
