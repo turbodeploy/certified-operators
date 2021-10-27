@@ -38,8 +38,6 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Integer coresPerSocketRatio;
 
-    private boolean coresPerSocketChangeable;
-
     private LicenseModel licenseModel;
 
     private List<String> connectedNetworks;
@@ -87,7 +85,6 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         setNumCpus(vmInfo.hasNumCpus() ? vmInfo.getNumCpus() : null);
         setCoresPerSocketRatio(
                         vmInfo.hasCoresPerSocketRatio() ? vmInfo.getCoresPerSocketRatio() : null);
-        coresPerSocketChangeable = vmInfo.getCoresPerSocketChangeable();
         setLicenseModel(vmInfo.getLicenseModel());
 
         setConnectedNetworks(vmInfo.getConnectedNetworksList());
@@ -137,8 +134,6 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (getConnectedNetworks() != null) {
             vmBuilder.addAllConnectedNetworks(getConnectedNetworks());
         }
-
-        vmBuilder.setCoresPerSocketChangeable(coresPerSocketChangeable);
 
         vmBuilder.setLicenseModel(getLicenseModel());
         if (getHasEnaDriver() != null || getHasNVMeDriver() != null) {
