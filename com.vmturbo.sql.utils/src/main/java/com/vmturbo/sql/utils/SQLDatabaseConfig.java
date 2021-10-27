@@ -22,6 +22,7 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.zaxxer.hikari.HikariDataSource;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -59,8 +60,6 @@ import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
 import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
 import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
 import com.vmturbo.sql.utils.pool.HikariPoolMonitor;
-
-import com.zaxxer.hikari.HikariDataSource;
 
 /**
  * Configuration for interaction with database.
@@ -189,7 +188,7 @@ public abstract class SQLDatabaseConfig {
                 // Should be logged only once, on container startup
                 logger.info("Initializing pooled database connection source.");
                 final String poolName = DbConnectionPoolConfig.generatePoolName(getDbSchemaName());
-                HikariDataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
+                DataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
                     dbUrl, dbUsername, dbPassword, minPoolSize, maxPoolSize,
                     dbPoolKeepAliveIntervalMinutes, poolName);
                 return  dataSource;

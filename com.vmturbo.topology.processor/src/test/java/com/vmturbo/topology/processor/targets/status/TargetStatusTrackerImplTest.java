@@ -8,10 +8,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.collections.CollectionUtils;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,6 +27,10 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ErrorTypeInfoCase;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ThirdPartyApiFailureErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.UnauthenticatedErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails;
 import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails.StageStatus;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -283,7 +289,72 @@ public class TargetStatusTrackerImplTest {
         final LocalDateTime failTime = failedDiscovery.getFailTime();
         Assert.assertNotNull(failTime);
         Assert.assertEquals(1, failedDiscovery.getFailsCount());
+        Assert.assertEquals(ErrorTypeInfoCase.UNAUTHENTICATED_ERROR_TYPE,
+                failedDiscovery.getErrorTypeInfos().iterator().next().getErrorTypeInfoCase());
+        targetStatusTracker.notifyOperationState(discovery);
+        final DiscoveryFailure failure = failedDiscoveries.get(targetId);
+        Assert.assertNotNull(failure);
+        Assert.assertEquals(failTime, failure.getFailTime());
+        Assert.assertEquals(2, failedDiscovery.getFailsCount());
+    }
 
+    /**
+     * Tests to check if multiple non-identical failures would persist.
+     */
+    @Test
+    public void testStoringMultipleFailedDiscovery() {
+        final Discovery discovery = createFailedDiscovery();
+        targetStatusTracker.notifyOperationState(discovery);
+        discovery.addError(ErrorDTO.newBuilder().addErrorTypeInfo(ErrorTypeInfo.newBuilder()
+                        .setThirdPartyApiFailureErrorType(ThirdPartyApiFailureErrorType.newBuilder()
+                                .setEndPoint("https://md5.azure.net/not-a-real-url")
+                                .build())
+                        .build())
+                .setSeverity(ErrorSeverity.CRITICAL)
+                .setDescription("Wrong credentials")
+                .build());
+        targetStatusTracker.notifyOperationState(discovery);
+        final Map<Long, DiscoveryFailure> failedDiscoveries = targetStatusTracker.getFailedDiscoveries();
+        Assert.assertEquals(1, failedDiscoveries.size());
+        final Map.Entry<Long, DiscoveryFailure> entry = failedDiscoveries.entrySet().iterator().next();
+        final Long targetId = entry.getKey();
+        final DiscoveryFailure failedDiscovery = entry.getValue();
+        Assert.assertEquals(TARGET_ID_1, targetId.longValue());
+        final LocalDateTime failTime = failedDiscovery.getFailTime();
+        Assert.assertNotNull(failTime);
+        Assert.assertThat(failedDiscovery.getErrorTypeInfos().stream().map(ErrorTypeInfo::getErrorTypeInfoCase)
+                        .collect(Collectors.toList()),
+                Matchers.containsInAnyOrder(ErrorTypeInfoCase.UNAUTHENTICATED_ERROR_TYPE,
+                        ErrorTypeInfoCase.THIRD_PARTY_API_FAILURE_ERROR_TYPE));
+        Assert.assertEquals(2, failedDiscovery.getFailsCount());
+    }
+
+    /**
+     * Test adding and retrieving failed discovery information using legacy error type.
+     * Sends notification about failed discovery twice.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testStoringLegacyErrorType() throws Exception {
+        final Discovery discovery = new Discovery(PROBE_ID_1, TARGET_ID_1, DiscoveryType.FULL, identityProvider);
+        discovery.addError(ErrorDTO.newBuilder()
+                .setErrorType(ErrorType.OTHER)
+                .setSeverity(ErrorSeverity.CRITICAL)
+                .setDescription("Wrong credentials").build());
+        discovery.fail();
+        targetStatusTracker.notifyOperationState(discovery);
+        final Map<Long, DiscoveryFailure> failedDiscoveries = targetStatusTracker.getFailedDiscoveries();
+        Assert.assertEquals(1, failedDiscoveries.size());
+        final Map.Entry<Long, DiscoveryFailure> entry = failedDiscoveries.entrySet().iterator().next();
+        final Long targetId = entry.getKey();
+        final DiscoveryFailure failedDiscovery = entry.getValue();
+        Assert.assertEquals(TARGET_ID_1, targetId.longValue());
+        final LocalDateTime failTime = failedDiscovery.getFailTime();
+        Assert.assertNotNull(failTime);
+        Assert.assertEquals(1, failedDiscovery.getFailsCount());
+        Assert.assertEquals(ErrorTypeInfoCase.OTHER_ERROR_TYPE,
+                failedDiscovery.getErrorTypeInfos().iterator().next().getErrorTypeInfoCase());
         targetStatusTracker.notifyOperationState(discovery);
         final DiscoveryFailure failure = failedDiscoveries.get(targetId);
         Assert.assertNotNull(failure);
@@ -293,7 +364,8 @@ public class TargetStatusTrackerImplTest {
 
     private Discovery createFailedDiscovery() {
         final Discovery discovery = new Discovery(PROBE_ID_1, TARGET_ID_1, DiscoveryType.FULL, identityProvider);
-        discovery.addError(ErrorDTO.newBuilder().setErrorType(ErrorType.UNAUTHENTICATED)
+        discovery.addError(ErrorDTO.newBuilder().addErrorTypeInfo(ErrorTypeInfo.newBuilder()
+                        .setUnauthenticatedErrorType(UnauthenticatedErrorType.getDefaultInstance()).build())
                 .setSeverity(ErrorSeverity.CRITICAL)
                 .setDescription("Wrong credentials").build());
         discovery.fail();

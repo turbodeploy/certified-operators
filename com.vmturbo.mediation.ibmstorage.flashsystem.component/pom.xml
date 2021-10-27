@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>mediation-parent</artifactId>
-        <version>8.3.5-SNAPSHOT</version>
+        <version>8.3.6-SNAPSHOT</version>
         <relativePath>../build/mediation-parent-pom.xml</relativePath>
     </parent>
 

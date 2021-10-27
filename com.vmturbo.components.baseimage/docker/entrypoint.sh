@@ -75,11 +75,7 @@ function find_memory_limit
 # included in the startup command as well.
 #
 
-# first, determine which JVM to start -- HotSpot or OpenJ9. We'll default to OpenJ9.
-if [[ -z ${JVM_TYPE} ]]; then
-  JVM_TYPE="OpenJ9"
-fi
-echo "Starting $JVM_TYPE JVM..." 2>&1 | ${LOGGER_COMMAND}
+echo "Starting JVM..." 2>&1 | ${LOGGER_COMMAND}
 
 if [[ -z ${JAVA_OPTS} ]]; then
   # java common/base options
@@ -87,28 +83,15 @@ if [[ -z ${JAVA_OPTS} ]]; then
      # The Djava.security.egd=file:/dev/./urandom configuration significantly speeds up start-up time
      # for the components using the SecureRandom class (see
      # http://stackoverflow.com/questions/25660899/spring-boot-actuator-application-wont-start-on-ubuntu-vps)
-
-     # the choice of JVM determines which default runtime options we want to use.
-     if [[ ${JVM_TYPE} == "HotSpot" ]]; then
-         JAVA_BASE_OPTS="-XX:+UseG1GC -Xms16m -XX:CompileThreshold=1500 -XX:+ExitOnOutOfMemoryError -verbose:gc
-                  -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintConcurrentLocks -XX:+PrintClassHistogram -XX:NativeMemoryTracking=summary
-                  -XX:+PrintCommandLineFlags -XX:+UseStringDeduplication -XX:StringDeduplicationAgeThreshold=1
-                  -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
-                  -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
-                  -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
-                  -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true -XX:-OmitStackTraceInFastThrow
-                  -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
-     else
-         JAVA_BASE_OPTS="-verbose:sizes -Xtune:virtualized -XX:+ExitOnOutOfMemoryError
-                  -Xaggressive -XX:+ClassRelationshipVerifier -Xcompressedrefs -XX:+CompactStrings
-                  -XX:-HeapDumpOnOutOfMemoryError -Xdump:what -Xdump:heap:none  -Xdump:java:file=/STDOUT/
-                  -XshowSettings -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
-                  -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
-                  -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
-                  -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true
-                  -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0
-                  -Djava.security.properties=/etc/crypto-policies/back-ends/java.config"
-     fi
+     JAVA_BASE_OPTS="-verbose:sizes -Xtune:virtualized -XX:+ExitOnOutOfMemoryError
+              -Xaggressive -XX:+ClassRelationshipVerifier -Xcompressedrefs -XX:+CompactStrings
+              -XX:-HeapDumpOnOutOfMemoryError -Xdump:what -Xdump:heap:none  -Xdump:java:file=/STDOUT/
+              -XshowSettings -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
+              -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
+              -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
+              -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true
+              -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0
+              -Djava.security.properties=/etc/crypto-policies/back-ends/java.config"
   fi
   JAVA_OPTS=$JAVA_BASE_OPTS
 
@@ -138,12 +121,7 @@ if [[ -z ${JAVA_OPTS} ]]; then
   # java dev options
   if [[ -n ${JAVA_DEBUG} ]]; then
     if [[ -z ${JAVA_DEBUG_OPTS} ]]; then
-      JAVA_DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n
-                -Djdk.attach.allowAttachSelf"
-      if [[ ${JVM_TYPE} == "HotSpot" ]]; then
-        # for HotSpot, add two more options
-        JAVA_DEBUG_OPTS="$JAVA_DEBUG_OPTS -XX:+PrintFlagsFinal -XshowSettings"
-      fi
+      JAVA_DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n -Djdk.attach.allowAttachSelf"
     fi
     JAVA_OPTS="$JAVA_OPTS $JAVA_DEBUG_OPTS"
   fi
@@ -158,14 +136,6 @@ if [[ -z ${JAVA_OPTS} ]]; then
     JAVA_OPTS="$JAVA_OPTS $JAVA_COMPONENT_OPTS"
   fi
 fi
-
-# add the OpenJ9 JVM as first in the path, if it's the JVM we're using. (the OpenJDK is already
-# installed onto the path during the docker image build)
-if [[ ${JVM_TYPE} == "OpenJ9" ]]; then
-  export PATH=$J9PATH
-fi
-
-echo "PATH is set to: $PATH" 2>&1 | ${LOGGER_COMMAND}
 
 export STARTUP_COMMAND="java $JAVA_OPTS -jar $@"
 

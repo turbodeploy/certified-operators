@@ -43,6 +43,7 @@ import org.jooq.Field;
 import org.jooq.Record2;
 import org.jooq.Table;
 import org.jooq.conf.ParamType;
+import org.jooq.conf.Settings;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -106,6 +107,7 @@ public class ScopeManager {
     private final DataPack<Long> oidPack;
     private final ExecutorService pool;
     private final WriterConfig config;
+    private final int dbFetchSize;
 
     private DSLContext dsl;
     // for a (seedIid, scopedIid) pair in the scoping relationship, we will have
@@ -125,13 +127,16 @@ public class ScopeManager {
      * @param db              DB endpoint (may not yet be initialized)a
      * @param config          ingester config
      * @param pool            thread pool
+     * @param fetchSize       DB fetch size.
      */
     public ScopeManager(
-            DataPack<Long> oidPack, DbEndpoint db, WriterConfig config, ExecutorService pool) {
+            DataPack<Long> oidPack, DbEndpoint db, WriterConfig config, ExecutorService pool,
+            int fetchSize) {
         this.oidPack = oidPack;
         this.db = db;
         this.pool = pool;
         this.config = config;
+        this.dbFetchSize = fetchSize;
     }
 
     /**
@@ -410,19 +415,29 @@ public class ScopeManager {
      * a record with `oid` set to zero, set aside for this purpose.</p>
      */
     private void reloadPriorScope() {
-        logger.info("Loading prior scope from database after restart");
-        try (Stream<Record2<Long, Long>> stream =
-                     dsl.select(SCOPE.SEED_OID, SCOPE.SCOPED_OID).from(SCOPE)
-                             // greater-than comparison because MAX_TIMESTAMP used to be the
-                             // end not the start of the day it falls in.
-                             .where(SCOPE.FINISH.ge(MAX_TIMESTAMP))
-                             .stream()) {
-            stream.forEach(r -> {
-                int seedIid = oidPack.toIndex(r.value1());
-                int scopedIid = oidPack.toIndex(r.value2());
-                addScope(priorScope, seedIid, scopedIid);
-            });
-        }
+        logger.info("Loading prior scope from database after restart, streaming records at {} chunk size",
+                dbFetchSize);
+        dsl.connection(conn -> {
+            conn.setAutoCommit(false);
+            try (Stream<Record2<Long, Long>> stream =
+            // renderSchema=false is required for unit tests to pass when because of DSL.using(conn).
+            // These prefixes (like 'extractor.') before table names, which jOOQ calls 'schema rendering'
+            // are disabled at run time via jOOQ settings anyway, but only for unit-tests to run, it
+            // needed to be set to false here.
+                         DSL.using(conn, new Settings().withRenderSchema(false))
+                                 .select(SCOPE.SEED_OID, SCOPE.SCOPED_OID).from(SCOPE)
+                                 // greater-than comparison because MAX_TIMESTAMP used to be the
+                                 // end not the start of the day it falls in.
+                                 .where(SCOPE.FINISH.ge(MAX_TIMESTAMP))
+                                 .fetchSize(dbFetchSize)
+                                 .fetchStream()) {
+                stream.forEach(r -> {
+                    int seedIid = oidPack.toIndex(r.value1());
+                    int scopedIid = oidPack.toIndex(r.value2());
+                    addScope(priorScope, seedIid, scopedIid);
+                });
+            }
+        });
         priorTimestamp = dsl.select(DSL.max(TOPOLOGY_STATS.TIME)).from(TOPOLOGY_STATS)
                 .fetchOne().value1();
         if (priorTimestamp != null) {
@@ -437,7 +452,7 @@ public class ScopeManager {
     /**
      * Return the entity type for a given entity iid, as specified in the map.
      *
-     * <p>If the iid is not present in the map, null is returned.</p>
+     * <p>If the iid is not present in the map, null is returned.</p>EntityHashManagerTest
      *
      * @param iid         iid of entity whose type is needed
      * @param entityTypes map of iids to {@link EntityDTO.EntityType} ordinals

@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.stereotype.Component;
 
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.mediation.common.ContainerJavaHeapResourceValueSupplier;
 import com.vmturbo.components.common.ExecutionStatus;
 import com.vmturbo.mediation.common.ProbeConfigurationLoadException;
@@ -88,7 +89,7 @@ public class MediationComponentMain extends BaseVmtComponent {
 
     @Bean
     public Collection<ProbeProperties<?>> probePropertiesCollection() throws ProbeConfigurationLoadException {
-        return ProbesConfig.parse(probeDirectory);
+        return ProbesConfig.construct(probeDirectory, BuildProperties.get().getVersion());
     }
 
     @Bean

@@ -21,7 +21,9 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ConnectionTimeOutErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.InternalProbeErrorType;
 
 /**
  * Used to demonstrate the logging consumer.
@@ -32,13 +34,16 @@ public class StaleDataLoggingConsumerTest {
     private static final Long TARGET1_OID = 1L;
     private static final TargetHealthSubCategory TARGET1_SUBCATEGORY =
             TargetHealthSubCategory.DISCOVERY;
-    private static final ErrorType TARGET1_ERROR_TYPE = ErrorType.INTERNAL_PROBE_ERROR;
+    private static final ErrorTypeInfo TARGET1_ERROR_TYPE_INFO = ErrorTypeInfo.newBuilder()
+            .setInternalProbeErrorType(InternalProbeErrorType.getDefaultInstance()).build();
 
     private static final String TARGET2_NAME = "target2";
     private static final Long TARGET2_OID = 2L;
     private static final TargetHealthSubCategory TARGET2_SUBCATEGORY =
             TargetHealthSubCategory.VALIDATION;
-    private static final ErrorType TARGET2_ERROR_TYPE = ErrorType.CONNECTION_TIMEOUT;
+    private static final ErrorTypeInfo TARGET2_ERROR_TYPE_INFO = ErrorTypeInfo.newBuilder()
+            .setConnectionTimeOutErrorType(ConnectionTimeOutErrorType.getDefaultInstance()).build();
+    private static final String REPLACE_PATTERN = "[^a-zA-Z0-9]";
 
     private static final ImmutableMap<Long, TargetHealth> data =
             new ImmutableMap.Builder<Long, TargetHealth>()
@@ -46,13 +51,13 @@ public class StaleDataLoggingConsumerTest {
                             .newBuilder()
                             .setTargetName(TARGET1_NAME)
                             .setSubcategory(TARGET1_SUBCATEGORY)
-                            .setErrorType(TARGET1_ERROR_TYPE)
+                            .addErrorTypeInfo(TARGET1_ERROR_TYPE_INFO)
                             .build())
                     .put(TARGET2_OID, TargetHealth
                             .newBuilder()
                             .setTargetName(TARGET2_NAME)
                             .setSubcategory(TARGET2_SUBCATEGORY)
-                            .setErrorType(TARGET2_ERROR_TYPE)
+                            .addErrorTypeInfo(TARGET2_ERROR_TYPE_INFO)
                             .build())
                     .build();
 
@@ -115,21 +120,21 @@ public class StaleDataLoggingConsumerTest {
                     + ". Only use INFO or DEBUG");
         }
         // line 3 contains the first target
-        String line3 = lines.get(2);
+        String line3 = lines.get(5).replaceAll(REPLACE_PATTERN, "");
         assertTrue("should include target name", line3.contains(TARGET1_NAME));
         assertTrue("should contain the oid of the target", line3.contains(TARGET1_OID.toString()));
         assertTrue("should contain the Error Type of the target",
-                line3.contains(TARGET1_ERROR_TYPE.toString()));
+                line3.contains(TARGET1_ERROR_TYPE_INFO.toString().replaceAll(REPLACE_PATTERN, "")));
         assertTrue("should contain the Sub category of the target",
-                line3.contains(TARGET1_SUBCATEGORY.toString()));
+                line3.contains(TARGET1_SUBCATEGORY.toString().replaceAll(REPLACE_PATTERN, "")));
         // line 4 contains the name of the second target
-        String line4 = lines.get(3);
+        String line4 = lines.get(6).replaceAll(REPLACE_PATTERN, "");
         assertTrue("should include target name", line4.contains(TARGET2_NAME));
-        assertTrue("should contain the oid of the target", line4.contains(TARGET2_OID.toString()));
+        assertTrue("should contain the oid of the target", line4.contains(TARGET2_OID.toString().replaceAll(REPLACE_PATTERN, "")));
         assertTrue("should contain the Error Type of the target",
-                line4.contains(TARGET2_ERROR_TYPE.toString()));
+                line4.contains(TARGET2_ERROR_TYPE_INFO.toString().replaceAll(REPLACE_PATTERN, "")));
         assertTrue("should contain the Sub category of the target",
-                line4.contains(TARGET2_SUBCATEGORY.toString()));
+                line4.contains(TARGET2_SUBCATEGORY.toString().replaceAll(REPLACE_PATTERN, "")));
     }
 
     /**

@@ -2,6 +2,7 @@ package com.vmturbo.extractor.topology;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
@@ -19,6 +20,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
     protected final ExecutorService pool;
 
     protected TopologyInfo topologyInfo;
+    protected Timestamp topologyCreationTime;
     protected String topologyLabel;
     protected final DbEndpoint dbEndpoint;
     protected MultiStageTimer timer;
@@ -44,6 +46,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
         this.topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
         this.config = config;
         this.timer = timer;
+        this.topologyCreationTime = new Timestamp(topologyInfo.getCreationTime());
         return this::writeEntity;
     }
 

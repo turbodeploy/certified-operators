@@ -110,8 +110,10 @@ import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -128,6 +130,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -852,7 +855,7 @@ public class GroupMapperTest {
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.PHYSICAL_MACHINE), param.getStartingFilter());
 
         // 2 search filters after starting filter
-        assertEquals(3, param.getSearchFilterCount());
+        assertEquals(4, param.getSearchFilterCount());
 
         // 1. first one is Cluster Membership Filter, verify that it was created
         assertTrue(param.getSearchFilter(0).hasGroupFilter());
@@ -866,11 +869,26 @@ public class GroupMapperTest {
         assertEquals(SearchProtoUtil.searchFilterTraversal(
                 SearchProtoUtil.numberOfHops(TraversalDirection.PRODUCES, 1)),
                 param.getSearchFilter(1));
-
         // 3. third one is an entity type filter to only return VMs
         assertEquals(SearchProtoUtil.searchFilterProperty(
-                SearchProtoUtil.entityTypeFilter(EntityType.VIRTUAL_MACHINE_VALUE)),
-                param.getSearchFilter(2));
+                                        SearchProtoUtil.entityTypeFilter(EntityType.VIRTUAL_MACHINE_VALUE)),
+                        param.getSearchFilter(2));
+        /*
+         4. forth one is a bought commodity type filter to return only those which are buying
+         CLUSTER commodity
+         */
+        final PropertyFilter filterWithClusterOptions = PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.COMMODITY_TYPE_PROPERTY_NAME)
+                        .setStringFilter(StringFilter.newBuilder().setPositiveMatch(true)
+                                        .setCaseSensitive(false)
+                                        .addOptions(CommodityType.CLUSTER.name()).build()).build();
+        assertEquals(SearchFilter.newBuilder().setPropertyFilter(PropertyFilter.newBuilder()
+                                        .setPropertyName(SearchableProperties.COMMODITY_BOUGHT_LIST_PROPERTY_NAME)
+                                        .setListFilter(ListFilter.newBuilder().setObjectFilter(
+                                                        ObjectFilter.newBuilder()
+                                                                        .addFilters(filterWithClusterOptions)
+                                                                        .build()).build()).build()).build(),
+                        param.getSearchFilter(3));
 
         // test conversion from GroupApiDTO back to FilterApiDTO
         groupDto.setDisplayName("TestGroupDto");

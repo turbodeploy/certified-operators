@@ -205,7 +205,8 @@ public class EntityMetricWriterTest {
         DslRecordSink metricInserterSink = mock(DslRecordSink.class);
         this.metricInsertCapture = captureSink(metricInserterSink, false);
         final DataPack<Long> oidPack = new LongDataPack();
-        final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(), config);
+        final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(),
+                dbConfig.getDbFetchSize());
         entityHashManager.injectPriorTopology();
         this.scopeManager = mock(ScopeManager.class);
         this.dataExtractionFactory = mock(DataExtractionFactory.class);

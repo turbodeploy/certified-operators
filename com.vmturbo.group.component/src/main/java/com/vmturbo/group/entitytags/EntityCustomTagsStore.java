@@ -58,7 +58,8 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
             ).execute();
         } catch (DataAccessException e) {
             throw new StoreOperationException(Status.INTERNAL,
-                    "Could not delete tags for Entity: '" + entityId + "' and key: '" + tagKey + "'");
+                    "Could not delete user defined tags for Entity: '" + entityId + "' and key: '"
+                            + tagKey + "'");
         }
 
         return affectedRows;
@@ -72,7 +73,7 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
                     .execute();
         } catch (DataAccessException e) {
             throw new StoreOperationException(Status.INTERNAL,
-                    "Could not delete tags for Entity: '" + entityId + "'");
+                    "Could not delete user defined tags for Entity: '" + entityId + "'");
         }
     }
 
@@ -105,8 +106,8 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
         );
         if (!tagKeysNotFetched.isEmpty()) {
             throw new StoreOperationException(Status.NOT_FOUND,
-                    "No such tag(s) with tag key(s): '" + tagKeysNotFetched + " for entity '"
-                            + entityId + "'");
+                    "No such user defined tag(s) with tag key(s): '" + tagKeysNotFetched
+                            + " for entity '" + entityId + "'");
         }
 
         int affectedRows;
@@ -119,7 +120,7 @@ public class EntityCustomTagsStore implements IEntityCustomTagsStore {
             ).execute();
         } catch (DataAccessException e) {
             throw new StoreOperationException(Status.INTERNAL,
-                    "Could not delete tags for Entity: '" + entityId + "'");
+                    "Could not delete user defined tags for Entity: '" + entityId + "'");
         }
 
         return affectedRows;

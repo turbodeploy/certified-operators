@@ -15,6 +15,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.protobuf.ProtocolStringList;
+
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -100,26 +102,30 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
      */
     @Nonnull
     public PropertyFilter<E> filterFor(@Nonnull final Search.PropertyFilter propertyFilterCriteria) {
-        switch (propertyFilterCriteria.getPropertyTypeCase()) {
-            case NUMERIC_FILTER:
-                return numericFilter(propertyFilterCriteria.getPropertyName(),
-                    propertyFilterCriteria.getNumericFilter());
-            case STRING_FILTER:
-                return stringFilter(propertyFilterCriteria.getPropertyName(),
-                    propertyFilterCriteria.getStringFilter());
-            case MAP_FILTER:
-                return mapFilter(
-                        propertyFilterCriteria.getPropertyName(),
-                        propertyFilterCriteria.getMapFilter());
-            case LIST_FILTER:
-                return listFilter(propertyFilterCriteria.getPropertyName(),
-                        propertyFilterCriteria.getListFilter());
-            case OBJECT_FILTER:
-                return objectFilter(propertyFilterCriteria.getPropertyName(),
-                        propertyFilterCriteria.getObjectFilter());
-            default:
-                throw new IllegalArgumentException("Unknown PropertyTypeCase: " +
-                    propertyFilterCriteria.getPropertyTypeCase());
+        try {
+            switch (propertyFilterCriteria.getPropertyTypeCase()) {
+                case NUMERIC_FILTER:
+                    return numericFilter(propertyFilterCriteria.getPropertyName(),
+                                    propertyFilterCriteria.getNumericFilter());
+                case STRING_FILTER:
+                    return stringFilter(propertyFilterCriteria.getPropertyName(),
+                                    propertyFilterCriteria.getStringFilter());
+                case MAP_FILTER:
+                    return mapFilter(
+                                    propertyFilterCriteria.getPropertyName(),
+                                    propertyFilterCriteria.getMapFilter());
+                case LIST_FILTER:
+                    return listFilter(propertyFilterCriteria.getPropertyName(),
+                                    propertyFilterCriteria.getListFilter());
+                case OBJECT_FILTER:
+                    return objectFilter(propertyFilterCriteria.getPropertyName(),
+                                    propertyFilterCriteria.getObjectFilter());
+                default:
+                    throw new IllegalArgumentException("Unknown PropertyTypeCase: " +
+                                    propertyFilterCriteria.getPropertyTypeCase());
+            }
+        } catch (InvalidSearchFilterException e) {
+            throw new IllegalArgumentException(e.getMessage());
         }
     }
 
@@ -409,11 +415,13 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
 
     @Nonnull
     private PropertyFilter<E> listFilter(@Nonnull final String propertyName,
-            @Nonnull final Search.PropertyFilter.ListFilter listCriteria) {
+            @Nonnull final Search.PropertyFilter.ListFilter listCriteria)
+                    throws InvalidSearchFilterException {
         // This is incredibly brittle.
         // Should refactor the list filter implementation in the future.
+        final ListElementTypeCase listElementTypeCase = listCriteria.getListElementTypeCase();
         if (propertyName.equals(SearchableProperties.COMMODITY_SOLD_LIST_PROPERTY_NAME)) {
-            if (listCriteria.getListElementTypeCase() == ListElementTypeCase.OBJECT_FILTER) {
+            if (listElementTypeCase == ListElementTypeCase.OBJECT_FILTER) {
                 final ObjectFilter objectFilter = listCriteria.getObjectFilter();
                 if (objectFilter.getFiltersCount() != 2) {
                     throw new IllegalArgumentException("Expecting 2 filters in ObjectFilter," +
@@ -508,6 +516,43 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return new PropertyFilter<E>(entity -> entity.getAllVendorIds()
                     .anyMatch(vendorId -> pattern.matcher(vendorId).find()) == positiveMatch);
             }
+        } else if (propertyName.equals(SearchableProperties.COMMODITY_BOUGHT_LIST_PROPERTY_NAME)) {
+            if (listElementTypeCase != ListElementTypeCase.OBJECT_FILTER) {
+                throw new InvalidSearchFilterException(
+                                String.format("'%s' does not expect to have '%s'", propertyName,
+                                                listElementTypeCase));
+            }
+            final ObjectFilter objectFilter = listCriteria.getObjectFilter();
+            final Search.PropertyFilter firstProperty =
+                            objectFilter.getFiltersList().iterator().next();
+            final PropertyTypeCase propertyTypeCase = firstProperty.getPropertyTypeCase();
+            if (propertyTypeCase != PropertyTypeCase.STRING_FILTER) {
+                throw new InvalidSearchFilterException(
+                                String.format("'%s.%s' does not expect to have '%s'", propertyName,
+                                                listElementTypeCase.name(), propertyTypeCase));
+            }
+            final String filterPropertyName = firstProperty.getPropertyName();
+            if (!SearchableProperties.COMMODITY_TYPE_PROPERTY_NAME.equals(filterPropertyName)) {
+                throw new InvalidSearchFilterException(
+                                String.format("'%s.%s.%s' does not expect to have '%s'",
+                                                propertyName, listElementTypeCase, propertyTypeCase,
+                                                filterPropertyName));
+            }
+            final StringFilter stringFilter = firstProperty.getStringFilter();
+            final ProtocolStringList options = stringFilter.getOptionsList();
+
+            if (options.isEmpty()) {
+                throw new InvalidSearchFilterException(
+                                String.format("'%s.%s.%s.%s' expects to have options field populated",
+                                                propertyName, listElementTypeCase, propertyTypeCase,
+                                                filterPropertyName));
+            }
+            final CommodityType commodityType = CommodityType.valueOf(options.iterator().next());
+            return new PropertyFilter<>(entity -> {
+                final SearchableProps searchableProps =
+                                entity.getSearchableProps(SearchableProps.class);
+                return searchableProps != null && searchableProps.hasBoughtCommodity(commodityType, null);
+            });
         }
 
         throw new IllegalArgumentException("Unknown property: " + propertyName + " for ListFilter "

@@ -680,7 +680,7 @@ public class EntityFilterMapper {
      * @param token the token to check list for
      * @return true if the token is a list, otherwise false
      */
-    private boolean isListToken(@Nonnull String token) {
+    private static boolean isListToken(@Nonnull String token) {
         int left = token.indexOf('[');
         int right = token.lastIndexOf(']');
         return left != -1 && right != -1 && left < right;
@@ -721,7 +721,7 @@ public class EntityFilterMapper {
         final String operator = filter.getExpType();
         final SearchFilterContext filterContext =
                 new SearchFilterContext(filter, iterator, entityType, currentToken, firstToken,
-                        !isRegexOperator(operator));
+                        !isRegexOperator(operator), false);
         final ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException>
                         filterApiDtoProcessor = FILTER_TYPES_TO_PROCESSORS.get(currentToken);
 
@@ -967,15 +967,19 @@ public class EntityFilterMapper {
 
         private final boolean exactMatching;
 
+        private final boolean limitTargetEntityType;
+
         SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
                         @Nonnull List<String> entityTypes, @Nonnull String currentToken,
-                            @Nonnull String firstToken, boolean exactMatching) {
+                        @Nonnull String firstToken, boolean exactMatching,
+                        boolean limitTargetEntityType) {
             this.filter = Objects.requireNonNull(filter);
             this.iterator = Objects.requireNonNull(iterator);
             this.entityTypes = Objects.requireNonNull(entityTypes);
             this.currentToken = Objects.requireNonNull(currentToken);
             this.firstToken = Objects.requireNonNull(firstToken);
             this.exactMatching = Objects.requireNonNull(exactMatching);
+            this.limitTargetEntityType = limitTargetEntityType;
         }
 
         @Nonnull

@@ -21,7 +21,11 @@ import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DelayedDataErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DuplicationErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ErrorTypeInfoCase;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.OtherErrorType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.operation.IOperationManager;
@@ -192,7 +196,7 @@ public class TargetHealthRetriever {
         //Report the failed validation.
         return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                 .setSubcategory(TargetHealthSubCategory.VALIDATION)
-                .setErrorType(validation.getErrorTypes().get(0))
+                .addAllErrorTypeInfo(validation.getErrorTypeInfos())
                 .setMessageText(validation.getErrors().get(0))
                 .setTimeOfFirstFailure(
                         TimeUtil.localTimeToMillis(validation.getCompletionTime(), clock))
@@ -212,8 +216,9 @@ public class TargetHealthRetriever {
         if (!probeStore.isProbeConnected(target.getProbeId())) {
             return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                     .setSubcategory(successfulValidation ? TargetHealthSubCategory.DISCOVERY
-                                            : TargetHealthSubCategory.VALIDATION)
-                    .setErrorType(ErrorType.OTHER)
+                            : TargetHealthSubCategory.VALIDATION)
+                    .addErrorTypeInfo(ErrorTypeInfo.newBuilder().setOtherErrorType(
+                            OtherErrorType.getDefaultInstance()).build())
                     .setMessageText("The probe for '" + target.getDisplayName() + "' is not connected.")
                     .build();
         }
@@ -274,12 +279,14 @@ public class TargetHealthRetriever {
     @Nullable
     private TargetHealth reportTargetDuplication(TargetHealth.Builder targetHealthBuilder,
                     Discovery lastDiscovery) {
-        for (ErrorType errorType : lastDiscovery.getErrorTypes()) {
-            if (errorType == ErrorType.DUPLICATION) {
+        for (ErrorTypeInfo errorTypeInfo : lastDiscovery.getErrorTypeInfos()) {
+            if (errorTypeInfo.getErrorTypeInfoCase() == ErrorTypeInfoCase.DUPLICATION_ERROR_TYPE) {
                 //We have the case of duplicate targets.
                 return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                         .setSubcategory(TargetHealthSubCategory.DUPLICATION)
-                        .setErrorType(ErrorType.DUPLICATION)
+                        .addErrorTypeInfo(ErrorTypeInfo.newBuilder()
+                                .setDuplicationErrorType(DuplicationErrorType.getDefaultInstance())
+                                .build())
                         .setMessageText("Duplicate targets.")
                         .setTimeOfFirstFailure(
                                 TimeUtil.localTimeToMillis(lastDiscovery.getCompletionTime(), clock))
@@ -310,8 +317,8 @@ public class TargetHealthRetriever {
             //There was a discovery failure.
             return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                    .setErrorType(discoveryFailure.getErrorType())
                     .setMessageText(discoveryFailure.getErrorText())
+                    .addAllErrorTypeInfo(discoveryFailure.getErrorTypeInfos())
                     .setConsecutiveFailureCount(discoveryFailure.getFailsCount())
                     .setTimeOfFirstFailure(
                             TimeUtil.localTimeToMillis(discoveryFailure.getFailTime(), clock))
@@ -320,7 +327,8 @@ public class TargetHealthRetriever {
             //The probe got disconnected. Report it.
             return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                    .setErrorType(ErrorType.OTHER)
+                    .addErrorTypeInfo(ErrorTypeInfo.newBuilder().setOtherErrorType(
+                            OtherErrorType.getDefaultInstance()).build())
                     .setMessageText("The probe for '" + target.getDisplayName() + "' is not connected.")
                     .build();
         }
@@ -359,7 +367,8 @@ public class TargetHealthRetriever {
         }
         return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                 .setSubcategory(TargetHealthSubCategory.DELAYED_DATA)
-                .setErrorType(ErrorType.DELAYED_DATA)
+                .addErrorTypeInfo(ErrorTypeInfo.newBuilder().setDelayedDataErrorType(
+                        DelayedDataErrorType.getDefaultInstance()).build())
                 .setMessageText(delayedDataMsg.toString())
                 .setTimeOfCheck(System.currentTimeMillis())
                 .build();

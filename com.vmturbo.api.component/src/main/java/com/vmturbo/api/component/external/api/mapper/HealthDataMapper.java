@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -10,12 +12,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO.Recommendation;
+import com.vmturbo.api.dto.target.BaseTargetErrorDetailsApiDTO;
 import com.vmturbo.api.dto.target.DelayedDataInfoApiDTO;
 import com.vmturbo.api.dto.target.DiscoveryInfoApiDTO;
+import com.vmturbo.api.dto.target.TargetErrorDetailsApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
+import com.vmturbo.api.dto.target.TargetThirdPartyErrorDetailsApiDTO;
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
 import com.vmturbo.api.enums.healthCheck.TargetErrorType;
@@ -25,6 +31,9 @@ import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ErrorTypeInfoCase;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ThirdPartyApiFailureErrorType;
 
 import common.HealthCheck;
 
@@ -40,6 +49,26 @@ public class HealthDataMapper {
     public static final String HIDDEN_TARGET_MESSAGE_SUFFIX = " (Hidden Target)";
 
     private static final Map<ErrorType, TargetErrorType> ERROR_TYPE_CONVERTER = initializeErrorTypeConverter();
+
+    private static final Map<ErrorTypeInfoCase, TargetErrorType> ERROR_TYPE_INFO_CONVERTER = Maps.newHashMap();
+
+    static {
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.CONNECTION_TIME_OUT_ERROR_TYPE,
+                TargetErrorType.CONNECTIVITY_ERROR);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.UNAUTHENTICATED_ERROR_TYPE, TargetErrorType.UNAUTHENTICATED);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.UNAUTHORIZED_ERROR_TYPE, TargetErrorType.UNAUTHENTICATED);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.TOKEN_UNAVAILABLE_ERROR_TYPE, TargetErrorType.TOKEN_UNAVAILABLE);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.TOKEN_EXPIRED_ERROR_TYPE, TargetErrorType.TOKEN_UNAVAILABLE);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.VERSION_NOT_SUPPORTED_ERROR_TYPE, TargetErrorType.VERSION_NOT_SUPPORTED);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.DATA_IS_MISSING_ERROR_TYPE, TargetErrorType.DATA_ACCESS_ERROR);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.PROBE_PARSING_ERROR_TYPE, TargetErrorType.DATA_ACCESS_ERROR);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.OTHER_ERROR_TYPE, TargetErrorType.INTERNAL_PROBE_ERROR);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.INTERNAL_PROBE_ERROR_TYPE, TargetErrorType.INTERNAL_PROBE_ERROR);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.DUPLICATION_ERROR_TYPE, TargetErrorType.DUPLICATION);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.DELAYED_DATA_ERROR_TYPE, TargetErrorType.DELAYED_DATA);
+        ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.THIRD_PARTY_API_FAILURE_ERROR_TYPE,
+                TargetErrorType.THIRD_PARTY_FAILURE);
+    }
 
     private static Map<ErrorType, TargetErrorType> initializeErrorTypeConverter() {
         final Map<ErrorType, TargetErrorType> result = new EnumMap<>(ErrorType.class);
@@ -120,6 +149,7 @@ public class HealthDataMapper {
         if (healthInfo.hasMessageText() && !healthInfo.getMessageText().isEmpty()) {
             result.setErrorText(healthInfo.getMessageText());
         }
+        // TODO 09/23/21: Roop remove usage of errorType here.
         if (healthInfo.hasErrorType()) {
             result.setErrorType(ERROR_TYPE_CONVERTER.get(healthInfo.getErrorType()));
         }
@@ -130,7 +160,8 @@ public class HealthDataMapper {
             result.setTimeOfLastSuccessfulDiscovery(DateTimeUtil.toString(
                             healthInfo.getLastSuccessfulDiscoveryCompletionTime()));
         }
-
+        result.setTargetErrorDetails(
+                addTargetErrorDetails(healthInfo.getErrorTypeInfoList()));
         if (TargetHealthSubCategory.DISCOVERY.equals(healthInfo.getSubcategory())) {
             DiscoveryInfoApiDTO additionalDiscoveryInfo = new DiscoveryInfoApiDTO();
             additionalDiscoveryInfo.setNumberOfConsecutiveFailures(healthInfo.getConsecutiveFailureCount());
@@ -154,6 +185,29 @@ public class HealthDataMapper {
         return result;
     }
 
+    private static Collection<TargetErrorDetailsApiDTO> addTargetErrorDetails(@Nonnull final List<ErrorTypeInfo> healthInfoErrorDetailList) {
+        final Collection<TargetErrorDetailsApiDTO> targetErrorDetailsApiDTOS = new ArrayList<>();
+        healthInfoErrorDetailList.forEach(errorTypeInfo -> {
+            final TargetErrorDetailsApiDTO targetErrorDetailsApiDTO;
+            final TargetErrorType targetErrorType = getErrorTypeInfoConverter().get(
+                    errorTypeInfo.getErrorTypeInfoCase());
+            switch (errorTypeInfo.getErrorTypeInfoCase()) {
+                case THIRD_PARTY_API_FAILURE_ERROR_TYPE:
+                    ThirdPartyApiFailureErrorType thirdPartyError = errorTypeInfo.getThirdPartyApiFailureErrorType();
+                    targetErrorDetailsApiDTO =
+                            new TargetThirdPartyErrorDetailsApiDTO(targetErrorType,
+                                    thirdPartyError.getErrorCode(),
+                                    thirdPartyError.getEndPoint());
+
+                    break;
+                default:
+                    targetErrorDetailsApiDTO = new BaseTargetErrorDetailsApiDTO(targetErrorType);
+            }
+            targetErrorDetailsApiDTOS.add(targetErrorDetailsApiDTO);
+        });
+        return targetErrorDetailsApiDTOS;
+    }
+
     /**
      * Aggregate targets health info into a list of {@link AggregatedHealthResponseDTO} items.
      * @param targetsDetails target details of targets received from topology-processor
@@ -163,7 +217,7 @@ public class HealthDataMapper {
             @Nonnull Map<Long, TargetDetails> targetsDetails) {
         Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> subcategoryStatesCounters =
                         new EnumMap<>(TargetHealthSubCategory.class);
-        Map<TargetHealthSubCategory, Map<ErrorType, Boolean>> subcategoryErrorSets =
+        Map<TargetHealthSubCategory, Map<ErrorTypeInfoCase, Boolean>> subcategoryErrorSets =
                         new EnumMap<>(TargetHealthSubCategory.class);
 
         for (TargetDetails targetDetail : targetsDetails.values()) {
@@ -188,7 +242,7 @@ public class HealthDataMapper {
 
     private static void updateStates(
                     @Nonnull Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> subcategoryStatesCounters,
-                    @Nonnull Map<TargetHealthSubCategory, Map<ErrorType, Boolean>> subcategoryErrorSets,
+                    @Nonnull Map<TargetHealthSubCategory, Map<ErrorTypeInfoCase, Boolean>> subcategoryErrorSets,
                     @Nonnull TargetDetails targetDetails,
                     @Nonnull Map<Long, TargetDetails> targetDetailsMap) {
         TargetHealth parentTargetHealth = targetDetails.getHealthDetails();
@@ -205,20 +259,24 @@ public class HealthDataMapper {
 
         Map<HealthCheck.HealthState, Integer> statesCounter = subcategoryStatesCounters.computeIfAbsent(
                 healthAndSubcategory.second, k -> new EnumMap<>(HealthCheck.HealthState.class));
-        Map<ErrorType, Boolean> errorsSet = subcategoryErrorSets.computeIfAbsent(
-                healthAndSubcategory.second, k -> new EnumMap<>(ErrorType.class));
+        Map<ErrorTypeInfoCase, Boolean> errorsSet = subcategoryErrorSets.computeIfAbsent(
+                healthAndSubcategory.second, k -> new EnumMap<>(ErrorTypeInfoCase.class));
         for (TargetHealth member : allMembers) {
             if (member.getHealthState() != HealthCheck.HealthState.NORMAL) {
-                if (member.hasErrorType()) {
-                    errorsSet.putIfAbsent(member.getErrorType(), member != parentTargetHealth);
+                if (!member.getErrorTypeInfoList().isEmpty()) {
+                    // TODO : Roop we are only considering the first error type info at this point.
+                    ErrorTypeInfoCase errorTypeInfoCase = member.getErrorTypeInfoList().get(0).getErrorTypeInfoCase();
+                    errorsSet.putIfAbsent(errorTypeInfoCase, member != parentTargetHealth);
                 } else if (member.getMessageText().contains("Validation pending")) {
-                    errorsSet.putIfAbsent(ErrorType.INTERNAL_PROBE_ERROR, member != parentTargetHealth);
+                    errorsSet.putIfAbsent(ErrorTypeInfoCase.INTERNAL_PROBE_ERROR_TYPE,
+                            member != parentTargetHealth);
                 }
             }
         }
         int counter = statesCounter.getOrDefault(healthAndSubcategory.first, 0) + 1;
         statesCounter.put(healthAndSubcategory.first, counter);
     }
+
 
     private static @Nonnull Pair<HealthCheck.HealthState, TargetHealthSubCategory> siftHealthStateAndSubcategory(
             @Nonnull TargetHealth parentHealth, @Nonnull List<TargetHealth> allMembers) {
@@ -250,7 +308,7 @@ public class HealthDataMapper {
 
     private static AggregatedHealthResponseDTO makeResponseItem(TargetHealthSubCategory subcategory,
                     Map<HealthCheck.HealthState, Integer> statesCounter,
-                    Map<ErrorType, Boolean> errorsSet) {
+                    Map<ErrorTypeInfoCase, Boolean> errorsSet) {
         HealthCheck.HealthState state = HealthCheck.HealthState.NORMAL;
         if (statesCounter.containsKey(HealthCheck.HealthState.CRITICAL)) {
             state = HealthCheck.HealthState.CRITICAL;
@@ -265,8 +323,8 @@ public class HealthDataMapper {
                         TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(subcategory).toString(),
                         HEALTH_STATE_CONVERTER.get(state),
                         numberOfTargets);
-        for (Map.Entry<ErrorType, Boolean> entry : errorsSet.entrySet()) {
-            TargetErrorType errorType = ERROR_TYPE_CONVERTER.get(entry.getKey());
+        for (Map.Entry<ErrorTypeInfoCase, Boolean> entry : errorsSet.entrySet()) {
+            TargetErrorType errorType = getErrorTypeInfoConverter().get(entry.getKey());
             boolean reportForHidden = entry.getValue();
             String recommendationText = TARGET_ERROR_TYPE_RECOMMENDATIONS.get(errorType)
                             + (reportForHidden ? HIDDEN_TARGET_MESSAGE_SUFFIX : "");
@@ -275,5 +333,9 @@ public class HealthDataMapper {
             response.addRecommendation(recommendation);
         }
         return response;
+    }
+
+    private static Map<ErrorTypeInfoCase, TargetErrorType> getErrorTypeInfoConverter() {
+        return Collections.unmodifiableMap(ERROR_TYPE_INFO_CONVERTER);
     }
 }

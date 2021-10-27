@@ -10,8 +10,6 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
-import com.zaxxer.hikari.HikariDataSource;
-
 import org.mariadb.jdbc.MariaDbDataSource;
 
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
@@ -31,7 +29,7 @@ class MySqlFamilyAdapter extends DbAdapter {
     }
 
     @Override
-    DataSource getDataSource(String url, String user, String password, boolean pooled)
+    protected DataSource createDataSource(String url, String user, String password, boolean pooled)
             throws SQLException {
         if (pooled) {
             final int minPoolSize = config.getMinPoolSize();
@@ -40,7 +38,7 @@ class MySqlFamilyAdapter extends DbAdapter {
             logger.debug("Creating a pooled datasource for user: {}, minPoolSize={}, maxPoolSize={}",
                     user, minPoolSize, maxPoolSize);
             final String poolName = DbConnectionPoolConfig.generatePoolName(config.getSchemaName());
-            HikariDataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
+            DataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
                     url, user, password, minPoolSize, maxPoolSize, keepAliveIntervalMinutes, poolName);
             // In the SQLDatabaseConfig version of this initialization, we would create a
             // HikariPoolMonitor here. If this ever replaces SQLDatabaseConfig as the main way

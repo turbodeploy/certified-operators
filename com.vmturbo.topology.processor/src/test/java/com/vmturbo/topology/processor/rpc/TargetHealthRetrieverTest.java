@@ -34,6 +34,11 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ConnectionTimeOutErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DataIsMissingErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DelayedDataErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.OtherErrorType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -77,6 +82,14 @@ public class TargetHealthRetrieverTest {
 
     private static final int DEFAULT_REDISCOVERY_PERIOD = 600;
     private static final long DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER = 10;
+    private static final ErrorTypeInfo connectionTimeoutError = ErrorTypeInfo.newBuilder()
+            .setConnectionTimeOutErrorType(ConnectionTimeOutErrorType.getDefaultInstance()).build();
+    private static final ErrorTypeInfo otherProbeError = ErrorTypeInfo.newBuilder()
+            .setOtherErrorType(OtherErrorType.getDefaultInstance()).build();
+    private static final ErrorTypeInfo dataIsMissingError = ErrorTypeInfo.newBuilder()
+            .setDataIsMissingErrorType(DataIsMissingErrorType.getDefaultInstance()).build();
+    private static final ErrorTypeInfo delayedDataError = ErrorTypeInfo.newBuilder()
+            .setDelayedDataErrorType(DelayedDataErrorType.getDefaultInstance()).build();
 
     /**
      * Common setup before each test.
@@ -143,14 +156,14 @@ public class TargetHealthRetrieverTest {
         Assert.assertEquals(HealthState.NORMAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
         Assert.assertFalse(healthInfo.hasErrorType());
+        Assert.assertTrue(healthInfo.getErrorTypeInfoList().isEmpty());
         Assert.assertFalse(healthInfo.hasTimeOfFirstFailure());
 
         //Now test with a failed validation but a newer discovery.
         final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
         validation.fail();
-        ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.CONNECTION_TIMEOUT;
         ErrorDTO errorDTO = ErrorDTO.newBuilder()
-                .setErrorType(errorType)
+                .addErrorTypeInfo(connectionTimeoutError)
                 .setDescription("connection timed out")
                 .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
                 .build();
@@ -168,6 +181,7 @@ public class TargetHealthRetrieverTest {
         Assert.assertEquals(HealthState.NORMAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
         Assert.assertFalse(healthInfo.hasErrorType());
+        Assert.assertTrue(healthInfo.getErrorTypeInfoList().isEmpty());
         Assert.assertFalse(healthInfo.hasTimeOfFirstFailure());
     }
 
@@ -194,7 +208,8 @@ public class TargetHealthRetrieverTest {
         healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.VALIDATION, healthInfo.getSubcategory());
-        Assert.assertEquals(ErrorDTO.ErrorType.OTHER, healthInfo.getErrorType());
+        Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
+        Assert.assertEquals(otherProbeError, healthInfo.getErrorTypeInfoList().get(0));
         Assert.assertFalse(healthInfo.hasTimeOfFirstFailure());
         Assert.assertFalse(healthInfo.hasConsecutiveFailureCount());
     }
@@ -222,6 +237,7 @@ public class TargetHealthRetrieverTest {
         Assert.assertEquals(HealthState.NORMAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
         Assert.assertFalse(healthInfo.hasErrorType());
+        Assert.assertTrue(healthInfo.getErrorTypeInfoList().isEmpty());
         Assert.assertFalse(healthInfo.hasTimeOfFirstFailure());
     }
 
@@ -235,10 +251,11 @@ public class TargetHealthRetrieverTest {
         final Target target = mockTarget(PROBE_ID, 1, "43");
         final long targetId = target.getId();
 
-        ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.CONNECTION_TIMEOUT;
+        ErrorTypeInfo errorTypeInfo = ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(
+                ConnectionTimeOutErrorType.getDefaultInstance()).build();
         final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
         ErrorDTO errorDTO = ErrorDTO.newBuilder()
-                .setErrorType(errorType)
+                .addErrorTypeInfo(errorTypeInfo)
                 .setDescription("connection timed out")
                 .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
                 .build();
@@ -251,7 +268,8 @@ public class TargetHealthRetrieverTest {
         TargetHealth healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.VALIDATION, healthInfo.getSubcategory());
-        Assert.assertEquals(errorType, healthInfo.getErrorType());
+        Assert.assertEquals(healthInfo.getErrorTypeInfoList().size(), 1);
+        Assert.assertEquals(errorTypeInfo, healthInfo.getErrorTypeInfo(0));
         Assert.assertEquals(TimeUtil.localTimeToMillis(validation.getCompletionTime(), clock),
                         healthInfo.getTimeOfFirstFailure());
 
@@ -272,7 +290,8 @@ public class TargetHealthRetrieverTest {
         healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.VALIDATION, healthInfo.getSubcategory());
-        Assert.assertEquals(errorType, healthInfo.getErrorType());
+        Assert.assertEquals(healthInfo.getErrorTypeInfoList().size(), 1);
+        Assert.assertEquals(errorTypeInfo, healthInfo.getErrorTypeInfo(0));
         Assert.assertEquals(TimeUtil.localTimeToMillis(validation.getCompletionTime(), clock),
                         healthInfo.getTimeOfFirstFailure());
     }
@@ -296,9 +315,10 @@ public class TargetHealthRetrieverTest {
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
                 .thenReturn(Optional.of(discovery));
 
-        ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.DATA_IS_MISSING;
+        ErrorTypeInfo errorTypeInfo = ErrorTypeInfo.newBuilder().setDataIsMissingErrorType(
+                DataIsMissingErrorType.getDefaultInstance()).build();
         ErrorDTO errorDTO = ErrorDTO.newBuilder()
-                .setErrorType(errorType)
+                .addErrorTypeInfo(errorTypeInfo)
                 .setDescription("data is missing")
                 .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
                 .build();
@@ -326,7 +346,8 @@ public class TargetHealthRetrieverTest {
         healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
-        Assert.assertEquals(errorType, healthInfo.getErrorType());
+        Assert.assertEquals(healthInfo.getErrorTypeInfoList().size(), 1);
+        Assert.assertEquals(errorTypeInfo, healthInfo.getErrorTypeInfo(0));
         Assert.assertEquals(TimeUtil.localTimeToMillis(discovery.getCompletionTime(), clock),
                         healthInfo.getTimeOfFirstFailure());
         Assert.assertEquals(numberOfFailures, healthInfo.getConsecutiveFailureCount());
@@ -344,9 +365,8 @@ public class TargetHealthRetrieverTest {
 
         final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
         validation.fail();
-        ErrorDTO.ErrorType validationErrorType = ErrorDTO.ErrorType.CONNECTION_TIMEOUT;
         ErrorDTO validationErrorDTO = ErrorDTO.newBuilder()
-                .setErrorType(validationErrorType)
+                .addErrorTypeInfo(connectionTimeoutError)
                 .setDescription("connection timed out")
                 .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
                 .build();
@@ -366,9 +386,10 @@ public class TargetHealthRetrieverTest {
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
                 .thenReturn(Optional.of(discovery));
 
-        ErrorDTO.ErrorType discoveryErrorType = ErrorDTO.ErrorType.DATA_IS_MISSING;
+        ErrorTypeInfo errorTypeInfo = ErrorTypeInfo.newBuilder().setDataIsMissingErrorType(
+                DataIsMissingErrorType.getDefaultInstance()).build();
         ErrorDTO discoveryErrorDTO = ErrorDTO.newBuilder()
-                .setErrorType(discoveryErrorType)
+                .addErrorTypeInfo(errorTypeInfo)
                 .setDescription("data is missing")
                 .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
                 .build();
@@ -387,7 +408,8 @@ public class TargetHealthRetrieverTest {
         TargetHealth healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
-        Assert.assertEquals(discoveryErrorType, healthInfo.getErrorType());
+        Assert.assertEquals(healthInfo.getErrorTypeInfoList().size(), 1);
+        Assert.assertEquals(errorTypeInfo, healthInfo.getErrorTypeInfo(0));
         Assert.assertEquals(TimeUtil.localTimeToMillis(discovery.getCompletionTime(), clock),
                         healthInfo.getTimeOfFirstFailure());
         Assert.assertEquals(numberOfFailures, healthInfo.getConsecutiveFailureCount());
@@ -444,9 +466,8 @@ public class TargetHealthRetrieverTest {
         Assert.assertTrue(healthInfo.hasLastSuccessfulDiscoveryCompletionTime());
         Assert.assertEquals(time, healthInfo.getLastSuccessfulDiscoveryCompletionTime());
 
-        ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.DATA_IS_MISSING;
         ErrorDTO errorDTO = ErrorDTO.newBuilder()
-                .setErrorType(errorType)
+                .addErrorTypeInfo(dataIsMissingError)
                 .setDescription("data is missing")
                 .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
                 .build();
@@ -481,7 +502,8 @@ public class TargetHealthRetrieverTest {
         TargetHealth healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
-        Assert.assertEquals(ErrorDTO.ErrorType.DELAYED_DATA, healthInfo.getErrorType());
+        Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
+        Assert.assertEquals(delayedDataError, healthInfo.getErrorTypeInfoList().get(0));
         Assert.assertEquals(successfulDiscoveryTime, healthInfo.getLastSuccessfulDiscoveryCompletionTime());
         Assert.assertEquals(successfulDiscoveryStart, healthInfo.getLastSuccessfulDiscoveryStartTime());
         Assert.assertEquals(System.currentTimeMillis(), healthInfo.getTimeOfCheck(), 1000);
@@ -503,7 +525,8 @@ public class TargetHealthRetrieverTest {
         healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
-        Assert.assertEquals(ErrorDTO.ErrorType.DELAYED_DATA, healthInfo.getErrorType());
+        Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
+        Assert.assertEquals(delayedDataError, healthInfo.getErrorTypeInfoList().get(0));
         Assert.assertEquals(successfulDiscoveryTime, healthInfo.getLastSuccessfulDiscoveryCompletionTime());
         Assert.assertEquals(successfulDiscoveryStart, healthInfo.getLastSuccessfulDiscoveryStartTime());
     }

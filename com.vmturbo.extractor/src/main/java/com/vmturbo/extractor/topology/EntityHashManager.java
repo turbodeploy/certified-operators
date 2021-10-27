@@ -37,6 +37,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
+import org.jooq.conf.Settings;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -103,8 +105,14 @@ public class EntityHashManager {
     private OffsetDateTime topologyTimestamp;
     private final IntList unchangedEntityIids = new IntArrayList();
 
-    EntityHashManager(DataPack<Long> oidPack, WriterConfig config) {
+    /**
+     * Chunk size for DB queries when streaming results.
+     */
+    private final int dbFetchSize;
+
+    EntityHashManager(DataPack<Long> oidPack, int fetchSize) {
         this.oidPack = oidPack;
+        this.dbFetchSize = fetchSize;
     }
 
     /**
@@ -205,7 +213,8 @@ public class EntityHashManager {
                     .execute();
         }
         logger.info("Finished processing topology {}: {} entities unchanged, {} changed, {} dropped",
-                unchangedEntityIids.size(), newHashes.size(), droppedIids.size());
+                getSourceTopologyLabel(currentTopology), unchangedEntityIids.size(),
+                newHashes.size(), droppedIids.size());
 
         // update prior hashes for next time
         priorHashes.keySet().removeAll(droppedIids);
@@ -226,15 +235,21 @@ public class EntityHashManager {
      */
     private void restoreEntityState() {
         priorHashes.clear();
-        try (Stream<Record1<Long>> stream = dsl.select(ENTITY.OID)
-                     .from(ENTITY)
-                     .where(ENTITY.LAST_SEEN.eq(MAX_TIMESTAMP))
-                     .stream()) {
-            stream.mapToLong(r -> r.getValue(0, Long.class))
-                    .forEach(oid -> priorHashes.put(oidPack.toIndex(oid), 0L));
-        }
-        logger.info("Retrieved oids of {} entities present in the last topology prior to restart",
-                priorHashes.size());
+        dsl.connection(conn -> {
+            conn.setAutoCommit(false);
+            // See renderSchema related comment in ScopeManager::reloadPriorScope().
+            try (Stream<Record1<Long>> stream = DSL.using(conn, new Settings().withRenderSchema(false))
+                    .select(ENTITY.OID)
+                    .from(ENTITY)
+                    .where(ENTITY.LAST_SEEN.eq(MAX_TIMESTAMP))
+                    .fetchSize(dbFetchSize)
+                    .fetchStream()) {
+                stream.mapToLong(r -> r.getValue(0, Long.class))
+                        .forEach(oid -> priorHashes.put(oidPack.toIndex(oid), 0L));
+            }
+        });
+        logger.info("Retrieved OIDs of {} entities present in the last topology prior to restart, chunk size: {}.",
+                priorHashes.size(), dbFetchSize);
     }
 
     /**

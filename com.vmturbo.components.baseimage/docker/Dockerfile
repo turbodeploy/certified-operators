@@ -12,18 +12,13 @@ LABEL name="baseimage" \
 # Required Licenses
 COPY licenses /licenses
 
-# Install rsyslog and OpenJDK java-11 packages
-RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless net-tools xz gnutls && \
-    dnf clean all && rm -rf /var/cache/dnf
+# This is the release of openj9 to pull in.
+ENV OPENJ9_URL=https://github.com/ibmruntimes/semeru11-binaries/releases/download/jdk-11.0.13%2B8_openj9-0.29.0/ibm-semeru-open-11-jre-11.0.13.8_0.29.0-1.x86_64.rpm
 
-# Install OpenJ9
-# https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.8%2B10_openj9-0.21.0/OpenJDK11U-jre_x64_linux_openj9_11.0.8_10_openj9-0.21.0.tar.gz
-RUN curl -k -s -O -L https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.8%2B10_openj9-0.21.0/OpenJDK11U-jre_x64_linux_openj9_11.0.8_10_openj9-0.21.0.tar.gz && \
-    mkdir -p /usr/lib/jvm && \
-    tar -xf OpenJDK11U-jre_x64_linux_openj9_11.0.8_10_openj9-0.21.0.tar.gz --directory /usr/lib/jvm/ && \
-    rm OpenJDK*.tar.gz
-# set the path to the OpenJ9 JVM in case we want to use it.
-ENV J9PATH="/usr/lib/jvm/jdk-11.0.8+10-jre/bin:${PATH}"
+# Install rsyslog and OpenJDK java-11 packages
+RUN dnf install -y rsyslog procps-ng python2 net-tools xz gnutls && \
+    dnf install -y $OPENJ9_URL && \
+    dnf clean all && rm -rf /var/cache/dnf
 
 COPY entrypoint.sh collect_diags.sh diags.py terminate.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && chmod 755 /terminate.sh && \

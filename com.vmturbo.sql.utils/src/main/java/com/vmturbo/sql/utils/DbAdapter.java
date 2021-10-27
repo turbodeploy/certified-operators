@@ -166,11 +166,12 @@ public abstract class DbAdapter {
      * @throws SQLException                if the datasource cannot be created
      */
     DataSource getDataSource(boolean pooled) throws UnsupportedDialectException, SQLException {
-        return getDataSource(getUrl(config), config.getUserName(), config.getPassword(), pooled);
+        return createDataSource(getUrl(config), config.getUserName(), config.getPassword(), pooled);
     }
 
     /**
      * Create a new {@link DataSource} for the given DB url and credentials.
+     * A pooled datasource comes with it's own new pool.
      *
      * @param url      URL for DB server
      * @param user     login user name
@@ -179,7 +180,7 @@ public abstract class DbAdapter {
      * @return new datasource
      * @throws SQLException if the datasource cannot be created
      */
-    abstract DataSource getDataSource(String url, String user, String password, boolean pooled)
+    protected abstract DataSource createDataSource(String url, String user, String password, boolean pooled)
             throws SQLException;
 
     /**
@@ -208,7 +209,7 @@ public abstract class DbAdapter {
     DataSource getRootDataSource(String database)
             throws UnsupportedDialectException, UnsupportedOperationException, SQLException {
         if (config.isRootAccessEnabled()) {
-            return getDataSource(getUrl(config, database),
+            return createDataSource(getUrl(config, database),
                     config.getRootUserName(), config.getRootPassword(), false);
         } else {
             throw new UnsupportedOperationException(

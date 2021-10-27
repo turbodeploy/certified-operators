@@ -54,7 +54,8 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DuplicationErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
@@ -1478,7 +1479,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                                 ErrorDTO.newBuilder()
                                                         .setDescription(e.getLocalizedMessage())
                                                         .setSeverity(ErrorSeverity.CRITICAL)
-                                                        .setErrorType(ErrorType.DUPLICATION)
+                                                        .addErrorTypeInfo(
+                                                                ErrorTypeInfo.newBuilder()
+                                                                        .setDuplicationErrorType(DuplicationErrorType.getDefaultInstance())
+                                                                        .build())
                                                         .build());
                                 responseUsed = responseBuilder.build();
                                 success = false;
