@@ -81,6 +81,9 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         if (vmData.hasCoresPerSocketRatio()) {
             vmInfo.setCoresPerSocketRatio(vmData.getCoresPerSocketRatio());
         }
+        if (vmData.hasCoresPerSocketChangeable()) {
+            vmInfo.setCoresPerSocketChangeable(vmData.getCoresPerSocketChangeable());
+        }
         if (!vmData.getConnectedNetworkList().isEmpty()) {
             vmInfo.addAllConnectedNetworks(vmData.getConnectedNetworkList());
         }
