@@ -17,8 +17,8 @@
 
     <properties>
         <!-- This market-revision refers to market version. `market-revision` is a property that is treated in a special way by Maven and this is mandatory property -->
-        <market-revision>4.3.5-SNAPSHOT</market-revision>
-        <vmturbo.mt.branch.version>8.3.5-SNAPSHOT</vmturbo.mt.branch.version>
+        <market-revision>4.3.6-SNAPSHOT</market-revision>
+        <vmturbo.mt.branch.version>8.3.6-SNAPSHOT</vmturbo.mt.branch.version>
         <java.version>1.8</java.version>
         <checkstyle.config.version>${vmturbo.mt.branch.version}</checkstyle.config.version>
     </properties>
