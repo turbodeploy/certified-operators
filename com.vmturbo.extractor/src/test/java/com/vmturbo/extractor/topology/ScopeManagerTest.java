@@ -90,7 +90,8 @@ public class ScopeManagerTest {
         final ExecutorService pool = Executors.newSingleThreadExecutor();
         final WriterConfig config = mock(WriterConfig.class);
         doReturn(10).when(config).insertTimeoutSeconds();
-        this.scopeManager = new ScopeManager(oidPack, endpoint, config, pool);
+        this.scopeManager = new ScopeManager(oidPack, endpoint, config, pool,
+                dbConfig.getDbFetchSize());
         this.dsl = endpoint.dslContext();
     }
 

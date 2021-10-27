@@ -5,12 +5,11 @@ import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
-import static com.vmturbo.extractor.util.ExtractorTestUtil.config;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.collection.IsMapWithSize.aMapWithSize;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -47,6 +46,7 @@ public class EntityHashManagerTest {
     private LongDataPack oidPack;
     private int baseEntityIId;
     private final DSLContext dsl = getMockDsl();
+    private final int dbFetchSize = 2;
 
     /**
      * Set up for tests, by creating an entities record that will be used in the tests, and a table
@@ -55,7 +55,7 @@ public class EntityHashManagerTest {
     @Before
     public void before() {
         oidPack = new LongDataPack();
-        entityHashManager = new EntityHashManager(oidPack, config);
+        entityHashManager = new EntityHashManager(oidPack, dbFetchSize);
         entityHashManager.injectPriorTopology();
         baseEntity = new Record(ENTITY_TABLE);
         baseEntity.set(ENTITY_OID_AS_OID, 1L);
@@ -174,7 +174,7 @@ public class EntityHashManagerTest {
         entityHashManager.processEntity(baseEntity);
         final long hash = entityHashManager.getEntityHash(baseEntity.get(ENTITY_OID_AS_OID));
         entityHashManager.close();
-        EntityHashManager restartHashManager = new EntityHashManager(new LongDataPack(), config);
+        EntityHashManager restartHashManager = new EntityHashManager(new LongDataPack(), dbFetchSize);
         restartHashManager.injectPriorTopology(baseEntity.get(ENTITY_OID_AS_OID), 1000L, 2000L);
         restartHashManager.open(getTopoInfo(2000), dsl);
         assertThat(restartHashManager.getEntityHash(baseEntity.get(ENTITY_OID_AS_OID)), is(0L));
