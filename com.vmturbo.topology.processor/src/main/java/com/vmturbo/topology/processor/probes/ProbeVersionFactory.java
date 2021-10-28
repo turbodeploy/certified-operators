@@ -14,58 +14,111 @@ import com.vmturbo.platform.sdk.common.util.Pair;
  */
 public class ProbeVersionFactory {
     /**
-     * Error message for when the probe version is just one behind the platform's.
+     * Error messages related to probe version errors.
      */
-    static final String PROBE_VERSION_ONE_BEHIND_MESSAGE = "Probe is one version behind; please consider upgrade";
+    enum ProbeVersionErrorMessage {
+        MISSING("Probe version is missing%s; please upgrade probe to version '%s'."),
+        CUSTOM("Probe version is custom ('%s'); please confirm image being used supports server version '%s'."),
+        OLDER("Probe version is not current ('%s'); please upgrade probe to version '%s'."),
+        NEWER("Probe version is newer ('%s') than the server version ('%s'); please ensure this is expected.");
+
+        private final String format;
+
+        /**
+         * The enum constructor.
+         *
+         * @param format the format according to which the error message will be constructed.
+         */
+        ProbeVersionErrorMessage(String format) {
+            this.format = format;
+        }
+
+        /**
+         * Return the corresponding error message constructed based on the probe and the server versions.
+         *
+         * @param probeVersion the version of the probe
+         * @param serverVersion the version of the server
+         * @return the constructed error message
+         */
+        String getMessage(final String probeVersion, final String serverVersion) {
+            return String.format(format, Strings.nullToEmpty(probeVersion), Strings.nullToEmpty(serverVersion));
+        }
+    }
+
     /**
-     * Error message for when the probe version is too far from the platform's.
+     * Error messages related to server version errors.
      */
-    static final String PROBE_VERSION_INCOMPATIBLE_MESSAGE = "An incompatible probe version is in use; please upgrade.";
-    /**
-     * Error message for when the probe version is newer than the platform's.
-     */
-    static final String PROBE_VERSION_NEWER_MESSAGE = "Probe version is newer than the platform's; please ensure this is expected.";
+    enum ServerVersionErrorMessage {
+        MISSING("Server version%s is missing; please check with your administrator."),
+        CUSTOM("Server version '%s' is a custom version; please ensure this is expected.");
+
+        private final String format;
+
+        /**
+         * The enum constructor.
+         *
+         * @param format the format according to which the error message will be constructed.
+         */
+        ServerVersionErrorMessage(String format) {
+            this.format = format;
+        }
+
+        /**
+         * Return the corresponding error message constructed based on the server version.
+         *
+         * @param serverVersion the version of the server
+         * @return the constructed error message
+         */
+        String getMessage(final String serverVersion) {
+            return String.format(format,  Strings.nullToEmpty(serverVersion));
+        }
+    }
 
     private ProbeVersionFactory() {}
 
     /**
-     * Compare the given probe and platform versions, and return the deduced health state of the
+     * Compare the given probe and server versions, and return the deduced health state of the
      * probe based on the versions and the associated error message.
      *
      * @param probeVersion the version of the probe
-     * @param platformVersion the version of the platform represented by the topology processor
+     * @param serverVersion the version of the server represented by the topology processor
      * @return the health state as well as the error message if any
      */
     public static Pair<HealthState, String> deduceProbeHealth(
-            @Nullable final String probeVersion, @Nullable final String platformVersion) {
+            @Nullable final String probeVersion, @Nullable final String serverVersion) {
+        if (Strings.isNullOrEmpty(serverVersion)) {
+            return Pair.create(HealthState.MAJOR,
+                    ServerVersionErrorMessage.MISSING.getMessage(serverVersion));
+        }
+        final Semver serverSemver;
+        try {
+            serverSemver = new Semver(serverVersion).toStrict().withClearedSuffixAndBuild();
+        } catch (SemverException e) {
+            return Pair.create(HealthState.MAJOR,
+                    ServerVersionErrorMessage.CUSTOM.getMessage(serverVersion));
+        }
+
+        if (Strings.isNullOrEmpty(probeVersion)) {
+            return Pair.create(HealthState.MAJOR,
+                    ProbeVersionErrorMessage.MISSING.getMessage(probeVersion, serverSemver.toString()));
+        }
         final Semver probeSemver;
         try {
-            probeSemver = new Semver(Strings.nullToEmpty(probeVersion)).toStrict();
+            probeSemver = new Semver(probeVersion).toStrict().withClearedSuffixAndBuild();
         } catch (SemverException e) {
-            return Pair.create(HealthState.MAJOR, "Probe has " + e.getMessage().toLowerCase());
+            return Pair.create(HealthState.MINOR,
+                    ProbeVersionErrorMessage.CUSTOM.getMessage(probeVersion, serverVersion));
         }
 
-        final Semver platformSemver;
-        try {
-            platformSemver = new Semver(Strings.nullToEmpty(platformVersion)).toStrict();
-        } catch (SemverException e) {
-            return Pair.create(HealthState.MAJOR, "Platform has " + e.getMessage().toLowerCase());
-        }
-
-        if (probeSemver.isEquivalentTo(platformSemver)) {
+        if (probeSemver.isEquivalentTo(serverSemver)) {
             return Pair.create(HealthState.NORMAL, "");
         }
-        if (probeSemver.isGreaterThan(platformSemver)) {
-            return Pair.create(HealthState.MINOR, PROBE_VERSION_NEWER_MESSAGE);
+        if (probeSemver.isGreaterThan(serverSemver)) {
+            return Pair.create(HealthState.MINOR,
+                    ProbeVersionErrorMessage.NEWER.getMessage(probeVersion, serverVersion));
         }
-        switch (probeSemver.diff(platformSemver)) {
-            case PATCH:
-                if (probeSemver.getPatch() + 1 == platformSemver.getPatch()) {
-                    return Pair.create(HealthState.MINOR, PROBE_VERSION_ONE_BEHIND_MESSAGE);
-                }
-            default:
-                return Pair.create(HealthState.MAJOR, PROBE_VERSION_INCOMPATIBLE_MESSAGE);
-        }
+        return Pair.create(HealthState.MAJOR,
+                ProbeVersionErrorMessage.OLDER.getMessage(probeVersion, serverSemver.toString()));
     }
 
 }
