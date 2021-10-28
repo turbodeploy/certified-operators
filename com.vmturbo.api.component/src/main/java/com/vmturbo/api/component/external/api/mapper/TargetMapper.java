@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetHealthSummaryApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -170,7 +171,9 @@ public class TargetMapper {
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(targetInfo.getId()));
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
-        targetApiDTO.setHealthState(targetInfo.getHealthState());
+        final TargetHealthSummaryApiDTO targetHealthSummaryApiDTO = new TargetHealthSummaryApiDTO();
+        targetHealthSummaryApiDTO.setHealthState(targetInfo.getHealthState());
+        targetApiDTO.setHealthSummary(targetHealthSummaryApiDTO);
         targetApiDTO.setReadonly(targetInfo.isReadOnly());
 
         // set the last edit user/time
