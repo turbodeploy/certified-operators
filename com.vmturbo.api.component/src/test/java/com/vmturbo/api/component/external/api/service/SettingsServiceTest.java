@@ -283,6 +283,32 @@ public class SettingsServiceTest {
     }
 
     /**
+     * Test that horizontal scale up action setting can be applied on container pods.
+     * Test that max replicas setting cannot be applied on container pods.
+     */
+    @Test
+    public void testServiceSettingMatchEntityTypeForContainerPod() {
+        final SettingSpec serviceHorizontalScaleUpSettingSpec = SettingSpec.newBuilder()
+                .setName(ConfigurableActionSettings.HorizontalScaleUp.getSettingName())
+                    .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                        .setEntitySettingScope(EntitySettingScope.newBuilder()
+                            .setEntityTypeSet(EntityTypeSet.newBuilder()
+                                .addEntityType(ApiEntityType.SERVICE.typeNumber()))))
+                .build();
+        final SettingSpec serviceMaxReplicasSettingSpec = SettingSpec.newBuilder()
+                .setName(EntitySettingSpecs.MaxReplicas.getSettingName())
+                    .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                        .setEntitySettingScope(EntitySettingScope.newBuilder()
+                            .setEntityTypeSet(EntityTypeSet.newBuilder()
+                                .addEntityType(ApiEntityType.SERVICE.typeNumber()))))
+                .build();
+        assertTrue(SettingsService.settingMatchEntityType(
+                serviceHorizontalScaleUpSettingSpec, ApiEntityType.CONTAINER_POD.apiStr()));
+        assertFalse(SettingsService.settingMatchEntityType(
+                serviceMaxReplicasSettingSpec, ApiEntityType.CONTAINER_POD.apiStr()));
+    }
+
+    /**
      * Test settingMatchEntityType for container. Container spec settings will also be matched to
      * container entity type.
      */
