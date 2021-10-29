@@ -11,8 +11,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import org.jetbrains.annotations.NotNull;
-
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TargetInfo;

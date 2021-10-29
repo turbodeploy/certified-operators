@@ -26,7 +26,6 @@ import com.google.protobuf.util.JsonFormat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
