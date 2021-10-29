@@ -330,6 +330,45 @@ public class TargetStatusTrackerImplTest {
     }
 
     /**
+     * Test which check the older ErrorTypeInfo is completely replaced
+     * when a new discovery for same targetId is received.
+     */
+    @Test
+    public void testWithNewDiscoveryErrorTypeInfos() {
+        final Discovery discovery = createFailedDiscovery();
+        discovery.addError(ErrorDTO.newBuilder().addErrorTypeInfo(ErrorTypeInfo.newBuilder()
+                        .setThirdPartyApiFailureErrorType(ThirdPartyApiFailureErrorType.newBuilder()
+                                .setEndPoint("https://md5.azure.net/not-a-real-url")
+                                .build())
+                        .build())
+                .setSeverity(ErrorSeverity.CRITICAL)
+                .setDescription("Wrong credentials")
+                .build());
+        targetStatusTracker.notifyOperationState(discovery);
+        Map<Long, DiscoveryFailure> failedDiscoveries = targetStatusTracker.getFailedDiscoveries();
+        Map.Entry<Long, DiscoveryFailure> entry = failedDiscoveries.entrySet().iterator().next();
+        Long targetId = entry.getKey();
+        DiscoveryFailure failedDiscovery = entry.getValue();
+        Assert.assertEquals(TARGET_ID_1, targetId.longValue());
+        Assert.assertThat(failedDiscovery.getErrorTypeInfos().stream().map(ErrorTypeInfo::getErrorTypeInfoCase)
+                        .collect(Collectors.toList()),
+                Matchers.containsInAnyOrder(ErrorTypeInfoCase.UNAUTHENTICATED_ERROR_TYPE,
+                        ErrorTypeInfoCase.THIRD_PARTY_API_FAILURE_ERROR_TYPE));
+
+        //attempt 2
+        final Discovery newDiscovery = createFailedDiscovery();
+        targetStatusTracker.notifyOperationState(newDiscovery);
+        failedDiscoveries = targetStatusTracker.getFailedDiscoveries();
+        entry = failedDiscoveries.entrySet().iterator().next();
+        targetId = entry.getKey();
+        failedDiscovery = entry.getValue();
+        Assert.assertEquals(TARGET_ID_1, targetId.longValue());
+        Assert.assertThat(failedDiscovery.getErrorTypeInfos().stream().map(ErrorTypeInfo::getErrorTypeInfoCase)
+                        .collect(Collectors.toList()),
+                Matchers.containsInAnyOrder(ErrorTypeInfoCase.UNAUTHENTICATED_ERROR_TYPE));
+    }
+
+    /**
      * Test adding and retrieving failed discovery information using legacy error type.
      * Sends notification about failed discovery twice.
      *
