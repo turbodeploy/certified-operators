@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.targets.status;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -225,7 +224,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         final DiscoveryFailure discoveryFailure;
         if (targetToFailedDiscoveries.containsKey(targetId)) {
             discoveryFailure = targetToFailedDiscoveries.get(targetId);
-            discoveryFailure.mergeNewInfo(discovery);
+            discoveryFailure.replaceWithNewInfo(discovery);
         } else {
             discoveryFailure = targetToFailedDiscoveries
                     .computeIfAbsent(targetId, k -> new DiscoveryFailure(discovery));
@@ -261,7 +260,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         public DiscoveryFailure(Discovery discovery) {
             failTime = discovery.getCompletionTime();
             failsCount = 0;
-            List<ErrorTypeInfo> errorTypeInfos = new ArrayList<>(discovery.getErrorTypeInfos());
+            Collection<ErrorTypeInfo> errorTypeInfos = new HashSet<>(discovery.getErrorTypeInfos());
             if (!errorTypeInfos.isEmpty())  {
                 failedDiscoveryErrorTypeInfos.addAll(errorTypeInfos);
             } else {
@@ -271,8 +270,9 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
             recordFirstFailedDiscoveredErrorText(discovery);
         }
 
-        private void mergeNewInfo(final Discovery discovery) {
-            this.getErrorTypeInfos().addAll(discovery.getErrorTypeInfos());
+        private void replaceWithNewInfo(final Discovery discovery) {
+            this.failedDiscoveryErrorTypeInfos.clear();
+            this.failedDiscoveryErrorTypeInfos.addAll(discovery.getErrorTypeInfos());
             recordFirstFailedDiscoveredErrorText(discovery);
         }
 
