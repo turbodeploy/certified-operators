@@ -224,29 +224,35 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                     final DataMetricTimer loadDurationTimer =
                             COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY.labels("background").startTimer();
                     QUERY_MAP.forEach((entityType, comms) -> {
-                        Set<Long> oids = fetchEntityOidsOfType(entityType);
-                        if (oids.isEmpty()) {
-                            return;
+                        try {
+                            Set<Long> oids = fetchEntityOidsOfType(entityType);
+                            if (oids.isEmpty()) {
+                                return;
+                            }
+                            Stopwatch watch = Stopwatch.createStarted();
+                            GetEntityCommoditiesMaxValuesRequest request =
+                                    GetEntityCommoditiesMaxValuesRequest.newBuilder()
+                                            .setEntityType(entityType)
+                                            .addAllCommodityTypes(comms)
+                                            .addAllUuids(oids)
+                                            .build();
+                            Iterator<EntityCommoditiesMaxValues> response = statsHistoryClient.getEntityCommoditiesMaxValues(request);
+                            updateEntityCommodityToMaxQuantitiesMap(response);
+                            watch.stop();
+                            logger.info("Received and processed max for {} {}s in {} ms", oids.size(),
+                                    EntityType.forNumber(entityType).toString(), watch.elapsed(TimeUnit.MILLISECONDS));
+                        } catch (Exception e) {
+                            logger.error("Error fetching max values for {}s : ", EntityType.forNumber(entityType).toString(), e);
                         }
-                        Stopwatch watch = Stopwatch.createStarted();
-                        GetEntityCommoditiesMaxValuesRequest request =
-                                GetEntityCommoditiesMaxValuesRequest.newBuilder()
-                                        .setEntityType(entityType)
-                                        .addAllCommodityTypes(comms)
-                                        .addAllUuids(oids)
-                                        .build();
-                        Iterator<EntityCommoditiesMaxValues> response = statsHistoryClient.getEntityCommoditiesMaxValues(request);
-                        updateEntityCommodityToMaxQuantitiesMap(response);
-                        watch.stop();
-                        logger.info("Received and processed max for {} {}s in {} ms", oids.size(),
-                                EntityType.forNumber(entityType).toString(), watch.elapsed(TimeUnit.MILLISECONDS));
                     });
                     double loadTime = loadDurationTimer.observe();
                     logger.info("Size of maxValues map after background load: {}. Load time: {} seconds",
                                 entityCommodityToMaxQuantitiesMap.size(), loadTime);
                 }
             } catch (Throwable t) {
-                    logger.error("Error while fetching max values", t);
+                // Any unhandled errors or exceptions will make the background thread stop. So we catch all errors and
+                // exceptions because we don't want the background thread to stop.
+                logger.error("Error while fetching max values", t);
             }
         }
 

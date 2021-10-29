@@ -1719,13 +1719,14 @@ public class HistorydbIO extends BasedbIO {
         // unicode collation. If the collation does not match, there could be a problem executing joins with this
         // temp table.
         final String query = String.format("CREATE TEMPORARY TABLE %s ( %s varchar(%d), "
-                        + "primary key (%s)) COLLATE=utf8_unicode_ci engine=memory;",
+                        + "primary key (%s)) COLLATE=utf8_unicode_ci;",
                 tempTableName, StringConstants.TARGET_OBJECT_UUID, 80, StringConstants.TARGET_OBJECT_UUID);
         execute(query, connection);
         try {
+            // Collect to set to avoid duplicates
             final Collection<String> uuidStrings = uuids.stream()
                     .map(uuid -> uuid.toString())
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toSet());
             insertIntoTempTableDummyBatch(uuidStrings, tempTableName, connection);
             tempTable = Optional.of(tempTableName);
         } catch (SQLException e) {
