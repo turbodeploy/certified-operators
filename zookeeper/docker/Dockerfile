@@ -12,6 +12,9 @@ LABEL name="zookeeper" \
 # Required Licenses
 COPY licenses /licenses
 
+# This is the release of openj9 to pull in.
+ENV OPENJ9_URL=https://github.com/ibmruntimes/semeru11-binaries/releases/download/jdk-11.0.13%2B8_openj9-0.29.0/ibm-semeru-open-11-jre-11.0.13.8_0.29.0-1.x86_64.rpm
+
 # This is the release of Zookeeper to pull in.
 ENV ZOOKEEPER_VERSION=3.5.9
 
@@ -25,7 +28,8 @@ COPY start_zookeeper /
 COPY zookeeper-ready /
 
 # Install rsyslog and java-11 packages
-RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless gnutls && \
+RUN dnf install -y rsyslog procps-ng python2 gnutls && \
+    dnf install -y $OPENJ9_URL && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
