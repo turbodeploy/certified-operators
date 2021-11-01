@@ -13,7 +13,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -369,6 +368,7 @@ public class TargetsServiceTest {
                 new HashSet<>(Arrays.asList(accountValues)));
         when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
         when(targetInfo.getStatus()).thenReturn("Validated");
+        when(targetInfo.getHealthState()).thenReturn(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL);
         when(targetInfo.isHidden()).thenReturn(false);
         when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
         registeredTargets.put(targetId, targetInfo);
@@ -2282,7 +2282,8 @@ public class TargetsServiceTest {
                 "1", TargetDetailLevel.BASIC, TargetType.PRIMARY);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
-        assertNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
+        assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
+        Assert.assertEquals(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL, targetApiDTO.getHealthSummary().getHealthState());
         assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
         assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
@@ -2310,7 +2311,9 @@ public class TargetsServiceTest {
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
             assertNotNull(targetApiDTO);
-            assertNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
+            assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
+            Assert.assertEquals(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL,
+                    targetApiDTO.getHealthSummary().getHealthState());
             assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
             assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
         }

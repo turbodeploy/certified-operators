@@ -211,10 +211,12 @@ public class RemoteProbeStoreTest {
         Collection<ProbeRegistrationDescription> probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be no probe registration", 0, probeRegistrations.size());
+        assertEquals("There should be no probe registration for the target", 0, store.getProbeRegistrationsForTarget(target).size());
 
         // One registered probe with no channel => still zero transports
         store.registerNewProbe(probeFoo,containerInfo, transport);
         assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+        assertEquals(0, store.getProbeRegistrationsForTarget(target).size());
         probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be one probe registration", 1, probeRegistrations.size());
@@ -223,6 +225,7 @@ public class RemoteProbeStoreTest {
         assertTrue("Probe registration with id " + probeRegistrationId + " should be present",
                 probeRegistration.isPresent());
         assertEquals(probeRegistrations.iterator().next(), probeRegistration.get());
+        verifyProbeRegistrations(store.getProbeRegistrationsForTarget(target), 0, probeFooId, channel);
 
         // Add another transport with the channel this time => 1 transport
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 = createTransport();
@@ -236,6 +239,7 @@ public class RemoteProbeStoreTest {
         probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be 2 probe registrations", 2, probeRegistrations.size());
+        verifyProbeRegistrations(store.getProbeRegistrationsForTarget(target), 1, probeFooId, channel);
 
         // Add the 3rd transport with the channel, so we have two choices ;)
         final ITransport<MediationServerMessage, MediationClientMessage> transport3 = createTransport();
@@ -248,6 +252,7 @@ public class RemoteProbeStoreTest {
         probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be 3 probe registrations", 3, probeRegistrations.size());
+        verifyProbeRegistrations(store.getProbeRegistrationsForTarget(target), 2, probeFooId, channel);
 
         // Add the 4th transport with a different channel; that wouldn't add to the choices and
         // there are still only two choices.
@@ -261,6 +266,7 @@ public class RemoteProbeStoreTest {
         probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be 4 probe registrations", 4, probeRegistrations.size());
+        verifyProbeRegistrations(store.getProbeRegistrationsForTarget(target), 2, probeFooId, channel);
 
         // Add the 5th transport with the same channel but a different probe; that wouldn't add to
         // the choices and there are still only the two choices.
@@ -274,6 +280,7 @@ public class RemoteProbeStoreTest {
         probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be 5 probe registrations", 5, probeRegistrations.size());
+        verifyProbeRegistrations(store.getProbeRegistrationsForTarget(target), 2, probeFooId, channel);
 
         // Remove the 2nd transport => only transport3 left for channel nyc
         store.removeTransport(transport2);
@@ -284,6 +291,7 @@ public class RemoteProbeStoreTest {
         probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be 4 probe registrations left", 4, probeRegistrations.size());
+        verifyProbeRegistrations(store.getProbeRegistrationsForTarget(target), 1, probeFooId, channel);
 
         // Remove the 3rd transport => none left for channel nyc
         store.removeTransport(transport3);
@@ -291,6 +299,29 @@ public class RemoteProbeStoreTest {
         probeRegistrations = store.getAllProbeRegistrations();
         assertNotNull(probeRegistrations);
         assertEquals("There should be 3 probe registrations left", 3, probeRegistrations.size());
+        verifyProbeRegistrations(store.getProbeRegistrationsForTarget(target), 0, probeFooId, channel);
+    }
+
+    /**
+     * Verify the given collection of probe registrations to match the expected size, probe id and channel.
+     *
+     * @param probeRegistrations the collection of probe registrations
+     * @param expectedSize the expected size of the collection of probe registrations
+     * @param expectedProbeId the expected probe id of the probe registrations
+     * @param expectedChannel the expected channel of the probe registrations
+     */
+    private void verifyProbeRegistrations(
+            final Collection<ProbeRegistrationDescription> probeRegistrations,
+            final int expectedSize, final long expectedProbeId, final String expectedChannel) {
+        assertNotNull(probeRegistrations);
+        assertEquals("There should be " + expectedSize + " probe registration for the target",
+                expectedSize, probeRegistrations.size());
+        for (final ProbeRegistrationDescription probeRegistration : probeRegistrations) {
+            assertEquals(expectedProbeId, probeRegistration.getProbeId());
+            assertEquals("Communication binding channel should be present",
+                    true, probeRegistration.getCommunicationBindingChannel().isPresent());
+            assertEquals(expectedChannel, probeRegistration.getCommunicationBindingChannel().get());
+        }
     }
 
     /**

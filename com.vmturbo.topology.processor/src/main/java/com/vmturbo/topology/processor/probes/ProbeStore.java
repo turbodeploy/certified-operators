@@ -212,6 +212,14 @@ public interface ProbeStore extends RequiresDataInitialization {
     Collection<ProbeRegistrationDescription> getAllProbeRegistrations();
 
     /**
+     * Returns probe registrations relevant to the given target.
+     *
+     * @return the probe registrations relevant to the target.
+     */
+    @Nonnull
+    Collection<ProbeRegistrationDescription> getProbeRegistrationsForTarget(@Nonnull Target target);
+
+    /**
      * Returns the probe registration by id wrapped by Optional.  If no probe registration exists
      * with the id, an Optional.empty() is returned.s
      *

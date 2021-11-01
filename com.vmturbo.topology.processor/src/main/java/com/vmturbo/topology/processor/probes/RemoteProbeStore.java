@@ -452,6 +452,19 @@ public class RemoteProbeStore implements ProbeStore {
                 .collect(Collectors.toList());
     }
 
+    @Nonnull
+    @Override
+    public Collection<ProbeRegistrationDescription> getProbeRegistrationsForTarget(
+            @Nonnull Target target) {
+        try {
+            return getTransportsForTarget(target).stream()
+                    .flatMap(transport -> transportToProbeRegistrations.getOrDefault(transport, Collections.emptyList()).stream())
+                    .collect(Collectors.toList());
+        } catch (ProbeException e) {
+            return Collections.emptyList();
+        }
+    }
+
     /**
      * {@inheritDoc}
      */

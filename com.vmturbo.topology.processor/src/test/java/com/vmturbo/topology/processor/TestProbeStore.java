@@ -18,8 +18,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
-import org.jetbrains.annotations.NotNull;
-
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
@@ -214,13 +212,20 @@ public class TestProbeStore implements ProbeStore {
         probeInfos.put(probeId.get(), newProbeInfo);
     }
 
-    @NotNull
+    @Nonnull
     @Override
     public Collection<ProbeRegistrationDescription> getAllProbeRegistrations() {
-        return null;
+        return Collections.emptyList();
     }
 
-    @NotNull
+    @Nonnull
+    @Override
+    public Collection<ProbeRegistrationDescription> getProbeRegistrationsForTarget(
+            @Nonnull Target target) {
+        return Collections.emptyList();
+    }
+
+    @Nonnull
     @Override
     public Optional<ProbeRegistrationDescription> getProbeRegistrationById(long id) {
         return Optional.empty();

@@ -7,6 +7,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
+
 /**
  * Represents target in topology processor.
  */
@@ -88,4 +90,12 @@ public interface TargetInfo extends TargetData {
      */
     @Nullable
     Long getLastEditTime();
+
+    /**
+     * Return the health state of this target.
+     *
+     * @return the health state of this target
+     */
+    @Nonnull
+    HealthState getHealthState();
 }

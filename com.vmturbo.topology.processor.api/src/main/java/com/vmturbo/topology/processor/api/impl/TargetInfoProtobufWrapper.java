@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -78,6 +79,12 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     @Override
     public Long getLastEditTime() {
         return targetInfo.getSpec().getLastEditTime();
+    }
+
+    @Nonnull
+    @Override
+    public HealthState getHealthState() {
+        return null;
     }
 
     @Override

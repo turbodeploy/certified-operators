@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetHealthSummaryApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -164,12 +165,15 @@ public class TargetMapper {
      * @throws CommunicationException if an error occurs, which will map to a 500 status error code
      */
     public TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo,
-                                            @Nonnull final Map<Long, ProbeInfo> probeMap)
+                                           @Nonnull final Map<Long, ProbeInfo> probeMap)
             throws CommunicationException {
         Objects.requireNonNull(targetInfo);
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(targetInfo.getId()));
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
+        final TargetHealthSummaryApiDTO targetHealthSummaryApiDTO = new TargetHealthSummaryApiDTO();
+        targetHealthSummaryApiDTO.setHealthState(targetInfo.getHealthState());
+        targetApiDTO.setHealthSummary(targetHealthSummaryApiDTO);
         targetApiDTO.setReadonly(targetInfo.isReadOnly());
 
         // set the last edit user/time

@@ -25,6 +25,7 @@ import org.junit.rules.TestName;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
@@ -135,7 +136,7 @@ public abstract class AbstractApiCallsTest {
                         new TargetSpec(target.getProbeId(), fields, Optional.empty(), "System");
         return new TargetRESTApi.TargetInfo(target.getId(), target.getDisplayName(), null, spec,
                 true, "Validated", LocalDateTime.now(), "Me",
-                LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli());
+                LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli(), HealthState.NORMAL);
     }
 
     private static InputField convertToRest(@Nonnull final AccountValue src) {
