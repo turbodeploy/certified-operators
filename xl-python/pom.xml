@@ -30,6 +30,7 @@
              generation. -->
         <imageCreationPhase>prepare-package</imageCreationPhase>
         <generationPhase>package</generationPhase>
+        <containerName>generate-proto-bindings</containerName>
     </properties>
 
     <build>
@@ -90,18 +91,23 @@
                             <goal>stop</goal>
                         </goals>
                         <configuration>
+                            <!-- The stop goal will remove any container matching
+                            the stopNamePattern.  -->
+                            <stopNamePattern>maven-${containerName}-${python.grpc.generator.version}</stopNamePattern>
+                            <allContainers>true</allContainers>
+                            <removeVolumes>true</removeVolumes>
+
                             <dockerHost>${dockerHost}</dockerHost>
                             <showLogs>true</showLogs>
                             <images>
                                 <image>
-                                    <alias>generate-proto-bindings</alias>
                                     <name>${dockerImageName}:${python.grpc.generator.version}</name>
                                     <run>
                                         <!--
                                         pattern needs to start with "maven-" so jenkins builds
                                         will properly clean up leaked containers
                                         -->
-                                        <containerNamePattern>maven-%a-%i</containerNamePattern>
+                                        <containerNamePattern>maven-${containerName}-${python.grpc.generator.version}</containerNamePattern>
                                         <volumes>
                                             <bind>
                                                 <volume>${rawProtoLocation}:${inputMount}</volume>
