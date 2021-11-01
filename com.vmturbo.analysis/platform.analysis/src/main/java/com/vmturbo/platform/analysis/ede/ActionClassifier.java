@@ -259,8 +259,7 @@ public class ActionClassifier {
                                 ? lookupTraderInSimulationEconomy(r.getActionTarget())
                                 : null;
                         // mark action as non-executable if targetEntityCopy is NULL
-                        boolean executable = targetCopy != null &&
-                                checkIfResizeUpIsExecutable(r, targetCopy);
+                        boolean executable = targetCopy != null && checkIfResizeUpIsExecutable(r, targetCopy);
                         if (executable) {
                             // update usage on rawMaterial in the simulation economy
                             Resizer.resizeDependentCommodities(simulationEconomy_, targetCopy,

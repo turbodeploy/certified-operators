@@ -46,6 +46,7 @@ public class ActionClassifierTest {
 
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification VCPU = new CommoditySpecification(6);
+    private static final CommoditySpecification POWER = new CommoditySpecification(7);
     private static final Basket VMtoPod = new Basket(VCPU);
     private static final Basket VMtoPM = new Basket(CPU,
                             new CommoditySpecification(1), // MEM
@@ -54,7 +55,7 @@ public class ActionClassifierTest {
     private static final Basket VMtoST = new Basket(
                             new CommoditySpecification(4), // Storage Amount (no key)
                             new CommoditySpecification(5));// DSPM access commodity with key A
-
+    private static final Basket PMtoDC = new Basket(POWER);
     private @NonNull Economy first;
     private @NonNull Economy second;
     private @NonNull Topology firstTopology;
@@ -64,6 +65,7 @@ public class ActionClassifierTest {
     private @NonNull Trader app1;
     private @NonNull Trader container1;
     private @NonNull Trader pod1;
+    private @NonNull Trader dc;
 
     ActionClassifier classifier;
 
@@ -76,21 +78,24 @@ public class ActionClassifierTest {
                                         Collections.emptyList());
         vm2 = firstTopology.addTrader(6L, 0, TraderState.ACTIVE, VMtoPod,
                                         Collections.emptyList());
-        final ShoppingList[] shoppingLists = {
-            firstTopology.addBasketBought(100, vm1, VMtoPM),
-            firstTopology.addBasketBought(101, vm1, VMtoST),
-            firstTopology.addBasketBought(102, vm1, VMtoST),
-            firstTopology.addBasketBought(103, vm2, VMtoPM)
-        };
+
         pm1 = firstTopology.addTrader(2L, 1, TraderState.ACTIVE, VMtoPM,
                                         Collections.singletonList(0L));
         pm2 = firstTopology.addTrader(3L, 1, TraderState.ACTIVE, VMtoPM,
                                         Collections.singletonList(0L));
+        final ShoppingList[] shoppingLists = {
+                firstTopology.addBasketBought(100, vm1, VMtoPM),
+                firstTopology.addBasketBought(101, vm1, VMtoST),
+                firstTopology.addBasketBought(102, vm1, VMtoST),
+                firstTopology.addBasketBought(103, vm2, VMtoPM),
+                firstTopology.addBasketBought(104, pm1, PMtoDC)
+        };
         final Trader st1 = firstTopology.addTrader(4L, 2, TraderState.ACTIVE, VMtoST,
                                         Collections.singletonList(0L));
         final Trader st2 = firstTopology.addTrader(5L, 2, TraderState.ACTIVE, VMtoST,
                                         Collections.singletonList(0L));
-
+        final Trader dc = firstTopology.addTrader(10L, 10, TraderState.ACTIVE, PMtoDC,
+                Collections.singletonList(0L));
         first.getModifiableRawCommodityMap().put(VCPU.getBaseType(),
                 new RawMaterials(Collections.singletonList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
                         .newBuilder().setCommodityType(CPU.getBaseType()).build())));
@@ -137,6 +142,8 @@ public class ActionClassifierTest {
         shoppingLists[3].setQuantity(3, 1);
         shoppingLists[3].setPeakQuantity(3, 1);
         shoppingLists[3].setMovable(false);
+
+        shoppingLists[4].move(dc);
 
         pm1.getCommoditySold(CPU).setCapacity(100).setQuantity(84);
         first.getCommodityBought(shoppingLists[0], CPU).setQuantity(84);
@@ -208,10 +215,13 @@ public class ActionClassifierTest {
         actions.add(new Resize(first, vm1, VCPU, 60).take());
         // VM2 scaling from 100 -> 140
         actions.add(new Resize(first, vm2, VCPU, 140).take());
+        // CPU not resizable because of empty rawMaterial map.
+        actions.add(new Resize(first, pm1, CPU, 120).take());
         classifier.classify(actions, first);
 
         assertTrue(actions.get(0).isExecutable());
         assertFalse(actions.get(1).isExecutable());
+        assertFalse(actions.get(2).isExecutable());
 
     }
 

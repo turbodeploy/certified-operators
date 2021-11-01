@@ -109,6 +109,10 @@ public class RawMaterials implements Serializable {
         RawMaterials rawMaterials = economy.getAllRawMaterials(buyer.getBasketSold()
                 .get(commoditySoldIndex).getBaseType());
         Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialToSupplier = new HashMap<>();
+        // return if there are no rawMaterials
+        if (rawMaterials == null) {
+            return rawMaterialToSupplier;
+        }
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
 
             Trader supplier = shoppingList.getSupplier();
