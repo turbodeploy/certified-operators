@@ -253,6 +253,7 @@ public class ActionClassifier {
                         csgResizeUpMapping
                             .computeIfAbsent(key, k -> new ConsistentScalingResizeActionsGroup())
                             .addResize(r);
+                        return;
                     }
                     try {
                         Trader targetCopy = r.getActionTarget() != null

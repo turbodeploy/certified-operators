@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.utilities;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.text.ParseException;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -27,9 +28,10 @@ public class M2Utils {
         }
     }
 
-    public static DoubleTernaryOperator ADD_TWO_ARGS = (a, b, c) -> a + b;
-    public static DoubleTernaryOperator SUBRTRACT_TWO_ARGS = (a, b, c) -> Math.max(0, a - b);
-    public static DoubleTernaryOperator MAX_TWO_ARGS = (a, b, c) -> Math.max(a, b);
+    public static DoubleTernaryOperator ADD_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> a + b;
+    public static DoubleTernaryOperator SUBRTRACT_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.max(0, a - b);
+    public static DoubleTernaryOperator MAX_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.max(a, b);
+    public static DoubleTernaryOperator MIN_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.min(a, b);
 
     /**
      * Load the specified file. The file is an EMF repository file saved by an Operations Manager.
