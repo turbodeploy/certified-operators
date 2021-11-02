@@ -208,11 +208,11 @@ message ProjectedStatsRequest {
     // The entities to gather stats for. If empty, get them for the whole topology!
     repeated int64 entities = 1;
 
-    // The commodities to retrieve.
-    repeated string commodity_name = 2;
-
     // providerOid
     repeated int64 providers = 3;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    repeated StatsFilter.CommodityRequest filter = 4;
 }
 
 // Request for GetVolumeAttachmentHistory rpc
@@ -243,11 +243,11 @@ message ProjectedEntityStatsRequest {
     // The entities to gather stats for. If empty, get them for the whole topology!
     optional EntityStatsScope scope = 1;
 
-    // The commodities to retrieve.
-    repeated string commodity_name = 2;
-
     // Providers. If empty, get all the providers
     repeated int64 providers = 3;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    repeated StatsFilter.CommodityRequest filter = 4;
 
     // The pagination parameters outlying the sort order, and previous cursor (if any).
     // If not set, use the default instance of PaginationParameters. The backend

@@ -126,7 +126,7 @@ class TopologyCommoditiesSnapshot implements MemReporter {
      * Get accumulated statistics records for a set of commodities names over a set of entities in
      * the topology.
      *
-     * @param commodityNames The names of the commodities - must not be empty.
+     * @param commodityNamesToGroupBys the commodities to collect and the groupBy requests for each of the commodity
      * @param targetEntities The entities to get the information from. If empty, accumulate
      *                       information from the whole topology.
      * @param providerIds    ids of the potential commodity providers.
@@ -135,16 +135,16 @@ class TopologyCommoditiesSnapshot implements MemReporter {
      * selling any of the commodities.
      */
     @Nonnull
-    Stream<StatRecord> getRecords(@Nonnull final Set<String> commodityNames,
+    Stream<StatRecord> getRecords(@Nonnull final Map<String, Set<String>> commodityNamesToGroupBys,
             @Nonnull final Set<Long> targetEntities,
             @Nonnull final Set<Long> providerIds) {
-        if (commodityNames.isEmpty()) {
+        if (commodityNamesToGroupBys.isEmpty()) {
             throw new IllegalArgumentException("Must specify commodity names.");
         }
 
-        return commodityNames.stream()
-                .flatMap(commodityName ->
-                        getCommodityRecords(commodityName, targetEntities, providerIds).stream());
+        return commodityNamesToGroupBys.entrySet().stream()
+                .flatMap(entry ->
+                        getCommodityRecords(entry.getKey(), targetEntities, providerIds, entry.getValue()).stream());
     }
 
     /**
@@ -204,7 +204,8 @@ class TopologyCommoditiesSnapshot implements MemReporter {
     @Nonnull
     private List<StatRecord> getCommodityRecords(@Nonnull final String commodityName,
             @Nonnull final Set<Long> targetEntities,
-            @Nonnull final Set<Long> providerOids) {
+            @Nonnull final Set<Long> providerOids,
+            @Nonnull final Set<String> groupBy) {
         if (entityCountInfo.isCountStat(commodityName)) {
             // entityCountInfo is a mapping of commodity type to commodity count.
             // It's not possible to distinguish the count for a specific entity id,
@@ -225,7 +226,7 @@ class TopologyCommoditiesSnapshot implements MemReporter {
             // This is probably a "regular" commodity.
 
             List<StatRecord> soldAccumulatedRecords =
-                    soldCommoditiesInfo.getAccumulatedRecords(commodityName, targetEntities);
+                    soldCommoditiesInfo.getAccumulatedRecords(commodityName, targetEntities, groupBy);
             final List<StatRecord> retList = new ArrayList<>(soldAccumulatedRecords);
 
             boughtCommoditiesInfo.getAccumulatedRecord(commodityName, targetEntities, providerOids)

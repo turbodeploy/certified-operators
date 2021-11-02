@@ -23,6 +23,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.common.stats.StatsUtils;
 
@@ -60,12 +61,16 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
         final ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder()
             .addAllEntities(context.getQueryScope().getExpandedOids()).addAllProviders(providerOids);
         stats.forEach(statApiInputDTO -> {
-            // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
-            // and extend the Projected Stats API to serve the additional functionality.
-            if (statApiInputDTO.getName() != null) {
-                builder.addCommodityName(statApiInputDTO.getName());
+                CommodityRequest.Builder commodityRequestBuilder = CommodityRequest.newBuilder();
+                if (statApiInputDTO.getName() != null) {
+                    commodityRequestBuilder.setCommodityName(statApiInputDTO.getName());
+                }
+                if (statApiInputDTO.getGroupBy() != null) {
+                    commodityRequestBuilder.addAllGroupBy(statApiInputDTO.getGroupBy());
+                }
+                builder.addFilter(commodityRequestBuilder);
             }
-        });
+        );
 
         final ProjectedStatsResponse response = statsServiceRpc.getProjectedStats(builder.build());
 

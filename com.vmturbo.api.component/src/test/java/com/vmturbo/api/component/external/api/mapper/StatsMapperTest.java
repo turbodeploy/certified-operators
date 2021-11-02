@@ -597,7 +597,7 @@ public class StatsMapperTest {
         final ProjectedEntityStatsRequest request = statsMapper.toProjectedEntityStatsRequest(
             StatsTestUtil.createEntityStatsScope(uuids), period, ENTITY_PAGINATION_REQUEST);
 
-        assertThat(request.getCommodityNameList(), containsInAnyOrder(stats.toArray()));
+        assertThat(request.getFilterList().stream().map(CommodityRequest::getCommodityName).collect(Collectors.toList()), containsInAnyOrder(stats.toArray()));
     }
 
     @Test

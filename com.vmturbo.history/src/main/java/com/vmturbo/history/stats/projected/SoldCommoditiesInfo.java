@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.utils.DataPacks;
 import com.vmturbo.components.common.utils.DataPacks.CommodityTypeDataPack;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
@@ -38,6 +39,7 @@ import com.vmturbo.components.common.utils.DataPacks.IDataPack;
 import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;
+import com.vmturbo.history.stats.snapshots.PropertyTypeVisitor;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
@@ -128,13 +130,15 @@ class SoldCommoditiesInfo implements MemReporter {
      *           {@link CommodityType} enum directly.
      * @param targetEntities The entities to get the information from. If empty, accumulate
      *                       information from the whole topology.
+     * @param groupBy        Response will group by these values.
      * @return A list of the accumulated {@link StatRecord}, or an empty list
      *         if there is no information for the commodity over the target entities
      *         or this commodity is not sold.
      */
     @Nonnull
     List<StatRecord> getAccumulatedRecords(@Nonnull final String commodityName,
-                                               @Nonnull final Set<Long> targetEntities) {
+                                               @Nonnull final Set<Long> targetEntities,
+            @Nonnull final Set<String> groupBy) {
         Map<String, AccumulatedSoldCommodity> accumulatedSoldCommodities = new HashMap<>();
         final Map<Integer, List<Integer>> soldByEntityId =
                 soldCommodities.get(toCommodityTypeNo(commodityName));
@@ -159,7 +163,9 @@ class SoldCommoditiesInfo implements MemReporter {
             final String entityType =
                 EntityType.fromSdkEntityType(entityIdToTypeMap.getOrDefault(targetIndex, -1))
                     .map(EntityType::getName).orElse(null);
-            accumulateCommoditiesByKey(entityType, soldCommodityValues, commodityName, accumulatedSoldCommodities);
+            //For now only support groupByKey
+            accumulateCommoditiesByKey(entityType, soldCommodityValues, commodityName, accumulatedSoldCommodities,
+                    groupBy.contains(StringConstants.KEY));
         });
         return accumulatedSoldCommodities.values()
                 .stream()
@@ -176,13 +182,17 @@ class SoldCommoditiesInfo implements MemReporter {
      * @param commoditySoldList sold commodity list
      * @param commodityName commodity name
      * @param accumulatedSoldCommodities the map to collect accumulated commodities by key
+     * @param groupByKey If the response will be grouped by key
      */
     private void accumulateCommoditiesByKey(@Nullable final String entityType,
                                             @Nonnull final Collection<SoldCommodity> commoditySoldList,
                                             @Nonnull final String commodityName,
-                                            @Nonnull final Map<String, AccumulatedSoldCommodity> accumulatedSoldCommodities) {
+                                            @Nonnull final Map<String, AccumulatedSoldCommodity> accumulatedSoldCommodities,
+                                            boolean groupByKey) {
         commoditySoldList.forEach(commoditySold -> {
-            final String commodityKey = commoditySold.getKey(keyPack);
+            String key = groupByKey ? commoditySold.getKey(keyPack) : null;
+            final String commodityKey = key == null && commoditySoldList.size() > 1
+                    ? PropertyTypeVisitor.MULTIPLE_KEYS : key;
             AccumulatedSoldCommodity accumulatedSoldCommodity =
                     accumulatedSoldCommodities.computeIfAbsent(
                             commodityKey == null ? "empty_key" : commodityKey,
