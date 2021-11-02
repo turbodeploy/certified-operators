@@ -19,6 +19,7 @@ public class CloudCommitmentInfoMapper extends TypeSpecificInfoMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
+    @Nonnull
     @Override
     public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(@Nonnull EntityDTOOrBuilder sdkEntity,
             @Nonnull Map<String, String> entityPropertyMap) {
@@ -59,6 +60,9 @@ public class CloudCommitmentInfoMapper extends TypeSpecificInfoMapper {
         }
         if (cloudCommitmentData.hasTermMilliseconds()) {
             cloudCommitmentInfoBuilder.setTermMilliseconds(cloudCommitmentData.getTermMilliseconds());
+        }
+        if (cloudCommitmentData.hasProviderSpecificType()) {
+            cloudCommitmentInfoBuilder.setProviderSpecificType(cloudCommitmentData.getProviderSpecificType());
         }
         return TypeSpecificInfo.newBuilder().setCloudCommitmentData(cloudCommitmentInfoBuilder.build())
                 .build();

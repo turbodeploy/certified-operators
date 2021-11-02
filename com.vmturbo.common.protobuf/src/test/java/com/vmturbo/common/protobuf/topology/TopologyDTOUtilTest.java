@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf;
+package com.vmturbo.common.protobuf.topology;
 
 import java.util.Arrays;
 import java.util.List;
@@ -10,19 +10,12 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -30,9 +23,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class TopologyDTOUtilTest {
 
-    private static final double VCPU_CAPACITY = 2000;
-    private static final int NUM_CPUS = 2;
-
+    /**
+     * Test TopologyDTOUtil.isPlaced when no commodity provider ID.
+     */
     @Test
     public void testIsUnplaced() {
         final TopologyEntityDTO unplacedEntity = newEntity()
@@ -42,6 +35,9 @@ public class TopologyDTOUtilTest {
         Assert.assertFalse(TopologyDTOUtil.isPlaced(unplacedEntity));
     }
 
+    /**
+     * Test TopologyDTOUtil.isPlaced when commodity provider ID is negative.
+     */
     @Test
     public void testIsUnplacedNegativeOid() {
         final TopologyEntityDTO unplacedEntity = newEntity()
@@ -52,6 +48,9 @@ public class TopologyDTOUtilTest {
         Assert.assertFalse(TopologyDTOUtil.isPlaced(unplacedEntity));
     }
 
+    /**
+     * Test TopologyDTOUtil.isPlaced in the positive case.
+     */
     @Test
     public void testIsPlaced() {
         final TopologyEntityDTO placedEntity = newEntity()
@@ -61,6 +60,9 @@ public class TopologyDTOUtilTest {
         Assert.assertTrue(TopologyDTOUtil.isPlaced(placedEntity));
     }
 
+    /**
+     * Test TopologyDTOUtil.isPlan in the positive case.
+     */
     @Test
     public void testIsPlan() {
         Assert.assertTrue(TopologyDTOUtil.isPlan(TopologyInfo.newBuilder()
@@ -68,6 +70,9 @@ public class TopologyDTOUtilTest {
                 .build()));
     }
 
+    /**
+     * Test TopologyDTOUtil.isPlan in the negative case.
+     */
     @Test
     public void testIsNotPlan() {
         Assert.assertFalse(TopologyDTOUtil.isPlan(TopologyInfo.newBuilder()
@@ -98,6 +103,9 @@ public class TopologyDTOUtilTest {
                 .build()));
     }
 
+    /**
+     * Test TopologyDTOUtil.isPlanType in the positive case.
+     */
     @Test
     public void testIsPlanByType() {
         Assert.assertTrue(TopologyDTOUtil.isPlanType(
@@ -108,6 +116,9 @@ public class TopologyDTOUtilTest {
                     .build()));
     }
 
+    /**
+     * Test TopologyDTOUtil.isPlanType in the negative case.
+     */
     @Test
     public void testIsNotPlanByType() {
         Assert.assertFalse(TopologyDTOUtil.isPlanType(
