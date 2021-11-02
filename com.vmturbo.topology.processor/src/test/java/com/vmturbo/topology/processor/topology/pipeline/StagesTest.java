@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,10 +33,14 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
@@ -51,6 +56,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -76,9 +82,11 @@ import com.vmturbo.proactivesupport.DataMetricGauge.GaugeData;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
@@ -135,6 +143,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadPlanDestinationsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UserScopingStage;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 public class StagesTest {
@@ -940,6 +949,76 @@ public class StagesTest {
                 Assert.assertEquals("Skipping validation phase", status.getMessage());
             }
         }
+    }
+
+    /**
+     * Tests that the user scoping stage filters correctly the topology graph to only allow
+     * the workloads accessible for the scoped user.
+     */
+    @Test
+    public void testUserScopingStage() {
+        // Build the Topology
+        final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(1L));
+        final TopologyEntity.Builder vm2 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(2L));
+        final TopologyEntity.Builder rg = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.REGION_VALUE)
+                .setOid(10L));
+        final Long2ObjectMap<Builder> topology =
+                new Long2ObjectOpenHashMap<>(Stream.of(vm1, vm2, rg)
+                        .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                new TopologyGraphCreator<>(topology).build();
+        // Build the user scope filter map
+        Map<Integer, EntityOids> userScopeEntityTypes = Maps.newHashMap();
+        userScopeEntityTypes.put(EntityType.VIRTUAL_MACHINE_VALUE, EntityOids.newBuilder()
+                .addEntityOids(2L).build());
+
+        // Execute
+        StageResult<TopologyGraph<TopologyEntity>> result =
+                new UserScopingStage(userScopeEntityTypes).executeStage(topologyGraph);
+        TopologyGraph<TopologyEntity> topologyGraphResult = result.getResult();
+        Status status = result.getStatus();
+
+        // Assert
+        Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
+        Assert.assertTrue(status.getMessage().contains("Constructed a scoped topology of size"));
+        Assert.assertEquals(2, topologyGraphResult.size());
+        Assert.assertEquals(1L, topologyGraphResult.entitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).count());
+        Assert.assertEquals(1L, topologyGraphResult.entitiesOfType(EntityType.REGION_VALUE).count());
+    }
+
+    /**
+     * Tests that the user scoping stage is not touching the topology if the user doesn't have a scope.
+     */
+    @Test
+    public void testUserScopingStageWithNoScope() {
+        // Build the Topology
+        final TopologyEntity.Builder vm = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(1L));
+        final TopologyEntity.Builder rg = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.REGION_VALUE)
+                .setOid(2L));
+        final Long2ObjectMap<Builder> topology =
+                new Long2ObjectOpenHashMap<>(Stream.of(vm, rg)
+                        .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                new TopologyGraphCreator<>(topology).build();
+
+        // Execute
+        StageResult<TopologyGraph<TopologyEntity>> result =
+                new UserScopingStage(Maps.newHashMap()).executeStage(topologyGraph);
+        TopologyGraph<TopologyEntity> topologyGraphResult = result.getResult();
+        Status status = result.getStatus();
+
+        // Assert
+        Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
+        Assert.assertTrue(status.getMessage().contains("stage skipped"));
+        Assert.assertEquals(2, topologyGraphResult.size());
     }
 
     private TopologyGraph<TopologyEntity> createTopologyGraph() {
