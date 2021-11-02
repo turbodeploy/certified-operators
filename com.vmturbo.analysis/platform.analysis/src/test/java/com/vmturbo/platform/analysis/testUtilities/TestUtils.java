@@ -519,16 +519,16 @@ public class TestUtils {
             commodityResizeDependencyMap = economy.getModifiableCommodityResizeDependencyMap();
         CommodityResizeSpecification vCpuDependency =
                         new CommodityResizeSpecification(TestUtils.CPU.getType(),
-                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
+                                        M2Utils.ADD_TWO_ARGS, M2Utils.MIN_TWO_ARGS);
         CommodityResizeSpecification vMemDependency =
                         new CommodityResizeSpecification(TestUtils.MEM.getType(),
-                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
+                                        M2Utils.ADD_TWO_ARGS, M2Utils.MIN_TWO_ARGS);
         CommodityResizeSpecification vMemQuotaDependency =
                 new CommodityResizeSpecification(TestUtils.VMEMLIMITQUOTA.getType(),
-                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
+                        M2Utils.ADD_TWO_ARGS, M2Utils.MIN_TWO_ARGS);
         CommodityResizeSpecification vCPUQuotaDependency =
             new CommodityResizeSpecification(TestUtils.VCPULIMITQUOTA.getType(),
-                M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
+                M2Utils.ADD_TWO_ARGS, M2Utils.MIN_TWO_ARGS);
         CommodityResizeSpecification DBMemDependency =
                 new CommodityResizeSpecification(TestUtils.VMEM.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);

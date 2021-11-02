@@ -39,13 +39,12 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 
 public class ActionClassifierTest {
 
-    private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final CommoditySpecification VCPU = new CommoditySpecification(6);
+    private static final CommoditySpecification CPU = TestUtils.CPU;
+    private static final CommoditySpecification VCPU = TestUtils.VCPU;
     private static final CommoditySpecification POWER = new CommoditySpecification(7);
     private static final Basket VMtoPod = new Basket(VCPU);
     private static final Basket VMtoPM = new Basket(CPU,
@@ -56,6 +55,9 @@ public class ActionClassifierTest {
                             new CommoditySpecification(4), // Storage Amount (no key)
                             new CommoditySpecification(5));// DSPM access commodity with key A
     private static final Basket PMtoDC = new Basket(POWER);
+
+    private static final String SCALING_GROUP_ID = "CSG1";
+
     private @NonNull Economy first;
     private @NonNull Economy second;
     private @NonNull Topology firstTopology;
@@ -73,6 +75,7 @@ public class ActionClassifierTest {
     public void setUp() throws Exception {
         firstTopology = new Topology();
         first = firstTopology.getEconomyForTesting();
+        TestUtils.setupCommodityResizeDependencyMap(first);
 
         vm1 = firstTopology.addTrader(1L, 0, TraderState.ACTIVE, VMtoPod,
                                         Collections.emptyList());
@@ -145,7 +148,7 @@ public class ActionClassifierTest {
 
         shoppingLists[4].move(dc);
 
-        pm1.getCommoditySold(CPU).setCapacity(100).setQuantity(84);
+        pm1.getCommoditySold(CPU).setCapacity(100).setQuantity(50);
         first.getCommodityBought(shoppingLists[0], CPU).setQuantity(84);
 
         pm1.getSettings().setCanAcceptNewCustomers(true);
@@ -155,18 +158,18 @@ public class ActionClassifierTest {
 
         vm1.getCommoditiesSold().get(0)
             .setQuantity(10)
-            .setCapacity(100)
+            .setCapacity(20)
             .setPeakQuantity(10)
             .getSettings()
-            .setCapacityIncrement(20)
+            .setCapacityIncrement(10)
             .setUpdatingFunction(UpdatingFunctionFactory.ADD_COMM)
             .setResizable(true);
         vm2.getCommoditiesSold().get(0)
-            .setQuantity(90)
-            .setCapacity(100)
-            .setPeakQuantity(90)
+            .setQuantity(19)
+            .setCapacity(20)
+            .setPeakQuantity(19)
             .getSettings()
-            .setCapacityIncrement(20)
+            .setCapacityIncrement(10)
             .setUpdatingFunction(UpdatingFunctionFactory.ADD_COMM)
             .setResizable(true);
         // Deactivating pm1 for replay suspension test
@@ -205,26 +208,90 @@ public class ActionClassifierTest {
     /**
      * This test validates that the 2nd resize UP that was possible due to a preceding resize DOWN
      * is marked non-executable.
-     *
      */
     @Test
     public void testClassifyResize() {
 
         List<Action> actions = new LinkedList<>();
-        // VM1 scaling from 100 -> 60
-        actions.add(new Resize(first, vm1, VCPU, 60).take());
-        // VM2 scaling from 100 -> 140
-        actions.add(new Resize(first, vm2, VCPU, 140).take());
-        // CPU not resizable because of empty rawMaterial map.
+        // VM1 VCPU scaling from 20 -> 10
+        actions.add(new Resize(first, vm1, VCPU, 10).take());
+        // VM2 VCPU scaling from 20 -> 90
+        actions.add(new Resize(first, vm2, VCPU, 90).take());
+        // PM1 CPU scaling from 100 to 120
         actions.add(new Resize(first, pm1, CPU, 120).take());
         classifier.classify(actions, first);
 
+        // Provider PM1 has capacity 100 and quantity 50.
+        // - VM1 resize down is executable
+        // - VM2 resize up is not executable because it will exceed provider capacity:
+        // (90 - 20) + 50 = 120 > 100
         assertTrue(actions.get(0).isExecutable());
         assertFalse(actions.get(1).isExecutable());
+        // PM1 CPU not resizable because of empty rawMaterial map.
         assertFalse(actions.get(2).isExecutable());
 
     }
 
+
+    /**
+     * Test markResizeUpsExecutable for resize up actions in the same consistent scaling group when
+     * capacity changes do not exceed provider capacity. The corresponding resize up actions should
+     * have executable as true.
+     */
+    @Test
+    public void testClassifyResizeForCSGWithExecutableTrue() {
+        // VM1 and VM2 are in the same consistent scaling group
+        vm1.setScalingGroupId(SCALING_GROUP_ID);
+        vm2.setScalingGroupId(SCALING_GROUP_ID);
+        first.populatePeerMembersForScalingGroup(vm1, SCALING_GROUP_ID);
+        first.populatePeerMembersForScalingGroup(vm2, SCALING_GROUP_ID);
+
+        List<Action> actions = new LinkedList<>();
+        // VM1 VCPU scaling from 20 -> 40
+        actions.add(new Resize(first, vm1, VCPU, 40).take());
+        // VM2 VCPU scaling from 20 -> 40
+        actions.add(new Resize(first, vm2, VCPU, 40).take());
+        classifier.classify(actions, first);
+
+        // Provider PM1 has capacity 100 and quantity 50.
+        // Both VM1 and VM2 resize up will be executable because the total capacity increase won't
+        // exceed the provider capacity:
+        // (40 - 20) * 2 + 50 = 90 < 100
+        assertTrue(actions.get(0).isExecutable());
+        assertTrue(actions.get(1).isExecutable());
+
+        first.clear();
+    }
+
+    /**
+     * Test markResizeUpsExecutable for resize up actions in the same consistent scaling group when
+     * one resize change do not exceed provider capacity and the other resize change exceed provider
+     * capacity. The corresponding resize up actions in this group should have executable as false.
+     */
+    @Test
+    public void testClassifyResizeForCSGWithExecutableFalse() {
+        // VM1 and VM2 are in the same consistent scaling group
+        vm1.setScalingGroupId(SCALING_GROUP_ID);
+        vm2.setScalingGroupId(SCALING_GROUP_ID);
+        first.populatePeerMembersForScalingGroup(vm1, SCALING_GROUP_ID);
+        first.populatePeerMembersForScalingGroup(vm2, SCALING_GROUP_ID);
+
+        List<Action> actions = new LinkedList<>();
+        // VM1 VCPU scaling from 20 -> 50
+        actions.add(new Resize(first, vm1, VCPU, 50).take());
+        // VM2 VCPU scaling from 20 -> 90
+        actions.add(new Resize(first, vm2, VCPU, 90).take());
+        classifier.classify(actions, first);
+
+        // Provider PM1 has capacity 100 and quantity 50.
+        // Both VM1 and VM2 resize up will be executable because the total capacity increase exceeds
+        // the provider capacity:
+        // (50 - 20) + (90 - 20) + 50 = 150 > 100
+        assertFalse(actions.get(0).isExecutable());
+        assertFalse(actions.get(1).isExecutable());
+
+        first.clear();
+    }
     /**
      * This test captures https://vmturbo.atlassian.net/browse/OM-15496
      * where a host was being deactivated while there were VMs on it.
