@@ -22,7 +22,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -104,9 +103,9 @@ import com.vmturbo.api.utils.ParamStrings.MarketOperations;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -171,8 +170,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -269,6 +266,8 @@ public class MarketsService implements IMarketsService {
 
     private final EntityAspectMapper entityAspectMapper;
 
+    private final UserSessionContext userSessionContext;
+
     /**
      * Entity types which support being shown as unplaced in plan result.
      */
@@ -308,6 +307,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                           @Nonnull final LicenseCheckClient licenseCheckClient,
                           @Nonnull final EntityAspectMapper entityAspectMapper,
+                          @Nonnull final UserSessionContext userSessionContext,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -342,6 +342,7 @@ public class MarketsService implements IMarketsService {
         this.entitySettingQueryExecutor = Objects.requireNonNull(entitySettingQueryExecutor);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -947,6 +948,10 @@ public class MarketsService implements IMarketsService {
             throw new IllegalArgumentException("Invalid market id: " + marketUuid);
         }
 
+        // Get the accessible scope for the User
+        Collection<Long> userScopeGroupIds = userSessionContext.isUserScoped() ?
+                userSessionContext.getUserAccessScope().getScopeGroupIds() : Collections.emptyList();
+
         Scenario existingScenario = getScenario(scenarioId);
         // Scenario scope validation.
         if (!existingScenario.hasScenarioInfo() || !existingScenario.getScenarioInfo().hasScope()
@@ -1020,6 +1025,7 @@ public class MarketsService implements IMarketsService {
                 // for realtime market create a new plan; topologyId is not set, defaulting to "0"
                 planInstance = planRpcService.createPlan(CreatePlanRequest.newBuilder()
                         .setScenarioId(scenarioId)
+                        .addAllUserScopeGroupsOids(userScopeGroupIds)
                         .build());
             } else {
                 // plan market: create new plan where source topology is the prev projected topology

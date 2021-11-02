@@ -40,11 +40,19 @@ message StartAnalysisRequest {
 
     // Plan global setting
     optional plan.PlanGlobalSetting __deprecated_plan_global_setting = 8 [deprecated = true];
+
+    // A map of entity types to entity OIDs to represent a scoped user.
+    map<int32, EntityOids> user_scope_entities_by_type = 9;
 }
 
 message StartAnalysisResponse {
     // The ID of the topology that the topology processor will construct and broadcast.
     optional int64 topology_id = 1;
+}
+
+message EntityOids {
+    // The oids of the entities.
+    repeated int64 entity_oids = 1;
 }
 
 // The Analysis service is the interface to trigger analyses in

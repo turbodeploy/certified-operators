@@ -469,6 +469,7 @@ public class ServiceConfig {
                 entitySettingQueryExecutor(),
                 licenseCheckClientConfig.licenseCheckClient(),
                 mapperConfig.entityAspectMapper(),
+                userSessionContext(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
