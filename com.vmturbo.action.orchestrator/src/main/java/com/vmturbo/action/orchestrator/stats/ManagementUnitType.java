@@ -31,7 +31,12 @@ public enum ManagementUnitType {
     /**
      * Resource group scope. This is only relevant in the cloud.
      */
-    RESOURCE_GROUP(4);
+    RESOURCE_GROUP(4),
+
+    /**
+     * Propagated entity scope. This is only relevant for actions propagated to an entity.
+     */
+    PROPAGATED(5);
 
     private final int numericValue;
 
