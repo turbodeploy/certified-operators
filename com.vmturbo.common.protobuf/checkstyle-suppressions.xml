@@ -24,7 +24,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]search[/\\]SearchProtoUtil.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]search[/\\]SearchableProperties.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]StitchingErrors.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]TopologyDTOUtil.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UICommodityType.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UIEntityState.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UIEnvironmentType.java" />
@@ -36,7 +35,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]PlanDTOUtilTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]RepositoryDTOUtilTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]StringUtilTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]TopologyDTOUtilTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]action[/\\]ActionEnvironmentTypeTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]search[/\\]SearchProtoUtilTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]StitchingErrorsTest.java" />

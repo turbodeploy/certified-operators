@@ -103,6 +103,9 @@ public final class TopologyDTOUtil {
         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE
     );
 
+    /**
+     * Set of tier entity types.
+     */
     public static final Set<Integer> TIER_VALUES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
             EntityType.DATABASE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE);
@@ -120,7 +123,9 @@ public final class TopologyDTOUtil {
      */
     public static final double QX_VCPU_BASE_COEFFICIENT = 20000.0;
 
-    // One percent represented as a fraction.
+    /**
+     * One percent represented as a fraction.
+     */
     public static final double ONE_PERCENT = 0.01;
 
     /**
@@ -143,6 +148,12 @@ public final class TopologyDTOUtil {
     private TopologyDTOUtil() {
     }
 
+    /**
+     * Get oid of entity.
+     *
+     * @param partialEntity entity with unknown type
+     * @return entity's oid
+     */
     public static long getOid(@Nonnull final PartialEntity partialEntity) {
         switch (partialEntity.getTypeCase()) {
             case FULL_ENTITY:
@@ -194,8 +205,7 @@ public final class TopologyDTOUtil {
      * @return Whether or not the described topology is generated for a optimize cloud plan.
      */
     public static boolean isOptimizeCloudPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
-        return isPlan(topologyInfo) && topologyInfo.getPlanInfo().hasPlanType() &&
-                OPTIMIZE_CLOUD_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
+        return isPlan(topologyInfo) && topologyInfo.getPlanInfo().hasPlanType() && OPTIMIZE_CLOUD_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
     }
 
     /**
@@ -252,6 +262,7 @@ public final class TopologyDTOUtil {
      *
      * @param entity entity for which connected entities are retrieved
      * @param connectedEntityType the type of connectedEntity which should be retrieved
+     * @param topology topology containing entities
      * @return List of connected TopologyEntityDTOs
      */
     @Nonnull
@@ -270,6 +281,7 @@ public final class TopologyDTOUtil {
      *
      * @param topologyEntity entity for which connected entities are retrieved
      * @param connectedEntityType the type of connectedEntity which should be retrieved
+     * @param topology topology containing entities
      * @return List of connected TopologyEntityDTOs
      */
     @Nonnull
@@ -293,22 +305,8 @@ public final class TopologyDTOUtil {
     public static Stream<Long> getOidsOfConnectedEntityOfType(
         @Nonnull final TopologyEntityDTO entity, final int connectedEntityType) {
         return entity.getConnectedEntityListList().stream()
-            .filter(connectedEntity -> connectedEntity.getConnectedEntityType() ==
-                connectedEntityType)
+            .filter(connectedEntity -> connectedEntity.getConnectedEntityType() == connectedEntityType)
             .map(ConnectedEntity::getConnectedEntityId);
-    }
-
-    /**
-     * Is the entity type a primary tier entity type?
-     * A primary tier is a tier like compute tier. Cloud consumers like VMs and DBs DBSs can only
-     * consume from one primary tier like compute / database / database server tier. But they can
-     * consume from multiple secondary tiers like storage tiers.
-     *
-     * @param entityType the entity type to be checked
-     * @return true if the the entity type is a primary tier entity type. false otherwise.
-     */
-    public static boolean isPrimaryTierEntityType(int entityType) {
-        return PRIMARY_TIER_VALUES.contains(entityType);
     }
 
     /**
@@ -383,9 +381,21 @@ public final class TopologyDTOUtil {
      * @return true if the checked entity plays the role of primary tier to the consumer entity.
      */
     public static boolean isPrimaryTierEntityType(int consumerType, int providerType) {
-        return isPrimaryTierEntityType(providerType) ||
-            PRIMARY_TIER_FOR_CONSUMER_TYPE.getOrDefault(consumerType, EntityType.UNKNOWN_VALUE) ==
-                providerType;
+        final int tierType = PRIMARY_TIER_FOR_CONSUMER_TYPE.getOrDefault(consumerType, EntityType.UNKNOWN_VALUE);
+        return isPrimaryTierEntityType(providerType) || tierType == providerType;
+    }
+
+    /**
+     * Is the entity type a primary tier entity type?
+     * A primary tier is a tier like compute tier. Cloud consumers like VMs and DBs DBSs can only
+     * consume from one primary tier like compute / database / database server tier. But they can
+     * consume from multiple secondary tiers like storage tiers.
+     *
+     * @param entityType the entity type to be checked
+     * @return true if the the entity type is a primary tier entity type. false otherwise.
+     */
+    public static boolean isPrimaryTierEntityType(int entityType) {
+        return PRIMARY_TIER_VALUES.contains(entityType);
     }
 
     /**
@@ -450,10 +460,9 @@ public final class TopologyDTOUtil {
     }
 
     /**
-     * Check if the key of storage cluster commodity is for real storage cluster.
-     * <p>
-     * Real storage cluster is a storage cluster that is physically exits in the data center.
-     * </p>
+     * Check if the key of storage cluster commodity is for real storage cluster. Real storage
+     * cluster is a storage cluster that is physically exits in the data center.
+     *
      * @param storageClusterCommKey key of storage cluster commodity key
      * @return true if it is for real cluster
      */

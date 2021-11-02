@@ -277,6 +277,7 @@ message TypeSpecificInfo {
         optional int64 term_milliseconds = 6;
         optional int64 start_time_milliseconds = 7;
         optional int64 expiration_time_milliseconds = 8;
+        optional common_dto.EntityDTO.CloudCommitmentData.ProviderType provider_specific_type = 9;
     }
 
     // Architectures
