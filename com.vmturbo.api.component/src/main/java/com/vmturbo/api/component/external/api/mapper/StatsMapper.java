@@ -577,13 +577,23 @@ public class StatsMapper {
                 ProjectedEntityStatsRequest.newBuilder()
                     .setScope(entityStatsScope)
                     .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+        //Projected stats use commodityRequest to pass stats filters, but for nowonly commodity names and groupBy key
+        //are supported while getting projected records.
         Optional.ofNullable(statApiInput)
                 .map(StatPeriodApiInputDTO::getStatistics)
                 .orElse(Collections.emptyList())
-                .stream()
-                .filter(statApiInputDto -> statApiInputDto.getName() != null)
-                .map(StatApiInputDTO::getName)
-                .forEach(requestBuilder::addCommodityName);
+                .stream().forEach(
+                        statApiInputDTO -> {
+                            CommodityRequest.Builder commodityRequestBuilder = CommodityRequest.newBuilder();
+                            if (statApiInputDTO.getName() != null) {
+                                commodityRequestBuilder.setCommodityName(statApiInputDTO.getName());
+                            }
+                            if (statApiInputDTO.getGroupBy() != null) {
+                                commodityRequestBuilder.addAllGroupBy(statApiInputDTO.getGroupBy());
+                            }
+                            requestBuilder.addFilter(commodityRequestBuilder);
+                        }
+                );
         return requestBuilder.build();
     }
 

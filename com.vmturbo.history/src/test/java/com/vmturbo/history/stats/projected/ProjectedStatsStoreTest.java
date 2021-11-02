@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -96,7 +97,7 @@ public class ProjectedStatsStoreTest {
         final StatSnapshotCalculator statSnapshotCalculator = new StatSnapshotCalculator() {};
 
         final Set<Long> entities = Sets.newHashSet(1L, 2L);
-        final Set<String> commodities = Sets.newHashSet(COMMODITY, StringConstants.PRICE_INDEX);
+        final Map<String, Set<String>> commodities = ImmutableMap.of(COMMODITY, Collections.emptySet(), StringConstants.PRICE_INDEX, Collections.emptySet());
 
         final StatRecord statRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -120,7 +121,7 @@ public class ProjectedStatsStoreTest {
         store.updateProjectedTopology(emptyIterator);
 
         final Set<Long> entities = Sets.newHashSet(2L, 1L, 3L);
-        final Set<String> commodities = Sets.newHashSet(COMMODITY);
+        final Map<String, Set<String>> commodities = Collections.singletonMap(COMMODITY, Collections.emptySet());
 
         final StatSnapshot snapshot = StatSnapshot.newBuilder()
                 .setSnapshotDate(1L)
@@ -134,7 +135,7 @@ public class ProjectedStatsStoreTest {
     @Test
     public void testGetSnapshotNoData() {
         // Initially the store has no data.
-        assertFalse(store.getStatSnapshotForEntities(Collections.emptySet(), Collections.emptySet(), Collections.emptySet()).isPresent());
+        assertFalse(store.getStatSnapshotForEntities(Collections.emptySet(), Collections.emptyMap(), Collections.emptySet()).isPresent());
     }
 
     @Test
@@ -176,7 +177,7 @@ public class ProjectedStatsStoreTest {
         when(paginationParams.getSortCommodity()).thenReturn(COMMODITY);
         final Map<Long, Set<Long>> targetEntities = StatsTestUtils.createEntityGroupsMap(
             Collections.singleton(1L));
-        final Set<String> targetCommodities = Collections.singleton("foo");
+        final Map<String, Set<String>> targetCommodities = Collections.singletonMap("foo", Collections.emptySet());
 
         final ProjectedEntityStatsResponse responseProto = ProjectedEntityStatsResponse.newBuilder()
                 .setPaginationResponse(PaginationResponse.getDefaultInstance())
@@ -200,7 +201,7 @@ public class ProjectedStatsStoreTest {
         when(paginationParams.getSortCommodity()).thenReturn(COMMODITY);
         final Map<Long, Set<Long>> targetEntities = StatsTestUtils.createEntityGroupsMap(
             Collections.singleton(1L));
-        final Set<String> targetCommodities = Collections.singleton("foo");
+        final Map<String, Set<String>> targetCommodities = Collections.singletonMap("foo", Collections.emptySet());
 
         store.getEntityStats(targetEntities, targetCommodities, Collections.emptySet(), paginationParams);
 
@@ -210,7 +211,7 @@ public class ProjectedStatsStoreTest {
     @Test
     public void testGetEntityStatsEmpty() {
         final ProjectedEntityStatsResponse response = store.getEntityStats(Collections.emptyMap(),
-                Collections.emptySet(), Collections.emptySet(), mock(EntityStatsPaginationParams.class));
+                Collections.emptyMap(), Collections.emptySet(), mock(EntityStatsPaginationParams.class));
         assertThat(response, is(ProjectedEntityStatsResponse.newBuilder()
                 .setPaginationResponse(PaginationResponse.getDefaultInstance())
                 .build()));
@@ -227,7 +228,7 @@ public class ProjectedStatsStoreTest {
         when(paginationParams.getNextCursor()).thenReturn(Optional.empty());
 
         final Set<Long> entities = Sets.newHashSet(2L, 1L, 3L);
-        final Set<String> commodities = Sets.newHashSet(COMMODITY);
+        final Map<String, Set<String>> commodities = Collections.singletonMap(COMMODITY, Collections.emptySet());
 
         final StatSnapshot snapshot1 = StatSnapshot.newBuilder()
                 .setSnapshotDate(1L)
@@ -266,7 +267,7 @@ public class ProjectedStatsStoreTest {
         when(paginationParams.getNextCursor()).thenReturn(Optional.empty());
 
         final Set<Long> entities = Sets.newHashSet(1L);
-        final Set<String> commodities = Sets.newHashSet(COMMODITY);
+        final Map<String, Set<String>> commodities = Collections.singletonMap(COMMODITY, Collections.emptySet());
 
         final StatSnapshot snapshot1 = StatSnapshot.newBuilder()
                 .setSnapshotDate(1L)

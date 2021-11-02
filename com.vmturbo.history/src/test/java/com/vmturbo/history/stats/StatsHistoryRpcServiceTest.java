@@ -36,7 +36,6 @@
  import java.util.Map;
  import java.util.Optional;
  import java.util.Set;
- import java.util.concurrent.ExecutorService;
  import java.util.concurrent.TimeUnit;
  import java.util.stream.Collectors;
  import java.util.stream.Stream;
@@ -114,7 +113,6 @@
  import com.vmturbo.history.db.HistorydbIO;
  import com.vmturbo.history.db.VmtDbException;
  import com.vmturbo.history.db.bulk.BulkLoader;
- import com.vmturbo.history.ingesters.live.writers.SystemLoadWriter;
  import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
  import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
  import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
@@ -503,11 +501,11 @@ public class StatsHistoryRpcServiceTest {
     @Test
     public void testGetProjectedStats() {
         // arrange
-        Set<String> commodityNames = Collections.emptySet();
+        Map<String, Set<String>> commodityNames = Collections.emptyMap();
         final Set<Long> entityOids = Collections.emptySet();
         ProjectedStatsRequest request = ProjectedStatsRequest.newBuilder()
                 .addAllEntities(entityOids)
-                .addAllCommodityName(commodityNames)
+                .addAllFilter(Collections.emptySet())
                 .build();
         StatSnapshot statSnapshot = StatSnapshot.newBuilder()
                 .build();
@@ -529,7 +527,7 @@ public class StatsHistoryRpcServiceTest {
     @Test
     public void testGetProjectedEntityStats() {
         final Set<Long> targetEntities = Sets.newHashSet(1L, 2L);
-        final Set<String> targetCommodities = Sets.newHashSet("foo", "bar");
+        final Map<String, Set<String>> targetCommodities = ImmutableMap.of("foo", Collections.emptySet(), "bar", Collections.emptySet());
         final ProjectedEntityStatsResponse expectedResponse = ProjectedEntityStatsResponse.newBuilder()
             .setPaginationResponse(PaginationResponse.newBuilder()
                 .setNextCursor("go go go"))
@@ -558,7 +556,8 @@ public class StatsHistoryRpcServiceTest {
                 .setScope(EntityStatsScope.newBuilder()
                     .setEntityGroupList(EntityGroupList.newBuilder()
                         .addAllGroups(entityGroups)))
-                .addAllCommodityName(targetCommodities)
+                .addAllFilter(targetCommodities.entrySet().stream().map(entry -> CommodityRequest.newBuilder().setCommodityName(
+                        entry.getKey()).addAllGroupBy(entry.getValue()).build()).collect(Collectors.toList()))
                 .setPaginationParams(PaginationParameters.newBuilder()
                         .setCursor("startCursor"))
                 .build());

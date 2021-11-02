@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -14,7 +15,9 @@ import static org.mockito.Mockito.when;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -38,6 +41,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -166,7 +170,8 @@ public class ProjectedCommodityStatsSubQueryTest {
             ArgumentCaptor.forClass(ProjectedStatsRequest.class);
         verify(backend).getProjectedStats(reqCaptor.capture());
         final ProjectedStatsRequest req = reqCaptor.getValue();
-        assertThat(req.getCommodityNameList(), containsInAnyOrder("foo"));
+        assertTrue(req.getFilterList().stream().map(
+                CommodityRequest::getCommodityName).filter("foo"::equals).findAny().isPresent());
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
 
         assertEquals(1, results.size());

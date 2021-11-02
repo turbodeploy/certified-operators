@@ -105,7 +105,7 @@ public class ProjectedStatsStore implements MemReporter {
      *                         entity entity itself or derived entities from seed entity. Stats
      *                         response will be for each seed entity, but its value will be
      *                         aggregated on derived entities.
-     * @param commodities      The commodities to retrieve. Must be non-empty.
+     * @param commodityNamesToGroupBys the commodities to collect and the groupBy requests for each of the commodity
      * @param providerOids     oids of the potential commodity providers.
      * @param paginationParams {@link EntityStatsPaginationParams} for the page.
      * @return The {@link ProjectedEntityStatsResponse} to return to the client.
@@ -113,7 +113,7 @@ public class ProjectedStatsStore implements MemReporter {
     @Nonnull
     public ProjectedEntityStatsResponse getEntityStats(
             @Nonnull final Map<Long, Set<Long>> entitiesMap,
-            @Nonnull final Set<String> commodities,
+            @Nonnull final Map<String, Set<String>> commodityNamesToGroupBys,
             @Nonnull final Set<Long> providerOids,
             @Nonnull final EntityStatsPaginationParams paginationParams) {
         if (entitiesMap.isEmpty()) {
@@ -124,7 +124,7 @@ public class ProjectedStatsStore implements MemReporter {
             return ProjectedEntityStatsResponse.newBuilder()
                     .setPaginationResponse(PaginationResponse.getDefaultInstance())
                     .build();
-        } else if (commodities.isEmpty()) {
+        } else if (commodityNamesToGroupBys.isEmpty()) {
             throw new IllegalArgumentException("Must specify at least one commodity for "
                     + "per-entity stats request.");
         }
@@ -143,7 +143,7 @@ public class ProjectedStatsStore implements MemReporter {
         return entityStatsCalculator.calculateNextPage(targetCommodities,
                 statSnapshotCalculator,
                 entitiesMap,
-                commodities,
+                commodityNamesToGroupBys,
                 providerOids,
                 paginationParams);
     }
@@ -157,13 +157,13 @@ public class ProjectedStatsStore implements MemReporter {
      * finish) at the expense of the chance for data that's one market iteration out of date.</p>
      *
      * @param targetEntities the entities to collect the stats for
-     * @param commodityNames the commodities to collect for those entities
+     * @param commodityNamesToGroupBys the commodities to collect and the groupBy requests for each of the commodity
      * @param providerOids   oids of the potential commodity providers
      * @return an Optional containing the snapshot, or empty optional if no data is available
      */
     @Nonnull
     public Optional<StatSnapshot> getStatSnapshotForEntities(@Nonnull final Set<Long> targetEntities,
-            @Nonnull final Set<String> commodityNames,
+            @Nonnull final Map<String, Set<String>> commodityNamesToGroupBys,
             @Nonnull final Set<Long> providerOids) {
 
         // capture the current topologyCommodities object; new topologies replace the entire object
@@ -176,7 +176,7 @@ public class ProjectedStatsStore implements MemReporter {
             return Optional.empty();
         }
 
-        return Optional.of(statSnapshotCalculator.buildSnapshot(targetCommodities, targetEntities, commodityNames, providerOids));
+        return Optional.of(statSnapshotCalculator.buildSnapshot(targetCommodities, targetEntities, commodityNamesToGroupBys, providerOids));
     }
 
     /**
@@ -233,7 +233,7 @@ public class ProjectedStatsStore implements MemReporter {
                 @Nonnull final TopologyCommoditiesSnapshot targetCommodities,
                 @Nonnull final StatSnapshotCalculator statSnapshotCalculator,
                 @Nonnull final Map<Long, Set<Long>> entitiesMap,
-                @Nonnull final Set<String> commodityNames,
+                @Nonnull final Map<String, Set<String>> commodityNamesToGroupBys,
                 @Nonnull final Set<Long> providerOids,
                 @Nonnull final EntityStatsPaginationParams paginationParams) {
             // Get the entity comparator to use.
@@ -264,7 +264,7 @@ public class ProjectedStatsStore implements MemReporter {
                     .map(entityId -> EntityStats.newBuilder()
                             .setOid(entityId)
                             .addStatSnapshots(statSnapshotCalculator.buildSnapshot(
-                                    targetCommodities, entitiesMap.get(entityId), commodityNames, providerOids))
+                                    targetCommodities, entitiesMap.get(entityId), commodityNamesToGroupBys, providerOids))
                             .build())
                     .forEach(responseBuilder::addEntityStats);
             return responseBuilder.build();
@@ -281,12 +281,12 @@ public class ProjectedStatsStore implements MemReporter {
         default StatSnapshot buildSnapshot(
                 @Nonnull final TopologyCommoditiesSnapshot targetCommodities,
                 @Nonnull final Set<Long> targetEntities,
-                @Nonnull final Set<String> commodityNames,
+                @Nonnull final Map<String, Set<String>> commodityNamesToGroupBys,
                 @Nonnull final Set<Long> providerIds) {
             // accumulate 'standard' and 'count' stats
             final StatSnapshot.Builder builder = StatSnapshot.newBuilder();
             targetCommodities
-                    .getRecords(commodityNames, targetEntities, providerIds)
+                    .getRecords(commodityNamesToGroupBys, targetEntities, providerIds)
                     .forEach(builder::addStatRecords);
             return builder.build();
         }

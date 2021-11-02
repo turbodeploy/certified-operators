@@ -226,11 +226,13 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     public void getProjectedStats(@Nonnull final ProjectedStatsRequest request,
                 @Nonnull final StreamObserver<ProjectedStatsResponse> responseObserver) {
         final ProjectedStatsResponse.Builder builder = ProjectedStatsResponse.newBuilder();
+        Map<String, Set<String>> commodityNamesToGroupBys =  request.getFilterList().stream().collect(Collectors.toMap
+                (CommodityRequest::getCommodityName, filter -> new HashSet<>(filter.getGroupByList())));
         projectedStatsStore.getStatSnapshotForEntities(
                 new HashSet<>(request.getEntitiesList()),
-                new HashSet<>(request.getCommodityNameList()),
+                commodityNamesToGroupBys,
                 new HashSet<>(request.getProvidersList()))
-            .ifPresent(builder::setSnapshot);
+                .ifPresent(builder::setSnapshot);
         responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
     }
@@ -270,9 +272,11 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 responseObserver.onCompleted();
                 return;
         }
+        Map<String, Set<String>> commodityNamesToGroupBys =  request.getFilterList().stream().collect(Collectors.toMap
+                (CommodityRequest::getCommodityName, filter -> new HashSet<>(filter.getGroupByList())));
         responseObserver.onNext(projectedStatsStore.getEntityStats(
             seedEntityToDerivedEntities,
-            new HashSet<>(request.getCommodityNameList()),
+            commodityNamesToGroupBys,
             new HashSet<>(request.getProvidersList()),
             paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
         responseObserver.onCompleted();

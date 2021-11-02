@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats.projected;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_WITH_KEY;
@@ -64,7 +65,7 @@ public class SoldCommoditiesInfoTest {
                 .build();
 
         assertFalse(info.getCapacity(COMMODITY, 1L).isPresent());
-        assertTrue(info.getAccumulatedRecords(COMMODITY, Collections.emptySet()).isEmpty());
+        assertTrue(info.getAccumulatedRecords(COMMODITY, Collections.emptySet(), Collections.emptySet()).isEmpty());
     }
 
     @Test
@@ -105,7 +106,7 @@ public class SoldCommoditiesInfoTest {
                 .build();
 
         final List<StatRecord>
-                records = info.getAccumulatedRecords("Connection", Sets.newHashSet(1L, 2L));
+                records = info.getAccumulatedRecords("Connection", Sets.newHashSet(1L, 2L), Sets.newHashSet(KEY));
         records.get(0).getCapacity();
     }
 
@@ -131,7 +132,7 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(PM_2)
                 .build();
 
-        final List<StatRecord> records = info.getAccumulatedRecords(COMMODITY, Collections.emptySet());
+        final List<StatRecord> records = info.getAccumulatedRecords(COMMODITY, Collections.emptySet(), Collections.emptySet());
 
         StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
@@ -165,7 +166,7 @@ public class SoldCommoditiesInfoTest {
                 .build();
 
         final List<StatRecord> records =
-                info.getAccumulatedRecords(COMMODITY, Sets.newHashSet(1L, 2L));
+                info.getAccumulatedRecords(COMMODITY, Sets.newHashSet(1L, 2L), Collections.emptySet());
         StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -329,7 +330,7 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(pm)
                 .build();
 
-        return info.getAccumulatedRecords(COMMODITY, Collections.emptySet());
+        return info.getAccumulatedRecords(COMMODITY, Collections.emptySet(), Sets.newHashSet(KEY));
     }
 
     @Test
@@ -340,7 +341,7 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(PM_2)
                 .build();
 
-        assertTrue(info.getAccumulatedRecords(COMMODITY, Sets.newHashSet(999L)).isEmpty());
+        assertTrue(info.getAccumulatedRecords(COMMODITY, Sets.newHashSet(999L), Collections.emptySet()).isEmpty());
     }
 
     /**
@@ -383,7 +384,7 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(PM_2)
                 .build();
 
-        assertTrue(info.getAccumulatedRecords("beer", Sets.newHashSet(1L)).isEmpty());
+        assertTrue(info.getAccumulatedRecords("beer", Sets.newHashSet(1L), Collections.emptySet()).isEmpty());
     }
 
     @Test
@@ -401,7 +402,7 @@ public class SoldCommoditiesInfoTest {
                         .build())
                 .build();
 
-        assertTrue(info.getAccumulatedRecords("CPU", Sets.newHashSet(PM_1.getOid())).isEmpty());
+        assertTrue(info.getAccumulatedRecords("CPU", Sets.newHashSet(PM_1.getOid()), Collections.emptySet()).isEmpty());
     }
 
     @Test

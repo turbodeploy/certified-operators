@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
@@ -57,9 +58,10 @@ class ProjectedTopologyCommodityDataRetriever {
                         ProjectedEntityStatsRequest.newBuilder()
                                 .setScope(EntityStatsScope.newBuilder()
                                         .setEntityList(EntityList.newBuilder().addAllEntities(entityIds)))
-                                .addAllCommodityName(commodityTypes.stream()
+                                .addAllFilter(commodityTypes.stream()
                                         .map(UICommodityType::fromType)
                                         .map(UICommodityType::apiStr)
+                                        .map(name -> CommodityRequest.newBuilder().setCommodityName(name).build())
                                         .collect(Collectors.toList()))
                                 // only request bought commodities for given providers
                                 .addAllProviders(projectedProviders)
