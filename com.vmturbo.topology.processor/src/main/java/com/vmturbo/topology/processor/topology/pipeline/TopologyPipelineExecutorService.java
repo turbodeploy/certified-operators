@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.time.Clock;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CompletableFuture;
@@ -28,7 +27,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -233,7 +231,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      *                           topology to broadcast.
      * @param changes The {@link ScenarioChange}s to apply for the plan.
      * @param scope The {@link PlanScope} describing the scope of the plan.
-     * @param userScopeEntityTypes A list of {@link EntityOids} by EntityType, describing the user scope.
      * @param journalFactory The {@link StitchingJournalFactory} to use for the broadcast.
      * @return A {@link TopologyPipelineRequest} that can be used to wait for the broadcast to complete.
      * @throws QueueCapacityExceededException If the live pipeline queue is full.
@@ -243,11 +240,9 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final TopologyInfo pendingTopologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope,
-            @Nullable final Map<Integer, EntityOids> userScopeEntityTypes,
             @Nonnull final StitchingJournalFactory journalFactory) throws QueueCapacityExceededException {
         final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
-                planPipelineFactory.planOverLiveTopology(pendingTopologyInfo, changes, scope,
-                        userScopeEntityTypes, journalFactory);
+                planPipelineFactory.planOverLiveTopology(pendingTopologyInfo, changes, scope, journalFactory);
         return planPipelineQueue.queuePipeline(pipeline::getTopologyInfo,
             () -> pipeline.run(entityStore));
     }

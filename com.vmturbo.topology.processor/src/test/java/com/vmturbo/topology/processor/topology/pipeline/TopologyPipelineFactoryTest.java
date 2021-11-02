@@ -152,7 +152,7 @@ public class TopologyPipelineFactoryTest {
     public void testPlanOverLivePipeline() {
         final PlanPipelineFactory ppf = planPipelineFactory();
         ppf.planOverLiveTopology(planTopoInfo, Collections.emptyList(),
-            PlanScope.getDefaultInstance(), null, mock(StitchingJournalFactory.class));
+            PlanScope.getDefaultInstance(), mock(StitchingJournalFactory.class));
     }
 
     /**

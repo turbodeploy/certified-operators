@@ -1,22 +1,17 @@
 package com.vmturbo.plan.orchestrator.plan;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import io.grpc.stub.StreamObserver;
@@ -31,7 +26,6 @@ import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostMoles.BuyRIAnalysisServiceMole;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
@@ -44,22 +38,14 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
 public class PlanRpcServiceTest {
@@ -68,7 +54,6 @@ public class PlanRpcServiceTest {
     private final BuyRIAnalysisServiceMole testBuyRiRpcService = spy(new BuyRIAnalysisServiceMole());
     private final GroupServiceMole testGroupRpcService = spy(new GroupServiceMole());
     private final RepositoryServiceMole testRepositoryRpcService = spy(new RepositoryServiceMole());
-    private final SupplyChainServiceMole testSupplyChainRpcService = spy(new SupplyChainServiceMole());
     private final long topologyId = 2222;
     // The  realtime topology context Id.
     private static final Long realtimeTopologyContextId = 777777L;
@@ -78,8 +63,7 @@ public class PlanRpcServiceTest {
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testAnalysisRpcService,
-            testBuyRiRpcService, testGroupRpcService, testRepositoryRpcService,
-            testSupplyChainRpcService);
+                     testBuyRiRpcService, testGroupRpcService, testRepositoryRpcService);
 
     private PlanRpcService planService;
     @SuppressWarnings("unchecked")
@@ -235,70 +219,5 @@ public class PlanRpcServiceTest {
         //THEN
         verify(response, times(0)).onNext(any());
         verify(response, times(1)).onCompleted();
-    }
-
-    @Test
-    public void testGetUserScopeByEntityTypes() {
-        //GIVEN the user scope group members
-        final long groupId = 456L;
-        final long vmId1 = 1L;
-        final long vmId2 = 2L;
-        final long dbId = 3L;
-        final long dbsId = 4L;
-        final long zoneId = 5L;
-        when(testGroupRpcService.getMembers(any())).thenReturn(ImmutableList.of(
-                GetMembersResponse.newBuilder().setGroupId(groupId)
-                        .addMemberId(zoneId)
-                        .build()));
-
-        //GIVEN the supply chain of the group members
-        final SupplyChainNode vmNode = SupplyChainNode.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE.getValue())
-                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
-                        .addMemberOids(vmId1)
-                        .addMemberOids(vmId2)
-                        .build())
-                .build();
-        final SupplyChainNode dbNode = SupplyChainNode.newBuilder()
-                .setEntityType(EntityType.DATABASE.getValue())
-                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
-                        .addMemberOids(dbId)
-                        .build())
-                .build();
-        final SupplyChainNode dbsNode = SupplyChainNode.newBuilder()
-                .setEntityType(EntityType.DATABASE_SERVER.getValue())
-                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
-                        .addMemberOids(dbsId)
-                        .build())
-                .build();
-        final SupplyChainNode vvNode = SupplyChainNode.newBuilder()
-                .setEntityType(EntityType.AVAILABILITY_ZONE.getValue())
-                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
-                        .addMemberOids(zoneId)
-                        .build())
-                .build();
-        when(testSupplyChainRpcService.getSupplyChain(any()))
-                .thenReturn(GetSupplyChainResponse.newBuilder()
-                        .setSupplyChain(SupplyChain.newBuilder()
-                                .addAllSupplyChainNodes(ImmutableList.of(vmNode, dbNode,
-                                        dbsNode, vvNode)))
-                        .build());
-
-        //WHEN
-        Map<Integer, EntityOids> scopeByEntityType = this.planService
-                .getUserScopeByEntityTypes(Collections.singletonList(groupId));
-
-        //THEN
-        assertTrue(scopeByEntityType.containsKey(EntityType.DATABASE.getValue()));
-        assertEquals(1, scopeByEntityType.get(EntityType.DATABASE.getValue())
-                .getEntityOidsCount());
-
-        assertTrue(scopeByEntityType.containsKey(EntityType.DATABASE_SERVER.getValue()));
-        assertEquals(1, scopeByEntityType.get(EntityType.DATABASE_SERVER.getValue())
-                .getEntityOidsCount());
-
-        assertTrue(scopeByEntityType.containsKey(EntityType.VIRTUAL_MACHINE.getValue()));
-        assertEquals(2, scopeByEntityType.get(EntityType.VIRTUAL_MACHINE.getValue())
-                .getEntityOidsCount());
     }
 }

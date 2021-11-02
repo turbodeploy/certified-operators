@@ -97,7 +97,6 @@ import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -258,7 +257,7 @@ public class MarketsServiceTest {
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
     private PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
     private PlanEntityStatsFetcher planEntityStatsFetcher = mock(PlanEntityStatsFetcher.class);
-    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
 
     private ActionsServiceMole actionsBackend = spy(ActionsServiceMole.class);
     private PolicyServiceMole policiesBackend = spy(PolicyServiceMole.class);
@@ -333,7 +332,6 @@ public class MarketsServiceTest {
             entitySettingQueryExecutor,
             licenseCheckClient,
             entityAspectMapper,
-            userSessionContext,
             REALTIME_CONTEXT_ID
         );
 

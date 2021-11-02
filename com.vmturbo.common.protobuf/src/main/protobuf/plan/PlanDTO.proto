@@ -72,9 +72,6 @@ message PlanInstance {
     // The ID of the plan project that this plan belongs to
     optional int64 plan_project_id = 22;
 
-    // A set of group OIDs to represent a scoped user.
-    repeated int64 user_scope_groups_oids = 23;
-
     enum PlanStatus {
         // Plan is ready to be executed, but has not been
         // triggered.
@@ -184,9 +181,6 @@ message CreatePlanRequest {
 
     // Name of the plan.
     optional string name = 6;
-
-    // A set of group OIDs to represent a scoped user.
-    repeated int64 user_scope_groups_oids = 7;
 }
 
 message PlanId {

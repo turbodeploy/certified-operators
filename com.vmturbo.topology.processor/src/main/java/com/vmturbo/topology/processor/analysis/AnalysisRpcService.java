@@ -122,8 +122,7 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                 logger.info("{} Queueing plan pipeline.",
                         TopologyDTOUtil.formatPlanLogPrefix(request.getPlanId()));
                 pipelineRequest = pipelineExecutorService.queuePlanPipeline(topologyInfo,
-                    request.getScenarioChangeList(), request.getPlanScope(),
-                        request.getUserScopeEntitiesByTypeMap(), journalFactory);
+                    request.getScenarioChangeList(), request.getPlanScope(), journalFactory);
             }
 
             responseObserver.onNext(StartAnalysisResponse.newBuilder()

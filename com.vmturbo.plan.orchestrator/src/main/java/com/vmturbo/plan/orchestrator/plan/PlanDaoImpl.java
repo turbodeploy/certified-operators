@@ -185,7 +185,6 @@ public class PlanDaoImpl implements PlanDao {
         builder.setPlanId(IdentityGenerator.next());
         builder.setStatus(PlanStatus.READY);
         builder.setProjectType(PlanProjectType.USER);
-        builder.addAllUserScopeGroupsOids(planRequest.getUserScopeGroupsOidsList());
         final PlanDTO.PlanInstance plan = builder.build();
         checkPlanConsistency(plan);
 

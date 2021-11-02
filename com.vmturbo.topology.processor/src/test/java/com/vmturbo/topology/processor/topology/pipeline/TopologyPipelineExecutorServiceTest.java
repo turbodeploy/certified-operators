@@ -271,13 +271,12 @@ public class TopologyPipelineExecutorServiceTest {
         final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = mock(TopologyPipeline.class);
         when(pipeline.getTopologyInfo()).thenReturn(topologyInfo);
         when(pipeline.run(mockEntityStore)).thenReturn(expectedBroadcastInfo);
-        when(mockPlanPipelineFactory.planOverLiveTopology(topologyInfo, SCENARIO_CHANGES,
-                PLAN_SCOPE, null, JOURNAL_FACTORY))
+        when(mockPlanPipelineFactory.planOverLiveTopology(topologyInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY))
             .thenReturn(pipeline);
 
         // Run
         pipelineExecutorService.queuePlanPipeline(
-            topologyInfo, SCENARIO_CHANGES, PLAN_SCOPE, null, JOURNAL_FACTORY);
+            topologyInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
 
         // Not realtime broadcast.
         verify(mockPlanQueue).queuePipeline(infoSupplierCaptor.capture(), pipelineRunnableCaptor.capture());

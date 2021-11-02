@@ -2,13 +2,13 @@ package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -16,9 +16,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.Status.Code;
@@ -33,14 +30,12 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessExcep
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsResponse;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
@@ -58,15 +53,11 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
-import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.RetriableOperation;
@@ -79,12 +70,6 @@ import com.vmturbo.repository.api.RepositoryClient;
  * Plan gRPC service implementation.
  */
 public class PlanRpcService extends PlanServiceImplBase {
-
-    private static final Set<Integer> USER_SCOPE_ENTITY_TYPES = ImmutableSet.of(
-            ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-            ApiEntityType.DATABASE_SERVER.typeNumber(),
-            ApiEntityType.DATABASE.typeNumber()
-    );
 
     private final PlanDao planDao;
 
@@ -470,16 +455,7 @@ public class PlanRpcService extends PlanServiceImplBase {
                 builder.setPlanSubType(PlanRpcServiceUtil.getCloudPlanSubType(scenarioInfo));
             }
         }
-
         builder.setPlanProjectType(planInstance.getProjectType());
-
-        if (!planInstance.getUserScopeGroupsOidsList().isEmpty()) {
-            builder.putAllUserScopeEntitiesByType(
-                    getUserScopeByEntityTypes(planInstance.getUserScopeGroupsOidsList()));
-            logger.info("Added the User Scope Groups in the Plan Analysis: {}",
-                    planInstance.getUserScopeGroupsOidsList());
-        }
-
         startAnalysis(builder.build());
     }
 
@@ -674,41 +650,6 @@ public class PlanRpcService extends PlanServiceImplBase {
             shouldRiDiscountLicenseCost = !destinationCloudTypes.contains(CloudType.AZURE);
         }
         return shouldRiDiscountLicenseCost;
-    }
-
-    /**
-     * Get the accessible entities of a Scoped User by Entity Type, to limit the plan graph.
-     * The Plan will show results with only the entities the user can see.
-     *
-     * @param userScopeGroupOids
-     * @return Map of {@link EntityOids} by Entity Type value.
-     */
-    @Nonnull
-    @VisibleForTesting
-    public Map<Integer, EntityOids> getUserScopeByEntityTypes(
-            @Nonnull final List<Long> userScopeGroupOids) {
-
-        // First expand all the members for the user Groups
-        Set<Long> groupMembersOids = Sets.newHashSet();
-        this.groupServiceClient.getMembers(GetMembersRequest.newBuilder()
-                        .addAllId(userScopeGroupOids).build())
-                .forEachRemaining(mr -> groupMembersOids.addAll(mr.getMemberIdList()));
-
-        // Then Get the SupplyChain based on the members
-        GetSupplyChainRequest.Builder scRequestBuilder = GetSupplyChainRequest.newBuilder()
-                .setScope(SupplyChainScope.newBuilder()
-                        .addAllStartingEntityOid(groupMembersOids)
-                        .addAllEntityTypesToInclude(USER_SCOPE_ENTITY_TYPES));
-
-        // Build the accessible entites map
-        Map<Integer, EntityOids> userScopeByType = Maps.newHashMap();
-        this.supplyChainService.getSupplyChain(scRequestBuilder.build())
-                .getSupplyChain().getSupplyChainNodesList().stream()
-                .filter(scn -> USER_SCOPE_ENTITY_TYPES.contains(scn.getEntityType()))
-                .forEach(scn -> userScopeByType.put(scn.getEntityType(), EntityOids.newBuilder()
-                                .addAllEntityOids(RepositoryDTOUtil.getAllMemberOids(scn))
-                                .build()));
-        return userScopeByType;
     }
 
     /**

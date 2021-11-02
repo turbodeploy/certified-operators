@@ -18,7 +18,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import com.google.protobuf.AbstractMessage;
 
 import org.apache.commons.io.FileUtils;
@@ -26,9 +25,6 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -40,7 +36,6 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
-import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -76,7 +71,6 @@ import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader;
@@ -944,49 +938,6 @@ public class Stages {
             }
             return StageResult.withResult(graph)
                 .andStatus(Status.success());
-        }
-    }
-
-    /**
-     * This stage apply the user scope to {@link TopologyGraph<TopologyEntity>}.
-     */
-    public static class UserScopingStage extends Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
-
-        private final Map<Integer, EntityOids> userScopeEntityTypes;
-
-        UserScopingStage(@Nullable final Map<Integer, EntityOids> userScopeEntityTypes) {
-            this.userScopeEntityTypes = userScopeEntityTypes;
-        }
-
-        @NotNull
-        @Override
-        protected StageResult<TopologyGraph<TopologyEntity>> executeStage(
-                @NotNull TopologyGraph<TopologyEntity> input) {
-            if (userScopeEntityTypes == null || userScopeEntityTypes.isEmpty()) {
-                return StageResult.withResult(input)
-                        .andStatus(Status.success("UserScopingStage: User is not scoped, stage skipped"));
-            }
-
-            final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap = new Long2ObjectOpenHashMap<>();
-            resultEntityMap.putAll(input.entities()
-                    .filter(e -> !userScopeEntityTypes.containsKey(e.getEntityType())
-                                    || userScopeEntityTypes.get(e.getEntityType())
-                            .getEntityOidsList().contains(e.getOid()))
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid, TopologyEntity::newBuilder)));
-
-            if (logger.isDebugEnabled()) {
-                List<Long> differences = input.entities().map(TopologyEntity::getOid).collect(
-                        Collectors.toList());
-                differences.removeAll(resultEntityMap.values().stream()
-                        .map(TopologyEntity.Builder::getOid).collect(Collectors.toList()));
-                logger.debug("Applied User Scope to the input topology, removed entites Oids: {}",
-                        differences);
-            }
-
-            return StageResult.withResult(new TopologyGraphCreator<>(resultEntityMap).build())
-                    .andStatus(Status.success("UserScopingStage: Constructed a scoped topology of size "
-                            + resultEntityMap.size() + " from topology of size " + input.size()));
         }
     }
 
