@@ -69,8 +69,10 @@ public class PropagatedActionAggregator extends ActionAggregatorFactory.ActionAg
                         .environmentType(envType)
                         .entityType(propagatedEntityType)
                         .build();
-                final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-                stat.recordAction(action.recommendation(), primaryEntity, isNewAction);
+                if (action.primaryEntity().getType() != propagatedEntityType) {
+                    final ActionStat stat = getStat(unitKey, action.actionGroupKey());
+                    stat.recordAction(action.recommendation(), primaryEntity, isNewAction);
+                }
             }
         });
     }
@@ -81,7 +83,7 @@ public class PropagatedActionAggregator extends ActionAggregatorFactory.ActionAg
     @Nonnull
     @Override
     protected ManagementUnitType getManagementUnitType() {
-        return ManagementUnitType.GLOBAL;
+        return ManagementUnitType.PROPAGATED;
     }
 
     /**

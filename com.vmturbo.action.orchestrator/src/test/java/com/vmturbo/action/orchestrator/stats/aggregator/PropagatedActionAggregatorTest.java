@@ -110,7 +110,7 @@ public class PropagatedActionAggregatorTest {
         subgroupService = ImmutableMgmtUnitSubgroup.builder()
                         .id(1).key(ImmutableMgmtUnitSubgroupKey.builder()
                                    .mgmtUnitId(0)
-                                   .mgmtUnitType(ManagementUnitType.GLOBAL)
+                                   .mgmtUnitType(ManagementUnitType.PROPAGATED)
                                    .environmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                                    .entityType(CommonDTO.EntityDTO.EntityType.SERVICE_VALUE)
                                    .build()).build();
@@ -118,7 +118,7 @@ public class PropagatedActionAggregatorTest {
         subgroupBT = ImmutableMgmtUnitSubgroup.builder()
                         .id(2).key(ImmutableMgmtUnitSubgroupKey.builder()
                                    .mgmtUnitId(0)
-                                   .mgmtUnitType(ManagementUnitType.GLOBAL)
+                                   .mgmtUnitType(ManagementUnitType.PROPAGATED)
                                    .environmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                                    .entityType(CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION_VALUE)
                                    .build()).build();
@@ -126,7 +126,7 @@ public class PropagatedActionAggregatorTest {
         subgroupBA = ImmutableMgmtUnitSubgroup.builder()
                         .id(3).key(ImmutableMgmtUnitSubgroupKey.builder()
                                    .mgmtUnitId(0)
-                                   .mgmtUnitType(ManagementUnitType.GLOBAL)
+                                   .mgmtUnitType(ManagementUnitType.PROPAGATED)
                                    .environmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                                    .entityType(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION_VALUE)
                                    .build()).build();
@@ -134,7 +134,7 @@ public class PropagatedActionAggregatorTest {
         subgroupNamespace = ImmutableMgmtUnitSubgroup.builder()
                         .id(4).key(ImmutableMgmtUnitSubgroupKey.builder()
                                    .mgmtUnitId(0)
-                                   .mgmtUnitType(ManagementUnitType.GLOBAL)
+                                   .mgmtUnitType(ManagementUnitType.PROPAGATED)
                                    .environmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                                    .entityType(CommonDTO.EntityDTO.EntityType.NAMESPACE_VALUE)
                                    .build()).build();
@@ -142,7 +142,7 @@ public class PropagatedActionAggregatorTest {
         subgroupContainer = ImmutableMgmtUnitSubgroup.builder()
                         .id(5).key(ImmutableMgmtUnitSubgroupKey.builder()
                                    .mgmtUnitId(0)
-                                   .mgmtUnitType(ManagementUnitType.GLOBAL)
+                                   .mgmtUnitType(ManagementUnitType.PROPAGATED)
                                    .environmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                                    .entityType(CommonDTO.EntityDTO.EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
                                    .build()).build();
