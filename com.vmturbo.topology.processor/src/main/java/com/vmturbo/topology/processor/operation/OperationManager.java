@@ -1470,7 +1470,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                         discovery.getMediationMessageId(), discoveryType,
                                         response.getEntityDTOList());
                             } catch (DuplicateTargetException e) {
-                                logger.error("Detected duplicate for target {}", targetId, e);
+                                logger.error("Detected duplicate for target {}: {}", targetId,
+                                        e.getMessage());
                                 duplicateTarget = true;
                                 DiscoveryResponse.Builder responseBuilder =
                                         // add an error DTO so that message will appear on targets
