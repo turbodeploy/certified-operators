@@ -168,7 +168,7 @@
         "usedIncrement_VCPU",
         "usedIncrement_VCPU_Sockets",
         "usedIncrement_VCPU_Unit",
-        "coreSocketRatioMode",
+        "vcpuScalingUnits",
         "usedIncrement_VMEM",
         "usedIncrement_Container_VCPU",
         "usedIncrement_Container_VMEM",

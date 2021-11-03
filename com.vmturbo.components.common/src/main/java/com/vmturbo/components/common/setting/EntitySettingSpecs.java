@@ -18,7 +18,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.EnumUtils;
@@ -595,10 +594,10 @@ public enum EntitySettingSpecs {
     /**
      * Core Socket Ratio Policy for virtual machines.
      */
-    CoreSocketRatioMode("coreSocketRatioMode", "Cores to sockets ratio mode",
+    VcpuScalingUnits("vcpuScalingUnits", "VCPU Scaling Units",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(CoreSocketRatioPolicyEnum.LEGACY, CoreSocketRatioPolicyEnum.class), true),
+            new EnumSettingDataType<>(VCPUScalingUnitsEnum.MHZ, VCPUScalingUnitsEnum.class), true),
 
     /**
      * Virtual Memory Increment for virtual machines.

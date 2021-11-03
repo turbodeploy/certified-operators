@@ -64,7 +64,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Compute
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.components.common.setting.CoreSocketRatioPolicyEnum;
+import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.components.common.setting.UsedIncrementUnitVCpu;
@@ -227,20 +227,20 @@ public class EntitySettingsApplicatorTest {
             .build();
 
     private static final Setting CORE_SOCKET_RATIO_MODE_DEFAULT = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.CoreSocketRatioMode.getSettingName())
+            .setSettingSpecName(EntitySettingSpecs.VcpuScalingUnits.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(
-                    EntitySettingSpecs.CoreSocketRatioMode.getSettingSpec().getEnumSettingValueType().getDefault()))
+                    EntitySettingSpecs.VcpuScalingUnits.getSettingSpec().getEnumSettingValueType().getDefault()))
             .build();
 
     private static final Setting CORE_SOCKET_RATIO_MODE_RESPECT = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.CoreSocketRatioMode.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(CoreSocketRatioPolicyEnum.RESPECT
+            .setSettingSpecName(EntitySettingSpecs.VcpuScalingUnits.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(VCPUScalingUnitsEnum.SOCKETS
                     .name()))
             .build();
 
     private static final Setting CORE_SOCKET_RATIO_MODE_CONTROL = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.CoreSocketRatioMode.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(CoreSocketRatioPolicyEnum.CONTROL
+            .setSettingSpecName(EntitySettingSpecs.VcpuScalingUnits.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(VCPUScalingUnitsEnum.CORES
                     .name()))
             .build();
 

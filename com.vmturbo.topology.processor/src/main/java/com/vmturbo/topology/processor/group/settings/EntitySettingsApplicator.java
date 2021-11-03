@@ -49,7 +49,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.components.common.setting.CoreSocketRatioPolicyEnum;
+import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.components.common.setting.UsedIncrementUnitVCpu;
@@ -1408,8 +1408,8 @@ public class EntitySettingsApplicator {
                     logger.trace("CSR mode for {} is {}, VCPU increment settings are: [unit={}, sockets={}, megahertz={}], result capacity increment={}",
                                     toString(entity),
                                     getSettingValue(entitySettings,
-                                                    EntitySettingSpecs.CoreSocketRatioMode,
-                                                    CoreSocketRatioPolicyEnum.RESPECT),
+                                                    EntitySettingSpecs.VcpuScalingUnits,
+                                                    VCPUScalingUnitsEnum.SOCKETS),
                                     getSettingValue(entitySettings,
                                                     EntitySettingSpecs.VmVcpuIncrementUnit,
                                                     UsedIncrementUnitVCpu.MHZ),
@@ -1436,10 +1436,10 @@ public class EntitySettingsApplicator {
              We support special handling only for CoreSocketRatioPolicyEnum.RESPECT mode.
              In all other cases behavior should be the same as before.
              */
-            final CoreSocketRatioPolicyEnum csrMode = getSettingValue(entitySettings,
-                            EntitySettingSpecs.CoreSocketRatioMode,
-                            CoreSocketRatioPolicyEnum.RESPECT);
-            if (csrMode == CoreSocketRatioPolicyEnum.LEGACY) {
+            final VCPUScalingUnitsEnum csrMode = getSettingValue(entitySettings,
+                            EntitySettingSpecs.VcpuScalingUnits,
+                            VCPUScalingUnitsEnum.SOCKETS);
+            if (csrMode == VCPUScalingUnitsEnum.MHZ) {
                 return incrementMHz;
             }
             final float socketSpeed = getSocketSpeed(entity, vcpuCommodityBuilder, incrementMHz, csrMode);
@@ -1455,8 +1455,8 @@ public class EntitySettingsApplicator {
         }
 
         private static float getSocketSpeed(@Nonnull TopologyEntityDTO.Builder entity,
-                        @Nonnull CommoditySoldDTOOrBuilder vcpuCommodityBuilder, float incrementMHz, CoreSocketRatioPolicyEnum csrmode) {
-            if (vcpuCommodityBuilder.hasCapacityIncrement() && csrmode == CoreSocketRatioPolicyEnum.RESPECT) {
+                        @Nonnull CommoditySoldDTOOrBuilder vcpuCommodityBuilder, float incrementMHz, VCPUScalingUnitsEnum csrmode) {
+            if (vcpuCommodityBuilder.hasCapacityIncrement() && csrmode == VCPUScalingUnitsEnum.SOCKETS) {
                 return vcpuCommodityBuilder.getCapacityIncrement();
             }
             final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
@@ -1466,7 +1466,7 @@ public class EntitySettingsApplicator {
             // this so that scale actions may be per vCPU/core
             // TODO: 1 may be replaced with another optimal algorithm
             final Integer cpsr;
-            if (csrmode == CoreSocketRatioPolicyEnum.CONTROL) {
+            if (csrmode == VCPUScalingUnitsEnum.CORES) {
                 cpsr = 1;
             } else {
                 cpsr = getVmInfoParameter(entity, VirtualMachineInfo::hasCoresPerSocketRatio,
