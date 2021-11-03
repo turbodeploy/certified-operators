@@ -117,7 +117,7 @@ public class EntitySettingStore {
             EntitySettingSpecs.VmVcpuIncrement.getSettingName(),
             EntitySettingSpecs.VmVcpuIncrementSockets.getSettingName(),
             EntitySettingSpecs.VmVcpuIncrementUnit.getSettingName(),
-            EntitySettingSpecs.CoreSocketRatioMode.getSettingName());
+            EntitySettingSpecs.VcpuScalingUnits.getSettingName());
 
     private static final Set<String> settingSpecsWithUnionTireBreaker =
         EntitySettingSpecs.getEntitySettingSpecByTierBreaker(SettingTiebreaker.UNION)

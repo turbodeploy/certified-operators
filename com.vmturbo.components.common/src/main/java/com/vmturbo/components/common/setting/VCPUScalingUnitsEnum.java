@@ -3,23 +3,19 @@ package com.vmturbo.components.common.setting;
 /**
  * Enum definition for core socket ratio policy.
  */
-public enum CoreSocketRatioPolicyEnum {
+public enum VCPUScalingUnitsEnum {
     /**
      * Ignores the CSR sent from probe.
      */
-    LEGACY,
+    MHZ,
 
     /**
      * Use the CSR sent from probe.
      */
-    RESPECT,
+    SOCKETS,
 
     /**
      * Prefer cores or sockets in scaling.
      */
-    CONTROL,
-    /**
-     * User specify the CSR.
-     */
-    SPECIFY
+    CORES,
 }
