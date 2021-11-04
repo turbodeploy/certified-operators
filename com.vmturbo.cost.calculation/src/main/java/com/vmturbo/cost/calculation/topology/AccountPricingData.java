@@ -31,6 +31,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierC
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverride;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
@@ -306,28 +307,48 @@ public class AccountPricingData<T> {
                                              ComputeTierPriceList computePriceList) {
         LicensePriceTuple licensePrice = new LicensePriceTuple();
 
-        // calculate the implicit price by getting the price adjustment of the current OS.
-        // if not present, get the price adjustment for the base OS.
-        // the current OS is the same as the base OS, no need to add explicit price
+        // For AWS, license costs will always be an implicit adjustment from the base (linux). For Azure,
+        // most license costs will be represented as an explicit license cost, with the one exception being
+        // Windows license on-demand costs. In this case, a Windows + SQL server VM will resolve the base
+        // Windows license cost as an implicit license and the SQL server license cost as an explicit license
+        // cost. For GCP, most license costs will be captured as an explicit license cost. However, for
+        // the legacy f1/g1 sizes, the license costs for all OS types are specific for these sizes and
+        // captured as an implicit license cost (since explicit licenses apply to all compute tiers).
+        //
+        // Given there is not a use case for a direct price adjustment in the computePriceList (implicit
+        // license cost) with a direct explicit license cost (Azure requires two separate license costs -
+        // Windows + SQL Server), if a direct implicit license cost is available for the target OS,
+        // we do not resolve the explicit license cost to avoid double counting the license cost).
+        // At some point, the Azure cost probe should be updated to return the Windows AND SQL
+        // server license costs under the Windows_with_SQL_* explicit license to avoid the
+        // OS_TO_BASE_OS mapping.
+        final boolean includeExplicitLicense;
         if (computePriceList.getBasePrice() != null && os != computePriceList.getBasePrice().getGuestOsType()) {
-            licensePrice.setImplicitOnDemandLicensePrice(
-                    getOsPriceAdjustment(os, computePriceList)
-                            .map(computeTierConfigPrice -> computeTierConfigPrice.getPricesList()
-                                    .get(0).getPriceAmount().getAmount())
+
+            final Optional<ComputeTierConfigPrice> osPriceAdjustment = getOsPriceAdjustment(os, computePriceList);
+            includeExplicitLicense = !osPriceAdjustment.isPresent();
+
+            final Optional<ComputeTierConfigPrice> implicitPriceAdjustment =
+                    osPriceAdjustment.map(Optional::of)
                             .orElseGet(() ->
                                     OS_TO_BASE_OS.get(os)
-                                            .map(baseOS -> getOsPriceAdjustment(baseOS, computePriceList)
-                                                    .map(baseComputeTierConfigPrice ->
-                                                            baseComputeTierConfigPrice.getPricesList().get(0)
-                                                                    .getPriceAmount().getAmount())
-                                                    .orElse(0.0))
-                                            .orElse(0.0)));
+                                            .map(baseOS -> getOsPriceAdjustment(baseOS, computePriceList))
+                                            .orElse(Optional.empty()));
+
+            licensePrice.setImplicitOnDemandLicensePrice(
+                    implicitPriceAdjustment
+                            .map(baseComputeTierConfigPrice ->
+                                    baseComputeTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
+                            .orElse(0.0));
+        } else {
+            includeExplicitLicense = true;
         }
 
-        // add the price of the license itself as the explicit price
-        getExplicitLicensePrice(tierConfig, os)
-                .ifPresent(licenseExplicitPrice -> licensePrice
-                        .setExplicitOnDemandLicensePrice(licenseExplicitPrice.getAmount()));
+        if (includeExplicitLicense) {
+            // add the price of the license itself as the explicit price
+            getExplicitLicensePrice(tierConfig, os).ifPresent(licenseExplicitPrice -> licensePrice.setExplicitOnDemandLicensePrice(
+                    licenseExplicitPrice.getAmount()));
+        }
         getReservedLicensePrice(tierConfig, os)
                 .ifPresent(reservedLicensePrice -> licensePrice
                         .setReservedInstanceLicensePrice(reservedLicensePrice.getAmount()));

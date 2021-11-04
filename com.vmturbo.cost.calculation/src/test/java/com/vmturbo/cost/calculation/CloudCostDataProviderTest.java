@@ -106,11 +106,6 @@ public class CloudCostDataProviderTest {
                     .addLicensePrices(createLicensePrice(NUM_OF_CORES, RHEL_LICENSE_PRICE))
                     .addLicensePrices(createLicensePrice(NUM_OF_CORES * 4, RHEL_LICENSE_PRICE * 4))
                     .build())
-            .addOnDemandLicensePrices(LicensePriceEntry.newBuilder()
-                    .setOsType(OSType.WINDOWS)
-                    .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_BURSTABLE_LICENSE_PRICE ))
-                    .setBurstableCPU(true)
-                    .build())
             .addReservedLicensePrices(LicensePriceEntry.newBuilder()
                     .setOsType(OSType.WINDOWS)
                     .addLicensePrices(createLicensePrice(NUM_OF_CORES * 2, WINDOWS_SERVER_LICENSE_PRICE * 2))
@@ -366,16 +361,16 @@ public class CloudCostDataProviderTest {
 
 
     /**
-     * Test cases in which we expect only an explicit burstable price (catalog price).
+     * Test cases in which we expect only an implicit burstable price (catalog price).
      */
     @Test
-    public void testOnlyExplicitLicensePriceWithBurstable() {
+    public void testOnlyImplicitLicensePriceWithBurstable() {
         LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get()
                 .getLicensePrice(
                         getComputeTierConfig(AZURE_COMPUTE_TIER_ID, NUM_OF_CORES, BURSTABLE_CPU),
                         OSType.WINDOWS,
                         getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(), equalTo(WINDOWS_BURSTABLE_LICENSE_PRICE));
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
     }
 
     /**
