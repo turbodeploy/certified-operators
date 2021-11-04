@@ -10,9 +10,21 @@ import javax.annotation.Nonnull;
 import com.vmturbo.components.api.TimeUtil;
 
 /**
- * General entity savings related util methods.
+ * General entity savings related utility methods.
  */
 public class SavingsUtil {
+    /**
+     * Dummy price change used to populate the current recommendation field in the entity state for
+     * entities that existed before action revert was implemented.  We now require that all entity
+     * state instances contain a valid recommendation.
+     */
+    public static final EntityPriceChange EMPTY_PRICE_CHANGE = new EntityPriceChange.Builder()
+            .active(false)
+            .sourceOid(0L).destinationOid(0L)
+            .sourceCost(0D).destinationCost(0D)
+            .build();
+
+
     /**
      * Inner instance, not meant to be called.
      */

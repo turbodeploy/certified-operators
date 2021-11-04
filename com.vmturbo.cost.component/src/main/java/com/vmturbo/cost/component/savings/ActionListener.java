@@ -297,10 +297,16 @@ public class ActionListener implements ActionsListener {
                     .equals(entityActionInfo.getActionEventType())
                     ? retentionConfig.getVolumeDeleteRetentionMs()
                     : retentionConfig.getActionRetentionMs());
+            EntityPriceChange entityPriceChange = new EntityPriceChange.Builder()
+                    .sourceCost(0d)       // These are not used. The costs in the recommendation are
+                    .destinationCost(0d)  //   used instead.
+                    .sourceOid(entityActionInfo.getSourceOid())
+                    .destinationOid(entityActionInfo.getDestinationOid())
+                    .build();
             final SavingsEvent successEvent = createActionEvent(entity.getId(),
                     completionTime,
                     entityActionInfo.getActionEventType(),
-                    actionId, null,
+                    actionId, entityPriceChange,
                     entityActionInfo, Optional.of(expirationTime));
             entityEventsJournal.addEvent(successEvent);
             logger.debug("Added action {} for entity {}, completion time {}, recommendation"
@@ -612,7 +618,7 @@ public class ActionListener implements ActionsListener {
      */
     private static SavingsEvent
             createActionEvent(Long entityId, Long timestamp, ActionEventType actionType,
-                              long actionId, @Nullable final EntityPriceChange priceChange,
+                              long actionId, @Nonnull final EntityPriceChange priceChange,
                               final EntityActionInfo actionInfo, final Optional<Long> expiration) {
         final ActionEvent.Builder actionEventBuilder = new ActionEvent.Builder()
                         .actionId(actionId)
@@ -621,9 +627,6 @@ public class ActionListener implements ActionsListener {
                         .entityType(actionInfo.entityType)
                         .actionType(actionInfo.actionType.getNumber())
                         .actionCategory(actionInfo.actionCategory.getNumber());
-        if (expiration.isPresent()) {
-            actionEventBuilder.expirationTime(expiration);
-        }
         final SavingsEvent.Builder builder = new SavingsEvent.Builder()
                         .actionEvent(actionEventBuilder
                                         .build())
@@ -631,6 +634,9 @@ public class ActionListener implements ActionsListener {
                         .timestamp(timestamp);
         if (priceChange != null) {
             builder.entityPriceChange(priceChange);
+        }
+        if (expiration.isPresent()) {
+            builder.expirationTime(expiration);
         }
         return builder.build();
     }

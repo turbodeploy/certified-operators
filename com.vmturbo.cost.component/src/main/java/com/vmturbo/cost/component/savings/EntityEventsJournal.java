@@ -144,6 +144,13 @@ interface EntityEventsJournal {
         long getTimestamp();
 
         /**
+         * Time that the price change will become inactive.
+         *
+         * @return Time in milliseconds after execution when the action will expire.
+         */
+        Optional<Long> getExpirationTime();
+
+        /**
          * Checks whether topology event is set.
          *
          * @return True if topology event is set.
@@ -280,13 +287,6 @@ interface EntityEventsJournal {
          * @return Action event type.
          */
         ActionEventType getEventType();
-
-        /**
-         * Time that the price change will become inactive.
-         *
-         * @return Time in milliseconds after execution when the action will expire.
-         */
-       Optional<Long> getExpirationTime();
 
         /**
          * Action description.

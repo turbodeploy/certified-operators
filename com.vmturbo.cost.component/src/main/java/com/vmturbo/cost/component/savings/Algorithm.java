@@ -1,6 +1,11 @@
 package com.vmturbo.cost.component.savings;
 
+import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Algorithm interface.
@@ -78,6 +83,7 @@ public interface Algorithm {
      *
      * @return the current active recommendation, or null if there is none.
      */
+    @Nonnull
     EntityPriceChange getCurrentRecommendation();
 
     /**
@@ -135,8 +141,57 @@ public interface Algorithm {
 
     /**
      * Clear the action list and related expiration list.
+     *
+     * @return the expiration list before clearing.
      */
-    void clearActionList();
+    Deque<Delta> clearActionState();
+
+    /**
+     * Get the last execution action.
+     *
+     * @return last executed action.
+     */
+    @Nonnull
+    Optional<ActionEntry> getLastExecutedAction();
+
+    /**
+     * Set the last execution action.
+     *
+     * @param lastExecutedAction last executed action.
+     */
+    void setLastExecutedAction(ActionEntry lastExecutedAction);
+
+    /**
+     * Remove the last action from the action and expiration lists.  After the action is removed,
+     * the periodic savings and next expiration time are updated.
+     */
+    void removeLastAction();
+
+    /**
+     * Get the current provider OID.  We learn this from past events:
+     * - If there is an ACTIVE current recommendation, use its source OID
+     * - Else if there is a last executed action, use its destination OID
+     * - Else, use the inactive recommendation's source OID. Entity state
+     *   that was created before action revert was implemented can return
+     *   a null current provider.  All entity state created after the
+     *   feature was added are guaranteed to have a non-null provider.
+     *
+     * @return the entity's current provider, or null if it cannot be determined.
+     */
+    @Nullable
+    default Long getCurrentProvider() {
+        EntityPriceChange currentRecommendation = getCurrentRecommendation();
+        if (currentRecommendation == SavingsUtil.EMPTY_PRICE_CHANGE) {
+            return null;
+        }
+        if (currentRecommendation.active()) {
+            return currentRecommendation.getSourceOid();
+        }
+        if (getLastExecutedAction().isPresent()) {
+            return getLastExecutedAction().get().getDestinationOid();
+        }
+        return currentRecommendation.getSourceOid();
+    }
 
     /**
      * Group of savings and investments together.
@@ -171,7 +226,13 @@ public interface Algorithm {
      * Helper class to capture a price change related to a tracked action.
      */
     class Delta {
+        /**
+         * Difference in cost. Negative is savings, positive is investment.
+         */
         public double delta;
+        /**
+         * Time in milliseconds when the delta expires.
+         */
         public long expiration;
 
         Delta(double delta, long expiration) {

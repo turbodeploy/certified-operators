@@ -28,7 +28,6 @@ import com.google.common.collect.Iterators;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -367,8 +366,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
     }
 
     @Override
-    public void performRollup(@NotNull final RollupDurationType durationType,
-            final long toTime, @NotNull final List<Long> fromTimes) {
+    public void performRollup(@Nonnull final RollupDurationType durationType,
+            final long toTime, @Nonnull final List<Long> fromTimes) {
         final LocalDateTime toDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(toTime), clock.getZone());
         final List<LocalDateTime> fromDateTimes = fromTimes.stream()
                 .map(millis -> LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), clock.getZone()))

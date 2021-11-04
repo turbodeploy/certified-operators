@@ -461,7 +461,7 @@ public class EntitySavingsTrackerTest {
 
     private EntityState createEntityState(long entityId, Double realizedSavings, Double realizedInvestments,
                                           Double missedSavings, Double missedInvestments) {
-        EntityState state = new EntityState(entityId);
+        EntityState state = new EntityState(entityId, SavingsUtil.EMPTY_PRICE_CHANGE);
         if (realizedSavings != null) {
             state.setRealizedSavings(realizedSavings);
         }

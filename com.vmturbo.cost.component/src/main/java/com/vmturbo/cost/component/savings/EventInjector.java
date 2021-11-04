@@ -23,12 +23,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
@@ -100,7 +100,7 @@ public class EventInjector implements Runnable {
 
     /**
      * Constructor.
-     *  @param entitySavingsTracker entity savings tracker to inject actions into.
+     * @param entitySavingsTracker entity savings tracker to inject actions into.
      * @param entitySavingsProcessor savings processor
      * @param entityEventsJournal events journal to populate.
      * @param entitySavingsRetentionConfig savings action retention configuration.
@@ -137,7 +137,7 @@ public class EventInjector implements Runnable {
             try {
                 watchService = FileSystems.getDefault().newWatchService();
                 monitoredPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
-                WatchKey wk = null;
+                WatchKey wk;
                 while (true) {
                     try {
                         wk = watchService.take();
@@ -193,7 +193,7 @@ public class EventInjector implements Runnable {
             events = Arrays.asList(gson.fromJson(reader, ScriptEvent[].class));
             events.forEach(event -> addEvent(event, entityEventsJournal, purgePreviousTestState));
         } catch (FileNotFoundException e) {
-            logger.error("Cannot inject events: " + e.toString());
+            logger.error("Cannot inject events: {}", e.toString());
         } finally {
             // Remove the events available file.
             availableFile.delete();
@@ -214,18 +214,25 @@ public class EventInjector implements Runnable {
             logger.warn("No events in script file - not running savings tracker");
             return;
         }
-        LocalDateTime startTime = makeLocalDateTime(earliestEventTime);
-        LocalDateTime endTime = makeLocalDateTime(latestEventTime);
+        LocalDateTime startTime = makeLocalDateTime(earliestEventTime, false);
+        LocalDateTime endTime = makeLocalDateTime(latestEventTime, true);
         if (purgePreviousTestState.get()) {
             entitySavingsTracker.purgeState(participatingUuids);
         }
         entitySavingsTracker.processEvents(startTime, endTime, participatingUuids);
     }
 
-    @NotNull
-    private LocalDateTime makeLocalDateTime(Long timestamp) {
-        return Instant.ofEpochMilli(timestamp).atZone(ZoneId.of("UTC"))
-                .toLocalDateTime().truncatedTo(ChronoUnit.HOURS);
+    @VisibleForTesting
+    @Nonnull
+    static LocalDateTime makeLocalDateTime(Long timestamp, boolean roundUp) {
+        LocalDateTime trueTime = Instant.ofEpochMilli(timestamp).atZone(ZoneId.of("UTC"))
+                .toLocalDateTime();
+        LocalDateTime truncated = trueTime.truncatedTo(ChronoUnit.HOURS);
+        if (roundUp && !truncated.equals(trueTime)) {
+            // Round up to the next whole hour.
+            truncated = truncated.plusHours(1L);
+        }
+        return truncated;
     }
 
     /**
@@ -240,11 +247,14 @@ public class EventInjector implements Runnable {
         logger.debug("Adding event: " + event);
         Builder result = new SavingsEvent.Builder()
                 .entityId(event.uuid)
-                .timestamp(event.timestamp);
-        if ("RECOMMENDATION_ADDED".equals(event.eventType)) {
+                .timestamp(event.timestamp)
+                .expirationTime(event.expirationTimestamp);
+         if ("RECOMMENDATION_ADDED".equals(event.eventType)) {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(event.destTier)
+                    .sourceOid((long)event.sourceTier)
+                    .destinationOid((long)event.destTier)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
@@ -254,6 +264,8 @@ public class EventInjector implements Runnable {
         } else if ("RECOMMENDATION_REMOVED".equals(event.eventType)) {
             EntityPriceChange dummyPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(0d).destinationCost(0d)
+                    .sourceOid(0L)
+                    .destinationOid(0L)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
@@ -275,22 +287,24 @@ public class EventInjector implements Runnable {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(event.destTier)
+                    .sourceOid((long)event.sourceTier)
+                    .destinationOid((long)event.destTier)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
                     .eventType(ActionEventType.SCALE_EXECUTION_SUCCESS)
-                    .expirationTime(event.expirationTimestamp)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("DELETE_EXECUTED".equals(event.eventType)) {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(0d)
+                    .sourceOid((long)event.sourceTier)
+                    .destinationOid((long)event.destTier)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
                     .eventType(ActionEventType.DELETE_EXECUTION_SUCCESS)
-                    .expirationTime(event.expirationTimestamp)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("ENTITY_REMOVED".equals(event.eventType)) {
@@ -303,8 +317,7 @@ public class EventInjector implements Runnable {
             result.topologyEvent(createTopologyEvent(TopologyEventType.PROVIDER_CHANGE,
                     event.timestamp).setEventInfo(TopologyEventInfo.newBuilder()
                     .setProviderChange(ProviderChangeDetails.newBuilder()
-                            .setSourceProviderOid(1L)
-                            .setDestinationProviderOid(2L)
+                            .setDestinationProviderOid((long)event.destTier)
                             .setProviderType(EntityType.VIRTUAL_MACHINE.getValue()))
                     .build()).build());
         } else if ("STOP".equals(event.eventType)) {
