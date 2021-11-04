@@ -61,6 +61,8 @@ import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.models.HashedDataManager;
+import com.vmturbo.extractor.scope.ScopeTableManager;
+import com.vmturbo.extractor.scope.ScopeTableManagerConfig;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
@@ -91,7 +93,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
         ExtractorDbConfig.class,
         ExtractorGlobalConfig.class,
         HistoryClientConfig.class,
-        CostClientConfig.class
+        CostClientConfig.class,
+        ScopeTableManagerConfig.class
 })
 public class TopologyListenerConfig {
     @Autowired
@@ -114,6 +117,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private CostClientConfig costClientConfig;
+
+    @Autowired
+    private ScopeTableManager scopeTableManager;
 
     /**
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
@@ -173,7 +179,8 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
-                writerFactories(), writerConfig(), dataProvider(), extractorGlobalConfig.featureFlags());
+                writerFactories(), writerConfig(), dataProvider(), extractorGlobalConfig.featureFlags(),
+                scopeTableManager);
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
     }

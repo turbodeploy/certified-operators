@@ -30,6 +30,7 @@ import com.vmturbo.components.common.health.sql.PostgreSQLHealthMonitor;
 import com.vmturbo.extractor.action.ActionConfig;
 import com.vmturbo.extractor.diags.ExtractorDiagnosticsConfig;
 import com.vmturbo.extractor.grafana.GrafanaConfig;
+import com.vmturbo.extractor.scope.ScopeTableManagerConfig;
 import com.vmturbo.extractor.service.ExtractorRpcConfig;
 import com.vmturbo.extractor.service.RetentionUtils;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
@@ -47,6 +48,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         GrafanaConfig.class,
         ExtractorDiagnosticsConfig.class,
         SpringSecurityConfig.class,
+        ScopeTableManagerConfig.class,
         ExtractorGlobalConfig.class})
 public class ExtractorComponent extends BaseVmtComponent {
     private static final Logger logger = LogManager.getLogger();

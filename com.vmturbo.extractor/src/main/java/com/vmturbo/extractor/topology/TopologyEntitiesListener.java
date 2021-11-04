@@ -33,10 +33,12 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
+import com.vmturbo.extractor.scope.ScopeTableManager;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -76,6 +78,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final DataProvider dataProvider;
     private final ExtractorFeatureFlags featureFlags;
+    private final ScopeTableManager scopeTableManager;
 
     /**
      * Create a new instance.
@@ -84,16 +87,19 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * @param writerConfig    common config parameters for writers
      * @param dataProvider    providing data for ingestion
      * @param featureFlags    feature flags to be enabled
+     * @param  scopeTableManager scope table manager
      */
     public TopologyEntitiesListener(
             @Nonnull final List<TopologyWriterFactory<?>> writerFactories,
             @Nonnull final WriterConfig writerConfig,
             @Nonnull final DataProvider dataProvider,
-            @Nonnull final ExtractorFeatureFlags featureFlags) {
+            @Nonnull final ExtractorFeatureFlags featureFlags,
+            @Nonnull final ScopeTableManager scopeTableManager) {
         this.writerFactories = writerFactories;
         this.config = writerConfig;
         this.dataProvider = dataProvider;
         this.featureFlags = featureFlags;
+        this.scopeTableManager = scopeTableManager;
     }
 
     /**
@@ -109,6 +115,13 @@ public class TopologyEntitiesListener implements EntitiesListener {
             try (TracingScope scope = Tracing.trace("extractor_run_topology", tracingContext)) {
                 logger.info("Processing topology {}", label);
                 new TopologyRunner(topologyInfo, entityIterator).runTopology();
+
+                if (FeatureFlags.SCOPE_HYPERTABLE.isEnabled()) {
+                    // Process the records in the scope table for compression if needed.
+                    // The process is done after processing topology so we can avoid maintaining the scope
+                    // table while data is being inserted into the scope table during topology ingestion.
+                    scopeTableManager.execute();
+                }
             } catch (SQLException | UnsupportedDialectException e) {
                 logger.error("Failed to process topology", e);
             } finally {
@@ -119,6 +132,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             logger.info("Skipping topology {} because prior execution is not complete", label);
             RemoteIteratorDrain.drainIterator(entityIterator, label, true);
         }
+
     }
 
     /**
