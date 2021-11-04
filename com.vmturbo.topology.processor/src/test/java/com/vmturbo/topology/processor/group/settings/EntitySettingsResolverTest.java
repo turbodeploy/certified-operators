@@ -107,6 +107,7 @@ import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -182,6 +183,7 @@ public class EntitySettingsResolverTest {
     private static final String SPEC_VCPU_UP = "resizeVcpuUpInBetweenThresholds";
     private static final String SPEC_VCPU_UP_EXEC_SCHEDULE = "resizeVcpuUpInBetweenThresholdsExecutionSchedule";
     private static final String SPEC_RESIZE = "resize";
+    private static final String SPEC_HORIZONTAL_SCALE_UP = ConfigurableActionSettings.HorizontalScaleUp.getSettingName();
     private static final Setting setting1 = createNumericSetting(SPEC_1, 10f);
     // Used to verify tie-breaker. It has the same spec as setting1 but different value.
     private static final Setting setting1a = createNumericSetting(SPEC_1, 15f);
@@ -1131,6 +1133,112 @@ public class EntitySettingsResolverTest {
         assertTrue(appliedSettings.stream().allMatch(setting ->
             setting.getSettingPolicyIdList().equals(Collections.singleton(SP1_ID))));
         assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
+    }
+
+    /**
+     * Test that Service setting is resolved and applied to the corresponding provider
+     * application components and container pods.
+     */
+    @Test
+    public void testResolveEntitySettingsForService() {
+        final TopologyEntity.Builder pod1 = TopologyEntityUtils
+                .topologyEntity(0, 0, 0, "ContainerPod1", EntityType.CONTAINER_POD);
+        final TopologyEntity.Builder pod2 = TopologyEntityUtils
+                .topologyEntity(1, 0, 0, "ContainerPod2", EntityType.CONTAINER_POD);
+        final TopologyEntity.Builder container1 = TopologyEntityUtils
+                .topologyEntity(2, 0, 0, "Container1", EntityType.CONTAINER, 0);
+        final TopologyEntity.Builder container2 = TopologyEntityUtils
+                .topologyEntity(3, 0, 0, "Container2", EntityType.CONTAINER, 1);
+        final TopologyEntity.Builder app1 = TopologyEntityUtils
+                .topologyEntity(4, 0, 0, "ApplicationComponent1", EntityType.APPLICATION_COMPONENT, 2);
+        final TopologyEntity.Builder app2 = TopologyEntityUtils
+                .topologyEntity(5, 0, 0, "ApplicationComponent2", EntityType.APPLICATION_COMPONENT, 3);
+        final TopologyEntity.Builder service = TopologyEntityUtils
+                .topologyEntity(6, 0, 0, "Service", EntityType.SERVICE, 4, 5);
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                TopologyEntityUtils.topologyGraphOf(pod1, pod2, container1, container2, app1, app2, service);
+        scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
+        final Setting horizontalScaleUpSetting = createEnumSetting(SPEC_HORIZONTAL_SCALE_UP, ActionMode.RECOMMEND.name());
+        final SettingPolicy serviceSettingPolicy =
+                createSettingPolicy(SP1_ID, "sp1", SettingPolicy.Type.USER,
+                                    Collections.singletonList(horizontalScaleUpSetting),
+                                    Collections.singletonList(groupId), ApiEntityType.SERVICE.typeNumber());
+        final List<TopologyProcessorSetting<?>> settingsInPolicy = Collections.singletonList(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        Collections.singletonList(horizontalScaleUpSetting)));
+        final ResolvedGroup resolvedGroup =
+                new ResolvedGroup(group, Collections.singletonMap(ApiEntityType.SERVICE,
+                                                                  ImmutableSet.of(service.getOid())));
+        final Map<Long, ResolvedGroup> resolvedGroups = Collections.singletonMap(group.getId(), resolvedGroup);
+        final Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap = new HashMap<>();
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings = ArrayListMultimap.create();
+
+        entitySettingsResolver.resolveAllEntitySettings(serviceSettingPolicy, settingsInPolicy,
+                                                        resolvedGroups, entitySettingsBySettingNameMap,
+                                                        Collections.emptyMap(), Collections.emptyMap(),
+                                                        entityToPolicySettings, scopeEvaluator);
+
+        // The Service setting is applied to provider application components and container pods
+        assertEquals(5, entitySettingsBySettingNameMap.size());
+        assertEquals(5, entityToPolicySettings.size());
+        // Settings are not applied on Containers
+        assertFalse(entitySettingsBySettingNameMap.containsKey(container1.getOid()));
+        assertFalse(entitySettingsBySettingNameMap.containsKey(container2.getOid()));
+        // Applied settings are correct
+        entitySettingsBySettingNameMap.values()
+                .forEach(appliedSettings -> assertThat(getSettings(new ArrayList<>(appliedSettings.values())),
+                                                       hasItem(horizontalScaleUpSetting)));
+    }
+
+    /**
+     * Test that Service setting is resolved and applied to the corresponding provider
+     * application components but not VMs.
+     */
+    @Test
+    public void testResolveEntitySettingsForServiceWithAppComponentOnVM() {
+        final TopologyEntity.Builder vm1 = TopologyEntityUtils
+                .topologyEntity(0, 0, 0, "VM1", EntityType.VIRTUAL_MACHINE);
+        final TopologyEntity.Builder vm2 = TopologyEntityUtils
+                .topologyEntity(1, 0, 0, "VM2", EntityType.VIRTUAL_MACHINE);
+        final TopologyEntity.Builder app1 = TopologyEntityUtils
+                .topologyEntity(2, 0, 0, "ApplicationComponent1", EntityType.APPLICATION_COMPONENT, 0);
+        final TopologyEntity.Builder app2 = TopologyEntityUtils
+                .topologyEntity(3, 0, 0, "ApplicationComponent2", EntityType.APPLICATION_COMPONENT, 1);
+        final TopologyEntity.Builder service = TopologyEntityUtils
+                .topologyEntity(4, 0, 0, "Service", EntityType.SERVICE, 2, 3);
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                TopologyEntityUtils.topologyGraphOf(vm1, vm2, app1, app2, service);
+        scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
+        final Setting horizontalScaleUpSetting = createEnumSetting(SPEC_HORIZONTAL_SCALE_UP, ActionMode.RECOMMEND.name());
+        final SettingPolicy serviceSettingPolicy =
+                createSettingPolicy(SP1_ID, "sp1", SettingPolicy.Type.USER,
+                                    Collections.singletonList(horizontalScaleUpSetting),
+                                    Collections.singletonList(groupId), ApiEntityType.SERVICE.typeNumber());
+        final List<TopologyProcessorSetting<?>> settingsInPolicy = Collections.singletonList(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        Collections.singletonList(horizontalScaleUpSetting)));
+        final ResolvedGroup resolvedGroup =
+                new ResolvedGroup(group, Collections.singletonMap(ApiEntityType.SERVICE,
+                                                                  ImmutableSet.of(service.getOid())));
+        final Map<Long, ResolvedGroup> resolvedGroups = Collections.singletonMap(group.getId(), resolvedGroup);
+        final Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap = new HashMap<>();
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings = ArrayListMultimap.create();
+
+        entitySettingsResolver.resolveAllEntitySettings(serviceSettingPolicy, settingsInPolicy,
+                                                        resolvedGroups, entitySettingsBySettingNameMap,
+                                                        Collections.emptyMap(), Collections.emptyMap(),
+                                                        entityToPolicySettings, scopeEvaluator);
+
+        // The Service setting is applied to provider application components and container pods
+        assertEquals(3, entitySettingsBySettingNameMap.size());
+        assertEquals(3, entityToPolicySettings.size());
+        // Settings are not applied on VMs
+        assertFalse(entitySettingsBySettingNameMap.containsKey(vm1.getOid()));
+        assertFalse(entitySettingsBySettingNameMap.containsKey(vm2.getOid()));
+        // Applied settings are correct
+        entitySettingsBySettingNameMap.values()
+                .forEach(appliedSettings -> assertThat(getSettings(new ArrayList<>(appliedSettings.values())),
+                                                       hasItem(horizontalScaleUpSetting)));
     }
 
     /**
