@@ -304,11 +304,10 @@ class LicenseUpdateOperation:
                 self.logger.debug("Change detected. Last checksum: %s. New checksum: %s.",
                                   self.last_processed_checksum, new_checksum)
                 # create/update editor users if needed
-                if self.saas_reporting_enabled:
-                    editor_count = \
-                        summary_resp.licenseSummary.max_report_editors_count if grafana_summaries \
-                        else 1
-                    self.ensure_editors_exist(editor_count)
+                editor_count = \
+                    summary_resp.licenseSummary.max_report_editors_count if grafana_summaries \
+                    else 1
+                self.ensure_editors_exist(editor_count)
                 # Get the actual license.
                 req = GetLicensesRequest()
                 req.filter.type = LicenseType.EXTERNAL
@@ -334,10 +333,11 @@ class LicenseUpdateOperation:
             self.logger.error('gRPC call to auth failed: %s', rpc_error)
 
     def ensure_editors_exist(self, editor_count):
-        for i in range(editor_count):
-            editor_name = f'{self.editor_user_prefix}-{i}'
-            id = self.ensure_user_exists(editor_name)
-            self.ensure_user_role(id, 1, 'Admin')
+        if self.saas_reporting_enabled:
+            for i in range(editor_count):
+                editor_name = f'{self.editor_user_prefix}-{i}'
+                id = self.ensure_user_exists(editor_name)
+                self.ensure_user_role(id, 1, 'Admin')
 
     def ensure_user_exists(self, name):
         with self.get_admin_session() as s:
