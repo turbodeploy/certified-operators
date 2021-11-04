@@ -279,8 +279,6 @@ public class SettingsMapper {
     public static final Map<String, String> SETTING_ENTITY_TYPE_MAP =
         ImmutableMap.<String, String>builder()
             .put(ApiEntityType.CONTAINER.apiStr(), ApiEntityType.CONTAINER_SPEC.apiStr())
-            .put(ApiEntityType.APPLICATION_COMPONENT.apiStr(), ApiEntityType.SERVICE.apiStr())
-            .put(ApiEntityType.CONTAINER_POD.apiStr(), ApiEntityType.SERVICE.apiStr())
             .build();
 
     /**
@@ -781,8 +779,8 @@ public class SettingsMapper {
      * @param settingApiDTO the setting to check
      * @return true if the input setting is disabled by feature gates, false otherwise
      */
-    public boolean isSettingDisabledByFeatureGates(@Nonnull final String mgrId,
-                                                   @Nonnull final SettingApiDTO<String> settingApiDTO) {
+    private boolean isSettingDisabledByFeatureGates(@Nonnull final String mgrId,
+                                                    @Nonnull final SettingApiDTO<String> settingApiDTO) {
         return getDisabledSettings()
                 .getOrDefault(mgrId, Collections.emptySet())
                 .contains(settingApiDTO.getUuid());

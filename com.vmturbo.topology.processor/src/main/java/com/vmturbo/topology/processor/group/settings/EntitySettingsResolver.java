@@ -69,7 +69,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
-import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -254,89 +253,15 @@ public class EntitySettingsResolver {
         // Group Component will look at the user settings and for the missing
         // settings, it will use the default settings which is defined in the
         // default SP.
-        final Map<Long, EntitySettings> entitySettingsByEntityId = topologyGraph.entities()
+        final Map<Long, EntitySettings> settings = topologyGraph.entities()
             .map(topologyEntity -> createEntitySettingsMessage(topologyEntity,
                 userSettingsByEntityAndName.getOrDefault(topologyEntity.getOid(), Collections.emptyMap())
                     .values(),
                 defaultSettingPoliciesByEntityType,
                 settingOverrides, entityToPolicySettings))
             .collect(Collectors.toMap(EntitySettings::getEntityOid, Function.identity()));
-        // Special handling to propagate default service policy that has horizontal scale enabled
-        propagateDefaultServicePolicies(topologyGraph, userSettingsByEntityAndName,
-                                        entitySettingsByEntityId, defaultSettingPoliciesByEntityType);
         deleteExpiredPoliciesAndSchedules(userAndDiscoveredSettingPolicies, schedules);
-        return new GraphWithSettings(topologyGraph, entitySettingsByEntityId, defaultSettingPoliciesById);
-    }
-
-    /**
-     * If service horizontal scale is enabled in the Default Service Policy, we need to find
-     * all services in the system without horizontal scale action user settings and propagate
-     * the default service policy to the proper scope.
-     * Note: We do not expect any user to enable horizontal scale in the Default Service Policy,
-     * but we still need to implement this logic to be consistent with user defined Service Policy.
-     *
-     * @param topologyGraph the topology graph to search entities
-     * @param userSettingsByEntityAndName user settings
-     * @param entitySettingsByEntityId the map that holds entity settings by entity ID
-     * @param defaultSettingPoliciesByEntityType default setting policies by entity type
-     */
-    private void propagateDefaultServicePolicies(
-            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
-            @Nonnull final Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
-            @Nonnull final Map<Long, EntitySettings> entitySettingsByEntityId,
-            @Nonnull final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType) {
-        final SettingPolicy defaultServicePolicy =
-                defaultSettingPoliciesByEntityType.get(EntityDTO.EntityType.SERVICE_VALUE);
-        if (defaultServicePolicy == null) {
-            return;
-        }
-        final boolean defaultServiceHorizontalScaleEnabled =
-                SettingDTOUtil.hasHorizontalScaleEnabled(defaultServicePolicy.getInfo().getSettingsList());
-        if (!defaultServiceHorizontalScaleEnabled) {
-            return;
-        }
-        // Search all services without horizontal scale action settings. These services will
-        // have horizontal scale enabled as per default service policy, and we will need to
-        // propagate the default service policy to the proper scope.
-        topologyGraph.entities()
-                // Find all Services
-                .filter(entity -> entity.getEntityType() == EntityType.SERVICE.getValue())
-                // Find those Services without user specified horizontal scale settings
-                .filter(service -> !userSettingsByEntityAndName.containsKey(service.getOid())
-                        || userSettingsByEntityAndName.get(service.getOid()).keySet().stream()
-                        .noneMatch(ConfigurableActionSettings.SERVICE_HORIZONTAL_SCALE_SETTINGS::contains))
-                // Propagate the default service policy
-                .forEach(service -> propagateDefaultServicePoliciesForService(
-                        service, entitySettingsByEntityId, defaultServicePolicy.getId()));
-    }
-
-    /**
-     * Propagate default service policy settings.
-     *
-     * @param service the service whose policy settings need to be propagated
-     * @param entitySettingsByEntityId the map that holds entity settings by entity ID
-     * @param defaultServicePolicyId the default service policy ID
-     */
-    private void propagateDefaultServicePoliciesForService(
-            @Nonnull final TopologyEntity service,
-            @Nonnull final Map<Long, EntitySettings> entitySettingsByEntityId,
-            final long defaultServicePolicyId) {
-        // Compute the propagation scope
-        final Set<TopologyEntity> scope = new HashSet<>();
-        EntitySettingsScopeEvaluator.computeScopeForService(service, scope, EntityType.CONTAINER_POD.getValue());
-        // Set the default policy for entities in the scope
-        scope.forEach(entity -> {
-            final EntitySettings entitySettings = entitySettingsByEntityId.get(entity.getOid());
-            if (entitySettings == null) {
-                return;
-            }
-            if (entitySettings.getDefaultSettingPolicyId() == defaultServicePolicyId) {
-                return;
-            }
-            entitySettingsByEntityId.put(entity.getOid(), entitySettings.toBuilder()
-                    .setDefaultSettingPolicyId(defaultServicePolicyId)
-                    .build());
-        });
+        return new GraphWithSettings(topologyGraph, settings, defaultSettingPoliciesById);
     }
 
     /**
@@ -636,17 +561,7 @@ public class EntitySettingsResolver {
         final EntitySettings.Builder entitySettingsBuilder =
                         EntitySettings.newBuilder().setEntityOid(entity.getOid()).addAllUserSettings(overridedUsersettings);
 
-        if (SettingDTOUtil.hasHorizontalScaleEnabled(userSettingsMap.values().stream()
-                        .map(SettingToPolicyId::getSetting)
-                        .collect(Collectors.toList()))) {
-            // User settings has service horizontal scale enabled, then associate the
-            // Default Service Policy with the default setting policy of this entity
-            final SettingPolicy servicePolicy =
-                    defaultSettingPoliciesByEntityType.get(EntityDTO.EntityType.SERVICE_VALUE);
-            if (servicePolicy != null) {
-                entitySettingsBuilder.setDefaultSettingPolicyId(servicePolicy.getId());
-            }
-        } else if (defaultSettingPoliciesByEntityType.containsKey(entity.getEntityType())) {
+        if (defaultSettingPoliciesByEntityType.containsKey(entity.getEntityType())) {
             entitySettingsBuilder.setDefaultSettingPolicyId(
                 defaultSettingPoliciesByEntityType.get(entity.getEntityType()).getId());
         } else if (entity.getEntityType() == EntityDTO.EntityType.CONTAINER_VALUE) {

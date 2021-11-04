@@ -105,7 +105,7 @@ public class EntitySettingQueryExecutorTest {
         when(mgrInfo.newApiDTO(MGR_UUID)).thenReturn(MAPPED_MGR_DTO);
 
         when(settingsManagerMapping.getManagerInfo(MGR_UUID)).thenReturn(Optional.of(mgrInfo));
-        when(entitySettingGroupMapper.isSettingDisabledByFeatureGates(any(), any())).thenReturn(false);
+
         doReturn(Collections.singletonList(GetEntitySettingsResponse.newBuilder()
             .addSettingGroup(SETTING_GROUP)
             .build())).when(settingPolicyServiceBackend).getEntitySettings(any());

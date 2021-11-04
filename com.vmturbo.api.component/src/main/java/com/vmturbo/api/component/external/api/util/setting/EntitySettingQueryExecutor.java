@@ -17,7 +17,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -196,16 +195,17 @@ public class EntitySettingQueryExecutor {
             }
 
             final List<SettingApiDTO<String>> settingRet = new ArrayList<>();
-            types.stream()
-                    .map(type -> entitySettingGroupMapper
-                            .toSettingApiDto(settingGroups, settingSpec, Optional.of(type),
-                                             includePolicyBreakdown, rawSettingPoliciesById))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    // Remove settings that are disabled by feature gates
-                    .filter(setting -> !entitySettingGroupMapper
-                            .isSettingDisabledByFeatureGates(mgrUuid.get(), setting))
-                    .forEach(settingRet::add);
+
+            for (ApiEntityType type : types) {
+                final Optional<SettingApiDTO<String>> setting = entitySettingGroupMapper.toSettingApiDto(
+                    settingGroups, settingSpec, Optional.of(type), includePolicyBreakdown, rawSettingPoliciesById);
+                if (!setting.isPresent()) {
+                    continue;
+                }
+
+                settingRet.add(setting.get());
+            }
+
             if (settingRet.isEmpty()) {
                 logger.warn("Failed to map {} setting groups for setting {} to API DTO.",
                                 settingGroups.size(), specName);
@@ -276,7 +276,7 @@ public class EntitySettingQueryExecutor {
     static class EntitySettingGroupMapper {
         private final SettingsMapper settingsMapper;
 
-        EntitySettingGroupMapper(@Nonnull final SettingsMapper settingsMapper) {
+        EntitySettingGroupMapper(final SettingsMapper settingsMapper) {
             this.settingsMapper = settingsMapper;
         }
 
@@ -435,19 +435,6 @@ public class EntitySettingQueryExecutor {
                 }
                 return dominantDto;
             });
-        }
-
-        /**
-         * A helper function to check if a setting is disabled by feature flag.
-         *
-         * @param mgrId the setting manager ID
-         * @param settingApiDTO the setting
-         * @return if the setting is disabled
-         */
-        @VisibleForTesting
-        public boolean isSettingDisabledByFeatureGates(@Nonnull final String mgrId,
-                                                       @Nonnull final SettingApiDTO<String> settingApiDTO) {
-            return settingsMapper.isSettingDisabledByFeatureGates(mgrId, settingApiDTO);
         }
     }
 }

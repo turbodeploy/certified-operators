@@ -71,8 +71,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -261,25 +259,6 @@ public class SettingsServiceTest {
             SettingSpec.newBuilder()
                 .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
                 .build(), "VirtualMachine"));
-    }
-
-    /**
-     * Test that any settings on service can be applied on Application Components.
-     */
-    @Test
-    public void testServiceSettingMatchEntityTypeForApplication() {
-        final SettingSpec serviceSettingSpec = SettingSpec.newBuilder()
-            .setEntitySettingSpec(EntitySettingSpec.newBuilder()
-                .setEntitySettingScope(EntitySettingScope.newBuilder()
-                    .setEntityTypeSet(EntityTypeSet.newBuilder()
-                        .addEntityType(ApiEntityType.SERVICE.typeNumber()))))
-            .build();
-        assertTrue(SettingsService.settingMatchEntityType(
-                serviceSettingSpec, ApiEntityType.SERVICE.apiStr()));
-        assertTrue(SettingsService.settingMatchEntityType(
-                serviceSettingSpec, ApiEntityType.APPLICATION_COMPONENT.apiStr()));
-        assertFalse(SettingsService.settingMatchEntityType(
-                serviceSettingSpec, ApiEntityType.CONTAINER.apiStr()));
     }
 
     /**

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -15,7 +14,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import gnu.trove.iterator.TLongIterator;
 import gnu.trove.set.TLongSet;
@@ -29,7 +27,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -54,35 +51,11 @@ public class EntitySettingsScopeEvaluator {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * The scope to limit the supply chain traversal when trying to find the implicit setting
-     * scope for service policy.
-     */
-    private static final Set<Integer> TRAVERSAL_SCOPE_FOR_SERVICE = ImmutableSet.of(
-            EntityType.SERVICE_VALUE,
-            EntityType.APPLICATION_COMPONENT_VALUE,
-            EntityType.CONTAINER_VALUE,
-            EntityType.CONTAINER_POD_VALUE
-    );
-
-    private static final Set<Integer> POSSIBLE_SETTING_SCOPE_FOR_SERVICE = ImmutableSet.of(
-            EntityType.SERVICE_VALUE,
-            EntityType.APPLICATION_COMPONENT_VALUE,
-            EntityType.CONTAINER_POD_VALUE
-    );
-
-    /**
      * Maps an entity seed inside a setting's attachment scope to the entities in the
      * setting's resolution scope.
      */
     @FunctionalInterface
-    public interface ImplicitApplicationScope {
-        /**
-         * Get the implicit scope originating from the seed.
-         *
-         * @param topologyGraph the {@link TopologyGraph} object
-         * @param scopeSeedOid the seed Oid
-         * @return the implicit scope originating from the seed
-         */
+    private interface ImplicitApplicationScope {
         Stream<Long> scopeForSeed(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                                   @Nonnull Long scopeSeedOid);
     }
@@ -96,61 +69,6 @@ public class EntitySettingsScopeEvaluator {
                 .filter(e -> e.getEntityType() == EntityType.CONTAINER_VALUE)
                 .map(TopologyEntity::getOid), Stream.of(seedOid)))
         .orElse(Stream.empty());
-
-    /**
-     * A static function that returns the implicit scope where service policies should be applied.
-     *
-     * @param stoppingEntityType the stopping entity type when traversing the supply chain
-     * @return the implicit scope of service
-     */
-    private static ImplicitApplicationScope getImplicitScopeForService(int stoppingEntityType) {
-        return (graph, seedOid) -> {
-            final Set<TopologyEntity> scope = new HashSet<>();
-            return graph.getEntity(seedOid).map(entity -> {
-                computeScopeForService(entity, scope, stoppingEntityType);
-                return scope.stream().map(TopologyEntity::getOid);
-            }).orElse(Stream.empty());
-        };
-    }
-
-    /**
-     * A static helper function to recursively compute the implicit scope where service policies
-     * should be applied.
-     *
-     * @param entity the current entity during recursion
-     * @param scope the scope that contains all the entities
-     * @param stoppingEntityType the entity type at which the recursion should stop
-     */
-    static void computeScopeForService(@Nonnull TopologyEntity entity,
-                                               @Nonnull Set<TopologyEntity> scope,
-                                               int stoppingEntityType) {
-        if (!TRAVERSAL_SCOPE_FOR_SERVICE.contains(entity.getEntityType())) {
-            return;
-        }
-        if (POSSIBLE_SETTING_SCOPE_FOR_SERVICE.contains(entity.getEntityType())) {
-            scope.add(entity);
-        }
-        if (entity.getEntityType() != stoppingEntityType) {
-            entity.getProviders()
-                    .forEach(provider -> computeScopeForService(provider, scope, stoppingEntityType));
-        }
-    }
-
-    /**
-     * Determine if implicit scope should be evaluated for an entity type with the given policy settings.
-     *
-     * @param entityType the type of entity
-     * @param settingPolicyInfo the setting policy for the entity
-     * @return if implicit scope should be evaluated
-     */
-    private static boolean shouldEvaluate(final int entityType,
-                                          @Nonnull final SettingPolicyInfo settingPolicyInfo) {
-        if (entityType == EntityType.SERVICE_VALUE) {
-            // Only evaluate implicit scope for Service when horizontal scale is enabled
-            return SettingDTOUtil.hasHorizontalScaleEnabled(settingPolicyInfo.getSettingsList());
-        }
-        return true;
-    }
 
     /**
      * Implicit resolution scopes for specific settings on specific entity types.
@@ -177,17 +95,6 @@ public class EntitySettingsScopeEvaluator {
                 .put(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
                 .put(ConfigurableActionSettings.ResizeVmemLimitBelowMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
                 .put(ConfigurableActionSettings.ResizeVmemRequestBelowMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
-                .build(),
-            EntityType.SERVICE_VALUE,
-            ImmutableMap.<String, ImplicitApplicationScope>builder()
-                .put(EntitySettingSpecs.TransactionSLOEnabled.getSettingName(), getImplicitScopeForService(EntityType.APPLICATION_COMPONENT_VALUE))
-                .put(EntitySettingSpecs.TransactionSLO.getSettingName(), getImplicitScopeForService(EntityType.APPLICATION_COMPONENT_VALUE))
-                .put(EntitySettingSpecs.ResponseTimeSLOEnabled.getSettingName(), getImplicitScopeForService(EntityType.APPLICATION_COMPONENT_VALUE))
-                .put(EntitySettingSpecs.ResponseTimeSLO.getSettingName(), getImplicitScopeForService(EntityType.APPLICATION_COMPONENT_VALUE))
-                .put(EntitySettingSpecs.MinReplicas.getSettingName(), getImplicitScopeForService(EntityType.APPLICATION_COMPONENT_VALUE))
-                .put(EntitySettingSpecs.MaxReplicas.getSettingName(), getImplicitScopeForService(EntityType.APPLICATION_COMPONENT_VALUE))
-                .put(ConfigurableActionSettings.HorizontalScaleUp.getSettingName(), getImplicitScopeForService(EntityType.CONTAINER_POD_VALUE))
-                .put(ConfigurableActionSettings.HorizontalScaleDown.getSettingName(), getImplicitScopeForService(EntityType.CONTAINER_POD_VALUE))
                 .build()
         );
 
@@ -218,14 +125,13 @@ public class EntitySettingsScopeEvaluator {
         Objects.requireNonNull(resolvedGroups);
         final SettingPolicyInfo info = settingPolicy.getInfo();
 
-        if (info.hasEntityType()
-                && IMPLICIT_SCOPES.containsKey(info.getEntityType())
-                && shouldEvaluate(info.getEntityType(), info)) {
+        if (info.hasEntityType() && IMPLICIT_SCOPES.containsKey(info.getEntityType())) {
             return buildScopes(settingPolicy, resolvedGroups,
                 settingsInPolicy, IMPLICIT_SCOPES.get(info.getEntityType()));
+        } else {
+            return Collections.singleton(new ScopedSettings(
+                resolveImplicitScope(settingPolicy, resolvedGroups, null), settingsInPolicy));
         }
-        return Collections.singleton(new ScopedSettings(
-            resolveImplicitScope(settingPolicy, resolvedGroups, null), settingsInPolicy));
     }
 
     /**
