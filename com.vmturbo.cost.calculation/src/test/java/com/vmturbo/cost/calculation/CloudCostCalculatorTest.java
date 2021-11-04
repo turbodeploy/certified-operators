@@ -432,17 +432,15 @@ public class CloudCostCalculatorTest {
 
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
         assertThat(journal1.getTotalHourlyCost().getValue(),
-            is((BASE_PRICE + WSQL_ADJUSTMENT) * 1 + EXPECTED_IP_COST
-                    + WSQL_ENTERPRISE_8));
+            is((BASE_PRICE + WSQL_ADJUSTMENT) * 1 + EXPECTED_IP_COST));
         assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
             is(BASE_PRICE * 1));
         assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
-            is(WSQL_ADJUSTMENT * 1 + WSQL_ENTERPRISE_8));
+            is(WSQL_ADJUSTMENT));
         assertThat(journal1.getHourlyCostForCategory(CostCategory.IP).getValue(), is(EXPECTED_IP_COST));
 
-        // Once for the compute, once for the adjustment, once for the license, because all costs
-        // are "paid to" the compute tier.
-        verify(discountApplicator, times(3)).getDiscountPercentage(computeTier);
+        // Once for the compute and once for the adjustment
+        verify(discountApplicator, times(2)).getDiscountPercentage(computeTier);
 
         // In the previous test, the number of CPUs (4) was in between LicensePrice number of cores
         // (2 and 8) and we verified we use the higher cores license price.
@@ -460,7 +458,7 @@ public class CloudCostCalculatorTest {
         when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig2));
         final CostJournal<TestEntityClass> journal2 = cloudCostCalculator.calculateCost(wsqlVm2Cores);
         assertThat(journal2.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
-            is(WSQL_ADJUSTMENT * 1 + WSQL_ENTERPRISE_2));
+            is(WSQL_ADJUSTMENT));
 
         final TestEntityClass spotVm = createVmTestEntity(DEFAULT_VM_ID, OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
