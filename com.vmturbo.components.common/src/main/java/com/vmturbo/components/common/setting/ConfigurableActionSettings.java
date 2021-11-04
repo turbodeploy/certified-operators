@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -313,6 +315,14 @@ public enum ConfigurableActionSettings {
     private final String name;
     private final String displayName;
     private final Set<EntityType> entityTypeScope;
+
+    /**
+     * A set of action settings that belong to service horizontal scale.
+     */
+    public static final Set<String> SERVICE_HORIZONTAL_SCALE_SETTINGS = ImmutableSet.of(
+            HorizontalScaleUp.getSettingName(),
+            HorizontalScaleDown.getSettingName()
+    );
 
     /**
      * Create an ActionModeSettingSpec, representing a setting attached to an entity or group.
