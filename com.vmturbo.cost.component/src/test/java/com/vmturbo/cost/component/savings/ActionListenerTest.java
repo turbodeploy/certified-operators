@@ -31,7 +31,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.jetbrains.annotations.NotNull;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Assert;
@@ -412,9 +411,9 @@ public class ActionListenerTest {
         Optional<ActionEvent> optActionEvent = savingsEvent.getActionEvent();
         assertTrue(message, optActionEvent.isPresent());
         ActionEvent actionEvent = optActionEvent.get();
-        assertTrue(message, actionEvent.getExpirationTime().isPresent());
+        assertTrue(message, savingsEvent.getExpirationTime().isPresent());
 
-        Long expirationTime = actionEvent.getExpirationTime().get(); // milliseconds
+        Long expirationTime = savingsEvent.getExpirationTime().get(); // milliseconds
         Assert.assertEquals("Validating expiration",
                 TimeUnit.HOURS.toMillis(expectedExpiration * 730), (long)expirationTime);
     }
@@ -673,7 +672,7 @@ public class ActionListenerTest {
         assertEquals(0, store.size());
     }
 
-    @NotNull
+    @Nonnull
     private FilteredActionResponse createFilteredActionResponse(ActionSpec actionSpec1) {
         return FilteredActionResponse.newBuilder()
                 .setActionChunk(FilteredActionResponse.ActionChunk.newBuilder()
@@ -758,7 +757,7 @@ public class ActionListenerTest {
                 eai2.getEntityActionCosts().getAfterCosts(),  EPSILON_PRECISION);
     }
 
-    @NotNull
+    @Nonnull
     private ActionSpec createActionSpec(long recommendationId, long actionId, ActionInfo.Builder builder,
                                         ActionState actionState) {
         return ActionSpec.newBuilder()
@@ -774,7 +773,7 @@ public class ActionListenerTest {
                 .build();
     }
 
-    @NotNull
+    @Nonnull
     private ActionSpec createActionSpec(Scale scale, long recommendationId, long actionId,
             long recommendationTime, ActionState actionState) {
         return ActionSpec.newBuilder()
@@ -789,12 +788,12 @@ public class ActionListenerTest {
                 .setActionState(actionState == null ? ActionState.READY : actionState).build();
     }
 
-    @NotNull
+    @Nonnull
     private Scale createScale(@Nonnull final ActionEntity actionEntity) {
         return Scale.newBuilder().setTarget(actionEntity).build();
     }
 
-    @NotNull
+    @Nonnull
     private Allocate createAllocate(@Nonnull final ActionEntity actionEntity,
                               @Nonnull final ActionEntity actionEntityWorkloadTier) {
         return Allocate.newBuilder()
@@ -803,12 +802,12 @@ public class ActionListenerTest {
                         .build();
     }
 
-    @NotNull
+    @Nonnull
     private Move createMove(@Nonnull final ActionEntity actionEntity) {
         return Move.newBuilder().setTarget(actionEntity).build();
     }
 
-    @NotNull
+    @Nonnull
     private ActionEntity createCloudActionEntity(long id, int entityTypeValue) {
         return ActionEntity.newBuilder()
                 .setId(id)
@@ -817,7 +816,7 @@ public class ActionListenerTest {
                 .build();
     }
 
-    @NotNull
+    @Nonnull
     private ActionEntity createOnPremActionEntity(long id, int entityTypeValue) {
         return ActionEntity.newBuilder()
                 .setId(id)
@@ -1068,6 +1067,9 @@ public class ActionListenerTest {
         assertEquals(2, store.size());
     }
 
+    /**
+     * Test get next period start time.
+     */
     @Test
     public void testGetNextPeriodStartTime() {
         LastRollupTimes lastRollupTimesNonZero = new LastRollupTimes(0, 12L, 0, 0);
@@ -1080,10 +1082,12 @@ public class ActionListenerTest {
     }
 
     private EntityState createEntityState(long entityOid) {
-        EntityState state = new EntityState(entityOid);
+        EntityState state = new EntityState(entityOid, SavingsUtil.EMPTY_PRICE_CHANGE);
         state.setCurrentRecommendation(new EntityPriceChange.Builder()
                 .sourceCost(0)
                 .destinationCost(0)
+                .sourceOid(0L)
+                .destinationOid(0L)
                 .active(true).build());
         return state;
     }

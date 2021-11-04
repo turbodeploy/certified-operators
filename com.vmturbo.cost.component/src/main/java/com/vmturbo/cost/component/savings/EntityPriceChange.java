@@ -1,7 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.Optional;
-
 import org.immutables.gson.Gson;
 import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Derived;
@@ -43,16 +41,16 @@ interface EntityPriceChange {
     /**
      * OID of source tier (pre-action) or entity.
      *
-     * @return Optional source oid.
+     * @return source oid.
      */
-    Optional<Long> getSourceOid();
+    Long getSourceOid();
 
     /**
      * OID of target tier (post-action).
      *
-     * @return Optional destination oid.
+     * @return destination oid.
      */
-    Optional<Long> getDestinationOid();
+    Long getDestinationOid();
 
     /**
      * Whether the price change (recommendation) is active and accumulating missed.

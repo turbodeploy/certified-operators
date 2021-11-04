@@ -2,11 +2,14 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 /**
  * Implementation of algorithm-2.
@@ -15,7 +18,7 @@ public class Algorithm2 implements Algorithm {
     private final Long entityOid;
     private long segmentStart;
     private long powerFactor;
-    private EntityPriceChange currentRecommendation;
+    private @Nonnull EntityPriceChange currentRecommendation;
     private long nextExpirationTime = LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC)
                     .toEpochMilli();
 
@@ -25,10 +28,11 @@ public class Algorithm2 implements Algorithm {
     // Matching lists that hold the price change (delta) of a tracked action and that action's
     // expiration time.  These are queues so that we can easily pop the expired deltas/timestamps
     // off of the lists.
-    private final List<Delta> actionList;
+    private Deque<Delta> actionList;
     private final SavingsInvestments periodicRealized;
     private final SavingsInvestments periodicMissed;
     private boolean deletePending;
+    private Optional<ActionEntry> lastExecutedAction;
 
     /**
      * Constructor for the algorithm state.  This implements Algorithm-2.
@@ -41,7 +45,7 @@ public class Algorithm2 implements Algorithm {
         this.deletePending = false;
         this.segmentStart = segmentStart;
         this.powerFactor = 1;
-        this.actionList = new LinkedList<>();
+        this.actionList = new ArrayDeque<>();
         this.savings = 0d;
         this.investment = 0d;
 
@@ -49,6 +53,7 @@ public class Algorithm2 implements Algorithm {
         // period length.
         this.periodicRealized = new SavingsInvestments();
         this.periodicMissed = new SavingsInvestments();
+        this.lastExecutedAction = Optional.empty();
     }
 
     /**
@@ -106,8 +111,7 @@ public class Algorithm2 implements Algorithm {
      * @param expirationTimestamp time when the action will expire.
      */
     public void removeActionsOnOrBefore(long expirationTimestamp) {
-        List<Delta> oldActionList = new ArrayList<>(actionList);
-        clearActionList();
+        Deque<Delta> oldActionList = clearActionState();
         oldActionList.stream()
                 .filter(delta -> delta.expiration > expirationTimestamp)
                 .forEach(this::addAction);
@@ -211,7 +215,7 @@ public class Algorithm2 implements Algorithm {
      * @param recommendation recommendation to save
      */
     @Override
-    public void setCurrentRecommendation(EntityPriceChange recommendation) {
+    public void setCurrentRecommendation(@Nonnull EntityPriceChange recommendation) {
         this.currentRecommendation = recommendation;
     }
 
@@ -221,6 +225,7 @@ public class Algorithm2 implements Algorithm {
      * @return the current active recommendation, or null if there is none.
      */
     @Override
+    @Nonnull
     public EntityPriceChange getCurrentRecommendation() {
         return this.currentRecommendation;
     }
@@ -285,9 +290,14 @@ public class Algorithm2 implements Algorithm {
     public void initState(long timestamp, EntityState entityState) {
         // Backward compatibility.  Older entity states do not contain an expiration list.  In this
         // case, all existing entities will immediately expire.
-        List<Long> currentExpirationList = entityState.getExpirationList();
-        List<Double> currentActionList = entityState.getActionList();
+        final List<Long> currentExpirationList = entityState.getExpirationList();
+        final List<Double> currentActionList = entityState.getActionList();
         currentRecommendation = entityState.getCurrentRecommendation();
+        if (currentRecommendation == null) {
+            // For backward compatibility, where the current recommendation was nullable, we need to
+            // add a dummy inactive recommendation to the entity state if one is not present.
+            currentRecommendation = SavingsUtil.EMPTY_PRICE_CHANGE;
+        }
         powerFactor = entityState.getPowerFactor();
 
         // Populate the action and expiration lists.  We use two iterators in order to
@@ -296,6 +306,13 @@ public class Algorithm2 implements Algorithm {
         Iterator<Double> deltas = currentActionList.iterator();
         while (expirations.hasNext() && deltas.hasNext()) {
             addAction(deltas.next(), expirations.next());
+        }
+        // When reading entity state that existed before action revert was implemented, the last
+        // executed action will be null.  The existing logic expects an optional, but
+        // getLastExecutedAction can return null, Optional.of, or Optional.empty.
+        lastExecutedAction = entityState.getLastExecutedAction();
+        if (lastExecutedAction == null) {
+            lastExecutedAction = Optional.empty();
         }
     }
 
@@ -330,12 +347,52 @@ public class Algorithm2 implements Algorithm {
 
     /**
      * Clear the action list and related state.
+     *
+     * @return the action list before it was cleared.
      */
-    public void clearActionList() {
-        this.actionList.clear();
+    @Nonnull
+    public Deque<Delta> clearActionState() {
+        if (actionList == null) {
+            actionList = new ArrayDeque<>();
+        }
+        final Deque<Delta> oldActionList = actionList;
+        actionList = new ArrayDeque<>();
         this.savings = 0d;
         this.investment = 0d;
         nextExpirationTime = LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC)
                 .toEpochMilli();
+        return oldActionList;
+    }
+
+    /**
+     * Remove the last action from the action and expiration lists.  After the action is removed,
+     * the periodic savings and next expiration time are updated.
+     */
+    @Override
+    public void removeLastAction() {
+        Deque<Delta> oldActionList = clearActionState();  // clear the action list and other state
+        oldActionList.pollLast();                         // remove the last action
+        oldActionList.stream().forEach(this::addAction);  // readd all but the last action to recalculate
+    }
+
+    /**
+     * Get the last execution action.
+     *
+     * @return last executed action.
+     */
+    @Override
+    @Nonnull
+    public Optional<ActionEntry> getLastExecutedAction() {
+        return this.lastExecutedAction;
+    }
+
+    /**
+     * Set the last execution action.
+     *
+     * @param lastExecutedAction last executed action.
+     */
+    @Override
+    public void setLastExecutedAction(ActionEntry lastExecutedAction) {
+        this.lastExecutedAction = Optional.ofNullable(lastExecutedAction);
     }
 }

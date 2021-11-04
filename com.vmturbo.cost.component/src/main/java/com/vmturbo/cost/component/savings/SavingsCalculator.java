@@ -1,7 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -22,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
 import com.vmturbo.cost.component.savings.Algorithm.SavingsInvestments;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
@@ -83,12 +82,13 @@ class SavingsCalculator {
         Long entityOid = algorithmState.getEntityOid();
         EntityState entityState = entityStates.get(entityOid);
         if (entityState == null) {
-            entityState = new EntityState(entityOid);
+            entityState = new EntityState(entityOid, algorithmState.getCurrentRecommendation());
             entityStates.put(entityOid, entityState);
         }
         entityState.setPowerFactor(algorithmState.getPowerFactor());
         entityState.setActionList(algorithmState.getActionList());
         entityState.setExpirationList(algorithmState.getExpirationList());
+        entityState.setLastExecutedAction(algorithmState.getLastExecutedAction());
         entityState.setNextExpirationTime(algorithmState.getNextExpirationTime());
         entityState.setCurrentRecommendation(algorithmState.getCurrentRecommendation());
         entityState.setDeletePending(algorithmState.getDeletePending());
@@ -158,7 +158,9 @@ class SavingsCalculator {
                     eventHeap.offer(expirationEvent);
                 }
             }
-            if (event.hasTopologyEvent()) {
+            if (event.hasTopologyEvent()
+                    && event.getTopologyEvent().isPresent()
+                    && event.getTopologyEvent().get().hasEventInfo()) {
                 handleTopologyEvent(states, timestamp, entityId, event);
             }
             entitiesWithEvents.add(entityId);
@@ -218,16 +220,18 @@ class SavingsCalculator {
         EntityPriceChange entityPriceChange = new EntityPriceChange.Builder()
                 .sourceCost(0)
                 .destinationCost(delta)
+                .sourceOid(0L)
+                .destinationOid(0L)
                 .build();
         SavingsEvent expiration = new SavingsEvent.Builder()
                 .actionEvent(new ActionEvent.Builder()
                         .eventType(ActionEventType.ACTION_EXPIRED)
                         .actionId(entityId)
-                        .expirationTime(expirationTime)
                         .build())
                 .entityPriceChange(entityPriceChange)
                 .entityId(entityId)
                 .timestamp(expirationTime)
+                .expirationTime(expirationTime)
                 .build();
         return expiration;
     }
@@ -298,7 +302,7 @@ class SavingsCalculator {
         } else if (TopologyEventType.STATE_CHANGE.equals(eventType)) {
             handleStateChange(states, timestamp, entityId, event.getEventInfo().getStateChange());
         } else if (TopologyEventType.PROVIDER_CHANGE.equals(eventType)) {
-            handleProviderChange(states, timestamp, entityId, topologyEvent);
+            handleProviderChange(states, timestamp, entityId, event);
         } else {
             logger.warn("Dropping unhandled topology event type {}", eventType);
         }
@@ -320,8 +324,9 @@ class SavingsCalculator {
             long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle ExecutionSuccess for {} at {}", entityId, timestamp);
         return commonResizeHandler(states, timestamp, entityId,
+                savingsEvent,
                 savingsEvent.getActionEvent().get().getEventType(),
-                savingsEvent.getActionEvent().get().getExpirationTime());
+                savingsEvent.getExpirationTime());
     }
 
     /**
@@ -350,7 +355,8 @@ class SavingsCalculator {
         algorithmState.endSegment(timestamp);
 
         // Save the current recommendation so that we can match it up with a future action execution.
-        algorithmState.setCurrentRecommendation(savingsEvent.getEntityPriceChange().get());
+        EntityPriceChange entityPriceChange = savingsEvent.getEntityPriceChange().get();
+        algorithmState.setCurrentRecommendation(entityPriceChange);
     }
 
     private void handleRecommendationRemoved(@Nonnull Map<Long, Algorithm> entityStates,
@@ -401,7 +407,7 @@ class SavingsCalculator {
             // state.  To prevent further accrual of stats, clear the action list and set the
             // power state to off.
             algorithmState.setPowerFactor(0L);
-            algorithmState.clearActionList();
+            algorithmState.clearActionState();
         }
     }
 
@@ -444,40 +450,83 @@ class SavingsCalculator {
      */
     @Nullable
     private SavingsEvent handleProviderChange(@Nonnull Map<Long, Algorithm> states,
-            long timestamp, long entityId, SavingsEvent event) {
+            long timestamp, long entityId, TopologyEvent event) {
         logger.debug("Handle ProviderChange for {} at {}", entityId, timestamp);
-        // TODO: Make expiration be an optional field in SavingsEvent rather than just ActionEvent,
-        // and make TEP pass the expiration in based on action/ entity type.  For now using this
-        // temporary large value for expiration.
-        final long expirationTime = LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC)
-                        .toEpochMilli();
-        if (event.getEntityPriceChange().isPresent()) {
-            return commonResizeHandler(states, timestamp, entityId,
-                                       ActionEventType.SCALE_EXECUTION_SUCCESS,
-                                       Optional.of(expirationTime));
-        } else {
-            // This warning was polluting the logs, current there is no price info with provider change.
-            logger.debug("ProviderChange event for {} at {} is missing price data - skipping",
-                    entityId, timestamp);
+        if (!event.getEventInfo().hasProviderChange()) {
+            logger.warn("Dropping provider change for entity {} - missing event info", entityId);
+            return null;
+        }
+        // Locate existing state.  If we aren't tracking, then ignore the event
+        Algorithm algorithmState = getAlgorithmState(states, entityId, 0L, false);
+        if (algorithmState == null) {
+            return null;
+        }
+        // We only handle reverts at this time, so if there is no last executed action, then
+        // drop this event.
+        Optional<ActionEntry> lastExecutedAction = algorithmState.getLastExecutedAction();
+        if (!lastExecutedAction.isPresent()) {
+            return null;
+        }
+        // Entity state that existed before we implemented action reverts will not have a current
+        // provider available due to the fact that its current recommendation may have been
+        // removed.  In this case, we cannot handle a revert.
+        Long currentProvider = algorithmState.getCurrentProvider();
+        if (currentProvider == null) {
+            return null;
+        }
+        ProviderChangeDetails providerChange = event.getEventInfo().getProviderChange();
+
+        /*
+         * Provider change cases:
+         * - A -> B: the entity's provider OID is now B. Execute provider change logic.
+         * - A -> unknown: the entity's provider OID is now A. Otherwise, do nothing.
+         * - unknown -> B: the entity's provider OID is now B. Execute provider change logic.
+         *
+         * At this time, the TEP does not provide direct A->B events. Although it is handled here,
+         * it cannot be tested without unit tests. Note that we never need to reference the source
+         * OID in the provider change event.
+         */
+        logger.debug("Processing provider change to {} for {}",
+                providerChange.getDestinationProviderOid(), entityId);
+        if (providerChange.hasDestinationProviderOid()) {
+            // If the provider change duplicates the last executed action, then no-op.  If the
+            // provider change reverses the last executed action, revert it.  If the provider change
+            // matches the recommendation, then it's a valid external resize that we need to take
+            // credit for.  This is not implemented at this time.
+            if (lastExecutedAction.get().duplicates(ActionEventType.SCALE_EXECUTION_SUCCESS,
+                    providerChange.getDestinationProviderOid())) {
+                logger.debug("Dropping provider change for {} - duplicate of last action execution",
+                        entityId);
+            } else if (lastExecutedAction.get().reverses(ActionEventType.SCALE_EXECUTION_SUCCESS,
+                    providerChange.getDestinationProviderOid())) {
+                // This is a revert.
+                logger.info("Reverting tracking scale action from {} to {} for entity {}",
+                        lastExecutedAction.get().getSourceOid(),
+                        lastExecutedAction.get().getDestinationOid(),
+                        entityId);
+                algorithmState.endSegment(timestamp);
+                algorithmState.removeLastAction();
+                algorithmState.setLastExecutedAction(null);
+            }
         }
         return null;
     }
 
     /**
-     * Shared logic to track a resize.  This can be called by the action execution success logic
-     * (solicited resize) or when an entity has changed providers (unsolicited resize due to
-     * discovery or action script action executed).
+     * Shared logic to track a resize.  This is called by the action execution success logic.
+     *
      * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
+     * @param savingsEvent savings event
      * @param actionEventType Triggering action type (resize success or volume delete success)
      * @param expirationTimestamp Time in milliseconds after execution when the action will expire.
      * @return if non-null, the expiration event for this resize that must be processed this period.
      */
     @Nullable
     private SavingsEvent commonResizeHandler(@Nonnull Map<Long, Algorithm> states, long timestamp,
-                                             long entityId, ActionEventType actionEventType,
-                                             final Optional<Long> expirationTimestamp) {
+            long entityId, SavingsEvent savingsEvent, ActionEventType actionEventType,
+            final Optional<Long> expirationTimestamp) {
         // If this is an action execution, it's okay that we haven't seen this entity yet.
         // Create state for it and continue.
         Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp, false);
@@ -487,17 +536,29 @@ class SavingsCalculator {
             logger.debug("Not processing resize - state for entity {} is missing", entityId);
             return null;
         }
-        EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
-        if (currentRecommendation == null) {
+        @Nonnull EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
+        if (SavingsUtil.EMPTY_PRICE_CHANGE.equals(currentRecommendation)) {
             // No active resize action, so ignore this.
             logger.warn("Not processing resize for {} - no matching recommendation", entityId);
             return null;
         }
         algorithmState.endSegment(timestamp);
-        algorithmState.setCurrentRecommendation(null);
+        algorithmState.setCurrentRecommendation(new EntityPriceChange.Builder()
+                .from(currentRecommendation)
+                .active(false)
+                .build());
         // If this is a volume delete, remove all existing active actions.
         if (ActionEventType.DELETE_EXECUTION_SUCCESS.equals(actionEventType)) {
-            algorithmState.clearActionList();
+            algorithmState.clearActionState();
+        } else {
+            // Save the last executed action for the external revert logic.  Since we only support
+            // scale reverts, we only set this field for scale execution success events.
+            EntityPriceChange change = savingsEvent.getEntityPriceChange().get();
+            algorithmState.setLastExecutedAction(new ActionEntry.Builder()
+                            .eventType(actionEventType)
+                            .sourceOid(change.getSourceOid())
+                            .destinationOid(change.getDestinationOid())
+                    .build());
         }
 
         algorithmState.addAction(currentRecommendation.getDelta(), expirationTimestamp.get());

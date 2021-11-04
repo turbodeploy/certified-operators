@@ -4,8 +4,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
+import java.util.TimeZone;
 
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
@@ -110,6 +114,36 @@ public class EventInjectorTest {
         new ExpectedEvent(1612972800000L),
         new ExpectedEvent(1612976400000L),
         new ExpectedEvent(1612978200000L));
+
+    private long calToMs(int year, int month, int day, int hours, int minutes) {
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        cal.set(year, month, day, hours, minutes, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis();
+    }
+
+    private LocalDateTime msToLdt(long ms) {
+        return LocalDateTime.ofEpochSecond(ms / 1000, 0, ZoneOffset.UTC);
+    }
+
+    /**
+     * Test time rounding functions.
+     */
+    @Test
+    public void testMakeLocalDateTime() {
+        long topOfHourMs = calToMs(2021, 0, 1, 4, 0);
+        long midHourMs = calToMs(2021, 0, 1, 21, 16);
+        long roundedDownMidHourMs = calToMs(2021, 0, 1, 21, 0);
+        long roundedUpMidHourMs = calToMs(2021, 0, 1, 22, 0);
+
+        // Verify non-rounded results
+        Assert.assertEquals(msToLdt(topOfHourMs), EventInjector.makeLocalDateTime(topOfHourMs, false));
+        Assert.assertEquals(msToLdt(roundedDownMidHourMs), EventInjector.makeLocalDateTime(midHourMs, false));
+
+        // Verify rounded results
+        Assert.assertEquals(msToLdt(topOfHourMs), EventInjector.makeLocalDateTime(topOfHourMs, true));
+        Assert.assertEquals(msToLdt(roundedUpMidHourMs), EventInjector.makeLocalDateTime(midHourMs, true));
+    }
 
 //    /**
 //     * Ensure the event tracker's event journal is populated.

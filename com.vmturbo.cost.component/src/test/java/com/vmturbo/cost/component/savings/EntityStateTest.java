@@ -14,10 +14,12 @@ public class EntityStateTest {
     @Test
     public void validateDeserializedEntityStateObject() {
         final long powerFactor = 1L;
-        EntityState state = new EntityState(100L);
+        EntityState state = new EntityState(100L, SavingsUtil.EMPTY_PRICE_CHANGE);
         state.setDeletePending(true);
         state.setPowerFactor(powerFactor);
         EntityPriceChange recommendation = new EntityPriceChange.Builder()
+                .sourceOid(0L)
+                .destinationOid(0L)
                 .sourceCost(12)
                 .destinationCost(15)
                 .build();

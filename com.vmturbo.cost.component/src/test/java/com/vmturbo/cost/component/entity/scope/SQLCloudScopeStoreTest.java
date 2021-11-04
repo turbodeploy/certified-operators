@@ -23,6 +23,12 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.MoreExecutors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -32,18 +38,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.springframework.scheduling.TaskScheduler;
 
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.MoreExecutors;
-
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
+import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -54,6 +54,7 @@ import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.EntityStateStore;
+import com.vmturbo.cost.component.savings.SavingsUtil;
 import com.vmturbo.cost.component.savings.SqlEntityStateStore;
 import com.vmturbo.cost.component.savings.SqlEntityStateStoreTest;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
@@ -225,7 +226,8 @@ public class SQLCloudScopeStoreTest {
         // Add an entity state for the same entity for datapointA.
         // The record that correspond to entityOid1 in the cloud scope table will be referenced by
         // two tables.
-        Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1));
+        Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1,
+                SavingsUtil.EMPTY_PRICE_CHANGE));
         TopologyEntityCloudTopology cloudTopology = SqlEntityStateStoreTest.getCloudTopology(1000L);
         entityStateStore.updateEntityStates(stateSet.stream().collect(
                 Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology, dsl,
@@ -253,10 +255,10 @@ public class SQLCloudScopeStoreTest {
 
 
         final int numAccounts = 1000;
-        final int numEntities = (int) Math.pow(10, 5);
-        final int numEntitiesToShutdown = 2 * (int) Math.pow(10, 4);
-        final int numEntitiesToUpdate = 5 * (int) Math.pow(10, 4);
-        final int numEntitiesToDelete = 3 * (int) Math.pow(10, 4);
+        final int numEntities = (int)Math.pow(10, 5);
+        final int numEntitiesToShutdown = 2 * (int)Math.pow(10, 4);
+        final int numEntitiesToUpdate = 5 * (int)Math.pow(10, 4);
+        final int numEntitiesToDelete = 3 * (int)Math.pow(10, 4);
 
 
 
@@ -331,15 +333,13 @@ public class SQLCloudScopeStoreTest {
 
 
         final Stopwatch cloudScopeCleanupStopwatch = Stopwatch.createStarted();
-        long numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
         cloudScopeCleanupStopwatch.stop();
-
 
         logger.info("First pass insertion into ECTA store completed (Duration={})", firstPassStopwatch);
         logger.info("Second pass insertion into ECTA store completed (Duration={})", firstPassStopwatch);
         logger.info("Allocation deletion completed (Duration={})", deletionStopwatch);
         logger.info("Cloud scope cleanup completed (Duration={}, Records Deleted={})",
-                cloudScopeCleanupStopwatch, numCloudScopeRecordsRemoved);
+                cloudScopeCleanupStopwatch, cloudScopeStore.cleanupCloudScopeRecords());
 
     }
 

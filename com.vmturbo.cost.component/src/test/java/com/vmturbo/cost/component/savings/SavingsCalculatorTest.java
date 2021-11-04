@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
+import static com.vmturbo.cost.component.savings.SavingsUtil.EMPTY_PRICE_CHANGE;
 import static org.mockito.Mockito.mock;
 
 import java.io.FileNotFoundException;
@@ -10,23 +11,36 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.math.DoubleMath;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
 
 /**
  * Tests to verify operation of the savings algorithm.
  */
 public class SavingsCalculatorTest {
+    private long actionId;
 
     /**
      * Test setup.
@@ -35,6 +49,7 @@ public class SavingsCalculatorTest {
      */
     @Before
     public void setUp() throws Exception {
+        actionId = 1000L;
     }
 
     /**
@@ -178,7 +193,7 @@ public class SavingsCalculatorTest {
         addTestEvents("src/test/resources/savings/alg2-test.json", eventsJournal);
 
         long entityUpdatedInLastPeriod = 5555555L;
-        EntityState stateFromLastPeriod = new EntityState(entityUpdatedInLastPeriod);
+        EntityState stateFromLastPeriod = new EntityState(entityUpdatedInLastPeriod, EMPTY_PRICE_CHANGE);
         Map<Long, EntityState> entityStates = new HashMap<>();
         entityStates.put(entityUpdatedInLastPeriod, stateFromLastPeriod);
 
@@ -326,6 +341,275 @@ public class SavingsCalculatorTest {
             Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
             Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
         }
+    }
+
+    /**
+     * - Execute an action A->B, provider change with A->B: This is normal (discovery detects the
+     *   entity on its new provider due to the executed action).  The provider change is dropped.
+     */
+    @Test
+    public void testExecABProviderChangeAB() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
+                createActionEvent(1L, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
+                createProviderChange(2L, 3d, 5d));
+        // Run the scenario.
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
+        Assert.assertFalse(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * - Execute an action A->B, provider change with B->C: This is an external resize that does
+     *   not attempt to revert the last executed action and should be dropped.
+     */
+    @Test
+    public void testExecABProviderChangeBC() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
+                createActionEvent(1L, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
+                createProviderChange(2L, 5d, 4d));
+        // Run the scenario.
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
+        Assert.assertFalse(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * - Execute an action A->B, provider change with B->A: This is a revert. The previously
+     *   executed action will be removed from the action list in the entity state.
+     */
+    @Test
+    public void testExecABProviderChangeBA() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
+                createActionEvent(1L, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
+                createProviderChange(2L, 5d, 3d));
+        // Run the scenario.
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertTrue(entityState.getActionList().isEmpty());
+        Assert.assertFalse(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * - Execute an action A->B, new recommendation that is not B->A arrives, provider change from
+     *   B->A: This is an attempt to revert an action after the market has generated a new
+     *   recommendation for the entity.  Since the recommendation itself is not B->A, this is
+     *   treated as a revert.  The previously executed action will be removed from the action list
+     *   in the entity state and the current recommendation will remain untouched.
+     */
+    @Test
+    public void testExecABUnrelatedRecommendationProviderChangeBA() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
+                createActionEvent(1L, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
+                createActionEvent(2L, ActionEventType.RECOMMENDATION_ADDED, 5d, 6d),
+                createProviderChange(3L, 5d, 3d));
+        // Run the scenario.
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertTrue(entityState.getActionList().isEmpty());
+        Assert.assertTrue(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * - Execute an action A->B, new recommendation that is B->A arrives, provider change also from
+     *   B->A: This is an attempt to revert an action after the market has generated a new
+     *   recommendation for the entity that matches the user's attempt to revert.  Since the market
+     *   recommended this action before the user reverted it, we do not treat this as a revert and
+     *   instead take credit for the realized investment or savings.
+     */
+    @Ignore  // This is not currently supported for the revert-only case.  Keeping it here for the future.
+    @Test
+    public void testExecABRecommendationBAProviderChangeBA() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
+                createActionEvent(1L, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
+                createActionEvent(2L, ActionEventType.RECOMMENDATION_ADDED, 5d, 3d),
+                createProviderChange(3L, 5d, 3d));
+        // Run the scenario.
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
+        Assert.assertTrue(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * Power state change topology events also generate provider change events where the new
+     * destination provider becomes null. Ensure that these events are dropped.
+     */
+    @Test
+    public void testNullDestProviderOid() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
+                createActionEvent(1L, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
+                createProviderChange(2L, 5d, null));
+        // Run the scenario.
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
+        Assert.assertFalse(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * Ensure that a valid provider change is ignored when the current provider is not known.
+     */
+    @Test
+    public void testProviderChangeNoCurrentProvider() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createProviderChange(2L, 5d, null));
+        // Run the scenario. Pre-populate with an entity without a valid provider
+        EntityState entityState = new EntityState(2116L, EMPTY_PRICE_CHANGE);
+        entityState.setLastExecutedAction(Optional.of(
+                new ActionEntry.Builder()
+                        .eventType(ActionEventType.SCALE_EXECUTION_SUCCESS)
+                        .sourceOid(0L)
+                        .destinationOid(0L)
+                        .build()));
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents,
+                ImmutableMap.of(2116L, entityState));
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        entityState = entityStates.values().iterator().next();
+        Assert.assertTrue(entityState.getActionList().isEmpty());
+        Assert.assertFalse(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * Ensure that provider change events are handled correctly when the entity has no previously
+     * executed action.
+     */
+    @Test
+    public void testProviderChangeNoLastExecutedAction() {
+        // Create events for scenario.
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
+                createProviderChange(2L, 3d, 5d));
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertTrue(entityState.getActionList().isEmpty());
+        Assert.assertTrue(entityState.getCurrentRecommendation().active());
+    }
+
+    /**
+     * Tests to ensure that the provider change is fully formed.
+     */
+    @Test
+    public void testProviderChangeValidityChecks() {
+        // No algorithm state (invalid entity ID)
+        List<SavingsEvent> savingsEvents = ImmutableList.of(
+                createProviderChange(2L, 3d, 5d));
+        Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
+
+        // Verify the results.
+        Assert.assertTrue(entityStates.isEmpty());
+
+        // No provider change in topology event.
+        SavingsEvent savingsEvent = createSavingsEvent(0L)
+                .topologyEvent(TopologyEvent.newBuilder()
+                        .setType(TopologyEventType.PROVIDER_CHANGE)
+                        .setEventTimestamp(0L)
+                        .setEventInfo(TopologyEventInfo.newBuilder())
+                        .build())
+                .build();
+        entityStates = runProviderChangeScenario(ImmutableList.of(savingsEvent));
+
+        // Verify the results.
+        Assert.assertTrue(entityStates.isEmpty());
+    }
+
+    private Map<Long, EntityState> runProviderChangeScenario(List<SavingsEvent> savingsEvents,
+            Map<Long, EntityState> entityStates) {
+        // Run the algorithm. Run a single period of one hour
+        SavingsCalculator savingsCalculator = new SavingsCalculator();
+        savingsCalculator.calculate(entityStates, entityStates.values(),
+                savingsEvents, 0, 3600000L);
+        return entityStates;
+    }
+
+    private Map<Long, EntityState> runProviderChangeScenario(List<SavingsEvent> savingsEvents) {
+        return runProviderChangeScenario(savingsEvents, new HashMap<>());
+    }
+
+    private SavingsEvent.Builder createSavingsEvent(long timestamp, Double sourceCost,
+            Double destCost) {
+        return new SavingsEvent.Builder()
+                .entityId(2116L)
+                .timestamp(timestamp)
+                .expirationTime(timestamp + TimeUnit.DAYS.toMillis(365L))
+                .entityPriceChange(new EntityPriceChange.Builder()
+                        .sourceCost(sourceCost)
+                        .destinationCost(destCost)
+                        .sourceOid((long)Objects.hash(sourceCost))
+                        .destinationOid((long)Objects.hash(destCost))
+                        .build());
+    }
+
+    private SavingsEvent.Builder createSavingsEvent(long timestamp) {
+        return new SavingsEvent.Builder()
+                .entityId(2116L)
+                .timestamp(timestamp)
+                .expirationTime(timestamp + TimeUnit.DAYS.toMillis(365L));
+    }
+
+    private SavingsEvent createActionEvent(long timestamp, ActionEventType eventType,
+            Double sourceCost, Double destCost) {
+        return createSavingsEvent(timestamp, sourceCost, destCost)
+                .actionEvent(new ActionEvent.Builder()
+                        .eventType(eventType)
+                        .entityType(10)
+                        .actionId(actionId++)
+                        .build())
+                .build();
+    }
+
+    private SavingsEvent createProviderChange(long timestamp, Double sourceCost, Double destCost) {
+        ProviderChangeDetails.Builder providerChange = ProviderChangeDetails.newBuilder()
+                .setProviderType(10)
+                .setSourceProviderOid(Objects.hash(sourceCost));
+        if (destCost != null) {
+            providerChange.setDestinationProviderOid(Objects.hash(destCost));
+        }
+        return createSavingsEvent(timestamp)
+                .topologyEvent(TopologyEvent.newBuilder()
+                        .setType(TopologyEventType.PROVIDER_CHANGE)
+                        .setEventTimestamp(timestamp)
+                        .setEventInfo(TopologyEventInfo.newBuilder()
+                                .setProviderChange(providerChange))
+                        .build())
+                .build();
     }
 
     /**

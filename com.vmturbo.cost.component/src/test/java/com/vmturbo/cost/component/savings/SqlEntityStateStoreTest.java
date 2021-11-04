@@ -260,7 +260,7 @@ public class SqlEntityStateStoreTest {
      * @return entity state
      */
     private EntityState createState(Long entityId) {
-        EntityState state = new EntityState(entityId);
+        EntityState state = new EntityState(entityId, SavingsUtil.EMPTY_PRICE_CHANGE);
         state.setActionList(Arrays.asList(1d, 2d, 3d));
         return state;
     }

@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.savings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,6 +57,11 @@ public class EntityState {
     private List<Double> actionList;
 
     /**
+     * Last executed action information.
+     */
+    private @Nonnull Optional<ActionEntry> lastExecutedAction;
+
+    /**
      * Realized savings.
      */
     private Double realizedSavings;
@@ -91,16 +97,20 @@ public class EntityState {
      * Constructor.
      *
      * @param entityId entity ID
+     * @param currentRecommendation the entity price change associated with the current
+     *      recommendation.
      */
-    public EntityState(long entityId) {
+    public EntityState(long entityId, @Nonnull EntityPriceChange currentRecommendation) {
         this.entityId = entityId;
         this.deletePending = false;
         this.powerFactor = 1L;
+        this.currentRecommendation = currentRecommendation;
 
         // Initialize the current action list and their expiration times. Not scaled by
         // period length.
         this.actionList = new ArrayList<>();
         this.expirationList = new ArrayList<>();
+        this.lastExecutedAction = Optional.empty();
     }
 
     public long getEntityId() {
@@ -120,7 +130,7 @@ public class EntityState {
         return currentRecommendation;
     }
 
-    public void setCurrentRecommendation(@Nullable EntityPriceChange currentRecommendation) {
+    public void setCurrentRecommendation(@Nonnull EntityPriceChange currentRecommendation) {
         this.currentRecommendation = currentRecommendation;
     }
 
@@ -207,9 +217,10 @@ public class EntityState {
     }
 
     private static Gson createGson() {
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        gsonBuilder.registerTypeAdapterFactory(new GsonAdaptersEntityPriceChange());
-        return gsonBuilder.create();
+        return (new GsonBuilder())
+                .registerTypeAdapterFactory(new GsonAdaptersEntityPriceChange())
+                .registerTypeAdapterFactory(new GsonAdaptersActionEntry())
+                .create();
     }
 
     /**
@@ -246,5 +257,14 @@ public class EntityState {
     @Override
     public int hashCode() {
         return Objects.hash(entityId);
+    }
+
+    @Nullable
+    public Optional<ActionEntry> getLastExecutedAction() {
+        return lastExecutedAction;
+    }
+
+    public void setLastExecutedAction(@Nonnull Optional<ActionEntry> lastExecutedAction) {
+        this.lastExecutedAction = lastExecutedAction;
     }
 }
