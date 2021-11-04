@@ -47,7 +47,7 @@ public class DbEndpointConfig {
     private Boolean shouldProvisionUser;
     private boolean isAbstract;
 
-    DbEndpointConfig(@Nonnull final String name) {
+    DbEndpointConfig(final String name) {
         this.name = name;
     }
 

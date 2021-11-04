@@ -382,27 +382,27 @@ PostgresAdapter extends DbAdapter {
 
     @Override
     protected void tearDown() {
-        try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP DATABASE IF EXISTS \"%s\" CASCADE",
+        try (Connection conn = getRootConnection("postgres")) {
+            execute(conn, String.format("DROP DATABASE IF EXISTS \"%s\"",
                     config.getDatabaseName()));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop database {}", config.getDatabaseName(), e);
         }
-        try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP USER IF EXISTS \"%s\" CASCADE",
+        try (Connection conn = getRootConnection("postgres")) {
+            execute(conn, String.format("DROP USER IF EXISTS \"%s\"",
                     config.getUserName()));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop user {}", config.getUserName(), e);
         }
-        try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\" CASCADE",
+        try (Connection conn = getRootConnection("postgres")) {
+            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\"",
                     getGroupName(READERS_GROUP_ROLE_PREFIX)));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop readers group {}",
                     getGroupName(READERS_GROUP_ROLE_PREFIX), e);
         }
-        try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\" CASCADE",
+        try (Connection conn = getRootConnection("postgres")) {
+            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\"",
                     getGroupName(WRITERS_GROUP_ROLE_PREFIX)));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop writers group {}",
