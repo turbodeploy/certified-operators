@@ -147,6 +147,10 @@ public class ActionModeCalculator {
         CommodityType.VMEM_REQUEST_VALUE
     );
 
+    private static final Map<Integer, Integer> reservedCommodityBoughtSoldConversion
+        = ImmutableMap.of(CommodityType.MEM_VALUE, CommodityType.VMEM_VALUE,
+            CommodityType.CPU_VALUE, CommodityType.VCPU_VALUE);
+
     /**
      * Get the action mode and execution schedule for a particular action. The both of these are
      * determined by the settings for the action, or, if the settings are not available, by the
@@ -1308,11 +1312,19 @@ public class ActionModeCalculator {
             // Get the resizeSettingsByCommodity for this entity type
             Map<Integer, RangeAwareResizeSettings> resizeSettingsByCommodity = resizeSettingsByEntityType.get(entityType);
             Optional<ConfigurableActionSettings> applicableSpec = Optional.empty();
-            // Range aware settings should only apply if the changed attribute is capacity and if
-            // it applies to this entity and commodity
-            if (changedAttribute == CommodityAttribute.CAPACITY
-                    && resizeSettingsByCommodity != null) {
-                RangeAwareResizeSettings resizeSettings = resizeSettingsByCommodity.get(commType);
+            // Range aware settings can apply to Resized Commodity attributes such as Capacity and
+            // Reservation Resize Down of VM. We generate only resize down actions for Reservation,
+            // and since we generate a Remove Limit action for Limits instead of a
+            // Limit increase action (Resize Up), we don't want to consider the range awareness for
+            // this action.
+            if (resizeSettingsByCommodity != null
+                && (changedAttribute == CommodityAttribute.CAPACITY
+                    || isVMResizeDownReservation(resize))) {
+                RangeAwareResizeSettings resizeSettings
+                    = resizeSettingsByCommodity.get(resize.getCommodityAttribute()
+                        == CommodityAttribute.RESERVED
+                            ? reservedCommodityBoughtSoldConversion.get(commType)
+                            : commType);
                 if (resizeSettings != null) {
                     Optional<Float> minThresholdOpt = getNumericSettingForEntity(
                             settingsForTargetEntity, resizeSettings.minThreshold());
@@ -1365,6 +1377,12 @@ public class ActionModeCalculator {
             return applicableSpec;
         }
 
+        private boolean isVMResizeDownReservation(Resize resize) {
+            return resize.getTarget().getType() == EntityType.VIRTUAL_MACHINE.getNumber()
+                    && resize.getCommodityAttribute() == CommodityAttribute.RESERVED
+                    && resize.getNewCapacity() < resize.getOldCapacity();
+        }
+
         /**
          * Gets the numeric setting defined by the spec from the settings map. If it is not present in
          * the settings map, then it returns the default defined in the EntitySettingSpecs enum.
@@ -1402,7 +1420,9 @@ public class ActionModeCalculator {
         private ResizeCapacity getCapacityForModeCalculation(Resize resize) {
             float oldCapacityForMode = resize.getOldCapacity();
             float newCapacityForMode = resize.getNewCapacity();
-            if (MEM_COMMODITY_TYPES.contains(resize.getCommodityType().getType())) {
+            if (MEM_COMMODITY_TYPES.contains(resize.getCommodityType().getType())
+                    || (isVMResizeDownReservation(resize)
+                        && resize.getCommodityType().getType() == CommodityType.MEM_VALUE)) {
                 oldCapacityForMode /= Units.NUM_OF_KB_IN_MB;
                 newCapacityForMode /= Units.NUM_OF_KB_IN_MB;
             }

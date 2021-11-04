@@ -160,6 +160,8 @@ public class RangeAwareResizeParameterizedTests {
                 // Reservation change
                 {CommodityAttribute.RESERVED, CommodityDTO.CommodityType.MEM_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 500_000, 300_000, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                {CommodityAttribute.RESERVED, CommodityDTO.CommodityType.MEM_VALUE,
+                            EntityType.VIRTUAL_MACHINE_VALUE, 300, 200, ActionMode.DISABLED, AUTOMATIC, DISABLED},
                 // Non-VM resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
                         EntityType.CONTAINER_VALUE, 300_000, 500_000, ActionMode.DISABLED, DISABLED, AUTOMATIC},

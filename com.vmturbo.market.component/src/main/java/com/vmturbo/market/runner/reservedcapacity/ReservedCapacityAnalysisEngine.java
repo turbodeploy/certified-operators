@@ -177,6 +177,11 @@ public class ReservedCapacityAnalysisEngine {
         if (peakValue < oldReservedCapacity || scalingGroupId.isPresent()) {
             // Set new reservation value to peak if peak is not 0.
             newReservedCapacity = (peakValue == 0) ? oldReservedCapacity / 2 : peakValue;
+            // Consider the capacity lower bound threshold when making the resizes.
+            if (oldReservedCapacity > commSold.getThresholds().getMin()
+                    && newReservedCapacity < commSold.getThresholds().getMin()) {
+                newReservedCapacity = commSold.getThresholds().getMin();
+            }
             // Find out the increment change in reservation of commodity.
             double difference = Math.abs(oldReservedCapacity - newReservedCapacity);
             int rateOfDifference = (int)Math.floor(difference / usedIncrement);
