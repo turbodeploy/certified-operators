@@ -1,5 +1,8 @@
 package com.vmturbo.components.api;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
@@ -8,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -17,23 +21,28 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-
 import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.DynamicMessage;
+import com.salesforce.kafka.test.KafkaTestUtils;
+import com.salesforce.kafka.test.junit4.SharedKafkaTestResource;
+
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -47,16 +56,28 @@ import com.vmturbo.components.api.server.KafkaMessageProducer;
  */
 public class KafkaSenderReceiverIT {
 
-    private static Descriptor messageDescriptor;
-    private static FieldDescriptor fieldDescriptor;
-
-    private final Logger logger = LogManager.getLogger(getClass());
-    @Rule
-    public KafkaServer kafkaServer = new KafkaServer();
-
-    private KafkaMessageProducer kafkaProducer;
-    private KafkaMessageConsumer kafkaConsumer;
-    private ExecutorService threadPool;
+    /**
+     * We have a single embedded kafka server that gets started when this test class is
+     * initialized.
+     *
+     * It's automatically started before any methods are run via the @ClassRule annotation.
+     * It's automatically stopped after all of the tests are completed via the @ClassRule
+     * annotation.     *
+     */
+    @ClassRule
+    public static final SharedKafkaTestResource sharedKafkaTestResource =
+            new SharedKafkaTestResource()
+                    // Start a cluster with 1 broker.
+                    .withBrokers(1)
+                    .withBrokerProperty("auto.create.topics.enable", "true")
+                    .withBrokerProperty("offsets.topic.replication.factor", "1")
+                    .withBrokerProperty("message.max.bytes", Integer.toString(1024 * 1024 * 10));
+    protected static Descriptor messageDescriptor;
+    protected static FieldDescriptor fieldDescriptor;
+    protected static KafkaMessageConsumer kafkaConsumer;
+    protected final Logger logger = LogManager.getLogger(getClass());
+    protected KafkaMessageProducer kafkaProducer;
+    protected ExecutorService threadPool;
 
     @BeforeClass
     public static void createDescriptor() throws Exception {
@@ -76,36 +97,46 @@ public class KafkaSenderReceiverIT {
                 DescriptorProtos.FileDescriptorProto.newBuilder().addMessageType(dsc).build();
 
         final Descriptors.FileDescriptor[] fileDescs = new Descriptors.FileDescriptor[0];
-        final Descriptors.FileDescriptor dynamicDescriptor =
-                Descriptors.FileDescriptor.buildFrom(fileDescP, fileDescs);
+        final Descriptors.FileDescriptor dynamicDescriptor = Descriptors.FileDescriptor.buildFrom(
+                fileDescP, fileDescs);
         messageDescriptor = dynamicDescriptor.findMessageTypeByName(messageName);
         fieldDescriptor = messageDescriptor.findFieldByName(fieldName);
     }
 
-    @Before
-    public void init() throws Exception {
-        kafkaConsumer =
-                new KafkaMessageConsumer(kafkaServer.getBootstrapServers(), "test-consumer-group");
-        kafkaProducer = new KafkaMessageProducer(kafkaServer.getBootstrapServers(), "", Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Optional
-                .empty());
-        threadPool = Executors.newCachedThreadPool();
+    /**
+     * Close consumer.
+     *
+     * @throws Exception if any
+     */
+    @AfterClass
+    public static void afterClass() throws Exception {
+        kafkaConsumer.close();
     }
 
-    private static DynamicMessage createMessage(@Nonnull String value) {
+   protected static DynamicMessage createMessage(@Nonnull String value) {
         final DynamicMessage.Builder dmBuilder = DynamicMessage.newBuilder(messageDescriptor);
         dmBuilder.setField(fieldDescriptor, value);
         return dmBuilder.build();
     }
 
+    @Before
+    public void init() throws Exception {
+        kafkaConsumer = new KafkaMessageConsumer(getSharedKafkaTestResource().getKafkaConnectString(),
+                "test-consumer-group");
+        kafkaProducer = new KafkaMessageProducer(getSharedKafkaTestResource().getKafkaConnectString(),
+                "", Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,
+                Integer.MAX_VALUE, Optional.empty());
+        threadPool = Executors.newCachedThreadPool();
+    }
+
     @After
     public void shutdown() {
         threadPool.shutdownNow();
-        kafkaConsumer.close();
         kafkaProducer.close();
     }
 
     /**
-     * Tessts, that number of messages is sent successfully though Kafka broker.
+     * Tests, that number of messages is sent successfully though Kafka broker.
      *
      * @throws Exception on errors occur.
      */
@@ -121,8 +152,8 @@ public class KafkaSenderReceiverIT {
         final IMessageSender<DynamicMessage> sender = kafkaProducer.messageSender(topic);
         final IMessageReceiver<DynamicMessage> receiver = kafkaConsumer.messageReceiver(topic,
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
-        final List<DynamicMessage> received =
-                Collections.synchronizedList(new ArrayList<>(messages.size()));
+        final List<DynamicMessage> received = Collections.synchronizedList(
+                new ArrayList<>(messages.size()));
         receiver.addListener((msg, cmd, tracingContext) -> {
             received.add(msg);
             cmd.run();
@@ -152,6 +183,11 @@ public class KafkaSenderReceiverIT {
         nevillesMessages.get();
     }
 
+    /**
+     * Test huge messages.
+     *
+     * @throws Exception on errors occur.
+     */
     @Test
     public void testHugeMessages() throws Exception {
         final int size = 1024 * 1024;
@@ -161,10 +197,10 @@ public class KafkaSenderReceiverIT {
         }
         final DynamicMessage hugeMessage = createMessage(sb.toString());
 
-        final String topic = "Hogwarts-news";
+        final String topic = "Hogwarts-news-HugeMessage";
 
         final Properties props = new Properties();
-        props.put("bootstrap.servers", kafkaServer.getBootstrapServers());
+        props.put("bootstrap.servers", getSharedKafkaTestResource().getKafkaConnectString());
         final AdminClient adminClient = AdminClient.create(props);
         final NewTopic newTopic = new NewTopic(topic, 1, (short)1);
         newTopic.configs(Collections.singletonMap("max.message.bytes", Integer.toString(size * 2)));
@@ -173,8 +209,7 @@ public class KafkaSenderReceiverIT {
         final IMessageSender<DynamicMessage> sender = kafkaProducer.messageSender(topic);
         final IMessageReceiver<DynamicMessage> receiver = kafkaConsumer.messageReceiver(topic,
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
-        final List<DynamicMessage> received =
-                Collections.synchronizedList(new ArrayList<>(1));
+        final List<DynamicMessage> received = Collections.synchronizedList(new ArrayList<>(1));
         receiver.addListener((msg, cmd, tracingContext) -> {
             received.add(msg);
             cmd.run();
@@ -192,10 +227,10 @@ public class KafkaSenderReceiverIT {
      */
     @Test
     public void testBrokerRestart() throws Exception {
-        final List<DynamicMessage> sentMessages =
-                Stream.of("The Ministry has fallen", "Scrimgeour is dead", "They're coming")
-                        .map(KafkaSenderReceiverIT::createMessage)
-                        .collect(Collectors.toList());
+        final List<DynamicMessage> sentMessages = Stream.of("The Ministry has fallen",
+                "Scrimgeour is dead", "They're coming")
+                .map(KafkaSenderReceiverIT::createMessage)
+                .collect(Collectors.toList());
         final String topic = "patronus-message";
         final IMessageReceiver<DynamicMessage> receiver = kafkaConsumer.messageReceiver(topic,
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
@@ -216,13 +251,40 @@ public class KafkaSenderReceiverIT {
         });
         kafkaConsumer.start();
         receivedLatch.await(30, TimeUnit.SECONDS);
-        kafkaServer.stopKafka();
-        kafkaServer.startKafka();
+        getSharedKafkaTestResource().getKafkaBrokers().getBrokerById(1).stop();
+        getSharedKafkaTestResource().getKafkaBrokers().getBrokerById(1).start();
         for (int i = 1; i < sentMessages.size(); i++) {
             sender.sendMessage(sentMessages.get(i));
         }
         commitLatch.countDown();
         awaitEquals(sentMessages, receivedMessage, 120);
+    }
+
+    /**
+     * Simple smoke test to ensure broker running appropriate listeners.
+     */
+    @Test
+    public void validateListener() throws ExecutionException, InterruptedException {
+        try (final AdminClient adminClient = getKafkaTestUtils().getAdminClient()) {
+            final ConfigResource broker1Resource = new ConfigResource(ConfigResource.Type.BROKER,
+                    "1");
+
+            // Pull broker configs
+            final Config configResult = adminClient.describeConfigs(
+                    Collections.singletonList(broker1Resource)).values().get(broker1Resource).get();
+
+            // Check listener
+            final String actualListener = configResult.get("listeners").value();
+            assertTrue("Expected " + getExpectedListenerProtocol() + ":// and found: "
+                            + actualListener,
+                    actualListener.contains(getExpectedListenerProtocol() + "://"));
+
+            // Check inter broker protocol
+            final String actualBrokerProtocol = configResult.get("security.inter.broker.protocol")
+                    .value();
+            assertEquals("Unexpected inter-broker protocol", getExpectedListenerProtocol(),
+                    actualBrokerProtocol);
+        }
     }
 
     /**
@@ -240,7 +302,7 @@ public class KafkaSenderReceiverIT {
             throws InterruptedException, CommunicationException {
         final List<DynamicMessage> messages = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            messages.add(createMessage(topic + "-" + Integer.toString(start + i)));
+            messages.add(createMessage(topic + "-" + (start + i)));
         }
         final IMessageSender<DynamicMessage> sender = kafkaProducer.messageSender(topic);
         for (DynamicMessage message : messages) {
@@ -249,8 +311,8 @@ public class KafkaSenderReceiverIT {
 
         final IMessageReceiver<DynamicMessage> receiver = kafkaConsumer.messageReceiver(topic,
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
-        final List<DynamicMessage> received =
-                Collections.synchronizedList(new ArrayList<>(messages.size()));
+        final List<DynamicMessage> received = Collections.synchronizedList(
+                new ArrayList<>(messages.size()));
         receiver.addListener((msg, cmd, tracingContext) -> {
             received.add(msg);
             cmd.run();
@@ -267,7 +329,8 @@ public class KafkaSenderReceiverIT {
      * @param expected expected collection
      * @param actual actual results collection
      * @param timoutSec time (in seconds) to await for the success result. If during this
-     *      interval {@code actual} collection is changed (appended), then await process is postponed.
+     *         interval {@code actual} collection is changed (appended), then await process is
+     *         postponed.
      * @param <T> type of objects in collections to compare.
      * @throws InterruptedException if thread has been interrupted while waiting
      */
@@ -295,5 +358,32 @@ public class KafkaSenderReceiverIT {
         }
         Assert.assertEquals(expected, actual);
         logger.info("Successfully validated {} messages", expected.size());
+    }
+
+    /**
+     * Get Kafka test resource.
+     *
+     * @return Kafka test resource.
+     */
+    protected SharedKafkaTestResource getSharedKafkaTestResource() {
+        return sharedKafkaTestResource;
+    }
+
+    /**
+     * Simple accessor.
+     *
+     * @return Kafka test utils.
+     */
+    protected KafkaTestUtils getKafkaTestUtils() {
+        return sharedKafkaTestResource.getKafkaTestUtils();
+    }
+
+    /**
+     * Plain text protocol.
+     *
+     * @return Plain text protocol
+     */
+    protected String getExpectedListenerProtocol() {
+        return "PLAINTEXT";
     }
 }
