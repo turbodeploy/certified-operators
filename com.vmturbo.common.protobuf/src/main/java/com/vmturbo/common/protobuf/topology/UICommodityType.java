@@ -259,6 +259,14 @@ public enum UICommodityType {
     NET_THROUGHPUT_OUT(CommodityType.NET_THROUGHPUT_OUT, "Net Throughput Outbound"),
     /** The commodity NET_THROUGHPUT_IN **/
     NET_THROUGHPUT_IN(CommodityType.NET_THROUGHPUT_IN, "Net Throughput Inbound"),
+    /** The commodity STORAGE_ACCESS_SSD_READ. */
+    STORAGE_ACCESS_SSD_READ(CommodityType.STORAGE_ACCESS_SSD_READ, "IOPS SSD Read"),
+    /** The commodity STORAGE_ACCESS_SSD_WRITE. */
+    STORAGE_ACCESS_SSD_WRITE(CommodityType.STORAGE_ACCESS_SSD_WRITE, "IOPS SSD Write"),
+    /** The commodity STORAGE_ACCESS_STANDARD_READ. */
+    STORAGE_ACCESS_STANDARD_READ(CommodityType.STORAGE_ACCESS_STANDARD_READ, "IOPS Standard Read"),
+    /** The commodity STORAGE_ACCESS_STANDARD_WRITE. */
+    STORAGE_ACCESS_STANDARD_WRITE(CommodityType.STORAGE_ACCESS_STANDARD_WRITE, "IOPS Standard Write"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 
