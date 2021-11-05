@@ -93,6 +93,7 @@ import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerClusterPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerSpecPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedEntityPostProcessor;
+import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityAnalysisEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
@@ -291,6 +292,8 @@ public class Analysis {
 
     private final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory;
 
+    private final ExternalReconfigureActionEngine externalReconfigureActionEngine;
+
     /**
      * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
      */
@@ -350,7 +353,8 @@ public class Analysis {
                     @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                     @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
                     @Nonnull final CommodityIdUpdater commodityIdUpdater,
-                    @Nonnull final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory) {
+                    @Nonnull final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory,
+                    @Nonnull final ExternalReconfigureActionEngine externalReconfigureActionEngine) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -381,6 +385,7 @@ public class Analysis {
         this.actionSavingsCalculatorFactory = Objects.requireNonNull(actionSavingsCalculatorFactory);
         this.contextType = topologyInfo.hasPlanInfo() ? TopologyConversionConstants.PLAN_CONTEXT_TYPE_LABEL
                 : TopologyConversionConstants.LIVE_CONTEXT_TYPE_LABEL;
+        this.externalReconfigureActionEngine = externalReconfigureActionEngine;
     }
 
     /**
@@ -559,6 +564,10 @@ public class Analysis {
         } else {
             reservedCapacityResults = ReservedCapacityResults.EMPTY;
         }
+
+        //Execute ReconfigureActionAnalysis
+
+        List<Action> reconfigurationActions = this.externalReconfigureActionEngine.execute(topologyDTOs);
 
         ConvertedTopology convertedTopology = ConvertedTopology.EMPTY;
         if (isM2AnalysisEnabled) {
@@ -885,6 +894,7 @@ public class Analysis {
                     // to support multiple analyses for the same topology ID
                     actionPlanBuilder.addAllAction(wastedFilesAnalysis.getActions());
                     actionPlanBuilder.addAllAction(reservedCapacityResults.getActions());
+                    actionPlanBuilder.addAllAction(reconfigurationActions);
                     logger.info(logPrefix + "Completed successfully");
                     processResultTime.observe();
                     state = AnalysisState.SUCCEEDED;

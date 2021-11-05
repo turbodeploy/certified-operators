@@ -28,6 +28,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.CommodityTypeAllocator;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -73,7 +74,7 @@ public class CommodityIdUpdaterTest {
             mock(AnalysisRICoverageListener.class), mock(ConsistentScalingHelperFactory.class),
             mock(InitialPlacementFinder.class), mock(ReversibilitySettingFetcherFactory.class),
             mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
-            mock(JournalActionSavingsCalculatorFactory.class));
+            mock(JournalActionSavingsCalculatorFactory.class), mock(ExternalReconfigureActionEngine.class));
     }
 
     /**

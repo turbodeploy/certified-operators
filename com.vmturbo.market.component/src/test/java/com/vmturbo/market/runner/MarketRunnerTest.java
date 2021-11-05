@@ -67,6 +67,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -182,6 +183,10 @@ public class MarketRunnerTest {
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
             final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
             doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
+
+            final ExternalReconfigureActionEngine externalReconfigureActionEngine = mock(
+                    ExternalReconfigureActionEngine.class);
+
             return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
@@ -189,7 +194,8 @@ public class MarketRunnerTest {
                     tierExcluderFactory, mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-                    new CommodityIdUpdater(), actionSavingsCalculatorFactory);
+                    new CommodityIdUpdater(), actionSavingsCalculatorFactory,
+                    externalReconfigureActionEngine);
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 

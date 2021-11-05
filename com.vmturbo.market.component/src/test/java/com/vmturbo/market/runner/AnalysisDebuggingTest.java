@@ -69,6 +69,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -306,7 +307,8 @@ public class AnalysisDebuggingTest {
                 wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine, tierExcluderFactory,
                 mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder,
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-                        new CommodityIdUpdater(), actionSavingsCalculatorFactory);
+                        new CommodityIdUpdater(), actionSavingsCalculatorFactory, mock(
+                ExternalReconfigureActionEngine.class));
         return analysis;
     }
 

@@ -1465,6 +1465,11 @@ enum CommodityAttribute {
     RESERVED = 2;
 }
 
+//Changeable entity attributes, which can be target of Reconfigure actions
+enum EntityAttribute {
+    CORES_PER_SOCKET = 1;
+}
+
 message CommodityBoughtDTO {
 
     required CommodityType commodityType = 1;

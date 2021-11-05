@@ -91,6 +91,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -266,13 +267,17 @@ public class AnalysisTest {
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
+        final ExternalReconfigureActionEngine externalReconfigureActionEngine = mock(
+                ExternalReconfigureActionEngine.class);
+
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine,
             tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-            new CommodityIdUpdater(), actionSavingsCalculatorFactory);
+            new CommodityIdUpdater(), actionSavingsCalculatorFactory,
+                externalReconfigureActionEngine);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of

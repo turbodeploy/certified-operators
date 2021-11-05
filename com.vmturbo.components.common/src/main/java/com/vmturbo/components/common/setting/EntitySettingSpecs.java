@@ -578,6 +578,7 @@ public enum EntitySettingSpecs {
     /**
      * Virtual CPU Increment in sockets for virtual machines.
      */
+    //Todo: remove this setting while refactoring the EntitySettingsApplicator.
     VmVcpuIncrementSockets("usedIncrement_VCPU_Sockets", "Increment constant for VCPU [Sockets]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
@@ -586,6 +587,7 @@ public enum EntitySettingSpecs {
     /**
      * Virtual CPU Increment unit for virtual machines.
      */
+    //Todo: remove this setting while refactoring the EntitySettingsApplicator.
     VmVcpuIncrementUnit("usedIncrement_VCPU_Unit", "Increment constant unit For VCPU",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
@@ -598,6 +600,52 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             new EnumSettingDataType<>(VCPUScalingUnitsEnum.MHZ, VCPUScalingUnitsEnum.class), true),
+
+    /**
+     * Cores Per Socket mode chosen when scale in sockets.
+     * The cores per socket can be either discovered by probe or specified by user in
+     * Sockets_CoresPerSocketValue.
+     */
+    VcpuScaling_Sockets_CoresPerSocketMode("vcpuScaling_sockets_coresPerSocketMode", "Cores per socket mode",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
+
+    /**
+     * Cores Per Socket value specified by user when CoresPerSocket mode is user_specified.
+     */
+    VcpuScaling_Sockets_CoresPerSocketValue("vcpuScaling_sockets_coresPerSocketValue", "Cores per socket value",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1.0f, 1000.0f, 1.0f), true),
+
+    /**
+     * The increment value when scale in sockets.
+     */
+    VcpuScaling_Sockets_SocketIncrementValue("vcpuScaling_sockets_socketIncrementValue", "Increment in sockets",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1.0f, 1000.0f, 1.0f), true),
+
+    /**
+     * Socket scaling mode chosen when scale in cores per socket.
+     * The socket can be discovered by probe, match the host, or specified by user in
+     * CoresPerSocket_SocketValue.
+     */
+    VcpuScaling_CoresPerSocket_SocketMode("vcpuScaling_coresPerSocket_SocketMode", "Socket mode",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
+
+    /**
+     * Cores Per Socket value specified by user when CoresPerSocket mode is user_specified.
+     */
+    VcpuScaling_CoresPerSocket_SocketValue("vcpuScaling_coresPerSocket_SocketValue", "Socket value",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1.0f, 1000.f, 1.0f), true),
+
+
 
     /**
      * Virtual Memory Increment for virtual machines.
