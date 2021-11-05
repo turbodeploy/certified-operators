@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 import io.jsonwebtoken.lang.Collections;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -46,6 +47,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -121,6 +123,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES("Reconfigure {0} to provide {1} from {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
+        ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} for {1} from {2} to {3}"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE("Scale {0} {1} for {2} from {3} to {4}"),
@@ -400,6 +403,16 @@ public class ActionDescriptionBuilder {
                         .map(ReasonCommodity::getCommodityType)
                         .collect(Collectors.toList())));
             }
+        } else if (reconfigure.hasSettingChange()) {
+            SettingChange change = reconfigure.getSettingChange();
+            String settingChange = StringUtils.capitalize(change.getEntityAttribute().name()
+                    .replace("_", " ").toLowerCase());
+            return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
+                    settingChange,
+                    beautifyEntityTypeAndName(targetEntityDTO.get()),
+                    change.getCurrentValue(),
+                    change.getNewValue());
+
         } else {
             return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE.format(
                 beautifyEntityTypeAndName(targetEntityDTO.get()));

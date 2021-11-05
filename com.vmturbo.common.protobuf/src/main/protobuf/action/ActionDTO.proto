@@ -603,6 +603,14 @@ message Reconfigure {
 
     // If it is a reconfigure to add commodity or remove.
     optional bool is_addition = 5;
+
+    optional SettingChange setting_change = 6;
+
+    message SettingChange {
+        required float current_value = 1;
+        required float new_value = 2;
+        required topology.EntityAttribute entity_attribute = 3;
+    }
 }
 
 // An action to provision an entity that matches another entity already existing in the system.

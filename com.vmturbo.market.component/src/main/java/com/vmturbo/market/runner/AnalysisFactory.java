@@ -36,6 +36,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -146,6 +147,8 @@ public interface AnalysisFactory {
 
         private boolean useVMReservationAsUsed;
 
+        private ExternalReconfigureActionEngine externalReconfigureActionEngine;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -173,7 +176,8 @@ public interface AnalysisFactory {
                                       final boolean enableOP,
                                       final boolean fastProvisionEnabled,
                                       final boolean branchAndBoundEnabled,
-                                      final boolean useVMReservationAsUsed) {
+                                      final boolean useVMReservationAsUsed,
+                                      @Nonnull ExternalReconfigureActionEngine externalReconfigureActionEngine) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -208,6 +212,7 @@ public interface AnalysisFactory {
             this.fastProvisionEnabled = fastProvisionEnabled;
             this.branchAndBoundEnabled = branchAndBoundEnabled;
             this.useVMReservationAsUsed = useVMReservationAsUsed;
+            this.externalReconfigureActionEngine = externalReconfigureActionEngine;
         }
 
         /**
@@ -233,7 +238,7 @@ public interface AnalysisFactory {
                 buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine, tierExcluderFactory, listener,
                 consistentScalingHelperFactory, initialPlacementFinder, reversibilitySettingFetcherFactory,
                 migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
-                actionSavingsCalculatorFactory);
+                actionSavingsCalculatorFactory, externalReconfigureActionEngine);
         }
 
         /**

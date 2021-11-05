@@ -97,9 +97,9 @@ public class ActionCategoryExtractor {
                     return action.getInfo().getReconfigure().getIsAddition()
                         ? ActionCategory.PERFORMANCE_ASSURANCE
                             : ActionCategory.EFFICIENCY_IMPROVEMENT;
-                } else {
-                    return ActionCategory.COMPLIANCE;
                 }
+                return ActionCategory.COMPLIANCE;
+
             case PROVISION:
                 ProvisionExplanation provExp = explanation.getProvision();
                 switch (provExp.getProvisionExplanationTypeCase()) {

@@ -125,6 +125,7 @@ public class ExplanationComposer {
     private static final String OVERUTILIZED_RESOURCES_CATEGORY = "Overutilized resources";
     private static final String UNDERUTILIZED_RESOURCES_CATEGORY = "Underutilized resources";
     private static final String RECONFIGURE_EXPLANATION_CATEGORY = "Misconfiguration";
+    private static final String RECONFIGURE_SETTING_CHANGE_CATEGORY = "Required setting change";
     private static final String REASON_SETTING_EXPLANATION_CATEGORY = "Setting policy compliance";
     private static final String CSG_COMPLIANCE_EXPLANATION_CATEGORY = "CSG compliance";
     private static final String REASON_COMMODITY_EXPLANATION_CATEGORY =  " compliance";
@@ -962,7 +963,8 @@ public class ExplanationComposer {
             @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             final boolean keepItShort) {
         if (keepItShort) {
-            return RECONFIGURE_EXPLANATION_CATEGORY;
+            return action.getInfo().getReconfigure().hasSettingChange() ?
+                    RECONFIGURE_SETTING_CHANGE_CATEGORY : RECONFIGURE_EXPLANATION_CATEGORY;
         }
 
         final Explanation explanation = action.getExplanation();

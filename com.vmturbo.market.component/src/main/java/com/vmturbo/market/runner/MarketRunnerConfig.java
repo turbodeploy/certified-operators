@@ -50,6 +50,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPrice
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -222,7 +223,9 @@ public class MarketRunnerConfig {
                 enableOP,
                 fastProvisionEnabled,
                 branchAndBoundEnabled,
-                useVMReservationAsUsed);
+                useVMReservationAsUsed,
+                newReconfigureActionAnalysisEngine()
+                );
     }
 
     /**
@@ -377,5 +380,9 @@ public class MarketRunnerConfig {
     @Bean
     public ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory() {
         return new DefaultReversibilitySettingFetcherFactory(settingPolicyRpcService());
+    }
+
+    public ExternalReconfigureActionEngine newReconfigureActionAnalysisEngine() {
+        return new ExternalReconfigureActionEngine(settingPolicyRpcService());
     }
 }
