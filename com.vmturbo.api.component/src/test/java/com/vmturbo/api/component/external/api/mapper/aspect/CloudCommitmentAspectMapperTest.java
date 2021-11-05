@@ -9,6 +9,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudCommitmentInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.FamilyRestricted;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.ProviderType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
@@ -35,11 +36,15 @@ public class CloudCommitmentAspectMapperTest extends BaseAspectMapperTest {
     @Test
     public void testMapEntityToAspect() throws ConversionException, InterruptedException {
         final TopologyDTO.TypeSpecificInfo typeSpecificInfo = TopologyDTO.TypeSpecificInfo.newBuilder()
-                .setCloudCommitmentData(CloudCommitmentInfo.newBuilder().setStartTimeMilliseconds(startTimeInMiliSeconds)
-                .setExpirationTimeMilliseconds(endTimeInMiliSeconds).setSpend(
-                                CurrencyAmount.newBuilder().setAmount(spend).build()).setFamilyRestricted(
-                                FamilyRestricted.newBuilder().setInstanceFamily(instanceFamily).build()).setPayment(
-                                PaymentOption.ALL_UPFRONT).setTermMilliseconds(termInMiliseconds)).build();
+                .setCloudCommitmentData(CloudCommitmentInfo.newBuilder()
+                        .setStartTimeMilliseconds(startTimeInMiliSeconds)
+                        .setExpirationTimeMilliseconds(endTimeInMiliSeconds)
+                        .setSpend(CurrencyAmount.newBuilder().setAmount(spend).build())
+                        .setFamilyRestricted(FamilyRestricted.newBuilder().setInstanceFamily(instanceFamily).build())
+                        .setPayment(PaymentOption.ALL_UPFRONT)
+                        .setTermMilliseconds(termInMiliseconds)
+                        .setProviderSpecificType(ProviderType.SAVINGS_PLAN))
+                .build();
 
         final CloudCommitmentAspectMapper cloudCommitmentAspectMapper = new CloudCommitmentAspectMapper();
         final TopologyEntityDTO topologyEntityDTO = topologyEntityDTOBuilder(
@@ -50,5 +55,6 @@ public class CloudCommitmentAspectMapperTest extends BaseAspectMapperTest {
         assert (cloudCommitmentAspectApiDTO.getCloudCommitmentScopeType() == CloudCommitmentScopeType.FamilyScoped);
         assert (cloudCommitmentAspectApiDTO.getPayment() == com.vmturbo.api.enums.PaymentOption.ALL_UPFRONT);
         assert (cloudCommitmentAspectApiDTO.getCloudCommitmentCapacityApiDTO().getSpendCapacity() == spend);
+        assert (cloudCommitmentAspectApiDTO.getProviderSpecificType() == com.vmturbo.api.enums.ProviderType.SAVINGS_PLAN);
     }
 }
