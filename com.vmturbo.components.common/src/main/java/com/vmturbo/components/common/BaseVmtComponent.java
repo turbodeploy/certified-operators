@@ -821,7 +821,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private void publishVersionInformation() {
         if (standalone != null && !standalone) {
             // get the component version and record it in the key/value store
-            final String specVersion = getClass().getPackage().getSpecificationVersion();
+            final String specVersion = getClass().getPackage().getImplementationVersion();
             if (specVersion != null) {
                 logger.info("Component version for {} found: {}", componentType, specVersion);
                 baseVmtComponentConfig.keyValueStore().put(COMPONENT_VERSION_KEY, specVersion);
