@@ -24,6 +24,7 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
@@ -329,4 +330,32 @@ public final class SettingDTOUtil {
             .build();
     }
 
+    /**
+     * Check if the given policy settings contain the setting that enables horizontal scale.
+     *
+     * @param settings the provided setting
+     * @return true if horizontal scale setting exists and is enabled
+     */
+    public static boolean hasHorizontalScaleEnabled(@Nonnull final Collection<Setting> settings) {
+        return settings.stream()
+                .filter(setting -> ConfigurableActionSettings.SERVICE_HORIZONTAL_SCALE_SETTINGS
+                        .contains(setting.getSettingSpecName()))
+                .anyMatch(SettingDTOUtil::isActionEnabled);
+    }
+
+    /**
+     * Check if the setting is an action mode setting where the action is enabled.
+     * An action is considered enabled if the action mode is NOT set to Disabled.
+     *
+     * @param setting the setting to check
+     * @return true if the action is enabled
+     */
+    public static boolean isActionEnabled(@Nonnull final Setting setting) {
+        return Optional.of(setting)
+                .filter(Setting::hasEnumSettingValue)
+                .map(Setting::getEnumSettingValue)
+                .map(EnumSettingValue::getValue)
+                .map(value -> !ActionMode.DISABLED.name().equals(value))
+                .orElse(false);
+    }
 }
