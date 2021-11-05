@@ -134,7 +134,7 @@
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.2.6</arangodb.driver.version>
-        <kafka.version>2.7.0</kafka.version>
+        <kafka.version>2.8.1</kafka.version>
 
         <st4.version>4.0.8</st4.version>
         <failsafe.version>3.0.0-M4</failsafe.version>
@@ -187,6 +187,9 @@
              turbo-pipenv script (since we almost never use nested modules).
              Any nested modules should override this appropriately. -->
         <pipenvScript>../build/turbo-pipenv</pipenvScript>
+
+        <!-- Kafka test library -->
+        <kafka-test.version>3.2.3</kafka-test.version>
     </properties>
 
     <prerequisites>
