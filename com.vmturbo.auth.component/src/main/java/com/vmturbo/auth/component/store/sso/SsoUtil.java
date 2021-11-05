@@ -458,7 +458,8 @@ public class SsoUtil {
                 }
             } catch (NamingException authEx) {
                 logger.debug("Cannot get information about groups that '{}' username participates in from '{}' server using '{}' filter",
-                                userName, ldapServer, searchFilter, authEx);
+                                userName, ldapServer, searchFilter);
+                logger.debug("LDAP connection failed: ", authEx);
                 return null;
             } finally {
                 debugAuthentication(userName, ldapServer, searchFilter, participatesIn);
