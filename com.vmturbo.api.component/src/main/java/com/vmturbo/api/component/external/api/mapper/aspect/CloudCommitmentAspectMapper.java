@@ -13,9 +13,11 @@ import com.vmturbo.api.dto.entityaspect.CloudCommitmentAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.CloudCommitmentScopeType;
 import com.vmturbo.api.enums.PaymentOption;
+import com.vmturbo.api.enums.ProviderType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudCommitmentInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost;
 
@@ -46,6 +48,10 @@ public class CloudCommitmentAspectMapper extends AbstractAspectMapper {
         cloudCommitmentAspectApiDTO.setCloudCommitmentScopeType(cloudCommitmentData.hasFamilyRestricted()
                 ? CloudCommitmentScopeType.FamilyScoped : CloudCommitmentScopeType.CloudServiceScoped);
         cloudCommitmentAspectApiDTO.setCloudCommitmentScopeDTO(createCloudCommitmentScopeDTO(cloudCommitmentData));
+        ProviderType providerType = convertProviderTypeToApiDTO(cloudCommitmentData.getProviderSpecificType());
+        if (providerType != null) {
+            cloudCommitmentAspectApiDTO.setProviderSpecificType(providerType);
+        }
         return cloudCommitmentAspectApiDTO;
     }
 
@@ -72,6 +78,25 @@ public class CloudCommitmentAspectMapper extends AbstractAspectMapper {
                 return PaymentOption.NO_UPFRONT;
             default:
                 logger.error("Can not find matched payment option: " + paymentOption);
+                return null;
+        }
+    }
+
+    /**
+     * Convert {@link CloudCommitmentData.ProviderType} to {@link ProviderType}.
+     *
+     * @param providerType a {@link CloudCommitmentData.ProviderType}.
+     * @return a {@link ProviderType}.
+     */
+    private ProviderType convertProviderTypeToApiDTO(
+            @Nonnull final CloudCommitmentData.ProviderType providerType) {
+        switch (providerType) {
+            case SAVINGS_PLAN:
+                return ProviderType.SAVINGS_PLAN;
+            case COMMITTED_USE:
+                return ProviderType.COMMITTED_USE;
+            default:
+                logger.error("Can not find matched provider type: {}", providerType);
                 return null;
         }
     }
