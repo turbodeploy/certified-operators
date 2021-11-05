@@ -50,6 +50,23 @@ public class CommodityTypeMappingTest {
                 EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.NET_THROUGHPUT_IN_VALUE);
         assertEquals("KByte/sec", vmNetThroughputInUnit);
 
+        String vmIOPSSSDReadUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
+                EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.STORAGE_ACCESS_SSD_READ_VALUE);
+        assertEquals("IOPS", vmIOPSSSDReadUnit);
+
+        String vmIOPSSSDWriteUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
+                EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.STORAGE_ACCESS_SSD_WRITE_VALUE);
+        assertEquals("IOPS", vmIOPSSSDWriteUnit);
+
+        String vmIOPSStandardReadUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
+                EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.STORAGE_ACCESS_STANDARD_READ_VALUE);
+        assertEquals("IOPS", vmIOPSStandardReadUnit);
+
+        String vmIOPSStandardWriteUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
+                EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.STORAGE_ACCESS_STANDARD_WRITE_VALUE);
+        assertEquals("IOPS", vmIOPSStandardWriteUnit);
+
+
         String unKnownCommUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
             EntityType.UNKNOWN_VALUE, CommodityType.UNKNOWN_VALUE);
         assertEquals("", unKnownCommUnit);
@@ -75,5 +92,10 @@ public class CommodityTypeMappingTest {
         assertEquals("NetThroughput", CommodityTypeMapping.getApiCommodityType(CommodityType.NET_THROUGHPUT));
         assertEquals("NetThroughputInbound", CommodityTypeMapping.getApiCommodityType(CommodityType.NET_THROUGHPUT_IN));
         assertEquals("NetThroughputOutbound", CommodityTypeMapping.getApiCommodityType(CommodityType.NET_THROUGHPUT_OUT));
+        assertEquals("StorageAccess", CommodityTypeMapping.getApiCommodityType(CommodityType.STORAGE_ACCESS));
+        assertEquals("IopsSSDRead", CommodityTypeMapping.getApiCommodityType(CommodityType.STORAGE_ACCESS_SSD_READ));
+        assertEquals("IopsSSDWrite", CommodityTypeMapping.getApiCommodityType(CommodityType.STORAGE_ACCESS_SSD_WRITE));
+        assertEquals("IopsStandardRead", CommodityTypeMapping.getApiCommodityType(CommodityType.STORAGE_ACCESS_STANDARD_READ));
+        assertEquals("IopsStandardRead", CommodityTypeMapping.getApiCommodityType(CommodityType.STORAGE_ACCESS_STANDARD_READ));
     }
 }

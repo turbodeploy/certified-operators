@@ -172,6 +172,10 @@ public class CommodityTypeMapping {
             .put(CommodityType.CPU_READY, CommodityInfo.of("CPUReady", "CPUReady", "msec"))
             .put(CommodityType.NET_THROUGHPUT_OUT, CommodityInfo.of("NetThroughputOutbound", "NetThroughputOutbound", "KByte/sec"))
             .put(CommodityType.NET_THROUGHPUT_IN, CommodityInfo.of("NetThroughputInbound", "NetThroughputInbound", "KByte/sec"))
+            .put(CommodityType.STORAGE_ACCESS_SSD_READ, CommodityInfo.of("IopsSSDRead", "IopsSSDRead", "IOPS"))
+            .put(CommodityType.STORAGE_ACCESS_SSD_WRITE, CommodityInfo.of("IopsSSDWrite", "IopsSSDWrite", "IOPS"))
+            .put(CommodityType.STORAGE_ACCESS_STANDARD_READ, CommodityInfo.of("IopsStandardRead", "IopsStandardRead", "IOPS"))
+            .put(CommodityType.STORAGE_ACCESS_STANDARD_WRITE, CommodityInfo.of("IopsStandardWrite", "IopsStandardWrite", "IOPS"))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 

@@ -95,7 +95,9 @@ public class PercentileEditor extends
     // percentile may be calculated on a bought commodity if the provider has infinite capacity
     private static final Map<EntityType, Set<CommodityType>> ENABLED_BOUGHT_FROM_PROVIDER_TYPES =
         ImmutableMap.of(EntityType.COMPUTE_TIER,
-            ImmutableSet.of(CommodityType.STORAGE_ACCESS, CommodityType.IO_THROUGHPUT));
+            ImmutableSet.of(CommodityType.STORAGE_ACCESS, CommodityType.IO_THROUGHPUT, CommodityType.STORAGE_ACCESS_SSD_READ,
+                    CommodityType.STORAGE_ACCESS_SSD_WRITE, CommodityType.STORAGE_ACCESS_STANDARD_READ,
+                    CommodityType.STORAGE_ACCESS_STANDARD_WRITE));
     private static final String FULL_DIAG_NAME_SUFFIX = "full";
     private static final String LATEST_DIAG_NAME_SUFFIX = "latest";
 
