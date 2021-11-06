@@ -270,14 +270,14 @@ public enum ConfigurableActionSettings {
      * Reconfigure action automation mode (not executable).
      */
     Reconfigure("reconfigure", "Reconfigure",
-        EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.PHYSICAL_MACHINE)),
+        EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.PHYSICAL_MACHINE)),
 
     /**
      * Activate action automation mode.
      */
     Activate("activate", "Start",
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-            EntityType.CONTAINER_POD, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL)),
+                   EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL)),
 
     /**
      * Automation mode for non-disruptive reversible actions.

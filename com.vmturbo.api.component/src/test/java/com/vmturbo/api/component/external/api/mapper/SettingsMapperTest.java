@@ -60,6 +60,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDT
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -668,7 +669,7 @@ public class SettingsMapperTest {
                 policyMapper, grpcServer.getChannel());
     }
 
-    private SettingApiDTO makeSetting(String uuid, String value) {
+    private SettingApiDTO<String> makeSetting(String uuid, String value) {
         final SettingApiDTO<String> setting = new SettingApiDTO<>();
         setting.setUuid(uuid);
         setting.setValue(value);
@@ -1836,7 +1837,7 @@ public class SettingsMapperTest {
      * @throws IOException IOException
      */
     @Test
-    public void testDisabledSettings() throws IOException {
+    public void testDisabledSettingsWhenServiceHorizontalScaleIsDisabled() throws IOException {
         final SettingsMapper mapper = new SettingsMapper(
                 SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
@@ -1847,11 +1848,38 @@ public class SettingsMapperTest {
                 ImmutableMap.of(
                         Feature.CloudScaleEnhancement, true,
                         Feature.ServiceHorizontalScale, false));
-        final Map<String, Set<String>> disabledSettings = mapper.getDisabledSettings();
-        final Map<String, Set<String>> expected = SettingsMapper.featureToSettingsMap
-                .getOrDefault(Feature.ServiceHorizontalScale, Collections.emptyMap());
-        Assert.assertEquals(2, disabledSettings.size());
-        Assert.assertEquals(expected, disabledSettings);
+        final SettingApiDTO<String> serviceHorizontalScaleUpSetting =
+                makeSetting(ConfigurableActionSettings.HorizontalScaleUp.getSettingName(), "MANUAL");
+        serviceHorizontalScaleUpSetting.setEntityType(ApiEntityType.SERVICE.apiStr());
+        assertTrue(mapper.isSettingDisabledByFeatureGates(
+                SettingsService.AUTOMATION_MANAGER, serviceHorizontalScaleUpSetting));
+    }
+
+    /**
+     * Test settings disabled by feature gate.
+     *
+     * @throws IOException IOException
+     */
+    @Test
+    public void testDisabledSettingsWhenServiceHorizontalScaleIsEnabled() throws IOException {
+        final SettingsMapper mapper = new SettingsMapper(
+                SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                (new SettingsManagerMappingLoader("settingManagersTest.json")).getMapping(),
+                (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping(),
+                ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper,
+                ImmutableMap.of(
+                        Feature.CloudScaleEnhancement, true,
+                        Feature.ServiceHorizontalScale, true));
+        final SettingApiDTO<String> podProvisionSetting =
+                makeSetting(ConfigurableActionSettings.Provision.getSettingName(), "MANUAL");
+        podProvisionSetting.setEntityType(ApiEntityType.CONTAINER_POD.apiStr());
+        assertTrue(mapper.isSettingDisabledByFeatureGates(SettingsService.AUTOMATION_MANAGER, podProvisionSetting));
+        final SettingApiDTO<String> appSuspendSetting =
+                makeSetting(ConfigurableActionSettings.Suspend.getSettingName(), "MANUAL");
+        appSuspendSetting.setEntityType(ApiEntityType.APPLICATION_COMPONENT.apiStr());
+        assertTrue(mapper.isSettingDisabledByFeatureGates(SettingsService.AUTOMATION_MANAGER, appSuspendSetting));
     }
 
     private class TestSettingService extends SettingServiceImplBase {
