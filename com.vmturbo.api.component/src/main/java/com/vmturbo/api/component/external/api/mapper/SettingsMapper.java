@@ -274,14 +274,42 @@ public class SettingsMapper {
             .build();
 
     /**
+     * A functional interface to test if a specific setting can be inherited from an entity type.
+     */
+    @FunctionalInterface
+    public interface ImplicitSetting {
+        /**
+         * Test if a specific setting can be inherited from an entity type.
+         *
+         * @param entityType the specific entity type value
+         * @param settingName the specific setting name
+         * @return true if the setting can be inherited from the entity type
+         */
+        boolean canInheritFrom(int entityType,
+                               @Nonnull String settingName);
+    }
+
+    // Container can inherit all settings from ContainerSpec
+    private static final ImplicitSetting CONTAINER_FROM_CONTAINER_SPEC =
+            ((entityType, settingName) -> ApiEntityType.CONTAINER_SPEC.typeNumber() == entityType);
+    // Application Component can inherit all settings from Service
+    private static final ImplicitSetting APPLICATION_COMPONENT_FROM_SERVICE =
+            ((entityType, settingName) -> ApiEntityType.SERVICE.typeNumber() == entityType);
+    // ContainerPod can inherit certain action settings from Service
+    private static final Set<String> POSSIBLE_SERVICE_SETTINGS_ON_CONTAINER_POD =
+            ImmutableSet.of(ConfigurableActionSettings.HorizontalScaleUp.getSettingName(),
+                            ConfigurableActionSettings.HorizontalScaleDown.getSettingName());
+    private static final ImplicitSetting CONTAINER_POD_FROM_SERVICE =
+            ((entityType, settingName) -> ApiEntityType.SERVICE.typeNumber() == entityType
+                    && POSSIBLE_SERVICE_SETTINGS_ON_CONTAINER_POD.contains(settingName));
+
+    /**
      * Map of entity types to allow showing settings from another entity type to current entity type.
      */
-    public static final Map<String, String> SETTING_ENTITY_TYPE_MAP =
-        ImmutableMap.<String, String>builder()
-            .put(ApiEntityType.CONTAINER.apiStr(), ApiEntityType.CONTAINER_SPEC.apiStr())
-            .put(ApiEntityType.APPLICATION_COMPONENT.apiStr(), ApiEntityType.SERVICE.apiStr())
-            .put(ApiEntityType.CONTAINER_POD.apiStr(), ApiEntityType.SERVICE.apiStr())
-            .build();
+    public static final Map<String, ImplicitSetting> IMPLICIT_SETTINGS_BY_ENTITY_TYPE =
+        ImmutableMap.of(ApiEntityType.CONTAINER.apiStr(), CONTAINER_FROM_CONTAINER_SPEC,
+                        ApiEntityType.APPLICATION_COMPONENT.apiStr(), APPLICATION_COMPONENT_FROM_SERVICE,
+                        ApiEntityType.CONTAINER_POD.apiStr(), CONTAINER_POD_FROM_SERVICE);
 
     /**
      * map to get the predefined label for a given setting enum. if not found, we will use
@@ -1383,21 +1411,27 @@ public class SettingsMapper {
         @Nonnull
         public Optional<SettingApiDTO<String>> getSettingForEntityType(@Nonnull final String entityType) {
             if (settingsByEntityType != null) {
-                final SettingApiDTO<String> setting = settingsByEntityType.get(entityType);
-                if (setting == null && SETTING_ENTITY_TYPE_MAP.containsKey(entityType)) {
-                    // Show the setting from the entity type which current entityType is mapped to
-                    // in SETTING_ENTITY_TYPE_MAP. For example, we want to show ContainerSpec settings
-                    // on corresponding containers in UI.
-                    return Optional.ofNullable(settingsByEntityType.get(SETTING_ENTITY_TYPE_MAP.get(entityType)));
-                } else {
-                    return Optional.ofNullable(setting);
-                }
+                return Optional.ofNullable(settingsByEntityType.get(entityType))
+                        // The setting is defined on this entity type by default, return directly
+                        .map(Optional::of)
+                        // The setting is not defined on this entity type by default, but may be
+                        // inherited from other entity types
+                        // For example, Containers can inherit all settings from ContainerSpec,
+                        // and ContainerPod can inherit certain settings (e.g., Horizontal Scale Up)
+                        // from Service
+                        .orElse(Optional.ofNullable(IMPLICIT_SETTINGS_BY_ENTITY_TYPE.get(entityType))
+                                        .flatMap(implicitSetting -> settingsByEntityType.entrySet()
+                                                .stream()
+                                                .filter(entry -> implicitSetting.canInheritFrom(
+                                                        ApiEntityType.fromString(entry.getKey()).typeNumber(),
+                                                        entry.getValue().getUuid()))
+                                                .map(Entry::getValue)
+                                                .findFirst()));
             } else if (globalSetting != null) {
                 return StringUtils.equals(globalSetting.getEntityType(), entityType) ?
                         Optional.of(globalSetting) : Optional.empty();
-            } else {
-                return Optional.empty();
             }
+            return Optional.empty();
         }
 
         @Nullable

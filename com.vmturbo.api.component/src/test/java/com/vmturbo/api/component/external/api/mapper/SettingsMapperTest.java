@@ -119,6 +119,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
@@ -142,7 +143,7 @@ public class SettingsMapperTest {
     private static final Long SCHEDULE_ID = 12345L;
     private static final String SCHEDULE_NAME = "Test schedule";
     private static final String UNKNOWN_SETTING_NAME = "UnknownSetting";
-
+    private static final String CONTAINER_POD_ENTITY_TYPE = "ContainerPod";
     private static final String SETTING_SPEC_1_ENTITY_TYPE = "VirtualMachine";
     private static final SettingSpec settingSpec1 = SettingSpec.newBuilder()
             .setName("move")
@@ -163,6 +164,30 @@ public class SettingsMapperTest {
     private static final SettingSpec SETTING_SPEC_3 = EntitySettingSpecs.ExcludedTemplates.getSettingSpec();
 
     private static final SettingSpec SETTING_SPEC_4 = GlobalSettingSpecs.RhelTargetOs.createSettingSpec();
+
+    private static final SettingSpec SETTING_SPEC_HORIZONTAL_SCALE_UP = SettingSpec.newBuilder()
+            .setName(ConfigurableActionSettings.HorizontalScaleUp.getSettingName())
+            .setDisplayName(ConfigurableActionSettings.HorizontalScaleUp.getDisplayName())
+            .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                .setTiebreaker(SettingTiebreaker.SMALLER)
+                .setEntitySettingScope(EntitySettingScope.newBuilder()
+                    .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(EntityType.SERVICE_VALUE))))
+            .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                .addAllEnumValues(Arrays.asList("DISABLED", "MANUAL"))
+                .setDefault("DISABLED"))
+            .build();
+
+    private static final SettingSpec SETTING_SPEC_RESPONSE_TIME_SLO = SettingSpec.newBuilder()
+            .setName(EntitySettingSpecs.ResponseTimeSLO.getSettingName())
+            .setDisplayName(EntitySettingSpecs.ResponseTimeSLO.getDisplayName())
+            .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                .setTiebreaker(SettingTiebreaker.SMALLER)
+                .setEntitySettingScope(EntitySettingScope.newBuilder()
+                    .setEntityTypeSet(EntityTypeSet.newBuilder()
+                        .addEntityType(EntityType.SERVICE_VALUE)
+                        .addEntityType(EntityType.APPLICATION_COMPONENT_VALUE))))
+            .setNumericSettingValueType(NumericSettingValueType.newBuilder())
+            .build();
 
     private SettingsManagerMapping settingMgrMapping = mock(SettingsManagerMapping.class);
 
@@ -597,6 +622,30 @@ public class SettingsMapperTest {
         assertThat(dto.getDefaultValue(), is("FOO"));
         assertThat(dto.getValue(), is("CAR"));
         assertThat(dto.getValueType(), is(InputValueType.STRING));
+    }
+
+    @Test
+    public void testGetServiceSettingForContainerPodType() {
+        final DefaultSettingSpecMapper specMapper = new DefaultSettingSpecMapper();
+        final Setting horizontalScaleUpSetting = Setting.newBuilder()
+                .setSettingSpecName(SETTING_SPEC_HORIZONTAL_SCALE_UP.getName())
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("MANUAL"))
+                .build();
+        final Optional<SettingApiDTO<String>> horizontalScaleUpsettingApiDTO = specMapper
+                .settingSpecToApi(Optional.of(SETTING_SPEC_HORIZONTAL_SCALE_UP),
+                                  Optional.of(horizontalScaleUpSetting))
+                .getSettingForEntityType(CONTAINER_POD_ENTITY_TYPE);
+        assertTrue(horizontalScaleUpsettingApiDTO.isPresent());
+        assertThat(horizontalScaleUpsettingApiDTO.get().getValue(), is("MANUAL"));
+        final Setting responseTimeSLOSetting = Setting.newBuilder()
+                .setSettingSpecName(SETTING_SPEC_RESPONSE_TIME_SLO.getName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(300))
+                .build();
+        final Optional<SettingApiDTO<String>> responseTimeSLOSettingApiDTO = specMapper
+                .settingSpecToApi(Optional.of(SETTING_SPEC_RESPONSE_TIME_SLO),
+                                  Optional.of(responseTimeSLOSetting))
+                .getSettingForEntityType(CONTAINER_POD_ENTITY_TYPE);
+        assertFalse(responseTimeSLOSettingApiDTO.isPresent());
     }
 
     @Test
