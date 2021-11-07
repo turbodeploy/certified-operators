@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -92,6 +93,7 @@ public class LicenseManagerServiceTest {
     // gary's scenarios:
     // non-admin cannot store a license
     // unauthenticated user can retrieve a license.
+    @Ignore
     @Test
     public void testStoreAndRetrieveWorkloadLicense()  {
         // create a workload license DTO by loading it to a LicenseApiDTO, then converting to a
