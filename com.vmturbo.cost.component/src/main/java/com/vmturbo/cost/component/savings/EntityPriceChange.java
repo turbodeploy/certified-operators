@@ -43,14 +43,20 @@ interface EntityPriceChange {
      *
      * @return source oid.
      */
-    Long getSourceOid();
+    @Default
+    default Long getSourceOid() {
+        return 0L;
+    }
 
     /**
      * OID of target tier (post-action).
      *
      * @return destination oid.
      */
-    Long getDestinationOid();
+    @Default
+    default Long getDestinationOid() {
+        return 0L;
+    }
 
     /**
      * Whether the price change (recommendation) is active and accumulating missed.
