@@ -1,12 +1,14 @@
 package com.vmturbo.topology.processor.entity;
 
-import com.google.common.collect.Lists;
+import java.util.Arrays;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+
+import jersey.repackaged.com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.EntityInfoREST;

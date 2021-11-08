@@ -35,7 +35,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -48,13 +47,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.common.setting.UsedIncrementUnitVCpu;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -343,7 +340,6 @@ public class EntitySettingsApplicator {
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
                 new ScalingPolicyApplicator(),
-                new HorizontalScalePolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
                         CommodityType.DB_MEM),
                 new EnableScaleApplicator(),
@@ -1696,64 +1692,6 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applicator to apply resize or horizontal scale policy on Application Components when
-     * SERVICE_HORIZONTAL_SCALE feature is enabled.
-     * Resize or horizontal scale policies are applied to Application Components only, and are
-     * mutually exclusive.
-     * We check the Horizontal Scale Up and Horizontal Scale Down setting. When both settings are
-     * disabled, then horizontal scale is disabled, and resize is enabled. Otherwise, horizontal
-     * scale is enabled, and resize is disabled.
-     */
-    private static class HorizontalScalePolicyApplicator extends BaseSettingApplicator {
-
-        @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
-                          @Nullable final Map<EntitySettingSpecs, Setting> entitySettings,
-                          @Nullable final Map<ConfigurableActionSettings, Setting> actionModeSettings) {
-            if (!FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()) {
-                return;
-            }
-            if (entity.getEntityType() != EntityType.APPLICATION_COMPONENT_VALUE) {
-                return;
-            }
-            final boolean cloneable = isActionEnabled(
-                    actionModeSettings, ConfigurableActionSettings.HorizontalScaleUp);
-            final boolean suspendable = isActionEnabled(
-                    actionModeSettings, ConfigurableActionSettings.HorizontalScaleDown);
-            // Explicitly set cloneable or suspendable to false only when they are disabled in
-            // the policy setting. Otherwise, don't update the cloneable or suspendable setting,
-            // and leave the way they are set by the probe
-            if (!cloneable) {
-                entity.getAnalysisSettingsBuilder().setCloneable(false);
-            }
-            if (!suspendable) {
-                entity.getAnalysisSettingsBuilder().setSuspendable(false);
-            }
-            // Disable resize explicitly when horizontal scale is enabled
-            if (cloneable || suspendable) {
-                entity.getCommoditySoldListBuilderList()
-                        .forEach(c -> c.setIsResizeable(false));
-            }
-        }
-
-        /**
-         * Check if an action setting exists and is enabled.
-         *
-         * @param actionModeSettings the action settings on the entity
-         * @param actionModeSpec the action to check
-         * @return true if an action setting exists and is enabled
-         */
-        private boolean isActionEnabled(
-                @Nullable final Map<ConfigurableActionSettings, Setting> actionModeSettings,
-                @Nonnull final ConfigurableActionSettings actionModeSpec) {
-            return Optional.ofNullable(actionModeSettings)
-                    .map(map -> map.get(actionModeSpec))
-                    .map(SettingDTOUtil::isActionEnabled)
-                    .orElse(false);
-        }
-    }
-
-    /**
      * Applies the "ScalingPolicy" setting to a {@link TopologyEntityDTO.Builder}.
      */
     private static class ScalingPolicyApplicator extends SingleSettingApplicator {
@@ -1765,9 +1703,6 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
-            if (FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()) {
-                return;
-            }
             if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
                 final String settingValue = setting.getEnumSettingValue().getValue();
                 boolean resizeScaling = ScalingPolicyEnum.RESIZE.name().equals(settingValue);

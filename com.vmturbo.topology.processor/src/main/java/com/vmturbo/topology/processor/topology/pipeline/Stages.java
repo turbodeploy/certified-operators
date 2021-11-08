@@ -102,7 +102,6 @@ import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.GenerateConstraintMap;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
-import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -295,17 +294,14 @@ public class Stages {
         private final StitchingManager stitchingManager;
         private final StitchingJournalFactory journalFactory;
         private final StitchingJournalContainer stitchingJournalContainer;
-        private final StalenessInformationProvider stalenessProvider;
 
         public StitchingStage(@Nonnull final StitchingManager stitchingManager,
                               @Nonnull final StitchingJournalFactory journalFactory,
-                              @Nonnull final StitchingJournalContainer stitchingJournalContainer,
-                              @Nonnull StalenessInformationProvider stalenessProvider) {
+                              @Nonnull final StitchingJournalContainer stitchingJournalContainer) {
             this.stitchingManager = stitchingManager;
             this.journalFactory = Objects.requireNonNull(journalFactory);
             this.stitchingJournalContainer = providesToContext(
                 TopologyPipelineContextMembers.STITCHING_JOURNAL_CONTAINER, stitchingJournalContainer);
-            this.stalenessProvider = stalenessProvider;
         }
 
         @NotNull
@@ -313,7 +309,7 @@ public class Stages {
         @Override
         public StageResult<StitchingContext> executeStage(@NotNull @Nonnull final EntityStore entityStore) {
             final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
-            final StitchingContext stitchingContext = entityStore.constructStitchingContext(stalenessProvider);
+            final StitchingContext stitchingContext = entityStore.constructStitchingContext();
             preparationTimer.observe();
 
             final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);

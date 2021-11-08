@@ -47,7 +47,7 @@ public class StaleDataController {
                     + " target and notify all listeners (eg: logger, email notification)")
     @Nonnull
     public ResponseEntity<Boolean> checkStaleDataAndNotify() {
-        final boolean isOperationScheduled = staleDataManager.checkStaleData();
+        final boolean isOperationScheduled = staleDataManager.notifyImmediately();
         return new ResponseEntity<>(isOperationScheduled, HttpStatus.OK);
     }
 }

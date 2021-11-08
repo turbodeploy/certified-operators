@@ -13,11 +13,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -52,8 +47,6 @@ import common.HealthCheck.HealthState;
  * all the special cases for the interplay between latest validations and discoveries.
  */
 public class TargetHealthRetriever {
-    private static final Logger logger = LogManager.getLogger();
-
     private final IOperationManager operationManager;
     private final TargetStatusTracker targetStatusTracker;
     private final TargetStore targetStore;
@@ -131,20 +124,16 @@ public class TargetHealthRetriever {
                         .addSettingSpecName(GlobalSettingSpecs.FailedDiscoveryCountThreshold.getSettingName())
                         .addSettingSpecName(GlobalSettingSpecs.DelayedDataThresholdMultiplier.getSettingName())
                         .build();
-        try {
-            Iterator<Setting> settings = settingServiceClient.getMultipleGlobalSettings(multipleSettingsRequest);
-            while (settings.hasNext()) {
-                Setting setting = settings.next();
-                if (GlobalSettingSpecs.FailedDiscoveryCountThreshold.getSettingName()
-                                .equals(setting.getSettingSpecName())) {
-                    failedDiscoveriesCountThreshold = (int)setting.getNumericSettingValue().getValue();
-                } else if (GlobalSettingSpecs.DelayedDataThresholdMultiplier.getSettingName()
-                                .equals(setting.getSettingSpecName())) {
-                    delayedDataThresholdMultiplier = (long)setting.getNumericSettingValue().getValue();
-                }
+        Iterator<Setting> settings = settingServiceClient.getMultipleGlobalSettings(multipleSettingsRequest);
+        while (settings.hasNext()) {
+            Setting setting = settings.next();
+            if (GlobalSettingSpecs.FailedDiscoveryCountThreshold.getSettingName()
+                            .equals(setting.getSettingSpecName())) {
+                failedDiscoveriesCountThreshold = (int)setting.getNumericSettingValue().getValue();
+            } else if (GlobalSettingSpecs.DelayedDataThresholdMultiplier.getSettingName()
+                            .equals(setting.getSettingSpecName())) {
+                delayedDataThresholdMultiplier = (long)setting.getNumericSettingValue().getValue();
             }
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to query global settings for target health, assuming defaults", e);
         }
     }
 

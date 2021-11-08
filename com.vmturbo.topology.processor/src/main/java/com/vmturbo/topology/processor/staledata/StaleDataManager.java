@@ -1,18 +1,15 @@
 package com.vmturbo.topology.processor.staledata;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -26,25 +23,18 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 
-import common.HealthCheck.HealthState;
-
 /**
  * Class that handles the scheduling of recurrent stale data checks.
  *
  * <p>This class contains a scheduler that will periodically run the {@link StaleDataActiveCheck}
  * every {@link StaleDataManager#staleDataCheckIntervalMs} milliseconds. The periodic task will
  * forward the health states coming from {@link TargetHealthRetriever} to any consumers for which
- * we have factories in {@link StaleDataManager#consumerFactories} or return health on demand when asked.
+ * we have factories in {@link StaleDataManager#consumerFactories}.
  * </p>
  */
-public class StaleDataManager implements StaleDataConsumer, StalenessInformationProvider {
+public class StaleDataManager {
 
     private static final Logger logger = LogManager.getLogger();
-
-    /**
-     * Maximum time to give synchronous health check before timing out.
-     */
-    private static final long SYNC_HEALTH_CHECK_TIMEOUT_SEC = 10;
 
     private final List<Supplier<StaleDataConsumer>> consumerFactories;
 
@@ -55,8 +45,6 @@ public class StaleDataManager implements StaleDataConsumer, StalenessInformation
     private final long staleDataCheckIntervalMs;
 
     private final ScheduledFuture<?> scheduledFuture;
-
-    private Map<Long, TargetHealth> lastKnownHealth;
 
     /**
      * Creates an instance of a {@link StaleDataManager}.
@@ -69,11 +57,7 @@ public class StaleDataManager implements StaleDataConsumer, StalenessInformation
     public StaleDataManager(@Nonnull List<Supplier<StaleDataConsumer>> consumerFactories,
             @Nonnull TargetHealthRetriever targetHealthRetriever,
             @Nonnull ScheduledExecutorService executor, long staleDataCheckIntervalMs) {
-        // TODO reconsider this concept of subscribers that is not very useful in practice,
-        // use not push but pull model - data are typically needed before provider decides to produce them
-        this.consumerFactories = new ArrayList<>(consumerFactories.size() + 1);
-        this.consumerFactories.addAll(consumerFactories);
-        this.consumerFactories.add(() -> this);
+        this.consumerFactories = consumerFactories;
         this.targetHealthRetriever = targetHealthRetriever;
         this.executorService = executor;
         this.staleDataCheckIntervalMs = staleDataCheckIntervalMs;
@@ -98,48 +82,21 @@ public class StaleDataManager implements StaleDataConsumer, StalenessInformation
     /**
      * Run the active check immediately, producing all notifications the consumers may produce.
      *
-     * @return health check result
+     * @return true if the process succeeded
      */
-    public boolean checkStaleData() {
-        logger.info("Running the StaleDataActiveCheck synchronously");
+    public boolean notifyImmediately() {
+        logger.info("Running the StaleDataActiveCheck asynchronously");
         try {
             this.executorService.submit(
-                            new StaleDataActiveCheck(consumerFactories, targetHealthRetriever))
-                            .get(SYNC_HEALTH_CHECK_TIMEOUT_SEC, TimeUnit.SECONDS);
+                    new StaleDataActiveCheck(consumerFactories, targetHealthRetriever));
             return true;
         } catch (RejectedExecutionException e) {
             logger.error("StaleDataActiveCheck cannot be scheduled for execution", e);
-        } catch (ExecutionException e) {
-            logger.error("Failed to execute StaleDataActiveCheck", e.getCause());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (TimeoutException e) {
-            logger.error("Stale data check timed out", e);
+            return false;
+        } catch (RuntimeException e) {
+            logger.error("Unexpected exception in when executing the StaleDataActiveCheck", e);
+            return false;
         }
-        return false;
-    }
-
-    @Override
-    public HealthState getLastKnownTargetHealth(long targetOid) {
-        Map<Long, TargetHealth> health;
-        synchronized (this) {
-            health = lastKnownHealth;
-        }
-        if (health == null) {
-            checkStaleData();
-        }
-        TargetHealth targetHealth = null;
-        synchronized (this) {
-            if (lastKnownHealth != null) {
-                targetHealth = lastKnownHealth.get(targetOid);
-            }
-        }
-        return targetHealth == null ? null : targetHealth.getHealthState();
-    }
-
-    @Override
-    public synchronized void accept(Map<Long, TargetHealth> health) {
-        lastKnownHealth = health;
     }
 
     /**

@@ -50,8 +50,6 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private long lastUpdatedTime;
 
-    private final boolean isStale;
-
     /**
      * The errors encountered by this entity during any part of stitching.
      */
@@ -88,45 +86,18 @@ public class TopologyStitchingEntity implements StitchingEntity {
         this(stitchingEntityData.getEntityDtoBuilder(),
             stitchingEntityData.getOid(),
             stitchingEntityData.getTargetId(),
-            stitchingEntityData.getLastUpdatedTime(),
-            stitchingEntityData.isStale());
+            stitchingEntityData.getLastUpdatedTime());
     }
 
-    /**
-     * Construct a stitching entity.
-     *
-     * @param entityBuilder entity builder
-     * @param oid entity identifier
-     * @param targetId target identifier
-     * @param lastUpdatedTime last updated time
-     */
     public TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
-                    final long oid,
-                    final long targetId,
-                    final long lastUpdatedTime) {
-        this(entityBuilder, oid, targetId, lastUpdatedTime, false);
-    }
-
-    /**
-     * Construct a stitching entity.
-     *
-     * @param entityBuilder entity builder
-     * @param oid entity identifier
-     * @param targetId target identifier
-     * @param lastUpdatedTime last updated time
-     * @param isStale whether the entity is considered outdated
-     */
-    public TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
-                    final long oid,
-                    final long targetId,
-                    final long lastUpdatedTime,
-                    boolean isStale) {
+            final long oid,
+            final long targetId,
+            final long lastUpdatedTime) {
         this.entityBuilder = Objects.requireNonNull(entityBuilder);
         this.oid = oid;
         this.targetId = targetId;
         this.lastUpdatedTime = lastUpdatedTime;
         this.mergeInformation = null;
-        this.isStale = isStale;
         removeIfUnstitched = !entityBuilder.getKeepStandalone()
             && EntityOrigin.PROXY == entityBuilder.getOrigin();
     }
@@ -540,10 +511,5 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public boolean removeIfUnstitched() {
         return removeIfUnstitched;
-    }
-
-    @Override
-    public boolean isStale() {
-        return isStale;
     }
 }

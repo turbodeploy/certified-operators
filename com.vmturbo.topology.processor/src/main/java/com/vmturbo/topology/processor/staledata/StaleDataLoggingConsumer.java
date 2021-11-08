@@ -1,12 +1,12 @@
 package com.vmturbo.topology.processor.staledata;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.TextFormat;
 
 import org.apache.logging.log4j.LogManager;
@@ -22,7 +22,7 @@ public class StaleDataLoggingConsumer implements StaleDataConsumer {
     private final String tableFormat = "| %40s | %16s | %20s | %20s |";
 
     @Override
-    public void accept(@Nonnull Map<Long, TargetHealth> targetToTargetHealth) {
+    public void accept(@Nonnull ImmutableMap<Long, TargetHealth> targetToTargetHealth) {
 
         List<Entry<Long, TargetHealth>> unhealthyTargets = targetToTargetHealth
                 .entrySet()

@@ -37,7 +37,6 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
-import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -172,8 +171,6 @@ public class LivePipelineFactory {
 
     private final EntityCustomTagsMerger entityCustomTagsMerger;
 
-    private final StalenessInformationProvider stalenessProvider;
-
     private final int supplyChainValidationFrequency;
 
     private final boolean enableConsistentScalingOnHeterogeneousProviders;
@@ -215,7 +212,6 @@ public class LivePipelineFactory {
             @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
             @Nonnull final GroupScopeResolver groupScopeResolver,
             @Nonnull final EntityCustomTagsMerger entityCustomTagsMerger,
-            @Nonnull StalenessInformationProvider stalenessProvider,
             final int supplyChainValidationFrequency,
             final boolean enableConsistentScalingOnHeterogeneousProviders) {
         this.topoBroadcastManager = topoBroadcastManager;
@@ -255,7 +251,6 @@ public class LivePipelineFactory {
         this.supplyChainValidationFrequency = supplyChainValidationFrequency;
         this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
         this.entityCustomTagsMerger = entityCustomTagsMerger;
-        this.stalenessProvider = stalenessProvider;
     }
 
     /**
@@ -341,8 +336,7 @@ public class LivePipelineFactory {
                 .initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
                     () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
                 .addStage(new DCMappingStage(discoveredGroupUploader))
-                .addStage(new StitchingStage(stitchingManager, journalFactory,
-                                new StitchingJournalContainer(), stalenessProvider))
+                .addStage(new StitchingStage(stitchingManager, journalFactory, new StitchingJournalContainer()))
                 .addStage(new Stages.FlowGenerationStage(mi))
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new UploadPlanDestinationsStage(discoveredPlanDestinationUploader))
@@ -407,8 +401,7 @@ public class LivePipelineFactory {
             .initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
                 () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
             .addStage(new DCMappingStage(discoveredGroupUploader))
-            .addStage(new StitchingStage(stitchingManager, journalFactory,
-                            new StitchingJournalContainer(), stalenessProvider))
+            .addStage(new StitchingStage(stitchingManager, journalFactory, new StitchingJournalContainer()))
             .addStage(new Stages.FlowGenerationStage(matrix))
             .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))

@@ -55,8 +55,7 @@ public class TopologyToSdkEntityConverterTest {
 
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
-    private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider,
-                    0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
+    private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
 
     /**
      * The class under test.

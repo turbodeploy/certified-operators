@@ -119,7 +119,7 @@ public class StitchingTestUtils {
         public StitchingDataAllowingTargetChange(@Nonnull final EntityDTO.Builder entityDtoBuilder,
                                                  final long targetId,
                                                  final long oid) {
-            super(entityDtoBuilder, targetId, oid, 0, true, false);
+            super(entityDtoBuilder, targetId, oid, 0, true);
         }
 
         public StitchingEntityData forTarget(final long targetId) {

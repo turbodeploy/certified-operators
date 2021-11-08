@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -64,8 +63,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -561,12 +558,6 @@ public class EntitySettingsApplicatorTest {
     private static final Setting.Builder MAX_POLICY_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.MaxReplicas.getSettingName());
 
-    private static final Setting.Builder HORIZONTAL_SCALE_UP_SETTING_BUILDER = Setting.newBuilder()
-            .setSettingSpecName(ConfigurableActionSettings.HorizontalScaleUp.getSettingName());
-
-    private static final Setting.Builder HORIZONTAL_SCALE_DOWN_SETTING_BUILDER = Setting.newBuilder()
-            .setSettingSpecName(ConfigurableActionSettings.HorizontalScaleDown.getSettingName());
-
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
     private static final double DELTA = 0.001;
@@ -598,27 +589,12 @@ public class EntitySettingsApplicatorTest {
     private CpuCapacityServiceBlockingStub cpuCapacityService;
 
     /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-            FeatureFlags.SERVICE_HORIZONTAL_SCALE);
-
-    /**
      * Setup the mocked services that cannot be initialized as fields.
      */
     @Before
     public void init() {
         applicator = new EntitySettingsApplicator(false, false);
         cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
-    }
-
-    /**
-     * Tear down the test.
-     */
-    @After
-    public void teardown() {
-        featureFlagTestRule.reset();
     }
 
     /**
@@ -2319,55 +2295,10 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Test horizontal scale up/down policy being set on Application Component.
-     */
-    @Test
-    public void testHorizontalScaleEnabledForAppComponent() {
-        featureFlagTestRule.enable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
-        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
-        // Scale up is enabled
-        HORIZONTAL_SCALE_UP_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
-                .setValue(ActionDTO.ActionMode.MANUAL.name()));
-        // Scale down is disabled
-        HORIZONTAL_SCALE_DOWN_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
-                .setValue(ActionDTO.ActionMode.DISABLED.name()));
-        applySettings(TOPOLOGY_INFO, builder, HORIZONTAL_SCALE_UP_SETTING_BUILDER.build());
-        // When horizontal scale is enabled all commodities should be set to resizeable false
-        assertTrue(builder.getCommoditySoldListList().stream()
-                           .noneMatch(TopologyDTO.CommoditySoldDTO::getIsResizeable));
-        // Scale up is enabled, we don't explicitly set the cloneable
-        assertFalse(builder.getAnalysisSettings().hasCloneable());
-        // Scale down is disabled, we explicitly set the suspendable
-        assertFalse(builder.getAnalysisSettings().getSuspendable());
-    }
-
-    /**
-     * Test horizontal scale up/down policy not being set on Application Component.
-     */
-    @Test
-    public void testHorizontalScaleDisabledForAppComponent() {
-        featureFlagTestRule.enable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
-        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
-        final TopologyEntityDTO.Builder originalBuilder = builder.clone();
-        // Set a non horizontal scale up/down policy
-        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
-                .setValue(ActionMode.MANUAL.name()));
-        applySettings(TOPOLOGY_INFO, builder, RESIZE_SETTING_BUILDER.build());
-        // Resize should be enabled, and resizable should not be touched
-        assertEquals(originalBuilder.getCommoditySoldListList(),
-                     builder.getCommoditySoldListList());
-        // There is no horizontal scale up or down policy on the application component
-        // The provision and suspend should be disabled
-        assertFalse(builder.getAnalysisSettings().getCloneable());
-        assertFalse(builder.getAnalysisSettings().getSuspendable());
-    }
-
-    /**
      * Testing affect resize scaling policy on application component.
      */
     @Test
     public void testScalingPolicyResizeForAppComponent() {
-        featureFlagTestRule.disable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();
 
@@ -2387,7 +2318,6 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testScalingPolicyProvisionForAppComponent() {
-        featureFlagTestRule.disable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         builder.getAnalysisSettingsBuilder().setCloneable(false);
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();

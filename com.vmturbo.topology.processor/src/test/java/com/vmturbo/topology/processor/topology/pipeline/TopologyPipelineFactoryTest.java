@@ -48,7 +48,6 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
-import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
@@ -205,7 +204,6 @@ public class TopologyPipelineFactoryTest {
             mock(GroupResolverSearchFilterResolver.class),
             mock(GroupScopeResolver.class),
             mock(EntityCustomTagsMerger.class),
-            mock(StalenessInformationProvider.class),
             10,
             true);
     }
