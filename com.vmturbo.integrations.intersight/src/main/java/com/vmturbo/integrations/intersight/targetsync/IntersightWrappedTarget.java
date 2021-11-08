@@ -9,6 +9,7 @@ import com.cisco.intersight.client.model.AssetService;
 import com.cisco.intersight.client.model.AssetService.StatusEnum;
 import com.cisco.intersight.client.model.AssetTarget;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.topology.processor.api.TargetInfo;
 
@@ -76,12 +77,13 @@ public class IntersightWrappedTarget {
     }
 
     /**
-     * Return if the current status from topology processor indicates that the target is validated.
+     * Return if the target is validated, which is currently equivalent to the health state is not
+     * critical.
      *
-     * @return whether the status indicates the target is validated
+     * @return whether the target is validated
      */
     public boolean isValidated() {
-        return StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(tpTargetInfo.getStatus());
+        return tpTargetInfo.getHealthState() != HealthState.CRITICAL;
     }
 
     /**
@@ -91,7 +93,7 @@ public class IntersightWrappedTarget {
      * @return whether the status indicates the target is in progress of either discovery or
      * validation
      */
-    public boolean isInProgress() {
+    private boolean isInProgress() {
         return StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS.equals(tpTargetInfo.getStatus())
                 || StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS.equals(tpTargetInfo.getStatus());
     }
