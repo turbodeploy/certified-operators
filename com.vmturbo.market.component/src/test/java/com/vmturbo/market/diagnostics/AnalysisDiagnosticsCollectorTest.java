@@ -55,7 +55,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
@@ -90,6 +89,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.SerializationDTOs.TraderDiagsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test which restores analysis diags.
