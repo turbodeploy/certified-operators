@@ -33,48 +33,15 @@ public class LicenseLocalStoreTest {
             "      <PAK></PAK>\" SIGN=\"0776 BCE6 6051 0697 F19F 2914 1BD1 1404 \\\n" +
             "      87F1 F42C E11F 1D2D F1A8 8AB0 1399 0303 2001 B951 5754 33B7 \\\n" +
             "      9A0E B004 692D 2FAA D7AB 1BF2 B420 AE04 4B5B 5F4B\"";
-    public static final String WORKLOAD_LICENSE = "<?xml version=\"1.0\"?>\n" +
-            "<!-- VMTurbo license file; license created: 2017-11-06 -->\n" +
-            "<license>\n" +
-            "<first-name>Engineering</first-name>\n" +
-            "<last-name>null</last-name>\n" +
-            "<email>eng@turbonomic.com</email>\n" +
-            "<vm-total>1000</vm-total>\n" +
-            "<edition>Premier</edition>\n" +
-            "<expiration-date>2021-11-06</expiration-date>\n" +
-            "<lock-code>60adad0ac1bd90b50513d001cf2216e0</lock-code>\n" +
-            "<feature FeatureName=\"historical_data\" />\n" +
-            "<feature FeatureName=\"custom_reports\" />\n" +
-            "<feature FeatureName=\"planner\" />\n" +
-            "<feature FeatureName=\"optimizer\" />\n" +
-            "<feature FeatureName=\"multiple_vc\" />\n" +
-            "<feature FeatureName=\"scoped_user_view\" />\n" +
-            "<feature FeatureName=\"customized_views\" />\n" +
-            "<feature FeatureName=\"group_editor\" />\n" +
-            "<feature FeatureName=\"vmturbo_api\" />\n" +
-            "<feature FeatureName=\"automated_actions\" />\n" +
-            "<feature FeatureName=\"active_directory\" />\n" +
-            "<feature FeatureName=\"full_policy\" />\n" +
-            "<feature FeatureName=\"action_script\" />\n" +
-            "<feature FeatureName=\"applications\" />\n" +
-            "<feature FeatureName=\"app_control\" />\n" +
-            "<feature FeatureName=\"loadbalancer\" />\n" +
-            "<feature FeatureName=\"deploy\" />\n" +
-            "<feature FeatureName=\"aggregation\" />\n" +
-            "<feature FeatureName=\"fabric\" />\n" +
-            "<feature FeatureName=\"storage\" />\n" +
-            "<feature FeatureName=\"cloud_targets\" />\n" +
-            "<feature FeatureName=\"cluster_flattening\" />\n" +
-            "<feature FeatureName=\"network_control\" />\n" +
-            "<feature FeatureName=\"container_control\" />\n" +
-            "<feature FeatureName=\"public_cloud\" />\n" +
-            "<feature FeatureName=\"vdi_control\" />\n" +
-            "<feature FeatureName=\"scaling\" />\n" +
-            "<feature FeatureName=\"API2\" />\n" +
-            "<feature FeatureName=\"custom_policies\" />\n" +
-            "<feature FeatureName=\"SLA\" />\n" +
-            "<feature FeatureName=\"cloud_cost\" />\n" +
-            "</license>";
+    public static final String WORKLOAD_LICENSE = "<?xml version=\"1.0\"?>\n" + "\n" + "<license>\n"
+            + "    <first-name>test</first-name>\n"
+            + "    <last-name>test</last-name>\n"
+            + "    <email>testOnly@turbonomic.com</email>\n"
+            + "    <vm-total>0</vm-total>\n"
+            + "    <edition>Premier</edition>\n"
+            + "    <expiration-date>2150-01-31</expiration-date>\n"
+            + "    <lock-code>0d547f86c18c904efbad5eb5fc9becc4</lock-code>\n"
+            + "    <feature FeatureName=\"test_feature\"/>\n" + "</license>";
 
     @Rule
     public final ExpectedException exception = ExpectedException.none();
