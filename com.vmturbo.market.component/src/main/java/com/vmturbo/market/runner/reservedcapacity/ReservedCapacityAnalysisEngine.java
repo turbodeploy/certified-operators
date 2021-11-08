@@ -99,7 +99,8 @@ public class ReservedCapacityAnalysisEngine {
             TopologyEntityDTO entity = entry.getValue();
             if (!reservedEntityType.contains(entity.getEntityType())
                     || !entity.getAnalysisSettings().getControllable()
-                    || entity.getEntityState() != EntityState.POWERED_ON) {
+                    || entity.getEntityState() != EntityState.POWERED_ON
+                    || !entity.getAnalysisSettings().getIsEligibleForResizeDown() ) {
                 continue;
             }
             for (CommoditiesBoughtFromProvider commBoughtGrouping : entity.getCommoditiesBoughtFromProvidersList()) {

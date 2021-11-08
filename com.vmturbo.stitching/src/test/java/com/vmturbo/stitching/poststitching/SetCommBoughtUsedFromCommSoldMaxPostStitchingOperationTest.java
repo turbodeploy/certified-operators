@@ -144,7 +144,7 @@ public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperationTest {
         PostStitchingOperationLibrary postStitchingOperationLibrary =
                 new PostStitchingOperationLibrary(
                         new com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig(
-                                statsServiceClient, 30), //meaningless values
+                                statsServiceClient, 30, 0), //meaningless values
                         Mockito.mock(DiskCapacityCalculator.class), mock(CpuCapacityStore.class),  Mockito.mock(Clock.class), 0,
                         mock(SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache.class), true);
         List<PostStitchingOperation> postStitchingOperations = postStitchingOperationLibrary.getPostStitchingOperations();

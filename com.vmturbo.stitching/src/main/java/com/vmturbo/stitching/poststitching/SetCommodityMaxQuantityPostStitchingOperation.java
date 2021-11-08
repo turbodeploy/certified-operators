@@ -103,10 +103,30 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     private final Object entityOidsLock = new Object();
 
     /**
+     * Once the initial / first max query is completed, this will be set to true.
+     * Until then, we need to mark isEligibleForResizeDown on on-prem entities and isEligibleForScale on cloud
+     * entities false.
+     * We mark this as volatile because we the value will be set in one thread, but it will be read in another thread.
+     * Volatile will make sure that changes to this variable in one thread are visible in another thread immediately.
+     */
+    private volatile boolean initialMaxQueryCompleted;
+
+    /**
      * This configuration value controls how often the commodity max values are
      * loaded from history component.
      */
     private long maxValuesBackgroundLoadFrequencyMinutes;
+
+    /**
+     * Till the initial max query completes, we set the eligibleForResizeDown and eligibleForScale to false
+     * on entities in scope. Number of broadcasts to wait for initial max query completes.
+     */
+    private final int numBroadcastsToWaitForMaxQueryCompletion;
+
+    /**
+     * Counter to keep track of number of broadcasts.
+     */
+    private int broadcastCount;
 
     /**
      * Background task to fetch max values is scheduled in the first broadcast. Once scheduled, this will be set to true.
@@ -188,6 +208,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      */
     public SetCommodityMaxQuantityPostStitchingOperation() {
         this.statsHistoryClient = null;
+        this.numBroadcastsToWaitForMaxQueryCompletion = 0;
     }
 
     /**
@@ -206,6 +227,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         this.statsHistoryClient = setMaxValuesConfig.getStatsClient();
         this.maxValuesBackgroundLoadFrequencyMinutes =
             setMaxValuesConfig.getMaxValuesBackgroundLoadFrequencyMinutes();
+        this.numBroadcastsToWaitForMaxQueryCompletion =
+                setMaxValuesConfig.getNumBroadcastsToWaitForMaxQueryCompletion();
     }
 
     /**
@@ -223,17 +246,19 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                     setStatsDaysRetentionSettingInSeconds();
                     final DataMetricTimer loadDurationTimer =
                             COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY.labels("background").startTimer();
-                    QUERY_MAP.forEach((entityType, comms) -> {
+                    boolean errorsFound = false;
+                    for (Map.Entry<Integer, ImmutableSet<Integer>> entry : QUERY_MAP.entrySet()) {
+                        int entityType = entry.getKey();
                         try {
                             Set<Long> oids = fetchEntityOidsOfType(entityType);
                             if (oids.isEmpty()) {
-                                return;
+                                continue;
                             }
                             Stopwatch watch = Stopwatch.createStarted();
                             GetEntityCommoditiesMaxValuesRequest request =
                                     GetEntityCommoditiesMaxValuesRequest.newBuilder()
                                             .setEntityType(entityType)
-                                            .addAllCommodityTypes(comms)
+                                            .addAllCommodityTypes(entry.getValue())
                                             .addAllUuids(oids)
                                             .build();
                             Iterator<EntityCommoditiesMaxValues> response = statsHistoryClient.getEntityCommoditiesMaxValues(request);
@@ -242,10 +267,14 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                             logger.info("Received and processed max for {} {}s in {} ms", oids.size(),
                                     EntityType.forNumber(entityType).toString(), watch.elapsed(TimeUnit.MILLISECONDS));
                         } catch (Exception e) {
+                            errorsFound = true;
                             logger.error("Error fetching max values for {}s : ", EntityType.forNumber(entityType).toString(), e);
                         }
-                    });
+                    }
                     double loadTime = loadDurationTimer.observe();
+                    if (!errorsFound) {
+                        initialMaxQueryCompleted = true;
+                    }
                     logger.info("Size of maxValues map after background load: {}. Load time: {} seconds",
                                 entityCommodityToMaxQuantitiesMap.size(), loadTime);
                 }
@@ -307,6 +336,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     performOperation(@Nonnull final Stream<TopologyEntity> entities,
                      @Nonnull final EntitySettingsCollection settingsCollection,
                      @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+        boolean isMaxQueryComplete = initialMaxQueryCompleted;
         Set<TopologyEntity> entitySet = entities.collect(Collectors.toSet());
         updateEntityOids(entitySet);
         if (!maxValuesBackgroundTaskScheduled) {
@@ -322,6 +352,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         }
 
         long commoditiesCount = 0;
+        long modifiedEligibilityCount = 0;
         for (TopologyEntity entity : entitySet) {
             final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
 
@@ -357,7 +388,19 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                                 .getHistoricalUsedBuilder().setMaxQuantity(newMaxValue));
                 commoditiesCount++;
             }
+            // We refer to local variable isMaxQueryComplete stored at beginning of the stage instead of the member
+            // initialMaxQueryCompleted directly because the max query can complete when in the middle of the this stage
+            // in broadcast. And if that happens we can end up in a situation where some entities are eligible for resize,
+            // while some are not - which can lead to incorrect resizing on-prem.
+            if (!isMaxQueryComplete && broadcastCount < numBroadcastsToWaitForMaxQueryCompletion) {
+                resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> entityBuilder
+                        .getAnalysisSettingsBuilder().setIsEligibleForResizeDown(false));
+                resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> entityBuilder
+                        .getAnalysisSettingsBuilder().setIsEligibleForScale(false));
+                modifiedEligibilityCount++;
+            }
         }
+        broadcastCount++;
 
         // We now query the history component for the max values only for commodities of entities which are in the
         // current topology. So this percentage should be quite high.
@@ -367,6 +410,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         logger.info("Redundant entries stats. Total size: {}, CommoditiesLookedAt: {}, Pct_Redundant: {}%",
                     entityCommodityToMaxQuantitiesMap.size(), commoditiesCount,
                     redundantPct);
+        logger.info("Set eligibleForResizeDown and eligibleForScale to false on {} entities.", modifiedEligibilityCount);
 
         MAX_VALUES_REDUNDANT_ENTRIES_PERCENTAGE_GAUGE.setData(redundantPct.doubleValue());
 

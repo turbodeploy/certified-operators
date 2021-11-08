@@ -13,13 +13,17 @@ public class CommodityPostStitchingOperationConfig {
 
     private final long maxValuesBackgroundLoadFrequencyMinutes;
 
+    private final int numBroadcastsToWaitForMaxQueryCompletion;
+
     public CommodityPostStitchingOperationConfig(
             @Nonnull StatsHistoryServiceBlockingStub statsClient,
-            long maxValuesBackgroundLoadFrequencyMinutes) {
+            long maxValuesBackgroundLoadFrequencyMinutes,
+            int numBroadcastsToWaitForMaxQueryCompletion) {
 
         this.statsHistoryClient = statsClient;
         this.maxValuesBackgroundLoadFrequencyMinutes =
             maxValuesBackgroundLoadFrequencyMinutes;
+        this.numBroadcastsToWaitForMaxQueryCompletion = numBroadcastsToWaitForMaxQueryCompletion;
     }
 
     public StatsHistoryServiceBlockingStub getStatsClient() {
@@ -28,5 +32,9 @@ public class CommodityPostStitchingOperationConfig {
 
     public long getMaxValuesBackgroundLoadFrequencyMinutes() {
         return maxValuesBackgroundLoadFrequencyMinutes;
+    }
+
+    public int getNumBroadcastsToWaitForMaxQueryCompletion() {
+        return numBroadcastsToWaitForMaxQueryCompletion;
     }
 }
