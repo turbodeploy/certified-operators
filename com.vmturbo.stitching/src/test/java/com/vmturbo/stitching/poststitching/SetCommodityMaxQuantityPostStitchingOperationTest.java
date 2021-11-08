@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.poststitching;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -27,6 +30,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
@@ -42,8 +46,11 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.TopologicalChangelog;
+import com.vmturbo.stitching.PostStitchingOperation;
+import com.vmturbo.stitching.PostStitchingOperationLibrary;
+import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 
 /**
@@ -58,7 +65,6 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
 
     private final StatsMoles.StatsHistoryServiceMole statsHistoryServiceMole = spy(new StatsMoles.StatsHistoryServiceMole());
     private SetCommodityMaxQuantityPostStitchingOperation setMaxOperation;
-    private TopologicalChangelog.EntityChangesBuilder<TopologyEntity> resultBuilder;
     private ScheduledExecutorService mockExecutorService;
     private IStitchingJournal<TopologyEntity> journal;
 
@@ -78,10 +84,9 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         mockExecutorService = mock(ScheduledExecutorService.class);
         com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig config =
                 new com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig(
-                        statsHistoryServiceBlockingStub, maxValuesBackgroundLoadFreqMins);
+                        statsHistoryServiceBlockingStub, maxValuesBackgroundLoadFreqMins, 3);
         setMaxOperation = new SetCommodityMaxQuantityPostStitchingOperation(config);
         setMaxOperation.setBackgroundStatsLoadingExecutor(mockExecutorService);
-        resultBuilder = new PostStitchingTestUtilities.UnitTestResultBuilder();
         journal = (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
         SettingProto.Setting setting = SettingProto.Setting.newBuilder()
                 .setSettingSpecName(GlobalSettingSpecs.StatsRetentionDays.getSettingName())
@@ -96,9 +101,9 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
     @Test
     public void testOnlyFirstBroadcastSchedulesBackgroundTask() {
         List<TopologyEntity> entities = new ArrayList<>();
-        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
+        broadcast(entities);
         verify(mockExecutorService, times(1)).scheduleWithFixedDelay(any(), eq(0L), eq(maxValuesBackgroundLoadFreqMins), eq(TimeUnit.MINUTES));
-        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
+        broadcast(entities);
         verifyNoMoreInteractions(mockExecutorService);
     }
 
@@ -111,16 +116,14 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         TopologyEntity vm1 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 100)));
         TopologyEntity cont1 = topologyEntity(EntityType.CONTAINER_VALUE, 101L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 300)));
         List<TopologyEntity> entities = ImmutableList.of(vm1, cont1);
-        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
-        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        broadcast(entities);
         assertEquals(100, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
         assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
 
         //broadcast 2
         vm1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(99);
         cont1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(299);
-        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
-        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        broadcast(entities);
         // remains unchanged because the new used of 99 and 299 are less than current max
         assertEquals(100, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
         assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
@@ -128,8 +131,7 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         //broadcast 3
         vm1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(101);
         cont1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(301);
-        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
-        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        broadcast(entities);
         // changes because the new used of 101 and 301 are greater than current max
         assertEquals(101, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
         assertEquals(301, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
@@ -137,9 +139,10 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
 
     /**
      * Test background task.
-     * 1. Do a broadcast to set the oids.
+     * 1. Do a broadcast to set the oids. The resizable flags should be false after the broadcast since max query did not finish.
      * 2. Run the background task to fetch max from grpc call.
-     * 3. Do next broadcast - this should reflect the new max brought from the task.
+     * 3. Do next broadcast - this should reflect the new max brought from the task. The resizable flags should be
+     * true after the broadcast since max query has finished.
      */
     @Test
     public void testBackgroundTask() {
@@ -148,11 +151,17 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         TopologyEntity vm2 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 2L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 100)));
         TopologyEntity cont1 = topologyEntity(EntityType.CONTAINER_VALUE, 101L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 300)));
         List<TopologyEntity> entities = ImmutableList.of(vm1, vm2, cont1);
-        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
-        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        setAnalysisFlags(entities);
+        broadcast(entities);
         assertEquals(100, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
         assertEquals(100, vm2.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
         assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
+                || vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
+                || cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
 
         // Setup the response from GRPC call
         List<EntityCommoditiesMaxValues> response = ImmutableList.of(
@@ -176,11 +185,87 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         assertEquals(ImmutableSet.of(1L, 2L), new HashSet<>(actualRequest.getUuidsList()));
 
         // Do second broadcast to set the new max
-        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
-        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        // Start with analysis flags as true
+        setAnalysisFlags(entities);
+        broadcast(entities);
         assertEquals(101, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
         assertEquals(102, vm2.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
         assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(true, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
+                && vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
+                && cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                && cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+    }
+
+    /**
+     * Do 4 broadcasts. Don't run the background task.
+     * For 3 broadcasts, the resizable flags should be false. For the 4th broadcast, the resizable falgs should be
+     * true even if background task did not complete.
+     */
+    @Test
+    public void testMultipleBroadcastsWithoutMaxQueryCompletion() {
+        // First do a broadcast so that we have oids which we want to query for
+        TopologyEntity vm1 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 100)));
+        List<TopologyEntity> entities = ImmutableList.of(vm1);
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+
+        // Do second broadcast. Start with analysis flags as true
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+
+        // Do third broadcast. Start with analysis flags as true
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+
+        // Do fourth broadcast. Start with analysis flags as true. This time, the analysis flags will remain true.
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(true, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+    }
+
+    /**
+     * Test that SetCommodityMaxQuantityPostStitchingOperation is performed after
+     * SetResizeDownAnalysisSettingPostStitchingOperation. If someone changes the order in the future, this test will fail
+     * and catch this.
+     */
+    @Test
+    public void testOrderOfOperations() {
+        final StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub statsServiceClient =
+                StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        PostStitchingOperationLibrary postStitchingOperationLibrary =
+                new PostStitchingOperationLibrary(
+                        new com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig(
+                                statsServiceClient, 30, 0), //meaningless values
+                        Mockito.mock(DiskCapacityCalculator.class), mock(CpuCapacityStore.class),  Mockito.mock(Clock.class), 0,
+                        mock(SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache.class), true);
+        List<PostStitchingOperation> postStitchingOperations = postStitchingOperationLibrary.getPostStitchingOperations();
+        List<String> operations = postStitchingOperations.stream().map(op -> op.getClass().getSimpleName()).collect(Collectors.toList());
+        int operation1Index = operations.indexOf(SetResizeDownAnalysisSettingPostStitchingOperation.class.getSimpleName());
+        int operation2Index = operations.indexOf(SetCommodityMaxQuantityPostStitchingOperation.class.getSimpleName());
+        assertTrue(operation1Index < operation2Index);
+    }
+
+    private void broadcast(List<TopologyEntity> entities) {
+        EntityChangesBuilder<TopologyEntity> resultBuilder = new PostStitchingTestUtilities.UnitTestResultBuilder();
+        setMaxOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+    }
+
+    private void setAnalysisFlags(List<TopologyEntity> entities) {
+        for (TopologyEntity entity : entities) {
+            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setIsEligibleForResizeDown(true);
+            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setIsEligibleForScale(true);
+        }
     }
 
     private void awaitTerminationAfterShutdown(ExecutorService threadPool) {

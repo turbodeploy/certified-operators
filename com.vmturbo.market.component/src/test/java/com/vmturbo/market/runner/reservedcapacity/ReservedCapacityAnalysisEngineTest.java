@@ -148,7 +148,7 @@ public class ReservedCapacityAnalysisEngineTest {
             TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(vm.oid)
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true));
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true).setIsEligibleForResizeDown(true));
             if (!vm.consistentScaling) {
                 // Our ancient version of mockito doesn't return Optional.empty() for optional
                 // return values, so I need to do it here.
@@ -175,7 +175,7 @@ public class ReservedCapacityAnalysisEngineTest {
             TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.CONTAINER_VALUE)
                 .setOid(container.oid)
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true));
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true).setIsEligibleForResizeDown(true));
             if (!container.consistentScaling) {
                 // Our ancient version of mockito doesn't return Optional.empty() for optional
                 // return values, so I need to do it here.

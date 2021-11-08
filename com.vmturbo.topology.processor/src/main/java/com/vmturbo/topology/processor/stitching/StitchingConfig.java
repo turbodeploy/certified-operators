@@ -47,6 +47,9 @@ public class StitchingConfig {
     @Value("${maxValuesBackgroundLoadFrequencyMinutes:720}") // default to 12 hours
     private long maxValuesBackgroundLoadFrequencyMinutes;
 
+    @Value("${numBroadcastsToWaitForMaxQueryCompletion:3}")
+    private int numBroadcastsToWaitForMaxQueryCompletion;
+
     @Value("${armCapacityRefreshIntervalHours:6}")
     private long armCapacityRefreshIntervalHours;
 
@@ -181,7 +184,7 @@ public class StitchingConfig {
         PostStitchingOperationLibrary postStitchingOperationLibrary = new PostStitchingOperationLibrary(
             new CommodityPostStitchingOperationConfig(
                 historyClient(),
-                maxValuesBackgroundLoadFrequencyMinutes),
+                maxValuesBackgroundLoadFrequencyMinutes, numBroadcastsToWaitForMaxQueryCompletion),
                 diskPropertyCalculator(),
                 cpuCapacityConfig.cpucCapacityStore(),
                 clockConfig.clock(),
