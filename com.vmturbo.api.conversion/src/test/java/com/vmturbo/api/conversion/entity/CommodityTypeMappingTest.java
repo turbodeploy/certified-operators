@@ -66,6 +66,13 @@ public class CommodityTypeMappingTest {
                 EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.STORAGE_ACCESS_STANDARD_WRITE_VALUE);
         assertEquals("IOPS", vmIOPSStandardWriteUnit);
 
+        String vmIoThroughputReadUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
+                EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.IO_THROUGHPUT_READ_VALUE);
+        assertEquals("KByte/sec", vmIoThroughputReadUnit);
+
+        String vmIoThroughputWriteUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
+                EntityType.VIRTUAL_MACHINE_VALUE, CommodityType.IO_THROUGHPUT_WRITE_VALUE);
+        assertEquals("KByte/sec", vmIoThroughputWriteUnit);
 
         String unKnownCommUnit = CommodityTypeMapping.getUnitForEntityCommodityType(
             EntityType.UNKNOWN_VALUE, CommodityType.UNKNOWN_VALUE);
@@ -89,6 +96,8 @@ public class CommodityTypeMappingTest {
         assertEquals("Mem", CommodityTypeMapping.getApiCommodityType(CommodityType.MEM));
         assertEquals("MemProvisioned", CommodityTypeMapping.getApiCommodityType(CommodityType.MEM_PROVISIONED));
         assertEquals("IOThroughput", CommodityTypeMapping.getApiCommodityType(CommodityType.IO_THROUGHPUT));
+        assertEquals("IOThroughputRead", CommodityTypeMapping.getApiCommodityType(CommodityType.IO_THROUGHPUT_READ));
+        assertEquals("IOThroughputWrite", CommodityTypeMapping.getApiCommodityType(CommodityType.IO_THROUGHPUT_WRITE));
         assertEquals("NetThroughput", CommodityTypeMapping.getApiCommodityType(CommodityType.NET_THROUGHPUT));
         assertEquals("NetThroughputInbound", CommodityTypeMapping.getApiCommodityType(CommodityType.NET_THROUGHPUT_IN));
         assertEquals("NetThroughputOutbound", CommodityTypeMapping.getApiCommodityType(CommodityType.NET_THROUGHPUT_OUT));
