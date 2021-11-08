@@ -53,7 +53,7 @@ public class IntersightConfig {
      * because we can't rule out the possibility that the user may have accidentally made a bad
      * change and immediately reporting a good connection may give a wrong impression.
      */
-    @Value("${intersightTargetSyncNoUpdateOnChangePeriodSeconds:180}")
+    @Value("${intersightTargetSyncNoUpdateOnChangePeriodSeconds:600}")
     private long intersightTargetSyncNoUpdateOnChangePeriodSeconds;
 
     /**
