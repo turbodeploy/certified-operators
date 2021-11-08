@@ -44,7 +44,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.commons.analysis.ByProductMap;
-import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -117,6 +116,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link TopologyEntitiesHandler}.

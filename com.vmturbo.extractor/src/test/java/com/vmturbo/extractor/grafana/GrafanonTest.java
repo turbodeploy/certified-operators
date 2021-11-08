@@ -41,13 +41,13 @@ import reactor.core.publisher.Flux;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
-import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.model.FolderInput;
 import com.vmturbo.extractor.grafana.model.Role;
 import com.vmturbo.extractor.grafana.model.UserInput;
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test Grafanon.
