@@ -3,6 +3,8 @@ package com.vmturbo.topology.processor.topology;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -37,6 +39,8 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
+import com.vmturbo.topology.processor.staledata.StaleDataConfig;
+import com.vmturbo.topology.processor.staledata.StaleDataManager;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
@@ -74,7 +78,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     LicenseCheckClientConfig.class,
     TopologyProcessorDBConfig.class,
     ConsistentScalingConfig.class,
-    ActionsConfig.class
+    ActionsConfig.class,
+    StaleDataConfig.class
 })
 public class TopologyConfig {
 
@@ -148,13 +153,13 @@ public class TopologyConfig {
     private ActionsConfig actionsConfig;
 
     @Autowired
-    private OperationConfig operationConfig;
-
-    @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
 
     @Autowired
     private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
+
+    @Autowired
+    private StaleDataConfig staleDataConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -279,6 +284,7 @@ public class TopologyConfig {
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
                 groupConfig.groupScopeResolver(),
                 entityConfig.entityCustomTagsMerger(groupConfig.entityCustomTagsService()),
+                staleDataManager(),
                 supplyChainValidationFrequency,
                 stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
         );
@@ -390,4 +396,21 @@ public class TopologyConfig {
     public ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor() {
         return new ProbeActionCapabilitiesApplicatorEditor(targetConfig.targetStore());
     }
+
+    /**
+     * Bean for {@link StaleDataManager} and initialization of the process. This effectively starts
+     * the scheduler.
+     *
+     * @return the stale data manager
+     */
+    @Bean
+    @Nonnull
+    public StaleDataManager staleDataManager() {
+        return new StaleDataManager(staleDataConfig.staleDataConsumerFactories(),
+                topologyProcessorRpcConfig.targetHealthRetriever(), staleDataConfig.executorService(),
+                        TimeUnit.MINUTES.toMillis(staleDataConfig
+                                        .getStaleDataCheckFrequencyMinutes() > 0 ? staleDataConfig
+                                                        .getStaleDataCheckFrequencyMinutes() : 10));
+    }
+
 }

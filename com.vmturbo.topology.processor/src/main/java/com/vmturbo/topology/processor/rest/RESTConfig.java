@@ -38,7 +38,6 @@ import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
-import com.vmturbo.topology.processor.staledata.StaleDataConfig;
 import com.vmturbo.topology.processor.stitching.journal.JournalFilterFactory;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
@@ -57,8 +56,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     GroupConfig.class,
     ClockConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
-    HistoryAggregationConfig.class,
-    StaleDataConfig.class
+    HistoryAggregationConfig.class
 })
 public class RESTConfig extends WebMvcConfigurerAdapter {
     @Autowired
@@ -93,9 +91,6 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
 
     @Autowired
     private HistoryAggregationConfig historyAggregationConfig;
-
-    @Autowired
-    public StaleDataConfig staleDataConfig;
 
     /**
      * Maximum amount of time to wait for async REST requests. This comes into use when requesting the stitching
@@ -142,7 +137,7 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public StaleDataController staleDataController() {
-        return new StaleDataController(staleDataConfig.staleDataManager());
+        return new StaleDataController(topologyConfig.staleDataManager());
     }
 
     @Bean

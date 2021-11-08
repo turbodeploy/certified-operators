@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -43,6 +44,7 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
 /**
  * Class responsible for tracking statuses of the targets.
  */
+@ThreadSafe
 public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStoreListener {
     private static final Logger LOGGER = LogManager.getLogger();
     private final Map<Long, DiscoveryFailure> targetToFailedDiscoveries = Collections.synchronizedMap(new HashMap<>());
@@ -70,7 +72,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
 
     @Nonnull
     @Override
-    public Map<Long, TargetStatus> getTargetsStatuses(@Nonnull final Set<Long> targetIds, final boolean returnAll) {
+    public synchronized Map<Long, TargetStatus> getTargetsStatuses(@Nonnull final Set<Long> targetIds, final boolean returnAll) {
         if (returnAll && targetIds.isEmpty()) {
             return Collections.unmodifiableMap(targetStatusCache);
         } else {
@@ -82,7 +84,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     }
 
     @Override
-    public void onTargetRemoved(@Nonnull final Target target) {
+    public synchronized void onTargetRemoved(@Nonnull final Target target) {
         final long removedTargetId = target.getId();
         targetStatusCache.remove(removedTargetId);
         removeFailedDiscovery(removedTargetId);
@@ -92,7 +94,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
 
 
     @Override
-    public void collectDiags(@Nonnull final DiagnosticsAppender appender)
+    public synchronized void collectDiags(@Nonnull final DiagnosticsAppender appender)
             throws DiagnosticsException {
         appender.appendString("==== Target Status ====");
         Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
@@ -125,7 +127,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     }
 
     @Override
-    public void notifyOperationState(@Nonnull final Operation operation) {
+    public synchronized void notifyOperationState(@Nonnull final Operation operation) {
         if (operation.getStatus() == Status.IN_PROGRESS) {
             return;
         }
@@ -165,7 +167,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     }
 
     @Override
-    public void notifyOperationsCleared() {
+    public synchronized void notifyOperationsCleared() {
         targetToFailedDiscoveries.clear();
     }
 
@@ -176,19 +178,19 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
      */
     @Override
     @Nonnull
-    public Map<Long, DiscoveryFailure> getFailedDiscoveries() {
+    public synchronized Map<Long, DiscoveryFailure> getFailedDiscoveries() {
         return Collections.unmodifiableMap(targetToFailedDiscoveries);
     }
 
     @Override
     @Nullable
-    public Pair<Long, Long> getLastSuccessfulDiscoveryTime(long targetId) {
+    public synchronized Pair<Long, Long> getLastSuccessfulDiscoveryTime(long targetId) {
         return lastSuccessfulDiscoveryTimeByTargetId.get(targetId);
     }
 
     @Override
     @Nullable
-    public Pair<Long, Long> getLastSuccessfulIncrementalDiscoveryTime(long targetId) {
+    public synchronized Pair<Long, Long> getLastSuccessfulIncrementalDiscoveryTime(long targetId) {
         return lastSuccessfulIncrementalDiscoveryTimeByTargetId.get(targetId);
     }
 

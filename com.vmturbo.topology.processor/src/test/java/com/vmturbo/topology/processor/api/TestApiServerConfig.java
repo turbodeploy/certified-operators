@@ -94,8 +94,8 @@ import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
-import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
@@ -299,7 +299,9 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public EntityStore entityRepository() {
-        return new EntityStore(targetStore(), identityProvider(), 0.3F, true, Collections.singletonList(topologyProcessorNotificationSender()), Clock.systemUTC(), false);
+        return new EntityStore(targetStore(), identityProvider(), 0.3F, true,
+                        Collections.singletonList(topologyProcessorNotificationSender()),
+                        Clock.systemUTC(), false);
     }
 
     @Bean
