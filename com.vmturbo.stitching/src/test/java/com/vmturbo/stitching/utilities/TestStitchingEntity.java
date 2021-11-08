@@ -89,6 +89,11 @@ public class TestStitchingEntity implements StitchingEntity {
         return Stream.empty();
     }
 
+    @Override
+    public boolean isStale() {
+        return false;
+    }
+
     @Nonnull
     @Override
     public String removalDescription() {
