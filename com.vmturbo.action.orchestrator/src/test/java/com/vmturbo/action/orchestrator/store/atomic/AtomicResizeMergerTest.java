@@ -318,9 +318,9 @@ public class AtomicResizeMergerTest {
 
         Map<Long, DeDupedActions> deDupedActions = aggregatedAction.deDupedActionsMap();
         assertEquals(0, deDupedActions.size());
-        assertEquals(2, aggregatedAction.aggregateOnlyActions().size());
+        assertEquals(2, aggregatedAction.actionsWithoutDeDuplicationTarget().size());
 
-        List<ActionEntity> resizeTargets = aggregatedAction.aggregateOnlyActions().stream()
+        List<ActionEntity> resizeTargets = aggregatedAction.actionsWithoutDeDuplicationTarget().stream()
                 .map(action -> action.getInfo().getResize().getTarget())
                 .collect(Collectors.toList());
 

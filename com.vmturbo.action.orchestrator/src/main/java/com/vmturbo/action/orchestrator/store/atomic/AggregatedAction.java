@@ -59,19 +59,21 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
  */
 public class AggregatedAction {
 
-    private final Logger logger = LogManager.getLogger();
-
     private final ActionTypeCase actionType;
     private final ActionEntity aggregationTarget;
     private final String targetName;
 
-    // Map containing all the actions for entities belonging to the same scaling group
-    // that be should be first de-duplicated to a single resize
+    // Map containing the OID of the de-duplication target and
+    // all the actions for entities belonging to the same scaling group
+    // that be should be first de-duplicated to a single ActionInfo
     private final Map<Long, DeDupedActions> deDupedActionsMap;
 
     // List of actions without de-duplication target but should be executed
-    // atomically by the aggregation target
-    private final List<Action> aggregateOnlyActions;
+    // atomically by the aggregation target.
+    // The action entity is used as the target entity in the de-duplication step.
+    // For example, container C1 without container spec will have C1
+    // as the target of the ActionInfo created during the de-duplication step.
+    private final List<Action> actionsWithoutDeDuplicationTarget;
 
     final Map<Long, ActionView> actionViews;
 
@@ -100,7 +102,7 @@ public class AggregatedAction {
         this.aggregationTarget = aggregationTarget;
         this.targetName = targetName;
         deDupedActionsMap = new HashMap<>();
-        aggregateOnlyActions = new ArrayList<>();
+        actionsWithoutDeDuplicationTarget = new ArrayList<>();
         actionViews = new HashMap<>();
     }
 
@@ -145,7 +147,7 @@ public class AggregatedAction {
         List<Long> atomicActionEntities = new ArrayList<>();
         atomicActionEntities.add(aggregationTarget.getId());
         atomicActionEntities.addAll(deDupedActionsMap.keySet());
-        aggregateOnlyActions.stream().forEach( action -> {
+        actionsWithoutDeDuplicationTarget.stream().forEach( action -> {
                 try {
                     atomicActionEntities.add(ActionDTOUtil.getPrimaryEntityId(action));
                 } catch (UnsupportedActionException uae) {
@@ -154,7 +156,7 @@ public class AggregatedAction {
             }
         );
 
-       return atomicActionEntities;
+        return atomicActionEntities;
     }
 
     /**
@@ -169,20 +171,19 @@ public class AggregatedAction {
         List<Action> allActions = deDupedActionsMap.entrySet().stream()
                 .flatMap(entry -> entry.getValue().actions.stream())
                 .collect(Collectors.toList());
-        allActions.addAll(aggregateOnlyActions);
+        allActions.addAll(actionsWithoutDeDuplicationTarget);
 
         return allActions;
     }
 
     /**
      * Returns the list of market recommended actions merged together but <b>not de-duplicated</b>
-     * for executing atomically by the action DTO that is created
-     * from this AggregateAction.
+     * for executing atomically by the action DTO that is created from this AggregateAction.
      *
      * @return the list of market recommended actions merged together
      */
-    public  List<Action> aggregateOnlyActions() {
-        return aggregateOnlyActions;
+    public  List<Action> actionsWithoutDeDuplicationTarget() {
+        return actionsWithoutDeDuplicationTarget;
     }
 
     /**
@@ -216,15 +217,15 @@ public class AggregatedAction {
             }
 
             deDupedActions.addAction(action);
-        } else {
-                aggregateOnlyActions.add(action);
+        } else {  // Actions without de-duplication target
+            actionsWithoutDeDuplicationTarget.add(action);
         }
     }
 
     /**
      * Convenience class to hold the actions for a de-duplication target.
      * De-duplication entity is the single target for executing the duplicate actions
-     * for all of the entities in a scaling group.
+     * for all the entities in a scaling group.
      */
     public static class DeDupedActions {
         private static final Logger logger = LogManager.getLogger();

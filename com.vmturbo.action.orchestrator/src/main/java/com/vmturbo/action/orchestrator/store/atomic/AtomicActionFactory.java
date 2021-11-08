@@ -33,20 +33,20 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
  *
  * <p>The atomic action process looks as follows:
  *
- * Resize Container       Resize Container             Resize Container
- *  Instance Foo1          Instance Foo2                  Instance Bar1
- *              \         /                              /
- *               \       /        Deduplication         /
- *                \     /             Step             /
- *                 \   /                              /
- *         Deduplicated resize              Deduplicated resize
- *         on ContainerSpc Foo              on ContainerSpec Bar
- *                      \                     /
- *                       \    Aggregation    /
- *                        \      Step       /
- *                         \               /
- *                           Atomic Resize
- *                        on WorkloadController
+ * Resize Container       Resize Container             Resize Container     Non-Executable Resize Container
+ * Foo1::Commodity 1     Foo2::Commodity 1            Bar1::Commodity 1        Bar1::Commodity 2
+ *              \         /                              /                                /
+ *               \       /        Deduplication         /          Deduplication         /
+ *                \     /             Step             /             Step               /
+ *                 \   /                              /                                /
+ *  Deduplicated Commodity 1 resize     Deduplicated Commodity 1 resize     Deduplicated Commodity 2 resize
+ *          on ContainerSpc Foo            on ContainerSpec Bar                 on ContainerSpec Bar
+ *                      \                      /                                     /
+ *                       \    Aggregation     /                     Aggregation     /
+ *                        \      Step        /                         Step        /
+ *                         \                /                                     /
+ *                    Executable Atomic Resize                      Non-Executable Atomic Resize
+ *                     on WorkloadController                            on WorkloadController
  *
  * </p>
  */
@@ -128,26 +128,47 @@ public class AtomicActionFactory {
 
     /**
      * Result of the action merge process.
+     *
+     * <p>AtomicActionResult contains the atomic actions created after de-duplication and merge process.
+     * The executable actions will be de-duplicated and merged to an executable atomic action.
+     * The non-executable actions will be merged to a non-executable atomic action.
+     * It is possible to have both an executable and non-executable atomic action present in an AtomicActionResult
+     * or just one of them.
      */
     @Value.Immutable
     public interface AtomicActionResult {
         /**
          * The new primary ActionDTO for the action that will execute the aggregated and de-duplicated
-         * market actions. Aggregated atomic action will not be created if the original actions are
-         * in RECOMMEND mode.
+         * market actions. Aggregated atomic action will not be created if none of the original actions
+         * are in RECOMMEND mode or are non-executable.
          *
-         * @return The new primary ActionDTO for the action.
+         * @return The new ActionDTO for the executable action.
          */
         Optional<ActionDTO.Action> atomicAction();
 
         /**
-         * Map of the non-executable atomic action that de-duplicated actions for entities in the
-         * scaling/deployment group to the list of original actions. Atomic actions for de-duplicated
-         * targets will be created even if the original actions are in RECOMMEND mode.
+         * The new ActionDTO for the action that will de-duplicate and aggregate market actions
+         * but cannot be executed. Non-executable aggregated atomic action will be created
+         * when some original actions are in RECOMMEND mode or non-executable.
+         *
+         * @return The new ActionDTO for the non-executable action
+         */
+        Optional<ActionDTO.Action> nonExecutableAtomicAction();
+
+        /**
+         * Aggregation Target Entity.
+         *
+         * @return Aggregation target entity
+         */
+        ActionDTO.ActionEntity aggregationTarget();
+
+        /**
+         * Map of the de-duplication target entity to the actions for entities in the
+         * scaling/deployment group to the list of original actions.
          *
          * @return Map of the non-executable atomic actions.
          */
-        Map<ActionDTO.Action, List<ActionDTO.Action>> deDuplicatedActions();
+        Map<ActionDTO.ActionEntity, List<ActionDTO.Action>> deDuplicatedActions();
 
         /**
          * Get the list of actions that were merged without de-duplication.

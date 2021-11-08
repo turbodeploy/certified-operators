@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.store.atomic;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +33,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Builder class to build Atomic Resize actions.
@@ -43,8 +41,10 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
 
     private final Logger logger = LogManager.getLogger();
 
-    // Class representing the aggregated/de-duplicated actions and the assoicated execution target
+    // Class representing the aggregated/de-duplicated actions and the associated execution target
     protected AggregatedAction aggregatedAction;
+    protected Set<Long> executableActions;
+    protected Set<Long> nonExecutableActions;
 
     /**
      * Constructor for a new builder.
@@ -54,31 +54,84 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
      */
     AtomicResizeBuilder(@Nonnull AggregatedAction aggregatedAction) {
         this.aggregatedAction = aggregatedAction;
+        executableActions = getExecutableActionIds();
+        nonExecutableActions = getNonExecutableActionIds();
     }
 
+    protected AtomicResizeBuilder() {}
+
     /**
-     * Create the atomic action DTOs for the aggregated and the de-duplicated actions.
+     * Create the atomic action DTOs for the executable and non-executable aggregated actions.
+     *
+     * <p>For real time topologies, only the deduplicated resizes for resize actions that are
+     * <em>not</em> in recommend mode are aggregated to the top level atomic action.
+     *
+     * <p/>
+     * For example, WorkloadController has 2 ContainerSpecs "foo" and "bar", all resize actions in
+     * ContainerSpec "foo" are executable, while ContainerSpec "bar" has a VMem resize in "manual" mode
+     * which is also executable but the VCPU resize is non-executable due to being in "recommend" mode.
+     * <ul> In this case -
+     * <li>All resize infos of ContainerSpec "foo" and only VMem resize info of ContainerSpec "bar"
+     * will be aggregated and will result in an  <b>executable</b> atomic action on the WorkloadController.
+     * <li>The VCPU resize info of ContainerSpec "bar" will be aggregated and
+     * will result in a <b>non-executable</b> atomic action on the WorkloadController.
+     * </ul>
+     *
+     * <p/>
+     * Another example, WorkloadController has 2 ContainerSpecs "foo" and "bar", all resize actions in
+     * ContainerSpec "foo" are executable, while ContainerSpec "bar" resizes are blocked due to
+     * Namespace resize action and hence these resizes are non-executable.
+     * <ul> In this case -
+     * <li>All resize infos of ContainerSpec "foo" will be aggregated
+     * and will result in an  <b>executable</b> atomic action on the WorkloadController.
+     * <li>The resizes infos of ContainerSpec "bar" will be aggregated and
+     * will result in a <b>non-executable</b> atomic action on the WorkloadController.
+     * </ul>
+     *
+     * <p/>
+     * Another example, WorkloadController has 2 ContainerSpecs "foo" and "bar", all resize actions in
+     * ContainerSpec "foo" are executable, while ContainerSpec "bar" has VCPU resize which is also executable
+     * <ul> In this case -
+     * <li>All resize infos of ContainerSpec "foo" and "bar" will be aggregated
+     * and will result in an <b>executable</b> atomic action on the WorkloadController.
+     * </ul>
+     *
+     * <p/>
+     * Another example, WorkloadController has 2 ContainerSpecs "foo" and "bar".
+     * The execution policy is set to "Recommend" for both the specs
+     * <ul> In this case -
+     * <li>All resize infos of ContainerSpec "foo" and "bar" will be aggregated
+     * and will result in an <b>non-executable</b> atomic action on the WorkloadController.
+     * </ul>
+     *
+     * <p/>
+     * Another example, in a Plan WorkloadController has 2 ContainerSpecs "foo" and "bar", all resize actions in
+     * ContainerSpec "foo" are non-executable, while ContainerSpec "bar" has VCPU resize which is also non-executable
+     * <ul> In this case -
+     * <li>All resize infos of ContainerSpec "foo" and "bar" will be aggregated
+     * and will result in an <b>non-executable</b> atomic action on the WorkloadController.
+     * </ul>
      *
      * @return {@link AtomicActionResult} containing the {@link ActionDTO.Action} for the
-     *          aggregated action and the {@link ActionDTO.Action} for the de-duplicated actions.
+     *          executable aggregated action and the {@link ActionDTO.Action} for the non-executable
+     *          aggregated actions.
      */
     @Override
     public Optional<AtomicActionResult> build() {
-        // Map of de-duplicated atomic action and the corresponding list of original resize actions
-        // for which the atomic action was created
-        Map<Action, List<Action>> deDupedAtomicActionsMap = new HashMap<>();
-
         // Components of the Aggregated atomic action
         // resize info and explanation for each de-duplicated action
-        List<ResizeInfoAndExplanation> allResizeInfoAndExplanations = new ArrayList<>();
-        // target entity for the individual resize infos
-        Set<Long> allTargets = new HashSet<>();
+        List<ResizeInfoAndExplanation> executableResizeInfoAndExplanations = new ArrayList<>();
+        List<ResizeInfoAndExplanation> nonExecutableResizeInfoAndExplanations = new ArrayList<>();
 
-        final EntityType aggregatedActionTargetEntityType = getAggregateActionTargetEntityType();
+        // target entity for the individual resize infos
+        Set<Long> executableTargets = new HashSet<>();
+        Set<Long> nonExecutableTargets = new HashSet<>();
 
         // Actions that are not duplicated, create a resizeInfo corresponding to each.
-        // Do not create the atomic action for this resizeInfo
-        for (Action resizeAction : aggregatedAction.aggregateOnlyActions()) {
+        // Use the action entity as the target entity for the de-duplication step
+        // which will create the ResizeInfo corresponding to the action
+        // All resize infos will be aggregated to either an executable or non-executable atomic action
+        for (Action resizeAction : aggregatedAction.actionsWithoutDeDuplicationTarget()) {
             Resize resizeInfo = resizeAction.getInfo().getResize();
             ActionEntity entity = resizeInfo.getTarget();
             ActionView actionView = aggregatedAction.actionViews.get(resizeAction.getId());
@@ -89,17 +142,20 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
             ResizeInfoAndExplanation resizeInfoAndExplanation
                         = resizeInfoAndExplanation(entity.toString(), entity, resizeInfo.getCommodityType(),
                                         Collections.singletonList(resizeAction));
-            if (resizeInfoAndExplanation != null) {
-                allResizeInfoAndExplanations.add(resizeInfoAndExplanation);
-                allTargets.add(entity.getId());
+            if (executableActions.contains(actionView.getRecommendation().getId())) {
+                executableResizeInfoAndExplanations.add(resizeInfoAndExplanation);
+                executableTargets.add(entity.getId());
+            } else {
+                nonExecutableResizeInfoAndExplanations.add(resizeInfoAndExplanation);
+                nonExecutableTargets.add(entity.getId());
             }
         }
 
         // ---- First step of de-duplication
         // For actions that are to be de-duplicated, create a resize info per de-dup target
-        // and commodity type. Also create a corresponding non-executable atomic action.
+        // and commodity type.
         aggregatedAction.deDupedActionsMap().forEach((deDupTargetOid, deDupedActions) -> {
-            // First create the resize info objects per de-dup target and commodity type
+            // First create the resize info objects for each commodity type for this de-duplication target
             List<ResizeInfoAndExplanation> resizeInfoAndExplanations
                     = deDuplicatedResizeInfoAndExplanation(deDupedActions);
 
@@ -108,89 +164,106 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                                                 deDupedActions.targetName());
                 return;
             }
-            final EntityType deDupedActionsTargetEntityType
-                                        = getDeDupedActionTargetEntityType(deDupedActions);
 
-            // select resize info for creating the atomic action for the de-duplication level
-            List<ResizeInfoAndExplanation> resizeInfoAndExplanationForDeDuplication
-                    = selectResizesForDeDuplication(deDupedActions, resizeInfoAndExplanations);
-
-            int numOfResizeInfosNotInDeduplicateAtomicAction
-                    = resizeInfoAndExplanations.size() - resizeInfoAndExplanationForDeDuplication.size();
-            // ---- atomic action for this de-duplication target (for displaying in the UI only)
-            // comprises of the resizes for commodity types for actions based on execution mode
-            if (resizeInfoAndExplanationForDeDuplication.size() > 0) {
-                Action.Builder deDupedAction = createAtomicResizeAction(deDupedActions.targetName(),
-                                deDupedActions.targetEntity(),
-                                resizeInfoAndExplanationForDeDuplication,
-                                Collections.singletonList(deDupTargetOid));
-                List<Action> mergedActions = deDupedActions.actions();
-                deDupedAtomicActionsMap.put(deDupedAction.build(), mergedActions);
-
-                logger.trace("{} of {} de-duplicated resizes on {}:{} will not be merged on {} {}",
-                        numOfResizeInfosNotInDeduplicateAtomicAction, resizeInfoAndExplanations.size(),
-                            deDupedActionsTargetEntityType, deDupedActions.targetName(),
-                            aggregatedActionTargetEntityType, aggregatedAction.targetName());
+            List<ResizeInfoAndExplanation> executableResizes = selectExecutableResizes(deDupedActions, resizeInfoAndExplanations);
+            List<ResizeInfoAndExplanation> nonExecutableResizes = selectNonExecutableResizes(deDupedActions, resizeInfoAndExplanations);
+            if (executableResizes.size() > 0) {
+                executableResizeInfoAndExplanations.addAll(executableResizes);
+                executableTargets.add(deDupTargetOid);
             }
-
-            // Select resize infos and explanations that will be allowed to be aggregated to the top level atomic action
-            List<ResizeInfoAndExplanation> resizeInfoAndExplanationForAggregation
-                    = selectResizesForAggregation(deDupedActions, resizeInfoAndExplanations);
-            if (resizeInfoAndExplanationForAggregation.size() > 0) {
-                allResizeInfoAndExplanations.addAll(resizeInfoAndExplanationForAggregation);
-                allTargets.add(deDupTargetOid);
+            if (nonExecutableResizes.size() > 0) {
+                nonExecutableResizeInfoAndExplanations.addAll(nonExecutableResizes);
+                nonExecutableTargets.add(deDupTargetOid);
             }
         });
 
-        if (allResizeInfoAndExplanations.isEmpty()) {
-            logger.trace("Cannot create atomic action for {} {} because all resize actions are in recommend mode",
-                EntityType.forNumber(aggregatedAction.targetEntity().getType()), aggregatedAction.targetName());
-            // -- The complete aggregation result
-            AtomicActionResult atomicActionResult =
-                    ImmutableAtomicActionResult.builder()
-                            .atomicAction(Optional.empty())
-                            .deDuplicatedActions(deDupedAtomicActionsMap)
-                            .mergedActions(aggregatedAction.aggregateOnlyActions())
-                            .build();
-            return Optional.of(atomicActionResult);
+        // ---- Second step of aggregation
+        // ---- Executable atomic action that aggregates the commodity resizes that can executed
+        ImmutableAtomicActionResult.Builder atomicActionResultBuilder = ImmutableAtomicActionResult.builder()
+                                                                            .atomicAction(Optional.empty())
+                                                                            .nonExecutableAtomicAction(Optional.empty());
+
+        if (!executableResizeInfoAndExplanations.isEmpty()) {
+            Action.Builder mergedActionBuilder = createAtomicResizeAction(aggregatedAction.targetName(),
+                                                                            aggregatedAction.targetEntity(),
+                                                                            executableResizeInfoAndExplanations,
+                                                                            executableTargets);
+
+            // This is required for executing the action in the automatic mode
+            mergedActionBuilder.setExecutable(true);
+
+            atomicActionResultBuilder.atomicAction(mergedActionBuilder.build());
+            logger.trace("Created Executable Atomic ActionDTO {} with target {} containing total resizes {}",
+                    mergedActionBuilder::getId, aggregatedAction::targetName,
+                    () -> mergedActionBuilder.getInfo().getAtomicResize().getResizesCount());
         }
 
-        // ---- Second step of aggregation
-        // ---- Primary atomic action
-        // One atomic resize per aggregate target
-        Action.Builder mergedAction = createAtomicResizeAction(aggregatedAction.targetName(),
-                                                                aggregatedAction.targetEntity(),
-                                                                allResizeInfoAndExplanations,
-                                                                allTargets);
+        // ---- Non-executable atomic action that aggregates the commodity resizes that are non-executable
+        if (!nonExecutableResizeInfoAndExplanations.isEmpty()) {
+            Action.Builder nonExecutableMergedAction = createAtomicResizeAction(aggregatedAction.targetName(),
+                                                                                aggregatedAction.targetEntity(),
+                                                                                nonExecutableResizeInfoAndExplanations,
+                                                                                nonExecutableTargets);
+            // This is used to set the recommend mode on the action
+            nonExecutableMergedAction.setExecutable(false);
 
-        // This is required for executing the action in the automatic mode
-        mergedAction.setExecutable(true);
+            atomicActionResultBuilder.nonExecutableAtomicAction(nonExecutableMergedAction.build());
 
-        logger.trace("Created Atomic ActionDTO {} with target {} containing total resizes {}",
-                mergedAction.getId(), aggregatedAction.targetName(),
-                mergedAction.getInfo().getAtomicResize().getResizesCount());
+            logger.trace("Created Non-Executable Atomic ActionDTO {} with target {} containing total resizes {}",
+                    nonExecutableMergedAction::getId, aggregatedAction::targetName,
+                    () -> nonExecutableMergedAction.getInfo().getAtomicResize().getResizesCount());
+        }
 
         // -- The complete aggregation result
-        AtomicActionResult atomicActionResult =
-                ImmutableAtomicActionResult.builder()
-                        .atomicAction(mergedAction.build())
-                        .deDuplicatedActions(deDupedAtomicActionsMap)
-                        .mergedActions(aggregatedAction.aggregateOnlyActions())
-                        .build();
+        Map<ActionEntity, List<ActionDTO.Action>> deduplicatedActionMap
+                = aggregatedAction.deDupedActionsMap().values().stream()
+                .collect(Collectors.toMap(value -> value.targetEntity(), value -> value.actions()));
 
-        logger.trace("{}: number of de-duplication targets {}", atomicActionResult.atomicAction().get().getId(),
-                atomicActionResult.mergedActions().size());
+        AtomicActionResult atomicActionResult = atomicActionResultBuilder
+                .aggregationTarget(aggregatedAction.targetEntity())
+                .deDuplicatedActions(deduplicatedActionMap)
+                .mergedActions(aggregatedAction.actionsWithoutDeDuplicationTarget())
+                .build();
 
-        List<Action> mergedActions = aggregatedAction.getAllActions();
+        atomicActionResult.atomicAction().ifPresent( atomicAction ->
+                logger.trace("executable atomic {}: number of resizes {}",
+                () -> atomicAction.getId(),
+                () -> atomicAction.getInfo().getAtomicResize().getResizesCount()));
 
-        logger.trace("{}: merged {} actions to {} resize items, total {} targets, {} de-duplication targets",
-                atomicActionResult.atomicAction().get().getId(),
-                mergedActions.size(),   //total number of all the actions merged
-                atomicActionResult.atomicAction().get().getInfo().getAtomicResize().getResizesCount(),    //total of internal resize infos
-                allTargets.size(),  //total number of de-duplication and non-de-duplication targets
-                atomicActionResult.deDuplicatedActions().size()); // total number of the de-duplication targets
+        atomicActionResult.nonExecutableAtomicAction().ifPresent( atomicAction ->
+            logger.trace("non-executable atomic {}: number of resizes {}",
+                    () -> atomicAction.getId(),
+                    () -> atomicAction.getInfo().getAtomicResize().getResizesCount()));
+
+
+        logger.debug("{}: merged executable {} actions to {} resize items on {} targets, "
+                        + "merged non-executable {} actions to {} resize items on {} targets",
+                aggregatedAction::targetName,
+                () -> executableActions,   //total number of executable actions merged
+                () -> getAtomicResizeCount(atomicActionResult, true),    //total of internal resize infos
+                () -> executableTargets.size(), //total number of executable action targets
+                () -> nonExecutableActions,   //total number of non-executable actions merged
+                () -> getAtomicResizeCount(atomicActionResult, false), //total of internal resize infos
+                () -> nonExecutableTargets.size()  //total number of non-executable action targets
+        );
 
         return Optional.of(atomicActionResult);
+    }
+
+    private int getAtomicResizeCount(AtomicActionResult atomicActionResult, boolean executable) {
+        ActionDTO.Action action = null;
+        if (executable && atomicActionResult.atomicAction().isPresent()) {
+            action = atomicActionResult.atomicAction().get();
+        } else if (!executable && atomicActionResult.nonExecutableAtomicAction().isPresent()) {
+            action = atomicActionResult.nonExecutableAtomicAction().get();
+        }
+        if (action == null) {
+            return 0;
+        }
+        if (action.getInfo().hasAtomicResize()) {
+            return  action.getInfo().getAtomicResize().getResizesCount();
+        }
+        return 0;
     }
 
     /**
@@ -240,76 +313,51 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     }
 
     /**
-     * Select the de-duplicated resize infos and explanations for aggregation.
-     * Only the selected de-duplicated resizes will be aggregated to the top level aggregated atomic action.
+     * Select resizes that can be executed using the executable action ids.
      *
-     * <p>For real time topologies, only the deduplicated resizes for resize actions that are
-     * <em>not</em> in recommend mode are aggregated to the top level atomic action.
+     * <p>For real time topology, the execution mode of a resize is determined either by the policy setting
+     * or based on a related action on a provider that can cause this action to be blocked making it non-executable.
      *
-     * <p/>
-     * For example, WorkloadController has 2 ContainerSpecs "foo" and "bar", all resize actions in
-     * ContainerSpec "foo" are in manual mode, while ContainerSpec "bar" has VCPU resize in "recommend"
-     * mode and VMem resize in "manual" mode.
-     * <ul> In this case -
-     * <li>all resize infos of ContainerSpec "foo" and only VMem resize info of ContainerSpec "bar"
-     * will be used to create the the aggregation atomic action on the WorkloadController.
-     * <li>The VCPU resize info of ContainerSpec "bar" will be used to create the atomic action on ContainerSpec "bar".
-     * </ul>
-     *
-     * @param deDupedActions            {@link AggregatedAction.DeDupedActions} which comprise of all resize actions
+     * @param deDupedActions            {@link AggregatedAction.DeDupedActions} which comprises all resize actions
      *                                  that will be de-duplicated to a single de-duplication target entity
-     * @param resizeInfoAndExplanations     List of {@link ResizeInfoAndExplanation} for the single de-duplicate target entity
+     * @param resizeInfoAndExplanations List of {@link ResizeInfoAndExplanation} for the single de-duplicate target
      *
-     * @return  List of ResizeInfoAndExplanation that will be part of the aggregation level atomic action
+     * @return List of ResizeInfoAndExplanation that will be part of the executable aggregated action
      */
-    List<ResizeInfoAndExplanation> selectResizesForAggregation(@Nonnull DeDupedActions deDupedActions,
-                                                               @Nonnull List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
-        Set<Long> nonRecommendedActionIds = getNonRecommendModeActionIds();
-        List<ResizeInfoAndExplanation> nonRecommendedResizeInfoAndExplanation =
-                selectResizeInfoAndExplanation(nonRecommendedActionIds,
-                                                deDupedActions.actions(), resizeInfoAndExplanations);
-        logger.trace("{}::{}: merges {} of {} resizes after de-dup to {}::{}",
-                getAggregateActionTargetEntityType(), aggregatedAction.targetName(),
-                nonRecommendedResizeInfoAndExplanation.size(), resizeInfoAndExplanations.size(),
-                getDeDupedActionTargetEntityType(deDupedActions), deDupedActions.targetName());
-        return nonRecommendedResizeInfoAndExplanation;
+    List<ResizeInfoAndExplanation> selectExecutableResizes(@Nonnull DeDupedActions deDupedActions,
+                                                                 @Nonnull List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
+        List<ResizeInfoAndExplanation> executableResizeInfoAndExplanation =
+                selectResizeInfoAndExplanation(executableActions,
+                        deDupedActions.actions(), resizeInfoAndExplanations);
+        int totalActions = deDupedActions.actions().size();
+        logger.trace("{}: de-duplicated {} executable of {} actions to {} resizes",
+                deDupedActions::targetName, () -> executableActions.size(),
+                () -> totalActions, () -> executableResizeInfoAndExplanation.size());
+        return executableResizeInfoAndExplanation;
     }
 
     /**
-     * Select the resize infos and explanations for de-duplicated atomic action.
-     * Only the selected resizes will be used to create the de-duplication level atomic action.
+     * Select resizes that cannot be executed using the non-executable action ids.
      *
-     * <p>For real time topologies, only the deduplicated resizes for resize actions that are
-     * in <em>recommend</em> mode are used to create the de-duplication level atomic action.
+     * <p>For real time topology, the execution mode of a resize is determined either by the policy setting
+     * or based on a related action on a provider that can cause this action to be blocked making it non-executable.
      *
-     * <p/>
-     * For example, WorkloadController has 2 ContainerSpecs "foo" and "bar", all resize actions in
-     * ContainerSpec "foo" are in manual mode, while ContainerSpec "bar" has VCPU resize in "recommend"
-     * mode and VMem resize in "manual" mode.
-     * <ul> In this case -
-     * <li>Only the VCPU resize info of ContainerSpec "bar" will be used to create
-     * the atomic action on ContainerSpec "bar".
-     * <li>All resize infos ContainerSpec "foo" and VMem resize of ContainerSpec "bar" will be used to
-     * create the the aggregation atomic action on the WorkloadController.
-     * </ul>
-     *
-     * @param deDupedActions            {@link AggregatedAction.DeDupedActions} which comprise of all resize actions
+     * @param deDupedActions            {@link AggregatedAction.DeDupedActions} which comprises all resize actions
      *                                  that will be de-duplicated to a single de-duplication target entity
-     * @param resizeInfoAndExplanations     List of {@link ResizeInfoAndExplanation} for the single de-duplicate target e
+     * @param resizeInfoAndExplanations List of {@link ResizeInfoAndExplanation} for the single de-duplicate target
      *
-     * @return  List of ResizeInfoAndExplanation that will be part of the de-duplication level atomic action
+     * @return List of ResizeInfoAndExplanation that will be part of the non-executable aggregated action
      */
-    List<ResizeInfoAndExplanation> selectResizesForDeDuplication(@Nonnull DeDupedActions deDupedActions,
-                                                                 @Nonnull List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
-        Set<Long> recommendedActionIds = getRecommendModeActionIds();
-        List<ResizeInfoAndExplanation> recommendedResizeInfoAndExplanation =
-                selectResizeInfoAndExplanation(recommendedActionIds,
-                                                deDupedActions.actions(), resizeInfoAndExplanations);
+    List<ResizeInfoAndExplanation> selectNonExecutableResizes(@Nonnull DeDupedActions deDupedActions,
+                                                           @Nonnull List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
+        List<ResizeInfoAndExplanation> nonExecutableResizeInfoAndExplanation =
+                selectResizeInfoAndExplanation(nonExecutableActions,
+                        deDupedActions.actions(), resizeInfoAndExplanations);
         int totalActions = deDupedActions.actions().size();
-        logger.trace("{}: de-duplicated {} of {} actions to {} resizes",
-                deDupedActions.targetName(), recommendedActionIds.size(), totalActions,
-                recommendedResizeInfoAndExplanation.size());
-        return recommendedResizeInfoAndExplanation;
+        logger.trace("{}: de-duplicated {} non-executable of {} actions to {} resizes",
+                deDupedActions::targetName, () -> nonExecutableActions.size(),
+                () -> totalActions, () -> nonExecutableResizeInfoAndExplanation.size());
+        return nonExecutableResizeInfoAndExplanation;
     }
 
     /**
@@ -330,6 +378,10 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                 .filter(a -> actionIds.contains(a.getId()))
                 .map(a -> a.getInfo().getResize().getCommodityType().getType())
                 .collect(Collectors.toSet());
+        // TODO: if selectedCommTypes is empty ??
+        if (selectedCommTypes.isEmpty()) {
+            return new ArrayList<>();
+        }
         // Return list of resizeInfoAndExplanations for the above commodity types
         return resizeInfoAndExplanations.stream()
                 .filter(resizeInfoAndExplanation ->
@@ -351,10 +403,13 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     }
 
     /**
-     * Return the set of action IDs of the original resizes that are not in recommend mode.
-     * @return the set of action IDs of non-recommend mode resize actions
+     * Return the set of action OIDs of the original resizes that are executable.
+     *
+     * <p>For real time topologies, this is will be based on the action policy setting on the entity.
+     *
+     * @return the set of action OIDs of executable resize actions
      */
-    Set<Long> getNonRecommendModeActionIds() {
+    protected Set<Long> getExecutableActionIds() {
         // Set of action ID of individual container resizes not in recommend mode.
         return aggregatedAction.actionViews.entrySet().stream()
                 .filter(entry -> entry.getValue().getMode() != ActionMode.RECOMMEND)
@@ -363,15 +418,27 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     }
 
     /**
-     * Return the set of action IDs of the original resizes that are in recommend mode.
-     * @return the set of action IDs of Recommend mode resize actions
+     * Return the set of action OIDs of the original resizes that are non-executable.
+     *
+     * <p>For real time topologies, this is will be based on the action policy setting on the entity.
+     * Some resize actions can be non-executable if they are blocked by a related provider action.
+     *
+     * @return the set of action OIDs of non-executable resize actions
      */
-    Set<Long> getRecommendModeActionIds() {
+    protected Set<Long> getNonExecutableActionIds() {
+        Set<Long> nonExecutableActions = aggregatedAction.getAllActions().stream()
+                .filter(a -> a.hasExecutable() && a.getExecutable() == false)
+                .map(a -> a.getId())
+                .collect(Collectors.toSet());
         // Set of action ID of individual container resizes in recommend mode.
-        return aggregatedAction.actionViews.entrySet().stream()
+        Set<Long> recommendModeActions = aggregatedAction.actionViews.entrySet().stream()
                 .filter(entry -> entry.getValue().getMode() == ActionMode.RECOMMEND)
                 .map(Entry::getKey)
                 .collect(Collectors.toSet());
+
+        recommendModeActions.addAll(nonExecutableActions);
+
+        return recommendModeActions;
     }
 
      List<ActionDTO.ResizeInfo> resizeInfos(List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
@@ -387,24 +454,16 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                 .collect(Collectors.toList());
     }
 
-    EntityType getAggregateActionTargetEntityType() {
-        return EntityType.forNumber(aggregatedAction.targetEntity().getType());
-    }
-
-    EntityType getDeDupedActionTargetEntityType(DeDupedActions deDupedActions) {
-        return EntityType.forNumber(deDupedActions.targetEntity().getType());
-    }
-
     /**
      * Create one merged resize info and explanation for the given set of actions.
      *
      * @param targetName        display name of the target which will execute the resize
      * @param targetEntity      {@link ActionEntity} that will execute the resize
-      * @param resizeCommType   resize {@link CommodityType}
+     * @param resizeCommType   resize {@link CommodityType}
      * @param actionList        list of market actions belonging to different entities
      *                          and containing identical resize info
      * @return  a single {@link ResizeInfo} and explanation for this set of actions.
-      */
+     */
     @Nonnull
     private ResizeInfoAndExplanation resizeInfoAndExplanation(@Nonnull final String targetName,
                                                               @Nonnull final ActionEntity targetEntity,
@@ -490,7 +549,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         return newCapacity;
     }
 
-    // Create one merged resize info and explanation for the given set of actions
+    // Create a list of merged resize info and explanation for the given set of actions, one per commodity
     private List<ResizeInfoAndExplanation> deDuplicatedResizeInfoAndExplanation(DeDupedActions deDupedActions) {
 
         List<Action> actionsToDeDuplicate = deDupedActions.actions();

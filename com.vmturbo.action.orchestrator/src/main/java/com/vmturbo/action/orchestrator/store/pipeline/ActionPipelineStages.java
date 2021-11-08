@@ -101,7 +101,7 @@ public class ActionPipelineStages {
         private final ActionStorehouse storehouse;
 
         /**
-         * Create a new {@link PopulateActionStoreStage}.
+         * Create a new {@link GetOrCreateLiveActionStoreStage}.
          *
          * @param storehouse The {@link ActionStorehouse}.
          */
@@ -136,7 +136,7 @@ public class ActionPipelineStages {
         private final ActionStorehouse storehouse;
 
         /**
-         * Create a new {@link PopulateActionStoreStage}.
+         * Create a new {@link GetOrCreatePlanActionStoreStage}.
          *
          * @param storehouse The {@link ActionStorehouse}.
          */
@@ -680,9 +680,16 @@ public class ActionPipelineStages {
                                                                     @Nonnull final Map<Long, ActionTargetInfo> actionAndTargetInfo) {
             final ActionDTO.Action action = identifiedAction.action;
             final ActionTargetInfo targetInfo = actionAndTargetInfo.get(action.getId());
-            final SupportLevel supportLevel = Optional.ofNullable(targetInfo)
+            SupportLevel supportLevel = Optional.ofNullable(targetInfo)
                 .map(ActionTargetInfo::supportingLevel)
                 .orElse(SupportLevel.UNSUPPORTED);
+            // For non-executable atomic actions, the executable=false setting overrides the action policy setting
+            // Note: we want to be careful here to only override the support level when it results in a more
+            // conservative support level. For example if the action is completely unsupported by the probe,
+            // we should not override it to SHOW_ONLY when the action is not executable.
+            if (!identifiedAction.isExecutableAction() && supportLevel == SupportLevel.SUPPORTED) {
+                supportLevel = SupportLevel.SHOW_ONLY;
+            }
             final Set<Prerequisite> prerequisites = Optional.ofNullable(targetInfo)
                 .map(ActionTargetInfo::prerequisites)
                 .orElse(Collections.emptySet());
@@ -756,8 +763,8 @@ public class ActionPipelineStages {
                             .append(atomicActionsPlan.atomicActionsCount())
                             .append("\nExecutable Aggregated Atomic Actions: ")
                             .append(atomicActionsPlan.aggreagatedAtomicActionsCount())
-                            .append("\nNon-executable DeDuplicated Actions: ")
-                            .append(atomicActionsPlan.deDuplicatedAtomicActionsCount())
+                            .append("\nNon-executable Aggregated Actions: ")
+                            .append(atomicActionsPlan.nonExecutableAtomicActionsCount())
                             .toString()));
         }
     }
@@ -798,8 +805,8 @@ public class ActionPipelineStages {
                             .append(atomicActionsPlan.atomicActionsCount())
                             .append("\nAggregated Atomic Actions: ")
                             .append(atomicActionsPlan.aggreagatedAtomicActionsCount())
-                            .append("\nDeDuplicated Actions: ")
-                            .append(atomicActionsPlan.deDuplicatedAtomicActionsCount())
+                            .append("\nNon-executable Aggregated Actions: ")
+                            .append(atomicActionsPlan.nonExecutableAtomicActionsCount())
                             .toString()));
         }
     }
@@ -827,17 +834,18 @@ public class ActionPipelineStages {
                 .collect(Collectors.toList());
         final int executableAtomicActionsCount = executableAtomicActions.size();
 
-        // The de-duplicated atomic actions that were merged inside the aggregated atomic actions above
-        // These actions are non-executable
-        final List<ActionDTO.Action> deDupedAtomicActions = atomicActionResults.stream()
-                .flatMap(atomicActionResult -> atomicActionResult.deDuplicatedActions().keySet().stream())
+        // The non-executable atomic actions that aggregates the non-executable de-duplicated actions
+        final List<ActionDTO.Action> nonExecutableAtomicActions = atomicActionResults.stream()
+                .filter(atomicActionResult -> atomicActionResult.nonExecutableAtomicAction().isPresent())
+                .map(atomicActionResult -> atomicActionResult.nonExecutableAtomicAction().get())
                 .collect(Collectors.toList());
+        final int nonExecutableAtomicActionsCount = nonExecutableAtomicActions.size();
 
-        int totalAtomicActions = executableAtomicActionsCount + deDupedAtomicActions.size();
-        logger.info("Created {} atomic actions, including {} executable atomic actions and {} "
-                        + "non-executable deDuplicated actions",
-                totalAtomicActions, executableAtomicActionsCount, deDupedAtomicActions.size());
-        return new AtomicActionsPlan(executableAtomicActions, deDupedAtomicActions);
+        int totalAtomicActions = executableAtomicActionsCount + nonExecutableAtomicActionsCount;
+        logger.info("Created {} atomic actions, including {} executable atomic actions "
+                        + "and {} non-executable actions",
+                totalAtomicActions, executableAtomicActionsCount, nonExecutableAtomicActionsCount);
+        return new AtomicActionsPlan(executableAtomicActions, nonExecutableAtomicActions);
     }
 
     /**
@@ -1807,6 +1815,10 @@ public class ActionPipelineStages {
         ActionDTO.Action getAction() {
             return action;
         }
+
+        public boolean isExecutableAction() {
+            return action.getExecutable();
+        }
     }
 
     /**
@@ -1899,26 +1911,26 @@ public class ActionPipelineStages {
         private final List<ActionDTO.Action> aggregatedAtomicActions;
 
         /**
-         * The de-duplicated atomic actions.
-         * These actions are non-executable in real time and plan topologies.
+         * The aggregated non-executable atomic actions.
+         * These actions are non-executable in real time topology and plan topology.
          */
         @Nonnull
-        private final List<ActionDTO.Action> deDuplicatedAtomicActions;
+        private final List<ActionDTO.Action> nonExecutableAggregatedAtomicActions;
 
         private List<ActionDTO.Action> atomicActions;
 
         /**
          * Constructor for AtomicActionsPlan.
          * @param aggregatedAtomicActions       aggregated atomic actions
-         * @param deDuplicatedAtomicActions    de-duplicated atomic actions
+         * @param nonExecutableAggregatedAtomicActions non executable atomic actions
          */
         public AtomicActionsPlan(@Nonnull final List<ActionDTO.Action> aggregatedAtomicActions,
-                                 @Nonnull final List<ActionDTO.Action> deDuplicatedAtomicActions) {
+                                 @Nonnull final List<ActionDTO.Action> nonExecutableAggregatedAtomicActions) {
             this.aggregatedAtomicActions = aggregatedAtomicActions;
-            this.deDuplicatedAtomicActions = deDuplicatedAtomicActions;
+            this.nonExecutableAggregatedAtomicActions = nonExecutableAggregatedAtomicActions;
 
             atomicActions = new ArrayList<>(aggregatedAtomicActions);
-            atomicActions.addAll(deDuplicatedAtomicActions);
+            atomicActions.addAll(nonExecutableAggregatedAtomicActions);
         }
 
         /**
@@ -1930,7 +1942,7 @@ public class ActionPipelineStages {
         }
 
         /**
-         * Return the list of atomic actions.
+         * Return the list of all atomic actions.
          * @return  the list of atomic actions
          */
         public List<ActionDTO.Action> getAtomicActionDTOs() {
@@ -1938,19 +1950,19 @@ public class ActionPipelineStages {
         }
 
         /**
-         * Return the list of aggregated atomic actions.
-         * @return  the list of aggregated atomic actions
+         * Return the list of aggregated executable atomic actions.
+         * @return  the number of aggregated atomic actions
          */
         public int aggreagatedAtomicActionsCount() {
             return aggregatedAtomicActions.size();
         }
 
         /**
-         * Return the list of de-duplicated atomic actions.
-         * @return  the list of de-duplicated atomic actions
+         * Return the list of aggregated non-executable atomic actions.
+         * @return the number of aggregated non-executable atomic actions
          */
-        public int deDuplicatedAtomicActionsCount() {
-            return deDuplicatedAtomicActions.size();
+        public int nonExecutableAtomicActionsCount() {
+            return nonExecutableAggregatedAtomicActions.size();
         }
     }
 
@@ -1972,7 +1984,7 @@ public class ActionPipelineStages {
         private final ActionPlan actionPlan;
 
         /**
-         * Create a new {@link ActionDTOsAndStore}.
+         * Create a new {@link AtomicActionsAndActionPlan}.
          *
          * @param atomicActions The atomic actions.
          * @param actionPlan The action plan

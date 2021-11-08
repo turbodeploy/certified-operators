@@ -12,11 +12,31 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 
 /**
- * * Builds new ActionDTOs by merging ActionDTOs for different entities
- *  * based on the {@link AtomicActionSpec}.
- *  * When a new action plan is received by the Action Orchestrator, {@link PlanActionPipelineFactory} will
- *  * invoke the AtomicActionFactory to create atomic action DTOs by merging a group of actions
- *  * for entities controlled by the same execution target.
+ * Builds new ActionDTOs by merging ActionDTOs for different entities
+ * based on the {@link AtomicActionSpec}.
+ * When a new action plan is received by the Action Orchestrator, {@link PlanActionPipelineFactory} will
+ * invoke the PlanAtomicActionFactory to create atomic action DTOs by merging a group of actions
+ * for entities controlled by the same execution target.
+ *
+ * <p>The atomic action process looks as follows:
+ *
+ * Resize Container       Resize Container             Resize Container       Non-Executable Resize Container
+ * Foo1::Commodity 1     Foo2::Commodity 1            Bar1::Commodity 1        Bar1::Commodity 2
+ *              \         /                              /                                /
+ *               \       /        Deduplication         /          Deduplication         /
+ *                \     /             Step             /             Step               /
+ *                 \   /                              /                                /
+ *  Deduplicated Commodity 1 resize     Deduplicated Commodity 1 resize     Deduplicated Commodity 2 resize
+ *              on ContainerSpc Foo      on ContainerSpec Bar                 on ContainerSpec Bar
+ *                           \                /                                /
+ *                            \ Aggregation  /     Aggregation                /
+ *                             \   Step     /       Step                     /
+ *                              \          /                                /
+ *                         Non-Executable Atomic Resize on WorkloadController
+ *
+ *
+ * </p>
+ *
  */
 public class PlanAtomicActionFactory extends AtomicActionFactory {
     private static final Logger logger = LogManager.getLogger();
