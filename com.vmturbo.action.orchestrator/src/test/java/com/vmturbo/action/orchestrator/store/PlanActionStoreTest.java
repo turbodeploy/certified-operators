@@ -196,11 +196,9 @@ public class PlanActionStoreTest {
         dedupAction1 = createDedupAtomicAction(dedupActionId1, dedup1);
         atomicAction = createAtomicAction(atomicActionId);
 
-        atomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Arrays.asList(atomicAction),
-                                                                        Arrays.asList(dedupAction1));
+        atomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Arrays.asList(atomicAction), Arrays.asList(dedupAction1));
 
-        emptyAtomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Collections.emptyList(),
-                                                                             Collections.emptyList());
+        emptyAtomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Collections.emptyList(), Collections.emptyList());
     }
 
     private static ActionDTO.Action createResizeAction(long actionId,

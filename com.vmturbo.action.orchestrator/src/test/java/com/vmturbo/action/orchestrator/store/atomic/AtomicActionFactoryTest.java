@@ -124,10 +124,11 @@ public class AtomicActionFactoryTest {
         AtomicActionResult atomicAction = atomicActions.get(0);
         assertEquals(2, atomicAction.mergedActions().size());
 
-        List<ActionDTO.Action> marketActions = atomicAction.deDuplicatedActions().values()
-                                        .stream()
-                                        .flatMap(Collection::stream)
-                                        .collect(Collectors.toList());
+        List<ActionDTO.Action> marketActions =  aggregatedActions.values().stream()
+                .map(a -> a.getAllActions())
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+
         List<Long> entitiesWithoutSpecs = Arrays.asList(21L, 22L);
         List<Long> entitiesWithSpecs = Arrays.asList(11L, 12L);
         marketActions.stream()
@@ -181,8 +182,8 @@ public class AtomicActionFactoryTest {
         AtomicActionResult atomicAction = atomicActions.get(0);
         assertEquals(2, atomicAction.mergedActions().size());
 
-        List<ActionDTO.Action> marketActions = atomicAction.deDuplicatedActions().values()
-                .stream()
+        List<ActionDTO.Action> marketActions =  aggregatedActions.values().stream()
+                .map(a -> a.getAllActions())
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
         marketActions.stream()

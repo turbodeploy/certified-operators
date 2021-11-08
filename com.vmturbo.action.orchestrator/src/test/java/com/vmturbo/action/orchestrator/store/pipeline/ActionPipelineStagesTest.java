@@ -482,7 +482,7 @@ public class ActionPipelineStagesTest {
         final StageResult<IdentifiedActionsAndStore> result = stage.execute(actionDTOsAndStore);
         assertEquals(Collections.singletonList(ACTION_OID),
             result.getResult().getActions().stream()
-                .map(IdentifiedActionDTO::getOid)
+                .map(ActionPipelineStages.IdentifiedActionDTO::getOid)
                 .collect(Collectors.toList()));
     }
 
@@ -541,7 +541,7 @@ public class ActionPipelineStagesTest {
 
         // We should have retained the input action.
         assertEquals(1, identifiedActions.getResult().getActions().size());
-        final IdentifiedActionDTO identifiedActionDTO = identifiedActions.getResult().getActions().get(0);
+        final ActionPipelineStages.IdentifiedActionDTO identifiedActionDTO = identifiedActions.getResult().getActions().get(0);
         assertTrue(identifiedActionDTO.getAction().getDisruptive());
         assertEquals(SupportLevel.SHOW_ONLY, identifiedActionDTO.getAction().getSupportingLevel());
     }
@@ -766,13 +766,15 @@ public class ActionPipelineStagesTest {
     @Test
     public void testCreateAtomicActionsStage() throws PipelineStageException, InterruptedException {
         final Map<Long, AggregatedAction> aggregatedActions = new HashMap<>();
-        final ActionDTO.Action dedupAction = moveAction.toBuilder().setId(moveAction.getId() + 1).build();
+        ActionEntity actionEntity = ActionEntity.newBuilder().setId(1L).setType(65).build();
         final ActionDTO.Action atomicAction = moveAction.toBuilder().setId(moveAction.getId() + 2).build();
         provideContextMember(ActionPipelineContextMembers.AGGREGATED_ACTIONS, aggregatedActions);
         when(atomicActionFactory.atomicActions(eq(aggregatedActions)))
             .thenReturn(Collections.singletonList(ImmutableAtomicActionResult.builder()
-                .atomicAction(atomicAction)
-                .deDuplicatedActions(ImmutableMap.of(dedupAction, Collections.singletonList(moveAction)))
+                .nonExecutableAtomicAction(atomicAction)
+                                    .atomicAction(Optional.empty())
+                                    .aggregationTarget(actionEntity)
+                                    .deDuplicatedActions(new HashMap<>())
                 .build()
             ));
 
@@ -780,8 +782,8 @@ public class ActionPipelineStagesTest {
         stage.setContext(context);
         final StageResult<ActionDTOsAndStore> result = stage.execute(actionStore);
 
-        assertEquals(2, result.getResult().getActionDTOs().size());
-        assertThat(result.getResult().getActionDTOs(), containsInAnyOrder(atomicAction, dedupAction));
+        assertEquals(1, result.getResult().getActionDTOs().size());
+        assertThat(result.getResult().getActionDTOs(), containsInAnyOrder(atomicAction));
     }
 
     /**
@@ -832,7 +834,6 @@ public class ActionPipelineStagesTest {
      */
     @Test
     public void testAddRemoveAndClearMarketActionsStage() throws PipelineStageException, InterruptedException {
-        final List<Action> mergedActions = new ArrayList<>();
         provideContextMember(ActionPipelineContextMembers.ENTITIES_AND_SETTINGS_SNAPSHOT, snapshot);
         provideContextMember(ActionPipelineContextMembers.MARKET.getActionDifference(), actionDifference);
         provideContextMember(ActionPipelineContextMembers.MARKET.getInputActionCount(), 1);
@@ -872,13 +873,16 @@ public class ActionPipelineStagesTest {
     @Test
     public void testCreatePlanAtomicActionsStage() throws PipelineStageException, InterruptedException {
         final Map<Long, AggregatedAction> aggregatedActions = new HashMap<>();
-        final ActionDTO.Action dedupAction = moveAction.toBuilder().setId(moveAction.getId() + 1).build();
+        ActionEntity actionEntity = ActionEntity.newBuilder().setId(1L).setType(65).build();
+
         final ActionDTO.Action atomicAction = moveAction.toBuilder().setId(moveAction.getId() + 2).build();
         provideContextMember(ActionPipelineContextMembers.AGGREGATED_ACTIONS, aggregatedActions);
         when(atomicActionFactory.atomicActions(eq(aggregatedActions)))
                 .thenReturn(Collections.singletonList(ImmutableAtomicActionResult.builder()
-                        .atomicAction(atomicAction)
-                        .deDuplicatedActions(ImmutableMap.of(dedupAction, Collections.singletonList(moveAction)))
+                        .nonExecutableAtomicAction(atomicAction)
+                        .atomicAction(Optional.empty())
+                        .aggregationTarget(actionEntity)
+                        .deDuplicatedActions(new HashMap<>())
                         .build()
                 ));
 
@@ -886,8 +890,8 @@ public class ActionPipelineStagesTest {
         stage.setContext(context);
         final StageResult<ActionPipelineStages.AtomicActionsAndActionPlan> result = stage.execute(actionPlan);
 
-        assertEquals(2, result.getResult().getAtomicActionDTOs().size());
-        assertThat(result.getResult().getAtomicActionDTOs(), containsInAnyOrder(atomicAction, dedupAction));
+        assertEquals(1, result.getResult().getAtomicActionDTOs().size());
+        assertThat(result.getResult().getAtomicActionDTOs(), containsInAnyOrder(atomicAction));
     }
 
     private <T> void provideContextMember(@Nonnull final PipelineContextMemberDefinition<T> memberDef,
