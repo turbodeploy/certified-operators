@@ -31,6 +31,7 @@ import com.google.common.collect.Maps;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
@@ -70,6 +71,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.components.common.featureflags.FeatureFlagTestRule;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -114,6 +117,13 @@ public class ActionModeCalculatorTest {
     private static final long JAN_8_202_1 = 1578445240000L;
     private static final long ACTION_OID = 10289L;
     private static final long AN_HOUR_IN_MILLIS = 3600000L;
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.SERVICE_HORIZONTAL_SCALE);
 
     /**
      * Should return AUTOMATIC for a storage host action, with the target having an AUTOMATIC
@@ -411,6 +421,40 @@ public class ActionModeCalculatorTest {
                     ActionSettingSpecs.getSettingSpec(
                         ConfigurableActionSettings.Reconfigure.getSettingName())
                         .getEnumSettingValueType().getDefault()))));
+    }
+
+    /**
+     * Should return AUTOMATIC for a horizontal scale action, with the target having an AUTOMATIC
+     * horizontal scale action mode and a MANUAL provision mode.
+     */
+    @Test
+    public void testSettingHorizontalScale() {
+        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
+                .setProvision(Provision.newBuilder()
+                    .setEntityToClone(ActionEntity.newBuilder()
+                        .setId(7L)
+                        .setType(EntityType.CONTAINER_POD_VALUE))))
+                .setExecutable(true)
+                .build();
+        final String horizontalScaleUp = ConfigurableActionSettings.HorizontalScaleUp.getSettingName();
+        final String provision = ConfigurableActionSettings.Provision.getSettingName();
+        when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
+                ImmutableMap.of(horizontalScaleUp,
+                                Setting.newBuilder()
+                                        .setSettingSpecName(horizontalScaleUp)
+                                        .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                            .setValue(ActionMode.AUTOMATIC.name()))
+                                        .build(),
+                                provision,
+                                Setting.newBuilder()
+                                        .setSettingSpecName(provision)
+                                        .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                            .setValue(ActionMode.MANUAL.name()))
+                                        .build()));
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                   is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     /**
