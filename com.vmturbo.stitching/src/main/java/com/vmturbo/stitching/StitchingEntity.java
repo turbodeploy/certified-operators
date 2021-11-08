@@ -192,7 +192,6 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * Important note: This is the time that TopologyProcessor received this data from the probe, not the actual
      * time that the probe retrieved the information from the target.
      *
-     * This field may be used as a heuristic for the recency of the data in the absence of better information.
      * The time is in "computer time" and not necessarily UTC, however, times on {@link StitchingEntity}s
      * are comparable. See {@link System#currentTimeMillis()} for further details.
      *
@@ -421,4 +420,14 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
             .forEach(combinedError::add);
         return combinedError;
     }
+
+    /**
+     * Whether entity's data are 'outdated' according to certain check defined elsewhere.
+     * This (and not {@link #getLastUpdatedTime}) should be used as heuristic to determine
+     * how/whether the entity should participate in stitching.
+     * The value is not mutable and reflects the original staleness set upon creation.
+     *
+     * @return true if the entity is considered stale
+     */
+    boolean isStale();
 }

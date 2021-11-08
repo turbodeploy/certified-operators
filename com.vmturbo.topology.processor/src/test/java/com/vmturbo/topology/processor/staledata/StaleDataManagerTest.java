@@ -200,7 +200,7 @@ private static final ErrorTypeInfo connectionTimeoutError = ErrorTypeInfo.newBui
         staleDataManager =
                 new StaleDataManager(Collections.singletonList(getInMemoryConsumerFactory()),
                         targetHealthRetriever, executorService, TimeUnit.MINUTES.toMillis(10));
-        staleDataManager.notifyImmediately();
+        staleDataManager.checkStaleData();
 
         // ASSERT
         assertTrue(countDownLatch.await(1, TimeUnit.SECONDS));

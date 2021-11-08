@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -83,6 +84,8 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
+
+import common.HealthCheck.HealthState;
 
 /**
  * A factory class for properly configured {@link TopologyPipeline} objects for plan topologies.
@@ -255,7 +258,14 @@ public class PlanPipelineFactory {
         PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, Map<Long, Builder>, TopologyPipelineContext> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
             builderContinuation = topoPipelineBuilder
-                .addStage(new StitchingStage(stitchingManager, journalFactory, new StitchingJournalContainer()))
+                .addStage(new StitchingStage(stitchingManager, journalFactory,
+                                new StitchingJournalContainer(),
+                                new StalenessInformationProvider() {
+                                    @Override
+                                    public HealthState getLastKnownTargetHealth(long targetOid) {
+                                        return HealthState.NORMAL;
+                                    }
+                                }))
                 .addStage(new ConstructTopologyFromStitchingContextStage())
                 .addStage(new InitializeTopologyEntitiesStage());
         } else {
