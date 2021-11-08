@@ -503,12 +503,12 @@ public class ActionDescriptionBuilder {
         final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation).getId();
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
         if (!optTargetEntity.isPresent()) {
-            logger.error(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
             return "";
         }
         Optional<ActionPartialEntity> optDestinationEntity = entitiesSnapshot.getEntityFromOid(destinationEntityId);
         if (!optDestinationEntity.isPresent()) {
-            logger.error(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "destinationEntityId", destinationEntityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "destinationEntityId", destinationEntityId);
             return "";
         }
         // All Move/RightSize actions should have a target entity and a destination.
@@ -525,7 +525,7 @@ public class ActionDescriptionBuilder {
             final Optional<ActionPartialEntity> optSourceEntity =
                     entitiesSnapshot.getEntityFromOid(sourceEntityId);
             if (!optSourceEntity.isPresent()) {
-                logger.error(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "sourceEntityId", sourceEntityId);
+                logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "sourceEntityId", sourceEntityId);
                 return "";
             }
             final ActionPartialEntity currentEntityDTO = optSourceEntity.get();
