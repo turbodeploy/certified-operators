@@ -116,7 +116,9 @@ public class MigrationsLibrary {
             .put("V_01_01_14__GCP_Remove_Cost_Probe_Targets",
                 new V_01_01_14__GCP_Remove_Cost_Probe_Targets(keyValueStore))
             .put("V_01_01_15__NewRelic_Add_Vm_Metrics_Flag",
-                    new V_01_01_15__NewRelic_Add_Vm_Metrics_Flag(targetStore, probeStore));
+                    new V_01_01_15__NewRelic_Add_Vm_Metrics_Flag(targetStore, probeStore))
+            .put("V_01_01_16__GCP_Remove_Billing_Probe_Targets",
+                    new V_01_01_16__GCP_Remove_Billing_Probe_Targets(keyValueStore));
         return builder.build();
     }
 }
