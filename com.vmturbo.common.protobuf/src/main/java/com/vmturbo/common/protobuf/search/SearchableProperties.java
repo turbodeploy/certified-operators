@@ -218,5 +218,10 @@ public class SearchableProperties {
      */
     public static final String DB_STORAGE_TYPE = "dbStorageTier";
 
+    /**
+     * Database Replication Role.
+     */
+    public static final String DB_REPLICATION_ROLE = "dbReplicationRole";
+
     private SearchableProperties() {}
 }

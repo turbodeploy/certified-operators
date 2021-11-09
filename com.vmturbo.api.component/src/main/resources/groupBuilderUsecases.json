@@ -215,7 +215,8 @@
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByBusinessTransaction"},
             {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByService"},
             {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:Database", "filterCategory": "entity", "filterType": "dbByAvailabilityZoneName"},
-            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:Database", "filterCategory": "entity", "filterType": "dbByRegionName"}
+            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:Database", "filterCategory": "entity", "filterType": "dbByRegionName"},
+            {"inputType": "s", "elements": "dbReplicationRole", "filterCategory": "property", "filterType": "databaseByReplicationRole", "loadOptions": true}
         ]
     },
 

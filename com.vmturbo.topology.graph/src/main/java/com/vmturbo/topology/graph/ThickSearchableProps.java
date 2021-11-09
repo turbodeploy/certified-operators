@@ -62,6 +62,8 @@ public class ThickSearchableProps implements SearchableProps {
                 return new ThickBusinessAccountProps(entityOrBldr);
             case DATABASE_SERVER:
                 return new ThickDatabaseServerProps(entityOrBldr);
+            case DATABASE:
+                return new ThickDatabaseProps(entityOrBldr);
             case SERVICE:
                 return new ThickServiceProps(entityOrBldr);
             default:
@@ -389,6 +391,21 @@ public class ThickSearchableProps implements SearchableProps {
         @Override
         public String getStorageTier() {
             return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DBS_STORAGE_TIER, null);
+        }
+    }
+
+    /**
+     * Database properties.
+     */
+    public static class ThickDatabaseProps extends ThickSearchableProps implements DatabaseProps {
+
+        private ThickDatabaseProps(@Nonnull final TopologyEntityDTOOrBuilder entityOrBldr) {
+            super(entityOrBldr);
+        }
+
+        @Override
+        public String getReplicationRole() {
+            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DB_REPLICATION_ROLE, null);
         }
     }
 
