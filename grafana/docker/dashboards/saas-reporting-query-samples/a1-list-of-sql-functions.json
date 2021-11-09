@@ -1,0 +1,107 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": false,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 4702,
+    "links": [],
+    "panels": [
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 4,
+        "options": {
+          "content": "# Functions Available in Data Cloud\n\nUse the table to look up the available SQL functions in Data Cloud. The list includes:\n* The name of the function\n* The number and type of arguments it accepts\n* The type of data that is returned\n* A description of the function\n* An example (if applicable)\n* Whether the function can take a variable number of arguments (isVariadic)",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "text"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 22,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "id": 2,
+        "options": {
+          "showHeader": true
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT * from FUNCTIONS",
+            "refId": "A"
+          }
+        ],
+        "type": "table"
+      }
+    ],
+    "schemaVersion": 27,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Sample A1. List of Available SQL Functions",
+    "uid": "Gpu4wbDnk",
+    "version": 4
+  }

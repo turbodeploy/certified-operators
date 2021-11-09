@@ -5,8 +5,19 @@ providers:
   - name: saas-reporting
     orgId: 1
     type: file
+    folder: SaaS Reports
     disableDeletion: false
     editable: true
     allowUiUpdates: true
     options:
       path: /grafana-dashboards/saas-reporting
+  - name: saas-reporting-query-samples
+    orgId: 1
+    type: file
+    folder: Query Samples
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /grafana-dashboards/saas-reporting-query-samples
+

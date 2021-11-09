@@ -1,0 +1,1338 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": false,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 4700,
+    "links": [],
+    "panels": [
+      {
+        "collapsed": false,
+        "datasource": null,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 43,
+        "panels": [],
+        "title": "TS  Functions with VM",
+        "type": "row"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 11,
+          "x": 0,
+          "y": 1
+        },
+        "id": 20,
+        "options": {
+          "content": "<h1>Use of ts_max Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre> takes the highest value of all metrics at each time.</pre>\n\n<pre>\n    SELECT \n      vm.name, \n      relabel(ts_max(com.utilization), concat(vm.name,' ',com.name)) \n    FROM \n      GRAPH( '(vm:VirtualMachine)-[:sells]->(com:Commodity)' )  \n    WHERe\n      com.name in ('VCPU','VMEM')\n    GROUP BY vm.name\n    LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "graph": false,
+                "legend": false,
+                "tooltip": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 13,
+          "x": 11,
+          "y": 1
+        },
+        "id": 21,
+        "options": {
+          "graph": {},
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltipOptions": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      vm.name, \n      relabel(ts_max(com.utilization), concat(vm.name,' ',com.name)) \nFROM \n      GRAPH( '(vm:VirtualMachine)-[:sells]->(com:Commodity)' )  \nWHERe\n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "timeseries"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 11
+        },
+        "id": 38,
+        "options": {
+          "content": "<h1>Use of ts_sum Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n<pre> \n  adds the values of each metric at each time.\n</pre>\n\n<pre>\n   SELECT \n      com.name, \n      vm.name,\n      relabel(ts_sum(com.used), concat(vm.name,' ',com.name))\n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name in ('VCPU','VMEM')\n  GROUP BY vm.name\n  LIMIT 10\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "si:MHz"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 11
+        },
+        "hiddenSeries": false,
+        "id": 39,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_sum(com.used), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "deckbytes",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 22
+        },
+        "id": 27,
+        "options": {
+          "content": "<h1>Use of ts_avg Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre> \n  computes the average (arithmetic mean) of each metric at each time.\n  \n</pre>\n\n<pre>\n   SELECT \n      com.name, \n      vm.name,\n      relabel(ts_avg(com.utilization), concat(vm.name,' ',com.name))\n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name in ('VCPU','VMEM')\n  GROUP BY vm.name\n  LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 22
+        },
+        "hiddenSeries": false,
+        "id": 26,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_avg(com.utilization), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 33
+        },
+        "id": 28,
+        "options": {
+          "content": "<h1>Use of ts_min Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre> \n  takes the lowest value of all metrics at each time.\n</pre>\n\n<pre>\n   SELECT \n      com.name, \n      vm.name,\n      relabel(ts_min(com.utilization), concat(vm.name,' ',com.name))\n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name in ('VCPU','VMEM')\n  GROUP BY vm.name\n  LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 33
+        },
+        "hiddenSeries": false,
+        "id": 29,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_min(com.utilization), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 13,
+          "w": 11,
+          "x": 0,
+          "y": 44
+        },
+        "id": 22,
+        "options": {
+          "content": "<h1>Use of ts_zscore Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre> \n  returns the zscores for the values in an input timeseries. \n  That is, for every value in the timeseries, \n  this function determines the distance (in standard deviations) of \n  that value from the series mean.\n</pre>\n<pre>\n    SELECT \n      com.name,\n      vm.name,  \n      relabel(ts_zscore(com.utilization), concat(vm.name,' ',com.name)) \n    FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n    WHERE \n      com.name in ('VCPU','VMEM')\n    GROUP BY vm.name\n    LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 13,
+          "w": 13,
+          "x": 11,
+          "y": 44
+        },
+        "hiddenSeries": false,
+        "id": 23,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name,\n      vm.name,  \n      relabel(ts_zscore(com.utilization), concat(vm.name,' ',com.name)) \nFROM GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 17,
+          "w": 11,
+          "x": 0,
+          "y": 57
+        },
+        "id": 24,
+        "options": {
+          "content": "<h1>Use of ts_baseline Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre> \n  creates a baseline (an EWMA) for every timeseries in a query's result set. The first argument is the timeseries to baseline, \n  the second argument the number of seasons, \n  the third argument a string representing the duration of \n  each season (the seasonality), \n  parsed as a duration (10s, 60m, 3h, etc), \n  and the fourth argument is the `alpha`, \n  the smoothing factor that determines how quickly samples decay as \n  the average moves forward in time. The alpha must be between 0 and 1, and is typically a fairly small number. \n  The larger the alpha, the more the average is biased towards recent history, \n  so an alpha of `1` will create a minimally smoothed baseline very similar to the raw data.\n</pre>\n\n<pre>\n    SELECT \n      com.name, \n      vm.name,\n      relabel(ts_baseline(com.utilization, 5, \"70m\", .05), concat(vm.name,' ',com.name))\n    FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n    WHERE \n      com.name in ('VCPU','VMEM')\n    GROUP BY vm.name\n    LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 17,
+          "w": 13,
+          "x": 11,
+          "y": 57
+        },
+        "hiddenSeries": false,
+        "id": 25,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_baseline(com.utilization, 5, \"70m\", .05), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 11,
+          "x": 0,
+          "y": 74
+        },
+        "id": 30,
+        "options": {
+          "content": "<h1>Use of ts_median Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre> \n takes the median value of all metrics at each time.\n</pre>\n\n<pre>\n   SELECT \n      com.name, \n      vm.name,\n      relabel(ts_median(com.utilization), concat(vm.name,' ',com.name))\n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name in ('VCPU','VMEM')\n  GROUP BY vm.name\n  LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 12,
+          "w": 13,
+          "x": 11,
+          "y": 74
+        },
+        "hiddenSeries": false,
+        "id": 31,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_median(com.utilization), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 11,
+          "x": 0,
+          "y": 86
+        },
+        "id": 32,
+        "options": {
+          "content": "<h1>Use of ts_upsample Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre> \n inserts additional points (via interpolation) into the given timeseries\n to get a timeseries with points roughly the given duration apart\n</pre>\n\n<pre>\n   SELECT \n      com.name, \n      vm.name,\n      relabel(ts_upsample(com.utilization,'4h'), concat(vm.name,' ',com.name))\n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name in ('VCPU','VMEM')\n  GROUP BY vm.name\n  LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 12,
+          "w": 13,
+          "x": 11,
+          "y": 86
+        },
+        "hiddenSeries": false,
+        "id": 33,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_upsample(com.utilization,'4h'), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 11,
+          "x": 0,
+          "y": 98
+        },
+        "id": 34,
+        "options": {
+          "content": "<h1>Use of ts_merge Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n<pre> \n    adds the values of each metric at each time with no interpolation between times.\n</pre>\n\n<pre>\n   SELECT \n      com.name, \n      vm.name,\n      relabel(ts_merge(com.utilization), concat(vm.name,' ',com.name))\n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name in ('VCPU','VMEM')\n  GROUP BY vm.name\n  LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 12,
+          "w": 13,
+          "x": 11,
+          "y": 98
+        },
+        "hiddenSeries": false,
+        "id": 35,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_merge(com.utilization), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 13,
+          "w": 11,
+          "x": 0,
+          "y": 110
+        },
+        "id": 36,
+        "options": {
+          "content": "<h1>Use of ts_accum Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n<pre> \n  creates a timeseries in which each value is the sum of the preceding values from the input timeseries. \n  That is, given an input timeseries with the values `1,1,1,1,1,1,1`, the output timeseries values will be `1,2,3,4,5,6,7`. \n  `TS_ACCUM` takes a single argument, the timeseries that will be cumulatively summed.\n</pre>\n\n<pre>\n   SELECT \n      com.name, \n      vm.name,\n      relabel(ts_accum(com.used), concat(vm.name,' ',com.name))\n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name in ('VCPU','VMEM')\n  GROUP BY vm.name\n  LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "si:MHz"
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 13,
+          "w": 13,
+          "x": 11,
+          "y": 110
+        },
+        "hiddenSeries": false,
+        "id": 37,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.5.9",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      com.name, \n      vm.name,\n      relabel(ts_accum(com.used), concat(vm.name,' ',com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name in ('VCPU','VMEM')\nGROUP BY vm.name\nLIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "deckbytes",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 11,
+          "x": 0,
+          "y": 123
+        },
+        "id": 40,
+        "options": {
+          "content": "<h1>Use of ts_overlay Function with Commodity Utilization</h1>\n<br />\n<h2> Function Description </h2>\n<pre> \n  creates simple watermarks for a timeseries. \n  The first argument is a timeseries to overlay, \n  the second argument is the value for the watermark line on the graph. \n  TS_OVERLAY will generate a timeseries in which every timestamp in the input series has the watermark as its value.\n</pre>\n\n<pre>\n  SELECT \n      relabel(TS_OVERLAY(com.utilization,50), concat(com.name,' ',\"median\")),\n      relabel(TS_OVERLAY(com.utilization,95),concat(com.name,' ',\"95th \")) \n  FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE \n      com.name = 'VCPU' \n  LIMIT 5\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "graph": false,
+                "legend": false,
+                "tooltip": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "spanNulls": true
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 13,
+          "x": 11,
+          "y": 123
+        },
+        "id": 41,
+        "options": {
+          "graph": {},
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltipOptions": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \n      relabel(TS_OVERLAY(com.utilization,50), concat(vm.name,' ',\"median\")),\n      relabel(TS_OVERLAY(com.utilization,95),concat(vm.name,' ',\"95th \")) \nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE \n      com.name = 'VCPU' \nLIMIT 5",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "timeseries"
+      }
+    ],
+    "refresh": false,
+    "schemaVersion": 27,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-12h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Sample 4. TS  Functions Query Samples",
+    "uid": "XdL68xD7z",
+    "version": 4
+  }

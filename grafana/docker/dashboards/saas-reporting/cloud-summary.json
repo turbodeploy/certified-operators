@@ -1,958 +1,959 @@
 {
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": "-- Grafana --",
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
-  "description": "",
-  "editable": true,
-  "gnetId": null,
-  "graphTooltip": 0,
-  "id": 4410,
-  "iteration": 1630339149996,
-  "links": [],
-  "panels": [
-    {
-      "collapsed": false,
-      "datasource": null,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "id": 9,
-      "panels": [],
-      "title": "Achieved Savings",
-      "type": "row"
-    },
-    {
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 1,
-            "drawStyle": "bars",
-            "fillOpacity": 100,
-            "gradientMode": "none",
-            "hideFrom": {
-              "graph": false,
-              "legend": false,
-              "tooltip": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "currencyUSD"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Scale"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#eab839",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 1
-      },
-      "id": 7,
-      "options": {
-        "graph": {},
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltipOptions": {
-          "mode": "single"
-        }
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  relabel(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.end_time, \r\n            ${__to:date:seconds}\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h')\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Failed'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Daily Savings by Action Type (Estimated)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "currencyUSD"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 1
-      },
-      "id": 21,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  relabel(\r\n    ts_accum(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.end_time, \r\n            ${__to:date:seconds}\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h'))\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Failed'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Cumulative Savings (Estimated)",
-      "type": "stat"
-    },
-    {
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": null,
-            "filterable": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "USD/month"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 9
-      },
-      "id": 10,
-      "options": {
-        "showHeader": true
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  t.sub_name as 'Subscription',\r\n  -SUM(e.tags ->> '$.cost.delta') * 730 as 'Savings'\r\nFROM\r\n  events as e\r\n  inner join (\r\n    SELECT\r\n      x.xid as xid,\r\n      ba.name as sub_name\r\n    FROM\r\n      GRAPH('(x:Entity)<-[:owns]-(ba:BusinessAccount)')    \r\n  ) t on e.tags ->> '$.associated_xid' = t.xid\r\nWHERE\r\n  e.tags ->> '$.state' = ${environment:sqlstring} \r\n  and e.tags ->> '$.cost.delta' IS not NULL\r\nGROUP BY 'Subscription'\r\n  ",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Savings by Subscription (Projected)",
-      "type": "table"
-    },
-    {
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": null,
-            "filterable": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "USD/month"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 9
-      },
-      "id": 11,
-      "options": {
-        "showHeader": true
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  t.entity_type as 'Entity Type',\r\n  -SUM(e.tags ->> '$.cost.delta') * 730 as 'Savings'\r\nFROM\r\n  events as e\r\n  inner join (\r\n    SELECT\r\n      x.xid as xid,\r\n      x.entity_type as entity_type\r\n    FROM\r\n      GRAPH('(x:Entity)')    \r\n  ) t on e.tags ->> '$.associated_xid' = t.xid\r\nWHERE\r\n  e.tags ->> '$.state' = ${environment:sqlstring} \r\n  and e.tags ->> '$.cost.delta' IS not NULL\r\nGROUP BY 'Entity Type'\r\n  ",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Savings by Entity Type (Projected)",
-      "type": "table"
-    },
-    {
-      "collapsed": false,
-      "datasource": null,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 16
-      },
-      "id": 15,
-      "panels": [],
-      "title": "Pending Actions and Potential Savings",
-      "type": "row"
-    },
-    {
-      "cacheTimeout": null,
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Scale"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#eab839",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Buy RI"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#6ed0e0",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Delete"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#ef843c",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 17
-      },
-      "hideTimeOverride": true,
-      "id": 17,
-      "interval": null,
-      "links": [],
-      "options": {
-        "displayLabels": [],
-        "legend": {
-          "calcs": [],
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "pie",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "text": {}
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n    (\r\n      ts_reduce_max(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n        )\r\n      ), '1h')\r\n    )), \r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGROUP by e.tags ->> '$.type'",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": "15m",
-      "title": "Pending Actions By Type",
-      "type": "piechart"
-    },
-    {
-      "cacheTimeout": null,
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "USD/month"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Scale"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#eab839",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Buy RI"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#6ed0e0",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Delete"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#ef843c",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 17
-      },
-      "id": 20,
-      "interval": null,
-      "links": [],
-      "options": {
-        "displayLabels": [],
-        "legend": {
-          "calcs": [],
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "pie",
-        "reduceOptions": {
-          "calcs": [
-            "max"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "text": {}
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n    (\r\n      ts_reduce_max(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n        )\r\n      ), '1h') * -730 * cast(e.tags ->> '$.cost.delta' as decimal)\r\n    )), \r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGROUP by e.tags ->> '$.type'\r\n\r\n",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Potential Savings By Type (Projected)",
-      "type": "piechart"
-    },
-    {
-      "cacheTimeout": null,
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "semi-dark-yellow",
-                "value": null
-              },
-              {
-                "color": "dark-orange",
-                "value": 0.1
-              },
-              {
-                "color": "dark-red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Savings"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "USD/Hour"
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 14,
-        "w": 24,
-        "x": 0,
-        "y": 24
-      },
-      "id": 18,
-      "interval": null,
-      "links": [],
-      "options": {
-        "colorByField": "Savings",
-        "labelFields": [],
-        "sizeField": "Savings",
-        "textField": "Description",
-        "tiling": "treemapSquarify"
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  e.tags ->> '$.description' as Description,\r\n  e.tags -> '$.cost.delta' as Savings\r\nFROM\r\n  events as e\r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null\r\nand end_time > 0 OR tags ->> '$.last_seen' < ${__from:date:seconds}\r\nORDER BY Savings DESC\r\nLIMIT 10",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Top 10 Pending Actions by Subscription",
-      "type": "marcusolsson-treemap-panel"
-    },
-    {
-      "collapsed": false,
-      "datasource": null,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 38
-      },
-      "id": 26,
-      "panels": [],
-      "title": "Missed Savings",
-      "type": "row"
-    },
-    {
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 100,
-            "gradientMode": "none",
-            "hideFrom": {
-              "graph": false,
-              "legend": false,
-              "tooltip": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "currencyUSD"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 39
-      },
-      "id": 19,
-      "options": {
-        "graph": {},
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltipOptions": {
-          "mode": "single"
-        }
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  relabel(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h')\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Daily Missed Savings by Action Type (Estimated)",
-      "type": "timeseries"
-    },
-    {
-      "cacheTimeout": null,
-      "datasource": "Turbonomic Data Cloud",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "currencyUSD"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Buy RI"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#6ed0e0",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Delete"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#ef843c",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Scale"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#eab839",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 39
-      },
-      "id": 24,
-      "interval": null,
-      "links": [],
-      "options": {
-        "displayLabels": [],
-        "legend": {
-          "calcs": [],
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "pie",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "text": {}
-      },
-      "pluginVersion": "7.5.9",
-      "targets": [
-        {
-          "format": "Auto",
-          "queryText": "SELECT\r\n  relabel(\r\n    ts_accum(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h'))\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Total Missed Savings (Estimated)",
-      "type": "piechart"
-    },
-    {
-      "collapsed": true,
-      "datasource": null,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 48
-      },
-      "id": 28,
-      "panels": [
-        {
-          "datasource": "Turbonomic Data Cloud",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": null,
-                "filterable": true
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Description"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 694
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Cost Delta"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 305
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 12,
-            "w": 24,
-            "x": 0,
-            "y": 28
-          },
-          "id": 23,
-          "options": {
-            "showHeader": true,
-            "sortBy": [
-              {
-                "desc": true,
-                "displayName": "End Time"
-              }
-            ]
-          },
-          "pluginVersion": "7.5.9",
-          "targets": [
-            {
-              "format": "Auto",
-              "queryText": "SELECT \nfrom_unix_timestamp(start_time) as 'Time First Recommended', \nfrom_unix_timestamp(end_time) as 'End Time', \ntags ->> '$.type' as Type,\nif(tags ->> '$.state' = ${environment:sqlstring}, 'Succeeded', tags ->> '$.state')  as State,\ntags ->> '$.cost.delta' as 'Cost Delta (USD/hour)',\ntags ->> '$.description' as Description\nfrom events \nwhere tags ->> '$.cost.delta' IS NOT NULL\norder by 'End Time' DESC",
-              "refId": "A"
-            }
-          ],
-          "timeFrom": null,
-          "title": "All Actions",
-          "type": "table"
-        }
-      ],
-      "title": "All Actions",
-      "type": "row"
-    }
-  ],
-  "refresh": "1h",
-  "schemaVersion": 27,
-  "style": "dark",
-  "tags": [],
-  "templating": {
-    "list": [
-      {
-        "allValue": null,
-        "current": {
-          "selected": true,
-          "text": "debug",
-          "value": "Failed"
-        },
-        "description": null,
-        "error": null,
-        "hide": 2,
-        "includeAll": false,
-        "label": null,
-        "multi": false,
-        "name": "environment",
-        "options": [
-          {
-            "selected": true,
-            "text": "debug",
-            "value": "Failed"
-          },
-          {
-            "selected": false,
-            "text": "prod",
-            "value": "Success"
-          }
-        ],
-        "query": "debug : Failed, prod : Success",
-        "queryValue": "",
-        "skipUrlSync": false,
-        "type": "custom"
-      }
-    ]
-  },
-  "time": {
-    "from": "now-30d",
-    "to": "now"
-  },
-  "timepicker": {},
-  "timezone": "",
-  "title": "Cloud Summary (Review Version)",
-  "uid": "tD5Xfn47k",
-  "version": 37
+	"annotations": {
+		"list": [
+			{
+				"builtIn": 1,
+				"datasource": "-- Grafana --",
+				"enable": true,
+				"hide": true,
+				"iconColor": "rgba(0, 211, 255, 1)",
+				"name": "Annotations & Alerts",
+				"type": "dashboard"
+			}
+		]
+	},
+	"description": "",
+	"editable": true,
+	"gnetId": null,
+	"graphTooltip": 0,
+	"id": 4796,
+	"iteration": 1636031722544,
+	"links": [],
+	"panels": [
+		{
+			"collapsed": false,
+			"datasource": null,
+			"gridPos": {
+				"h": 1,
+				"w": 24,
+				"x": 0,
+				"y": 0
+			},
+			"id": 9,
+			"panels": [],
+			"title": "Achieved Savings",
+			"type": "row"
+		},
+		{
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"custom": {
+						"axisLabel": "",
+						"axisPlacement": "auto",
+						"barAlignment": 1,
+						"drawStyle": "bars",
+						"fillOpacity": 100,
+						"gradientMode": "none",
+						"hideFrom": {
+							"graph": false,
+							"legend": false,
+							"tooltip": false
+						},
+						"lineInterpolation": "linear",
+						"lineWidth": 1,
+						"pointSize": 5,
+						"scaleDistribution": {
+							"type": "linear"
+						},
+						"showPoints": "never",
+						"spanNulls": true
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "currencyUSD"
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Scale"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "#eab839",
+									"mode": "fixed"
+								}
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 1
+			},
+			"id": 7,
+			"options": {
+				"graph": {},
+				"legend": {
+					"calcs": [],
+					"displayMode": "list",
+					"placement": "bottom"
+				},
+				"tooltipOptions": {
+					"mode": "single"
+				}
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT\r\n  relabel(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.end_time, \r\n            ${__to:date:seconds}\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h')\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = ${environment:sqlstring}\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
+					"refId": "A",
+					"timeRangeExtension": true
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Daily Savings by Action Type (Estimated)",
+			"type": "timeseries"
+		},
+		{
+			"cacheTimeout": null,
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					},
+					"unit": "currencyUSD"
+				},
+				"overrides": []
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 1
+			},
+			"id": 21,
+			"interval": null,
+			"links": [],
+			"options": {
+				"colorMode": "value",
+				"graphMode": "none",
+				"justifyMode": "auto",
+				"orientation": "auto",
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"text": {},
+				"textMode": "auto"
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT\r\n  relabel(\r\n    ts_accum(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.end_time, \r\n            ${__to:date:seconds}\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h'))\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = ${environment:sqlstring}\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
+					"refId": "A",
+					"timeRangeExtension": true
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Cumulative Savings (Estimated)",
+			"type": "stat"
+		},
+		{
+			"cacheTimeout": null,
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"decimals": 0,
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "short"
+				},
+				"overrides": []
+			},
+			"gridPos": {
+				"h": 7,
+				"w": 12,
+				"x": 0,
+				"y": 9
+			},
+			"id": 32,
+			"interval": null,
+			"links": [],
+			"options": {
+				"displayLabels": [],
+				"legend": {
+					"displayMode": "list",
+					"placement": "right",
+					"values": []
+				},
+				"pieType": "pie",
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"text": {}
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT\r\n  relabel(\r\n    ts_reduce_avg(\r\n    ts_sum(\r\n    (      \r\n        ts_mask(\r\n          to_timerange(\r\n            e.end_time, \r\n            ${__to:date:seconds}\r\n        )\r\n      ) * -730 * cast(e.tags ->> '$.cost.delta' as decimal)\r\n    )), '24h'), \r\n      t.sub_name\r\n  )\r\nFROM\r\n  events as e  \r\n   inner join (\r\n    SELECT\r\n      e.xid as xid,\r\n      ba.name as sub_name\r\n    FROM\r\n       GRAPH('(ba:BusinessAccount)-[:owns]->(e:Entity)')      \r\n  ) t on e.tags -> '$.associated_xid' = t.xid\r\nWHERE\r\n  e.tags ->> '$.state' = ${environment:sqlstring} and\r\n  e.tags ->> '$.cost.delta' IS not NULL\r\nGROUP BY t.sub_name\r\n  ",
+					"refId": "A",
+					"timeRangeExtension": false
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Savings by Subscription (Projected)",
+			"type": "piechart"
+		},
+		{
+			"cacheTimeout": null,
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "USD/Month"
+				},
+				"overrides": []
+			},
+			"gridPos": {
+				"h": 7,
+				"w": 12,
+				"x": 12,
+				"y": 9
+			},
+			"id": 33,
+			"interval": null,
+			"links": [],
+			"options": {
+				"displayLabels": [],
+				"legend": {
+					"displayMode": "list",
+					"placement": "right",
+					"values": [
+						"value"
+					]
+				},
+				"pieType": "pie",
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"text": {}
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n    (\r\n        ts_mask(\r\n          to_timerange(\r\n            e.end_time, \r\n            ${__to:date:seconds}\r\n        )\r\n      ) * -730 * cast(e.tags ->> '$.cost.delta' as decimal)\r\n    )), \r\n   t.entity_type\r\n  )\r\nFROM\r\n  events as e  \r\n   inner join (\r\n    SELECT\r\n      x.xid as xid,\r\n      x.entity_type as entity_type\r\n    FROM\r\n      GRAPH('(x:Entity)')    \r\n  ) t on e.tags -> '$.associated_xid' = t.xid\r\nWHERE\r\n  e.tags ->> '$.state' = ${environment:sqlstring} and\r\n   e.tags ->> '$.cost.delta' IS not NULL\r\nGROUP BY t.entity_type",
+					"refId": "A",
+					"timeRangeExtension": false
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Savings by Entity Type (Projected)",
+			"type": "piechart"
+		},
+		{
+			"collapsed": false,
+			"datasource": null,
+			"gridPos": {
+				"h": 1,
+				"w": 24,
+				"x": 0,
+				"y": 16
+			},
+			"id": 15,
+			"panels": [],
+			"title": "Pending Actions and Potential Savings",
+			"type": "row"
+		},
+		{
+			"cacheTimeout": null,
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"decimals": 0,
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "short"
+				},
+				"overrides": []
+			},
+			"gridPos": {
+				"h": 7,
+				"w": 12,
+				"x": 0,
+				"y": 17
+			},
+			"id": 29,
+			"interval": null,
+			"links": [],
+			"options": {
+				"displayLabels": [],
+				"legend": {
+					"calcs": [],
+					"displayMode": "table",
+					"placement": "right",
+					"values": [
+						"value"
+					]
+				},
+				"pieType": "pie",
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"text": {}
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT  \r\n    relabel(\r\n      ts_reduce_max(\r\n    ts_sum(\r\n    (      \r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n        )\r\n      )\r\n    )), '24h'), \r\n    concat(t.entity_type,' - ',e.tags ->> '$.type')\r\n  )\r\n  \r\nFROM\r\n  events as e\r\n  inner join (\r\n    SELECT\r\n      x.xid as xid,\r\n      x.entity_type as entity_type\r\n    FROM\r\n      GRAPH('(x:Entity)')    \r\n  ) t on e.tags -> '$.associated_xid' = t.xid\r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' IS not NULL\r\nGROUP BY t.entity_type\r\n  ",
+					"refId": "A",
+					"timeRangeExtension": false
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Action Count by Entity Type (Projected)",
+			"type": "piechart"
+		},
+		{
+			"cacheTimeout": null,
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "USD/month"
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Scale"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "#eab839",
+									"mode": "fixed"
+								}
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Buy RI"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "#6ed0e0",
+									"mode": "fixed"
+								}
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Delete"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "#ef843c",
+									"mode": "fixed"
+								}
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 7,
+				"w": 12,
+				"x": 12,
+				"y": 17
+			},
+			"id": 31,
+			"interval": null,
+			"links": [],
+			"options": {
+				"displayLabels": [],
+				"legend": {
+					"calcs": [],
+					"displayMode": "table",
+					"placement": "right",
+					"values": [
+						"value"
+					]
+				},
+				"pieType": "pie",
+				"reduceOptions": {
+					"calcs": [
+						"max"
+					],
+					"fields": "",
+					"values": false
+				},
+				"text": {}
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"format": "Auto",
+					"queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n    (\r\n      ts_reduce_max(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n        )\r\n      ), '1h') * -730 * cast(e.tags ->> '$.cost.delta' as decimal)\r\n    )), \r\n   concat(t.entity_type,' ',e.tags ->> '$.type')\r\n  )\r\nFROM\r\n  events as e  \r\n   inner join (\r\n    SELECT\r\n      x.xid as xid,\r\n      x.entity_type as entity_type\r\n    FROM\r\n      GRAPH('(x:Entity)')    \r\n  ) t on e.tags ->> '$.associated_xid' = t.xid\r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' IS not NULL\r\nGROUP BY e.tags ->> '$.type'\r\n  \r\n\r\n",
+					"refId": "A"
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Potential Savings By Type (Projected)",
+			"type": "piechart"
+		},
+		{
+			"cacheTimeout": null,
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "continuous-GrYlRd"
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "semi-dark-yellow",
+								"value": null
+							},
+							{
+								"color": "dark-orange",
+								"value": 0.1
+							},
+							{
+								"color": "dark-red",
+								"value": 1
+							}
+						]
+					}
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Savings"
+						},
+						"properties": [
+							{
+								"id": "unit",
+								"value": "USD/Hour"
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 14,
+				"w": 24,
+				"x": 0,
+				"y": 24
+			},
+			"id": 18,
+			"interval": null,
+			"links": [],
+			"options": {
+				"colorByField": "Savings",
+				"labelFields": [],
+				"sizeField": "Savings",
+				"textField": "Description",
+				"tiling": "treemapSquarify"
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"format": "Auto",
+					"queryText": "SELECT\r\n  e.tags ->> '$.description' as Description,\r\n  e.tags -> '$.cost.delta' as Savings\r\nFROM\r\n  events as e\r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null\r\nand end_time > 0 OR tags ->> '$.last_seen' < ${__from:date:seconds}\r\nORDER BY Savings DESC\r\nLIMIT 10",
+					"refId": "A"
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Top 10 Pending Actions by Subscription",
+			"type": "marcusolsson-treemap-panel"
+		},
+		{
+			"collapsed": false,
+			"datasource": null,
+			"gridPos": {
+				"h": 1,
+				"w": 24,
+				"x": 0,
+				"y": 38
+			},
+			"id": 26,
+			"panels": [],
+			"title": "Missed Savings",
+			"type": "row"
+		},
+		{
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"custom": {
+						"axisLabel": "",
+						"axisPlacement": "auto",
+						"barAlignment": 0,
+						"drawStyle": "bars",
+						"fillOpacity": 100,
+						"gradientMode": "none",
+						"hideFrom": {
+							"graph": false,
+							"legend": false,
+							"tooltip": false
+						},
+						"lineInterpolation": "linear",
+						"lineWidth": 1,
+						"pointSize": 5,
+						"scaleDistribution": {
+							"type": "linear"
+						},
+						"showPoints": "never",
+						"spanNulls": true
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "currencyUSD"
+				},
+				"overrides": []
+			},
+			"gridPos": {
+				"h": 9,
+				"w": 12,
+				"x": 0,
+				"y": 39
+			},
+			"id": 19,
+			"options": {
+				"graph": {},
+				"legend": {
+					"calcs": [],
+					"displayMode": "list",
+					"placement": "bottom"
+				},
+				"tooltipOptions": {
+					"mode": "single"
+				}
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT\r\n  relabel(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h')\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
+					"refId": "A",
+					"timeRangeExtension": false
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Daily Missed Savings by Action Type (Estimated)",
+			"type": "timeseries"
+		},
+		{
+			"cacheTimeout": null,
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"decimals": 0,
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "currencyUSD"
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Buy RI"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "#6ed0e0",
+									"mode": "fixed"
+								}
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Delete"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "#ef843c",
+									"mode": "fixed"
+								}
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Scale"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "#eab839",
+									"mode": "fixed"
+								}
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 9,
+				"w": 12,
+				"x": 12,
+				"y": 39
+			},
+			"id": 24,
+			"interval": null,
+			"links": [],
+			"options": {
+				"displayLabels": [],
+				"legend": {
+					"calcs": [],
+					"displayMode": "table",
+					"placement": "right",
+					"values": [
+						"value"
+					]
+				},
+				"pieType": "pie",
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"text": {}
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT\r\n  relabel(\r\n    ts_accum(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.start_time, \r\n            e.end_time\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h'))\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.state' = 'Ready'\r\n  and e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
+					"refId": "A",
+					"timeRangeExtension": false
+				}
+			],
+			"timeFrom": null,
+			"timeShift": null,
+			"title": "Cumulative Missed Savings (Estimated)",
+			"type": "piechart"
+		},
+		{
+			"collapsed": false,
+			"datasource": null,
+			"gridPos": {
+				"h": 1,
+				"w": 24,
+				"x": 0,
+				"y": 48
+			},
+			"id": 28,
+			"panels": [],
+			"title": "All Actions",
+			"type": "row"
+		},
+		{
+			"datasource": "Turbonomic Data Cloud",
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"custom": {
+						"align": null,
+						"filterable": true
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					}
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Description"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 694
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Cost Delta"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 305
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 12,
+				"w": 24,
+				"x": 0,
+				"y": 49
+			},
+			"id": 23,
+			"options": {
+				"showHeader": true,
+				"sortBy": [
+					{
+						"desc": true,
+						"displayName": "End Time"
+					}
+				]
+			},
+			"pluginVersion": "7.5.9",
+			"targets": [
+				{
+					"downsample": false,
+					"format": "Auto",
+					"queryText": "SELECT \nfrom_unix_timestamp(start_time) as 'Time First Recommended', \nfrom_unix_timestamp(end_time) as 'End Time', \ntags ->> '$.type' as Type,\nif(tags ->> '$.state' = ${environment:sqlstring}, 'Succeeded', tags ->> '$.state')  as State,\ntags ->> '$.cost.delta' as 'Cost Delta (USD/hour)',\ntags ->> '$.description' as Description\nfrom events \nwhere tags ->> '$.cost.delta' IS NOT NULL\norder by 'End Time' DESC",
+					"refId": "A",
+					"timeRangeExtension": false
+				}
+			],
+			"timeFrom": null,
+			"title": "All Actions",
+			"type": "table"
+		}
+	],
+	"refresh": "15m",
+	"schemaVersion": 27,
+	"style": "dark",
+	"tags": [
+		"cloud",
+		"actions"
+	],
+	"templating": {
+		"list": [
+			{
+				"allValue": null,
+				"current": {
+					"selected": false,
+					"text": "prod",
+					"value": "Succeeded"
+				},
+				"description": null,
+				"error": null,
+				"hide": 2,
+				"includeAll": false,
+				"label": null,
+				"multi": false,
+				"name": "environment",
+				"options": [
+					{
+						"selected": false,
+						"text": "debug",
+						"value": "Failed"
+					},
+					{
+						"selected": true,
+						"text": "prod",
+						"value": "Succeeded"
+					}
+				],
+				"query": "debug : Failed, prod : Succeeded",
+				"queryValue": "",
+				"skipUrlSync": false,
+				"type": "custom"
+			}
+		]
+	},
+	"time": {
+		"from": "now-30d",
+		"to": "now"
+	},
+	"timepicker": {},
+	"timezone": "",
+	"title": "Cloud Summary",
+	"uid": "plyFAaVnz",
+	"version": 3
 }
