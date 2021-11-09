@@ -126,6 +126,8 @@ public class ServiceEntityRepoDTOConverter {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getWorkloadControllerInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getNamespaceInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getNamespaceInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getCloudCommitmentInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getCloudCommitmentInfoRepoDTO();
         }
 
         // if present, convert this RepoDTO type specific info into Topology TypeSpecificInfo oneof

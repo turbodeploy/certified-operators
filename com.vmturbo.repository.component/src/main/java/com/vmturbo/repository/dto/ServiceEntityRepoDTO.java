@@ -64,6 +64,7 @@ public class ServiceEntityRepoDTO {
     private BusinessUserInfoRepoDTO businessUserInfoRepoDTO;
     private WorkloadControllerInfoRepoDTO workloadControllerInfoRepoDTO;
     private NamespaceInfoRepoDTO namespaceInfoRepoDTO;
+    private CloudCommitmentInfoRepoDTO cloudCommitmentInfoRepoDTO;
 
     public String getUuid() {
         return uuid;
@@ -313,6 +314,15 @@ public class ServiceEntityRepoDTO {
         this.businessUserInfoRepoDTO = businessUserInfoRepoDTO;
     }
 
+    public CloudCommitmentInfoRepoDTO getCloudCommitmentInfoRepoDTO() {
+        return cloudCommitmentInfoRepoDTO;
+    }
+
+    public void setCloudCommitmentInfoRepoDTO(
+            final CloudCommitmentInfoRepoDTO cloudCommitmentInfoRepoDTO) {
+        this.cloudCommitmentInfoRepoDTO = cloudCommitmentInfoRepoDTO;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -346,7 +356,8 @@ public class ServiceEntityRepoDTO {
                 Objects.equals(virtualVolumeInfoRepoDTO, that.virtualVolumeInfoRepoDTO) &&
                 Objects.equals(businessAccountInfoRepoDTO, that.businessAccountInfoRepoDTO) &&
                 Objects.equals(desktopPoolInfoRepoDTO, that.desktopPoolInfoRepoDTO) &&
-                Objects.equals(businessUserInfoRepoDTO, that.businessUserInfoRepoDTO);
+                Objects.equals(businessUserInfoRepoDTO, that.businessUserInfoRepoDTO) &&
+                Objects.equals(cloudCommitmentInfoRepoDTO, that.cloudCommitmentInfoRepoDTO);
     }
 
     @Override
@@ -358,7 +369,7 @@ public class ServiceEntityRepoDTO {
             physicalMachineInfoRepoDTO, storageInfoRepoDTO, diskArrayInfoRepoDTO,
             logicalPoolInfoRepoDTO, storageControllerInfoRepoDTO, virtualMachineInfoRepoDTO,
             virtualVolumeInfoRepoDTO, businessAccountInfoRepoDTO, desktopPoolInfoRepoDTO,
-            businessUserInfoRepoDTO);
+            businessUserInfoRepoDTO, cloudCommitmentInfoRepoDTO);
     }
 
     @Override
@@ -390,6 +401,7 @@ public class ServiceEntityRepoDTO {
                 ", virtualMachineInfoRepoDTO=" + virtualMachineInfoRepoDTO +
                 ", virtualVolumeInfoRepoDTO=" + virtualVolumeInfoRepoDTO +
                 ", businessAccountInfoRepoDTO=" + businessAccountInfoRepoDTO +
+                ", cloudCommitmentInfoRepoDTO=" + cloudCommitmentInfoRepoDTO +
                 ", businessUserInfoRepoDTO=" + businessUserInfoRepoDTO +
                 ", desktopPoolInfoRepoDTO=" + desktopPoolInfoRepoDTO +
                 ", entityPipelineErrorsRepoDTO=" + entityPipelineErrorsRepoDTO +
