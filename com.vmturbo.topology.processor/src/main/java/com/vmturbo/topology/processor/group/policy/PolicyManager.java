@@ -204,9 +204,8 @@ public class PolicyManager {
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts.size(), durationMs);
 
             if (!results.getErrors().isEmpty()) {
-                logger.error(results.getErrors().size() + " policies could not be applied " +
-                    "(error messages printed at debug level).");
-                logger.debug(() -> results.getErrors().entrySet().stream()
+                logger.error(results.getErrors().size() + " policies could not be applied");
+                logger.error(() -> results.getErrors().entrySet().stream()
                     .map(entry -> entry.getKey().getPolicyDefinition().getId() + " : " + entry.getValue().getMessage())
                     .collect(Collectors.joining("\n")));
             }

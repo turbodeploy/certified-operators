@@ -128,7 +128,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
         if (approvalsToCreate.isEmpty()) {
             // Remote action approval backend is not expecting the complete pack of actions
             // It's the backend's responsibility to timeout the actions
-            getLogger().debug("No actions reported. Skipping approving actions");
+            getLogger().info("No actions reported. Skipping approving actions");
             return;
         }
         trackedApprovals.retainAll(approvalsToCreate);
@@ -193,14 +193,14 @@ public class ActionApprovalService extends AbstractActionApprovalService {
     private void requestExternalStateUpdates() {
         try {
             if (trackedApprovals.isEmpty()) {
-                getLogger().trace(
-                    "There is no current action approvals. Will not request their states");
+                getLogger().info(
+                    "There are no current action approvals. Will not request their external states");
                 return;
             }
             final Optional<Long> targetId = getTargetId();
             if (!targetId.isPresent()) {
                 getLogger().warn(
-                    "There is not external action approval target. Skipping external state updates for actions [{}]",
+                    "There is no external action approval target. Skipping external state updates for actions [{}]",
                     trackedApprovals);
                 return;
             }
@@ -306,7 +306,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
         @Override
         public void onSuccess(@Nonnull GetActionStateResponse response) {
             updateActionStateOperation(null);
-            getLogger().info("The Action State operation has been reset");
+            getLogger().info("The Get Action State operation has been reset");
             if (getLogger().isDebugEnabled()) {
                 for (ActionErrorDTO actionError : response.getErrorsList()) {
                     getLogger().warn("Error reported updating action {} state at target {}: {}",
