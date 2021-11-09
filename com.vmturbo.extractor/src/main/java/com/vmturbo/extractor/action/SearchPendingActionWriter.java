@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -77,6 +78,14 @@ class SearchPendingActionWriter implements IActionWriter {
             ActionState.READY.getNumber(), ActionState.IN_PROGRESS.getNumber(),
             ActionState.QUEUED.getNumber(), ActionState.ACCEPTED.getNumber());
 
+    /**
+     * Types of InvolvedEntityCalculation which we need to calculate to ensure correct action count.
+     */
+    private static final List<InvolvedEntityCalculation> CALC_TYPES = ImmutableList.of(
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
+            InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS
+    );
+
     private final TopologyGraph<SupplyChainEntity> topologyGraph;
     private final SupplyChain supplyChain;
     private final Long2ObjectMap<List<Long>> groupToLeafEntityIds;
@@ -109,7 +118,7 @@ class SearchPendingActionWriter implements IActionWriter {
             return;
         }
         try {
-            for (InvolvedEntityCalculation calcType : InvolvedEntityCalculation.values()) {
+            for (InvolvedEntityCalculation calcType : CALC_TYPES) {
                 ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation(), calcType)
                         .forEach(involvedEntityId -> actionsByEntityIdAndCalcType
                                 .computeIfAbsent((long)involvedEntityId,

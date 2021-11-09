@@ -8,7 +8,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -251,9 +250,9 @@ public class EntitySeverityCacheTest {
      * <p>Traversal over Container area towards Service is as follows:
      * <pre>
      *
-     *  Container           ContainerSpec
-     *      ^                     ^
-     *      |                     |
+     *  Container <-------- ContainerSpec
+     *      ^                     X
+     *      |                     X
      * ContainerPod <--- WorkloadController
      *                            ^
      *                            |
@@ -403,36 +402,36 @@ public class EntitySeverityCacheTest {
         // Service on containers
         //
         // Service6 ----> App6a1 -> Container6a1 -----> Pod6a ----> Workload6 ----> NamespaceFoo
-        //           \    Minor        Minor            Minor   \     Major
-        //           \                                           \--> VM1 ------------> PM1
-        //           \                                                Minor     \       Minor
+        //           \    Minor        Minor       \    Minor   \     Major
+        //           \                              \-> Spec61   \--> VM1 ------------> PM1
+        //           \                                  Minor         Minor     \       Minor
         //           \                                                          \---> Storage1
         //           \                                                                 Major
         //           \--> App6a2 -> Container6a2 -----> Pod6a ----> Workload6 ----> NamespaceFoo
-        //           \                                  Minor   \     Major
-        //           \                                           \--> VM1 ------------> PM1
-        //           \                                                Minor     \       Minor
+        //           \                             \    Minor   \     Major
+        //           \                              \-> Spec62   \--> VM1 ------------> PM1
+        //           \                                  Major         Minor     \       Minor
         //           \                                                          \---> Storage1
         //           \                                                                 Major
         //           \--> App6b1 -> Container6b1 -----> Pod6b ----> Workload6 ----> NamespaceFoo
-        //           \                                  Major   \     Major
-        //           \                                           \-> VM5 ------> Storage4
-        //           \                                                     \       Major
+        //           \                             \    Major   \     Major
+        //           \                              \-> Spec61   \-> VM5 ------> Storage4
+        //           \                                  Minor              \       Major
         //           \                                                      \---> PM4
         //           \                                                       \   Minor
         //           \                                                        \-> Vol5
         //           \--> App6b2 -> Container6b2 -----> Pod6b ----> Workload6 ----> NamespaceFoo
-        //                                              Major   \     Major
-        //                                                       \-> VM5 ------> Storage4
-        //                                                                 \       Major
+        //                                         \    Major   \     Major
+        //                                          \-> Spec62   \-> VM5 ------> Storage4
+        //                                              Major              \       Major
         //                                                                  \---> PM4
         //                                                                   \   Minor
         //                                                                    \-> Vol5
         //
         checkSeverityBreakdown(severityBreakdownScenario.service6Oid,
                 ImmutableMap.of(
-                        Severity.MAJOR, 10L,
-                        Severity.MINOR, 10L,
+                        Severity.MAJOR, 12L,
+                        Severity.MINOR, 12L,
                         Severity.NORMAL, 14L));
 
         // Namespace of containers
@@ -442,22 +441,20 @@ public class EntitySeverityCacheTest {
         //                                 \                 \-> Container6a2 -> App6a2 -> Service6
         //                                  \
         //                                   \----> Pod6b -----> Container6b1 -> App6b1 -> Service6
-        //                                          Major   \
-        //                                                   \-> Container6a2 -> App6a2 -> Service6
-        //
+        //                                    \     Major   \
+        //                                     \             \-> Container6a2 -> App6a2 -> Service6
+        //                                      \
+        //                                       \---> Spec61
+        //                                        \    Minor
+        //                                         \-> Spec62
+        //                                             Major
         // Note: Namespace has "includeSelf" true; in the future it will have actions.
         //
         checkSeverityBreakdown(severityBreakdownScenario.namespaceFooOid,
                 ImmutableMap.of(
-                        Severity.MAJOR, 2L,
-                        Severity.MINOR, 3L,
+                        Severity.MAJOR, 3L,
+                        Severity.MINOR, 4L,
                         Severity.NORMAL, 11L));
-
-        // ContainerSpecs (they are standalone)
-        checkSeverityBreakdown(severityBreakdownScenario.containerSpec61Oid,
-                ImmutableMap.of(Severity.MAJOR, 1L));
-        checkSeverityBreakdown(severityBreakdownScenario.containerSpec62Oid,
-                ImmutableMap.of(Severity.NORMAL, 1L));
     }
 
     /**
@@ -589,7 +586,9 @@ public class EntitySeverityCacheTest {
                 actionView(executableMove(6, container6a1Oid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(6, containerPod6aOid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(6, containerPod6bOid, 1, 2, 1, Severity.MAJOR)),
-                actionView(executableContainerAtomicResize(workloadController6Oid, containerSpec61Oid, Collections.singletonList(container6a1Oid), Severity.MAJOR)),
+                actionView(executableMove(6, containerSpec61Oid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(6, containerSpec62Oid, 1, 2, 1, Severity.MAJOR)),
+                actionView(executableMove(6, workloadController6Oid, 1, 2, 1, Severity.MAJOR)),
                 actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(3, physicalMachine1Oid, 1, 4, 1, Severity.MINOR)),
                 actionView(executableMove(5, storage1Oid, 1, 6, 1, Severity.MAJOR)),
@@ -760,18 +759,6 @@ public class EntitySeverityCacheTest {
                     destinationId, destinationType))
             .setExplanation(mapSeverityToExplanation(severity))
             .build();
-    }
-
-    private static ActionDTO.Action executableContainerAtomicResize(long workloadControllerId,
-            long containerSpecId, Collection<Long> containerIds, Severity severity) {
-        return ActionDTO.Action.newBuilder()
-                .setExecutable(true)
-                .setSupportingLevel(SupportLevel.SUPPORTED)
-                .setId(IdentityGenerator.next())
-                .setDeprecatedImportance(mapSeverityToImportance(severity))
-                .setInfo(TestActionBuilder.makeAtomicResizeInfo(workloadControllerId, containerSpecId, containerIds))
-                .setExplanation(mapSeverityToExplanation(severity))
-                .build();
     }
 
     private static double mapSeverityToImportance(Severity severity) {

@@ -36,7 +36,6 @@ import com.vmturbo.action.orchestrator.api.EntitySeverityNotificationSender;
 import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
 import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -101,23 +100,27 @@ public class EntitySeverityCache {
             //
             // Traversal across the Container area is as follows:
             //
-            //  Container   XXX     ContainerSpec
+            //  Container <-------- ContainerSpec
             //      ^                     X
             //      |                     X
             // ContainerPod <--- WorkloadController
             //                            ^
             //                            |
             //                        Namespace
+            //                            |
+            //                            V
+            //                 ContainerPlatformCluster
             //
-            // Note: ContainerSpec is a standalone node in this traversal; it's required so or
-            // otherwise no risk will be reported for ContainerSpec.  There is no traversal between
-            // ContainerSpec and WorkloadController/Container to avoid double counting, because
-            // ContainerSpec and WorkController essentially have the same actions.
+            // Note: No traversal/accumulation between ContainerSpec and WorkloadController to
+            // avoid double counting; they essentially have the same actions: the
+            // WorkloadController's actions are the aggregates of the ContainerSpec's.
+            //
             .add(new TraversalStarterConfig(EntityType.NAMESPACE))
             .add(new TraverseOverProducersConfig(EntityType.WORKLOAD_CONTROLLER, true, false))
             .add(new TraverseOverProducersConfig(EntityType.CONTAINER_POD, true, false))
-            .add(new TraverseOverProducersConfig(EntityType.CONTAINER, true, false))
             .add(new TraversalStarterConfig(EntityType.CONTAINER_SPEC))
+            .add(new TraverseOverProducersConfig(EntityType.CONTAINER, true, false,
+                    ImmutableSet.of(EntityType.CONTAINER_SPEC)))
             .add(new TraverseOverProducersConfig(EntityType.DATABASE_SERVER, true, false))
             // A database can be an instance running on a database server
             .add(new TraverseOverProducersConfig(EntityType.DATABASE, true, false))
@@ -144,18 +147,16 @@ public class EntitySeverityCache {
      *      |
      *      V
      *  Container   X X X   ContainerSpec
-     *      |                     X
-     *      V                     X
+     *      |                     |
+     *      V                     V
      * ContainerPod ---> WorkloadController
      *                            |
      *                            V
      *                        Namespace
-     *                            |
-     *                            V
-     *                    ContainerCluster
      *
      * </pre>
-     * Note: No traversal/accumulation around ContainerSpec to avoid double counting.
+     * Note: No traversal/accumulation between Container and ContainerSpec to
+     * avoid double counting.
      */
     private static final List<TraversalConfig> NAMESPACE_RETRIEVAL_ORDER =
         ImmutableList.<TraversalConfig>builder()
@@ -165,6 +166,7 @@ public class EntitySeverityCache {
             .add(new TraverseOverConsumersConfig(EntityType.APPLICATION_COMPONENT, true, false))
             .add(new TraverseOverConsumersConfig(EntityType.CONTAINER, true, false))
             .add(new TraverseOverConsumersConfig(EntityType.CONTAINER_POD, true, false))
+            .add(new TraversalStarterConfig(EntityType.CONTAINER_SPEC))
             .add(new TraverseOverConsumersConfig(EntityType.WORKLOAD_CONTROLLER, true, false))
             .add(new TraverseOverConsumersConfig(EntityType.NAMESPACE, true, true))
             .add(new TraverseOverConsumersConfig(EntityType.CONTAINER_PLATFORM_CLUSTER, true, true))
@@ -407,9 +409,8 @@ public class EntitySeverityCache {
                 if (!traversalConfig.connectedEntities.isEmpty()) {
                     final Set<ActionGraphEntity> connectedEntitiesToCheck = new HashSet<>();
                     connectedEntitiesToCheck.addAll(entity.getOutboundAssociatedEntities());
-                    // ContainerSpec is owned by WorkloadController
-                    connectedEntitiesToCheck.addAll(entity.getAggregatorsAndOwner());
-                    connectedEntitiesToCheck.addAll(entity.getControllers());
+                    // Containers are either controlled by or aggregated by ContainerSpecs
+                    connectedEntitiesToCheck.addAll(entity.getAggregatorsAndControllers());
 
                     for (ActionGraphEntity connectedEntity : connectedEntitiesToCheck) {
                         if (traversalConfig.connectedEntities.contains(EntityType.forNumber(connectedEntity.getEntityType()))) {
@@ -704,23 +705,13 @@ public class EntitySeverityCache {
     private void handleActionSeverity(@Nonnull final ActionView actionView,
                                       @Nonnull final Long2ObjectMap<Severity> newSeverities) {
         try {
-            final ActionDTO.Action action = actionView.getTranslationResultOrOriginal();
-            final Collection<Long> severityApplicableEntities;
-            switch (action.getInfo().getActionTypeCase()) {
-                case ATOMICRESIZE:
-                    severityApplicableEntities = ActionDTOUtil.getInvolvedEntityIds(action);
-                    break;
-                default:
-                    severityApplicableEntities = Collections.singletonList(ActionDTOUtil.getSeverityEntity(action));
-                    break;
-            }
+            final long severityEntity = ActionDTOUtil.getSeverityEntity(
+                    actionView.getTranslationResultOrOriginal());
             final Severity nextSeverity = actionView.getActionSeverity();
-            for (final long entity : severityApplicableEntities) {
-                final Severity existingSeverity = newSeverities.get(entity);
-                final Severity newSeverity = maxSeverity(existingSeverity, nextSeverity);
-                if (newSeverity != null) {
-                    newSeverities.put(entity, newSeverity);
-                }
+            final Severity existingSeverity = newSeverities.get(severityEntity);
+            final Severity newSeverity = maxSeverity(existingSeverity, nextSeverity);
+            if (newSeverity != null) {
+                newSeverities.put(severityEntity, newSeverity);
             }
         } catch (UnsupportedActionException e) {
             logger.warn("Unable to handle action severity for action {}", actionView);

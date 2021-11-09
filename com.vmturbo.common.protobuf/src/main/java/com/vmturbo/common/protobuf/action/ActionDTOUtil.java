@@ -103,13 +103,6 @@ public class ActionDTOUtil {
     private static final ImmutableMap<Integer, String> CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
             = ImmutableMap.of(EntityType.VIRTUAL_VOLUME_VALUE, "Volume");
 
-    /**
-     * Entity types to exclude from being included in the involved entities; one use case so far is
-     * Container which is ephemeral, and we do not want it to be linked with actions from persistent
-     * entities such as WorkloadController.
-     */
-    private static final Set<Integer> ENTITY_TYPES_TO_EXCLUDE_FROM_INVOLVED = ImmutableSet.of(
-            ApiEntityType.CONTAINER.typeNumber());
 
     private ActionDTOUtil() {}
 
@@ -380,14 +373,13 @@ public class ActionDTOUtil {
      * The equivalent of {@link ActionDTOUtil#getInvolvedEntities(Action)} for
      * a collection of actions. Returns the union of involved entities for every
      * action in the collection.
-     * It now defaults to include entities involved through action merge.
      *
      * @param actions The actions to consider.
      * @return A set of IDs of involved entities.
      */
     @Nonnull
     public static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions) {
-        return getInvolvedEntityIds(actions, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
+        return getInvolvedEntityIds(actions, InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES);
     }
 
     /**
@@ -400,8 +392,8 @@ public class ActionDTOUtil {
      * @return A set of IDs of involved entities.
      */
     @Nonnull
-    private static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions,
-                                                  @Nonnull final InvolvedEntityCalculation involvedEntityCalculation) {
+    public static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions,
+                                                 @Nonnull final InvolvedEntityCalculation involvedEntityCalculation) {
         final Set<Long> involvedEntitiesSet = new HashSet<>();
 
         // Avoid allocation of actual map until we actually have an error.
@@ -431,7 +423,6 @@ public class ActionDTOUtil {
      * Involved entities are any entities which the action directly
      * affects. For example, in a move the involved entities are the
      * target, source, and destination.
-     * It now defaults to include entities involved through action merge.
      *
      * @param action The action to consider.
      * @return A set of IDs of involved entities.
@@ -469,7 +460,6 @@ public class ActionDTOUtil {
      * Involved entities are any entities which the action directly
      * affects. For example, in a move the involved entities are the
      * target, source, and destination.
-     * It now defaults to include entities involved through action merge.
      *
      * @param action The action to consider.
      * @return A set of IDs of involved entities.
@@ -508,12 +498,10 @@ public class ActionDTOUtil {
             case ATOMICRESIZE:
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
-                if (involvedEntityCalculation == InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES) {
+                if (involvedEntityCalculation == InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES) {
                     action.getInfo().getAtomicResize().getResizesList().forEach(resize -> {
-                        atomicResizeEntities.addAll(resize.getSourceEntitiesList().stream()
-                                .filter(entity -> !ENTITY_TYPES_TO_EXCLUDE_FROM_INVOLVED.contains(entity.getType()))
-                                .collect(Collectors.toList()));
-                        if (resize.hasTarget()  && !ENTITY_TYPES_TO_EXCLUDE_FROM_INVOLVED.contains(resize.getTarget().getType())) {
+                        atomicResizeEntities.addAll(resize.getSourceEntitiesList());
+                        if (resize.hasTarget()) {
                             atomicResizeEntities.add(resize.getTarget());
                         }
                     });
@@ -673,7 +661,7 @@ public class ActionDTOUtil {
             case PROVISION:
                 return ActionType.PROVISION;
             case RESIZE:
-                // fall through
+                return ActionType.RESIZE;
             case ATOMICRESIZE:
                 return ActionType.RESIZE;
             case ACTIVATE:

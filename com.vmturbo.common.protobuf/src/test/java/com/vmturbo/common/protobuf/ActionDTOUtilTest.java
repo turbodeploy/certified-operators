@@ -86,15 +86,6 @@ public class ActionDTOUtilTest {
 
     private static final long MASTER_ACCOUNT_ID = 303L;
 
-    // for testing container atomic actions
-    private static final long CONTAINER_FOO1_ID = 1000L;
-    private static final long CONTAINER_FOO2_ID = 1001L;
-    private static final long CONTAINER_BAR1_ID = 1002L;
-    private static final long CONTAINER_BAR2_ID = 1003L;
-    private static final long CONTAINER_SPEC_FOO_ID = 1100L;
-    private static final long CONTAINER_SPEC_BAR_ID = 1101L;
-    private static final long WORKLOAD_CONTROLLER_ID = 1200L;
-
     private static final Action action = Action.newBuilder()
         .setId(1L)
         .setDeprecatedImportance(1.0)
@@ -199,54 +190,24 @@ public class ActionDTOUtilTest {
             .build())
         .build();
 
-    private static final Action containerMergedResizeAction = Action.newBuilder()
+    private static final Action mergedResizeAction = Action.newBuilder()
         .setId(1L)
         .setDeprecatedImportance(1.0)
         .setInfo(ActionInfo.newBuilder()
             .setAtomicResize(AtomicResize.newBuilder()
-                .setExecutionTarget(createActionEntity(WORKLOAD_CONTROLLER_ID, EntityType.WORKLOAD_CONTROLLER_VALUE))
-                .addResizes(ResizeInfo.newBuilder()
-                        .setTarget(createActionEntity(CONTAINER_SPEC_FOO_ID, EntityType.CONTAINER_SPEC_VALUE))
-                        .addSourceEntities(createActionEntity(CONTAINER_FOO1_ID, EntityType.CONTAINER_VALUE))
-                        .addSourceEntities(createActionEntity(CONTAINER_FOO2_ID, EntityType.CONTAINER_VALUE)))
-                .addResizes(ResizeInfo.newBuilder()
-                        .setTarget(createActionEntity(CONTAINER_SPEC_BAR_ID, EntityType.CONTAINER_SPEC_VALUE))
-                        .addSourceEntities(createActionEntity(CONTAINER_BAR1_ID, EntityType.CONTAINER_VALUE))
-                        .addSourceEntities(createActionEntity(CONTAINER_BAR2_ID, EntityType.CONTAINER_VALUE)))
+                .setExecutionTarget(createActionEntity(TARGET))
+                .addResizes(ResizeInfo.newBuilder().setTarget(createActionEntity(SOURCE_1)))
+                .addResizes(ResizeInfo.newBuilder().setTarget(createActionEntity(SOURCE_2)))
             ))
         .setExplanation(Explanation.newBuilder()
             .setAtomicResize(AtomicResizeExplanation.newBuilder()
                 .addPerEntityExplanation(
                     ResizeExplanationPerEntity.newBuilder().addResizeEntityIds(2L).setTargetId(1))
                 .addAllEntityIds(Arrays.asList(1L))
-                .setMergeGroupId("sun")
+                .setMergeGroupId("bar")
                 .build())
             .build())
                 .build();
-
-    // a non-container merged resize action with the default entity type
-    private static final Action generalMergedResizeAction = Action.newBuilder()
-            .setId(1L)
-            .setDeprecatedImportance(1.0)
-            .setInfo(ActionInfo.newBuilder()
-                    .setAtomicResize(AtomicResize.newBuilder()
-                            .setExecutionTarget(createActionEntity(TARGET))
-                            .addResizes(ResizeInfo.newBuilder()
-                                    .setTarget(createActionEntity(SOURCE_1))
-                                    .addSourceEntities(createActionEntity(DEST_1)))
-                            .addResizes(ResizeInfo.newBuilder()
-                                    .setTarget(createActionEntity(SOURCE_2))
-                                    .addSourceEntities(createActionEntity(DEST_2)))
-                    ))
-            .setExplanation(Explanation.newBuilder()
-                    .setAtomicResize(AtomicResizeExplanation.newBuilder()
-                            .addPerEntityExplanation(
-                                    ResizeExplanationPerEntity.newBuilder().addResizeEntityIds(2L).setTargetId(1))
-                            .addAllEntityIds(Arrays.asList(1L))
-                            .setMergeGroupId("flower")
-                            .build())
-                    .build())
-            .build();
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -871,21 +832,29 @@ public class ActionDTOUtilTest {
     }
 
     /**
-     * Tests that INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES does include entities for
+     * Tests that INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES does NOT include entities for
+     * merged actions from the aggregated/deduplicated actions.
+     *
+     * @throws UnsupportedActionException should not be thrown.
+     */
+    @Test
+    public void testInvolvedEntitiesMergedActionExcluded() throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            mergedResizeAction, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
+        assertEquals(Sets.newHashSet(TARGET), involvedEntities);
+    }
+
+    /**
+     * Tests that INCLUDE_ALL_MERGED_INVOLVED_ENTITIES does NOT include entities for
      * merged actions from the aggregated/deduplicated actions.
      *
      * @throws UnsupportedActionException should not be thrown.
      */
     @Test
     public void testInvolvedEntitiesMergedActionIncluded() throws UnsupportedActionException {
-        // container
-        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(containerMergedResizeAction,
-                InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
-        assertEquals(Sets.newHashSet(WORKLOAD_CONTROLLER_ID, CONTAINER_SPEC_FOO_ID, CONTAINER_SPEC_BAR_ID), involvedEntities);
-        // non-container
-        involvedEntities = ActionDTOUtil.getInvolvedEntityIds(generalMergedResizeAction,
-                InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
-        assertEquals(Sets.newHashSet(TARGET, SOURCE_1, SOURCE_2, DEST_1, DEST_2), involvedEntities);
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            mergedResizeAction, InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES);
+        assertEquals(Sets.newHashSet(TARGET, SOURCE_1, SOURCE_2), involvedEntities);
     }
 
     private static ActionEntity createActionEntity(long id) {

@@ -1,10 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.createActionEntity;
-
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -14,13 +10,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfoOrBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -69,7 +62,7 @@ public class TestActionBuilder {
             @Nullable String scalingGroupId) {
 
         Move.Builder moveBuilder = Move.newBuilder()
-                .setTarget(createActionEntity(targetId))
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
                 .addChanges(ChangeProvider.newBuilder()
                         .setSource(ActionEntity.newBuilder()
                                 .setId(sourceId)
@@ -86,27 +79,6 @@ public class TestActionBuilder {
         return ActionInfo.newBuilder().setMove(moveBuilder.build());
     }
 
-    /**
-     * Construct a container atomic resize action info given the followings:
-     *
-     * @param workloadControllerId id of the workload controller, the execution target
-     * @param containerSpecId id of the one single container spec
-     * @param containerIds ids of the containers
-     * @return the construct atomic resize action info
-     */
-    @Nonnull
-    public static ActionInfo.Builder makeAtomicResizeInfo(long workloadControllerId,
-            long containerSpecId, Collection<Long> containerIds) {
-        final AtomicResize.Builder atomicResizeBuilder = AtomicResize.newBuilder()
-                .setExecutionTarget(createActionEntity(workloadControllerId, EntityType.WORKLOAD_CONTROLLER_VALUE))
-                .addResizes(ResizeInfo.newBuilder()
-                        .setTarget(createActionEntity(containerSpecId, EntityType.CONTAINER_SPEC_VALUE))
-                        .addAllSourceEntities(containerIds.stream()
-                                .map(id -> createActionEntity(id, EntityType.CONTAINER_VALUE))
-                                .collect(Collectors.toList())));
-        return ActionInfo.newBuilder().setAtomicResize(atomicResizeBuilder);
-    }
-
     @Nonnull
     public Action buildProvisionAction(long entityToCloneId,
                                        @Nullable Long provisionedSeller) {
@@ -121,7 +93,7 @@ public class TestActionBuilder {
                                                        @Nullable Long provisionedSeller) {
 
         Provision.Builder provisionOrBuilder = Provision.newBuilder()
-                .setEntityToClone(createActionEntity(entityToCloneId));
+                .setEntityToClone(ActionOrchestratorTestUtils.createActionEntity(entityToCloneId));
         if (provisionedSeller != null) {
             provisionOrBuilder.setProvisionedSeller(provisionedSeller);
         }
@@ -154,7 +126,7 @@ public class TestActionBuilder {
                                                     long destinationId, int destinationType, @Nullable String scalingGroupId) {
 
         Scale.Builder scaleBuilder = Scale.newBuilder()
-                .setTarget(createActionEntity(targetId, EntityType.VIRTUAL_VOLUME_VALUE))
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId, EntityType.VIRTUAL_VOLUME_VALUE))
                 .addChanges(ChangeProvider.newBuilder()
                         .setSource(ActionEntity.newBuilder()
                                 .setId(sourceId)

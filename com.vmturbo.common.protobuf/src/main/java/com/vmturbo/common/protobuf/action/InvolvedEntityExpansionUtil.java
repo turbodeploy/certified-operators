@@ -30,6 +30,7 @@ public class InvolvedEntityExpansionUtil {
             ApiEntityType.APPLICATION_COMPONENT.typeNumber(),
             ApiEntityType.CONTAINER.typeNumber(),
             ApiEntityType.CONTAINER_POD.typeNumber(),
+            ApiEntityType.CONTAINER_SPEC.typeNumber(),
             ApiEntityType.WORKLOAD_CONTROLLER.typeNumber(),
             ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
             ApiEntityType.DATABASE_SERVER.typeNumber(),
