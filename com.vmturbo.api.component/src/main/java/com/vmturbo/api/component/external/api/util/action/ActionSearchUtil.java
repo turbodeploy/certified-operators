@@ -116,17 +116,8 @@ public class ActionSearchUtil {
         // regions and original non serviceProvider scopes.
         scope = serviceProviderExpander.expand(scope);
 
-        final Set<Long> expandedScope;
-        // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
-        // entities from the scoped supply chain
-        if (!CollectionUtils.isEmpty(inputDto.getRelatedEntityTypes())) {
-            // get the scoped supply chain
-            // extract entity oids from the supply chain and add them to the scope
-            expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
-        } else {
-            // if there are no related entities, just get the aggregated entities, if they exist.
-            expandedScope = supplyChainFetcherFactory.expandAggregatedEntities(scope);
-        }
+        //  get the aggregated entities, if they exist, ignoring entity type.
+        final Set<Long> expandedScope = supplyChainFetcherFactory.expandAggregatedEntities(scope);
 
         if (!expandedScope.isEmpty()) {
             // create filter
