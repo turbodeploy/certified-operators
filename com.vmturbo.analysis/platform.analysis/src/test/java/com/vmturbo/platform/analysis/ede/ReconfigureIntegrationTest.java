@@ -7,8 +7,10 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ReconfigureProviderAddition;
 import com.vmturbo.platform.analysis.actions.ReconfigureProviderRemoval;
@@ -40,6 +42,14 @@ public class ReconfigureIntegrationTest {
     private Trader pm2;
     private ShoppingList sl1;
     private ShoppingList sl2;
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Set up an economy with entities for test cases.

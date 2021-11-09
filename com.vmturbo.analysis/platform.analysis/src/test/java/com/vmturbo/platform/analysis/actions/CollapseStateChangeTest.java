@@ -13,9 +13,11 @@ import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -40,6 +42,14 @@ public class CollapseStateChangeTest {
     private static final Trader pm2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET, EMPTY);
 
     private static Trader lastMoveTo;
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Use a String representation of a list of {@link #Action}s where A stands for {@link Activate},

@@ -441,6 +441,33 @@ public class AnalysisToProtobufTest {
             final MoveTO secondMove = output.getMoves(1);
             assertEquals(secondMove.getCouponId(), secondActionTOMove.getCouponId());
             assertEquals(secondMove.getCouponDiscount(), secondActionTOMove.getCouponDiscount(), 0.001);
+        } else if (input instanceof Activate) {
+            final ActivateTO output = expect.getActivate();
+            final ActivateTO activateTO = actionTO.getActivate();
+            assertEquals(output.getTraderToActivate(), activateTO.getTraderToActivate());
+            assertEquals(output.getModelSeller(), activateTO.getModelSeller());
+            assertEquals(output.getTriggeringBasketList(), activateTO.getTriggeringBasketList());
+            assertEquals(expect.getIsNotExecutable(), actionTO.getIsNotExecutable());
+        } else if (input instanceof Deactivate) {
+            final DeactivateTO output = expect.getDeactivate();
+            final DeactivateTO deactivateTO = actionTO.getDeactivate();
+            assertEquals(output.getTraderToDeactivate(), deactivateTO.getTraderToDeactivate());
+            assertEquals(output.getTriggeringBasketList(), deactivateTO.getTriggeringBasketList());
+            assertEquals(expect.getIsNotExecutable(), actionTO.getIsNotExecutable());
+        } else if (input instanceof Resize) {
+            final ResizeTO output = expect.getResize();
+            final ResizeTO resizeTO = actionTO.getResize();
+            assertEquals(output.getSellingTrader(), resizeTO.getSellingTrader());
+            assertEquals(output.getOldCapacity(), resizeTO.getOldCapacity(), TestUtils.FLOATING_POINT_DELTA);
+            assertEquals(output.getNewCapacity(), resizeTO.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+            assertEquals(output.getReasonCommodity(), resizeTO.getReasonCommodity());
+            assertEquals(output.getSpecification(), resizeTO.getSpecification());
+            assertEquals(expect.getIsNotExecutable(), actionTO.getIsNotExecutable());
+        } else if (input instanceof ReconfigureConsumer) {
+            final ReconfigureTO output = expect.getReconfigure();
+            final ReconfigureTO reconfigureTO = actionTO.getReconfigure();
+            assertEquals(output.getConsumer(), reconfigureTO.getConsumer());
+            assertEquals(expect.getIsNotExecutable(), actionTO.getIsNotExecutable());
         } else {
             assertEquals(expect, actionTO);
         }

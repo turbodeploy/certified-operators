@@ -10,8 +10,10 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -36,9 +38,12 @@ public class ExecutableActionsTest {
     private static final int TYPE_VM = 1;
 
     /**
-     * Tests for the {@link ActionClassier} class.
-     *
+     * Initialize IdentityGenerator.
      */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Test classification of Moves.
