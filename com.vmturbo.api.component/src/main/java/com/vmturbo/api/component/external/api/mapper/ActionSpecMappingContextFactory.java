@@ -584,8 +584,7 @@ public class ActionSpecMappingContextFactory {
     @Nonnull
     @VisibleForTesting
     Map<Long, ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
-        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions,
-            InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES);
+        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
         boolean isPlan = contextId != realtimeTopologyContextId;
         // In plans, we also want to retrieve the provisioned sellers, because we will show and
         // interpret actions that interact with them (e.g. provision host X, move vm Y onto host X).

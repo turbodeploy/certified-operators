@@ -543,7 +543,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                         StreamObserver<GetActionCountsByEntityResponse> response) {
         if (!request.hasFilter() || !request.getFilter().hasInvolvedEntities()) {
             response.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Get action counts by entity need provide a action filter and entities.")
+                    .withDescription("Getting action counts by entity needs to provide both an action filter and entities.")
                     .asException());
         }
 
