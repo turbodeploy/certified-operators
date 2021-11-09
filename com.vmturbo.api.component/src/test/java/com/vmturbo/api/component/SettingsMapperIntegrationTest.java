@@ -143,6 +143,9 @@ public class SettingsMapperIntegrationTest {
         Assert.assertTrue(enumSettingsNames.remove("autoSetTransactionsCapacity"));
         Assert.assertTrue(enumSettingsNames.remove("slaCapacity"));
 
+        // serviceHorizontalScale is enabled, remove scalingPolicy setting
+        Assert.assertTrue(enumSettingsNames.remove(EntitySettingSpecs.ScalingPolicy.getSettingName()));
+
         Assert.assertEquals(testError(enumSettingsNames, visibleSettings), enumSettingsNames, visibleSettings);
 
         server.shutdownNow();

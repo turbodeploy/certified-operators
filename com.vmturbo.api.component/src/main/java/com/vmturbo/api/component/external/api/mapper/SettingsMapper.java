@@ -104,6 +104,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Responsible for mapping Settings-related XL objects to their API counterparts.
@@ -127,32 +128,69 @@ public class SettingsMapper {
     }
 
     /**
-     * This is used to map a feature to its corresponding settings.
+     * These settings are enabled when feature flags are enabled.
+     * For example, when FeatureFlags.serviceHorizontal is enabled, min/max replicas on service
+     * are enabled. In other words, when FeatureFlags.serviceHorizontal is disabled, min/max
+     * replicas on service are disabled.
      */
-    @VisibleForTesting
-    public static final Map<Feature, Map<String, Set<String>>> featureToSettingsMap =
+    public static final Map<Feature, Map<String, Map<Integer, Set<String>>>> settingsEnabledByFeature =
         ImmutableMap.of(
             Feature.CloudScaleEnhancement,
+            ImmutableMap.of(
+                SettingsService.AUTOMATION_MANAGER,
                 ImmutableMap.of(
-                    SettingsService.AUTOMATION_MANAGER,
-                        ImmutableSet.of(
-                            ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName(),
-                            ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName()
-                        )
-                ),
-            Feature.ServiceHorizontalScale,
-                ImmutableMap.of(
-                    SettingsService.MARKETSETTINGS_MANAGER,
-                        ImmutableSet.of(
-                            EntitySettingSpecs.MinReplicas.getSettingName(),
-                            EntitySettingSpecs.MaxReplicas.getSettingName()
-                        ),
-                    SettingsService.AUTOMATION_MANAGER,
-                        ImmutableSet.of(
-                            ConfigurableActionSettings.HorizontalScaleUp.getSettingName(),
-                            ConfigurableActionSettings.HorizontalScaleDown.getSettingName()
-                        )
+                    EntityType.VIRTUAL_MACHINE_VALUE,
+                    ImmutableSet.of(
+                        ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName(),
+                        ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName()
+                    )
                 )
+            ),
+            Feature.ServiceHorizontalScale,
+            ImmutableMap.of(
+                SettingsService.MARKETSETTINGS_MANAGER,
+                ImmutableMap.of(
+                    EntityType.SERVICE_VALUE,
+                    ImmutableSet.of(
+                        EntitySettingSpecs.MinReplicas.getSettingName(),
+                        EntitySettingSpecs.MaxReplicas.getSettingName()
+                    )
+                ),
+                SettingsService.AUTOMATION_MANAGER,
+                ImmutableMap.of(
+                    EntityType.SERVICE_VALUE,
+                    ImmutableSet.of(
+                        ConfigurableActionSettings.HorizontalScaleUp.getSettingName(),
+                        ConfigurableActionSettings.HorizontalScaleDown.getSettingName()
+                    )
+                )
+            )
+        );
+
+    /**
+     * These settings are disabled when feature flags are enabled.
+     * For example, when FeatureFlags.serviceHorizontal is enabled, Provision and Suspend on
+     * container pods will be disabled.
+     */
+    public static final Map<Feature, Map<String, Map<Integer, Set<String>>>> settingsDisabledByFeature =
+        ImmutableMap.of(
+            Feature.ServiceHorizontalScale,
+            ImmutableMap.of(
+                SettingsService.AUTOMATION_MANAGER,
+                ImmutableMap.of(
+                    EntityType.CONTAINER_POD_VALUE,
+                    ImmutableSet.of(
+                        ConfigurableActionSettings.Provision.getSettingName(),
+                        ConfigurableActionSettings.Suspend.getSettingName()
+                    ),
+                    EntityType.APPLICATION_COMPONENT_VALUE,
+                    ImmutableSet.of(
+                        ConfigurableActionSettings.Provision.getSettingName(),
+                        ConfigurableActionSettings.Suspend.getSettingName(),
+                        EntitySettingSpecs.ScalingPolicy.getSettingName()
+                    )
+                )
+            )
         );
 
     /**
@@ -256,9 +294,10 @@ public class SettingsMapper {
     private Map<Feature, Boolean> featureGates = Collections.emptyMap();
 
     /**
-     * A cache of disabled settings for fast lookup.
+     * A cache of disabled settings for fast lookup, organized by manager ID and entity type.
+     * Map<ManagerId, Map<EntityType, Set<Settings>>>
      */
-    private Map<String, Set<String>> disabledSettings = Collections.emptyMap();
+    private Map<String, Map<Integer, Set<String>>> disabledSettings = Collections.emptyMap();
 
     /**
      * (April 10 2017) In the UI, all settings - including global settings - are organized by
@@ -335,14 +374,65 @@ public class SettingsMapper {
         this.settingService = settingService;
         this.settingPolicyService = settingPolicyService;
         this.featureGates = featureGates;
-        this.disabledSettings = featureGates.entrySet().stream()
-                .filter(e -> !e.getValue())
-                .map(e -> featureToSettingsMap.getOrDefault(e.getKey(), Collections.emptyMap()))
-                .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Entry::getKey, Entry::getValue,
-                        (set1, set2) -> ImmutableSet.<String>builder()
-                                .addAll(set1).addAll(set2).build()));
         this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService);
+        computeDisabledSettings(featureGates);
+    }
+
+    /**
+     * Compute disabled settings based on feature flags. These disabled settings will be filtered
+     * from the API response and hidden from UI.
+     * Disabled settings are computed from two maps: settingsDisabledByFeature and settingsEnabledByFeature.
+     * For settingsDisabledByFeature, settings are disabled when the corresponding feature is enabled.
+     * For settingsEnabledByFeature, settings are disabled when the corresponding feature is disabled.
+     *
+     * @param featureGates the feature gates that map a feature to its enablement
+     */
+    private void computeDisabledSettings(@Nonnull final Map<Feature, Boolean> featureGates) {
+        featureGates.forEach((feature, enabled) -> {
+            if (enabled) {
+                Optional.ofNullable(settingsDisabledByFeature.get(feature))
+                        .ifPresent(this::mergeSettings);
+                return;
+            }
+            Optional.ofNullable(settingsEnabledByFeature.get(feature))
+                    .ifPresent(this::mergeSettings);
+        });
+    }
+
+    /**
+     * A helper function to merge the given disabled settings into the disabledSettings map.
+     * If the manager ID already exists in the disabledSettings cache during merging, the
+     * {@link SettingsMapper#mergeSettingsByType} helper function is called to merge the values.
+     *
+     * @param toBeMerged the disabled settings to be merged
+     */
+    private void mergeSettings(@Nonnull Map<String, Map<Integer, Set<String>>> toBeMerged) {
+        this.disabledSettings = Stream.of(toBeMerged, this.disabledSettings)
+                .map(Map::entrySet)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(Entry::getKey, Entry::getValue, this::mergeSettingsByType));
+    }
+
+    /**
+     * A helper function to merge two disabled settings by entity type. If the mapped entity types
+     * contain duplicates, the values (two sets of strings) are merged.
+     *
+     * @param settingsByType1 the first map of disabled settings
+     * @param settingsByType2 the second map of disabled settings
+     * @return the merged map of disabled settings
+     */
+    private Map<Integer, Set<String>> mergeSettingsByType(
+            @Nonnull Map<Integer, Set<String>> settingsByType1,
+            @Nonnull Map<Integer, Set<String>> settingsByType2) {
+        return Stream.of(settingsByType1, settingsByType2)
+                .map(Map::entrySet)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(
+                        Entry::getKey, Entry::getValue,
+                        (settings1, settings2) -> {
+                            settings1.addAll(settings2);
+                            return settings1;
+                        }));
     }
 
     @VisibleForTesting
@@ -732,7 +822,7 @@ public class SettingsMapper {
      * @return a map of settings disabled by feature gates
      */
     @VisibleForTesting
-    Map<String, Set<String>> getDisabledSettings() {
+    Map<String, Map<Integer, Set<String>>> getDisabledSettings() {
         return disabledSettings;
     }
 
@@ -811,8 +901,12 @@ public class SettingsMapper {
      */
     public boolean isSettingDisabledByFeatureGates(@Nonnull final String mgrId,
                                                    @Nonnull final SettingApiDTO<String> settingApiDTO) {
-        return getDisabledSettings()
-                .getOrDefault(mgrId, Collections.emptySet())
+        if (!getDisabledSettings().containsKey(mgrId)) {
+            return false;
+        }
+        return getDisabledSettings().get(mgrId)
+                .getOrDefault(ApiEntityType.fromString(settingApiDTO.getEntityType()).typeNumber(),
+                              Collections.emptySet())
                 .contains(settingApiDTO.getUuid());
     }
 
