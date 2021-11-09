@@ -69,8 +69,9 @@ public class InvolvedEntitiesExpander {
 
     /**
      * Determines the filter needed for the input involvedEntities. If involvedEntities contains
-     * at least one non-ARM entity, then they will not be expanded. If they are all ARM entities,
-     * they will be expanded to include the entities below it in the supply chain.
+     * at least one non-expansion-required entity, then they will not be expanded. If they are all
+     * expansion-required entities, they will be expanded to include the entities below it in the
+     * supply chain.
      *
      * @param involvedEntities the entities to be expanded.
      * @return the filter needed for the input involvedEntities.
@@ -85,9 +86,8 @@ public class InvolvedEntitiesExpander {
                         InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
             }
         }
-        return new InvolvedEntitiesFilter(
-            new HashSet<>(involvedEntities),
-            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
+        return new InvolvedEntitiesFilter(new HashSet<>(involvedEntities),
+                InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
     }
 
     /**
