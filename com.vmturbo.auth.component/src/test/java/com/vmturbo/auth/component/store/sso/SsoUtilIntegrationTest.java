@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -71,6 +72,7 @@ public class SsoUtilIntegrationTest {
     private static final String GROUP_NAME_ADDITION = "Dev";
 
     private static final String ADMIN_GROUP = "admin group";
+    private static final String TURBO_BASE_DN = "OU=User,OU=Groups,OU=Domain,DC=corp,DC=vmturbo,DC=com";
     private static SsoUtil ssoUtil;
     /**
      * temp folder rule.
@@ -142,7 +144,7 @@ public class SsoUtilIntegrationTest {
         SecurityGroupDTO securityGroup = new SecurityGroupDTO(ADMIN_GROUP, "", ADMINISTRATOR);
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         assertEquals(1, ssoUtil.authenticateUserInGroup(username, PASSWORD,
-                        Collections.singleton(PROVIDER_URI), false).size());
+                        Collections.singleton(PROVIDER_URI), false, Optional.empty()).size());
     }
 
     /**
@@ -158,7 +160,7 @@ public class SsoUtilIntegrationTest {
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         final List<SecurityGroupDTO> securityGroupDTOList =
                         ssoUtil.authenticateUserInGroup(username, PASSWORD,
-                                        Collections.singleton(PROVIDER_URI), true);
+                                        Collections.singleton(PROVIDER_URI), true, Optional.of(TURBO_BASE_DN));
         assertNotNull(securityGroupDTOList);
         assertEquals(2, securityGroupDTOList.size());
         assertThat(securityGroupDTOList, hasItem(securityGroup));
@@ -179,7 +181,7 @@ public class SsoUtilIntegrationTest {
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         final List<SecurityGroupDTO> securityGroupDTOList =
                         ssoUtil.authenticateUserInGroup(username, PASSWORD,
-                                        Collections.singleton(PROVIDER_URI), true);
+                                        Collections.singleton(PROVIDER_URI), true, Optional.empty());
         assertNotNull(securityGroupDTOList);
         assertEquals(2, securityGroupDTOList.size());
         assertEquals(securityGroupDTOList.get(0), securityGroup);
@@ -192,7 +194,7 @@ public class SsoUtilIntegrationTest {
     public void testAuthenticateUserInGroupNegative() {
         final List<SecurityGroupDTO> securityGroupDTOS =
                         ssoUtil.authenticateUserInGroup(username, PASSWORD,
-                                        Collections.singleton(PROVIDER_URI), false);
+                                        Collections.singleton(PROVIDER_URI), false, Optional.empty());
         assertEquals(0, securityGroupDTOS.size());
     }
 
@@ -233,7 +235,7 @@ public class SsoUtilIntegrationTest {
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, null,
-                new UserPolicy(LoginPolicy.AD_ONLY, new ReportPolicy(licenseCheckService, false)), ssoUtil,
+                new UserPolicy(LoginPolicy.AD_ONLY, new ReportPolicy(licenseCheckService, false), Optional.empty()), ssoUtil,
                 true, false, () -> false);
 
         final JWTAuthorizationToken authenticate =
