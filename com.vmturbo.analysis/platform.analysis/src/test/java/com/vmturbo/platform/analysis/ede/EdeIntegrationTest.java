@@ -18,8 +18,10 @@ import com.google.common.collect.ImmutableList;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -43,6 +45,14 @@ public class EdeIntegrationTest {
     private @NonNull Topology firstTopology;
     private @Nonnull Trader vm1, vm2, pm1, pm2, pm3;
     ShoppingList shoppingListOfVm2, shoppingListOfVm1;
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     @Before
     public void setUp() {

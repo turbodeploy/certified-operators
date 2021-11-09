@@ -34,6 +34,10 @@ import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.BlockedByRelation;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.BlockedByRelation.BlockedByResize;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 
 public class ActionClassifier {
@@ -323,10 +327,19 @@ public class ActionClassifier {
             return false;
         }
         double capacityChange = r.getNewCapacity() - r.getOldCapacity();
-        for (Pair<CommoditySold, Trader> rawMaterialEntry : rawMaterialMapping.values()) {
-            CommoditySold rawMaterial = rawMaterialEntry.first;
+        for (Map.Entry<RawMaterialMetadata, Pair<CommoditySold, Trader>> entry : rawMaterialMapping.entrySet()) {
+            RawMaterialMetadata rawMaterialMetadata = entry.getKey();
+            Pair<CommoditySold, Trader> rawMaterialPair = entry.getValue();
+            CommoditySold rawMaterial = rawMaterialPair.first;
             if (rawMaterial.getQuantity() + capacityChange >
                     rawMaterial.getEffectiveCapacity()) {
+                // If rawMaterial is soft constraint, add relatedActionTO to resize action to indicate
+                // the resize action has BlockedByRelation to corresponding provider resize action due
+                // to insufficient rawMaterial capacity.
+                if (!rawMaterialMetadata.isHardConstraint()) {
+                    r.addRelatedAction(createBlockedByResizeRelatedActionTO(rawMaterialPair.second.getOid(),
+                            rawMaterialMetadata.getMaterial()));
+                }
                 return false;
             }
         }
@@ -619,6 +632,24 @@ public class ActionClassifier {
     }
 
     /**
+     * Create {@link RelatedActionTO} for BlockedByResize relation type.
+     *
+     * @param providerId    Given providerId to set up RelatedActionTO.
+     * @param commodityType Given commodityType to set up RelatedActionTO.
+     * @return
+     */
+    private RelatedActionTO createBlockedByResizeRelatedActionTO(final long providerId,
+                                                                 final int commodityType) {
+        return RelatedActionTO.newBuilder()
+                .setTargetTrader(providerId).setBlockedByRelation(BlockedByRelation.newBuilder()
+                        .setResize(BlockedByResize.newBuilder()
+                                .setCommodityType(CommoditySpecificationTO.newBuilder()
+                                        .setType(commodityType)
+                                        .setBaseType(commodityType))))
+                .build();
+    }
+
+    /**
      * This ScalingGroup has all the Resizes as a collection. It constructs a mapping of how the
      * rawMaterial commodity needs to be updated for the group.
      *
@@ -626,7 +657,7 @@ public class ActionClassifier {
     public class ConsistentScalingResizeActionsGroup {
         List<Resize> resizes = new ArrayList<>();
         boolean considerForClassification = true;
-        Map<CommoditySold, Double> incrementMapping = new HashMap<>();
+        Map<RawMaterialMetadata, RawMaterialAggregatedInfo> rawMaterialAggregatedInfoMap = new HashMap<>();
 
         public ConsistentScalingResizeActionsGroup() {}
 
@@ -648,10 +679,13 @@ public class ActionClassifier {
 
                 double capacityChange = r.getNewCapacity() - r.getOldCapacity();
 
-                rawMaterialMapping.values().stream().map(p -> p.first)
-                        .forEach(commSold -> incrementMapping
-                        .compute(commSold, (cs, change) -> change == null
-                                ? capacityChange : change + capacityChange));
+                rawMaterialMapping.forEach((rawMaterialMetadata, rawMaterialPair) -> {
+                    RawMaterialAggregatedInfo aggregatedInfo =
+                            rawMaterialAggregatedInfoMap.computeIfAbsent(rawMaterialMetadata,
+                                    k -> new RawMaterialAggregatedInfo(rawMaterialPair.second));
+                    aggregatedInfo.incrementMapping.compute(rawMaterialPair.first,
+                            (cs, change) -> change == null ? capacityChange : change + capacityChange);
+                });
             } else {
                 considerForClassification = false;
             }
@@ -666,12 +700,25 @@ public class ActionClassifier {
             if (!considerForClassification) {
                 return false;
             }
-            for (Map.Entry<CommoditySold, Double> entry : incrementMapping.entrySet()) {
-                CommoditySold rawMaterial = entry.getKey();
-                double capacityChange = entry.getValue();
-                if (rawMaterial.getQuantity() + capacityChange >
-                        rawMaterial.getEffectiveCapacity()) {
-                    return false;
+
+            for (Map.Entry<RawMaterialMetadata, RawMaterialAggregatedInfo> aggregatedInfoEntry : rawMaterialAggregatedInfoMap.entrySet()) {
+                RawMaterialMetadata rawMaterialMetadata = aggregatedInfoEntry.getKey();
+                RawMaterialAggregatedInfo aggregatedInfo = aggregatedInfoEntry.getValue();
+                for (Map.Entry<CommoditySold, Double> entry : aggregatedInfo.incrementMapping.entrySet()) {
+                    CommoditySold rawMaterial = entry.getKey();
+                    double capacityChange = entry.getValue();
+                    if (rawMaterial.getQuantity() + capacityChange >
+                            rawMaterial.getEffectiveCapacity()) {
+                        // If rawMaterial is soft constraint, add relatedActionTO to individual
+                        // resize actions to indicate the resize actions have BlockedByRelation to
+                        // corresponding provider resize action due to insufficient rawMaterial capacity.
+                        if (!rawMaterialMetadata.isHardConstraint()) {
+                            resizes.forEach(resize -> resize.addRelatedAction(
+                                    createBlockedByResizeRelatedActionTO(aggregatedInfo.provider.getOid(),
+                                            rawMaterialMetadata.getMaterial())));
+                        }
+                        return false;
+                    }
                 }
             }
             return true;
@@ -683,6 +730,26 @@ public class ActionClassifier {
          */
         public List<Resize> getResizes() {
             return resizes;
+        }
+
+        /**
+         * Wrapper class to represent the aggregated info of a RawMaterialMetadata.
+         */
+        private class RawMaterialAggregatedInfo {
+            /**
+             * Provider of the rawMaterials.
+             */
+            private final Trader provider;
+            /**
+             * Map of rawMaterial {@link CommoditySold} instance to the quantity changes from consumer
+             * capacity changes.
+             */
+            private final Map<CommoditySold, Double> incrementMapping;
+
+            private RawMaterialAggregatedInfo(Trader provider) {
+                this.provider = provider;
+                incrementMapping = new HashMap<>();
+            }
         }
     }
 }

@@ -18,9 +18,11 @@ import junitparams.naming.TestCaseName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -72,6 +74,14 @@ public class CloudActionsIntegrationTest {
     private static final double VERY_LOW_PRICE = 2, LOW_PRICE = 5, HIGH_PRICE = 10;
 
     private Map<Long, Trader> traderOids = new HashMap<>();
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     // sets up 2 VMs.
     private Trader[] setupConsumers(Economy economy, boolean isTemplateExcluded) {

@@ -9,8 +9,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -46,6 +48,14 @@ public class CanAcceptNewCustomersDrivenActionsTest {
     private static final double RIGHT_SIZE_UPPER = 0.7;
 
     private static final Logger logger = LogManager.getLogger(UpdatingFunctionFactory.class);
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Create a Economy during setup.

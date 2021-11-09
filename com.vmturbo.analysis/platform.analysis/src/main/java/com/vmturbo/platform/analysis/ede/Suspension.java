@@ -33,6 +33,9 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.CausedByRelation;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.CausedByRelation.CausedBySuspension;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -421,6 +424,14 @@ public class Suspension {
         suspendOrphanedCustomersHelper(economy, drivingDeactivate.getActionTarget()
                 , drivingDeactivate.getActionTarget(), actions);
         drivingDeactivate.getSubsequentActions().addAll(actions);
+        // Add relatedActionTOs to corresponding daemon customer suspensions to indicate the daemon
+        // suspensions have CausedByRelation to the driving deactivate action.
+        actions.forEach(action -> action.addRelatedAction(RelatedActionTO.newBuilder()
+                .setRelatedActionId(drivingDeactivate.getId())
+                .setTargetTrader(drivingDeactivate.getActionTarget().getOid())
+                .setCausedByRelation(CausedByRelation.newBuilder()
+                        .setSuspension(CausedBySuspension.newBuilder()))
+                .build()));
         return actions;
     }
 

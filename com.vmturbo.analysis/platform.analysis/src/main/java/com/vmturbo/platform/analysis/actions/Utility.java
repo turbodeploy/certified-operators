@@ -25,6 +25,13 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.BootstrapSupply;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.ActionRelationTypeCase;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.BlockedByRelation;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.BlockedByRelation.BlockedByResize;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.CausedByRelation;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.CausedByRelation.CausedByProvision;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO.CausedByRelation.CausedBySuspension;
 
 /**
  * Comprises a number of static utility methods used by many {@link Action} implementations.
@@ -488,21 +495,33 @@ public final class Utility {
         List<Trader> daemonCustomers = modelSeller.getCustomers().stream().map(sl -> sl.getBuyer())
             .distinct()
             .filter(customer -> customer.getSettings().isDaemon()).collect(Collectors.toList());
-            // provision every daemon and place on the provisionedSeller
-            for (Trader customer : daemonCustomers) {
-                // provision daemon.
-                ProvisionBySupply daemonProvision =
-                    (ProvisionBySupply) (new ProvisionBySupply(economy,
-                            customer, action.getReason())).take();
-                daemonProvision.setReasonTrader(modelSeller);
-                actionsList.add(daemonProvision);
-                // place every leg of the cloned daemon on provisionedSeller.
-                economy.getMarketsAsBuyer(daemonProvision.getProvisionedSeller()).keySet()
-                    .stream()
-                    .filter(sl -> sl.getBasket().isSatisfiedBy(modelSeller.getBasketSold()))
-                    .forEach(sl ->
-                            actionsList.add((new Move(economy, sl, provisionedSeller)).take()));
+        // provision every daemon and place on the provisionedSeller
+        for (Trader customer : daemonCustomers) {
+            // provision daemon.
+            ProvisionBySupply daemonProvision =
+                (ProvisionBySupply) (new ProvisionBySupply(economy,
+                        customer, action.getReason())).take();
+            daemonProvision.setReasonTrader(modelSeller);
+            actionsList.add(daemonProvision);
+            // Add relatedActionTO the daemon customer provision action to indicate the daemon
+            // customer provision has a CausedByRelation to the input provision action.
+            daemonProvision.addRelatedAction(RelatedActionTO.newBuilder()
+                    .setRelatedActionId(action.getId())
+                    .setTargetTrader(modelSeller.getOid())
+                    .setCausedByRelation(CausedByRelation.newBuilder()
+                            .setProvision(CausedByProvision.newBuilder()))
+                    .build());
+            if (daemonProvision.getProvisionedSeller() == null) {
+                logger.error("Provisioned seller is null for daemon provision action on {}", customer.toString());
+                continue;
             }
+            // place every leg of the cloned daemon on provisionedSeller.
+            economy.getMarketsAsBuyer(daemonProvision.getProvisionedSeller()).keySet()
+                .stream()
+                .filter(sl -> sl.getBasket().isSatisfiedBy(modelSeller.getBasketSold()))
+                .forEach(sl ->
+                        actionsList.add((new Move(economy, sl, provisionedSeller)).take()));
+        }
     }
 
 } // end Utility class
