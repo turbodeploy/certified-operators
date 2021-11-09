@@ -12,8 +12,10 @@ import java.util.List;
 
 import com.google.common.collect.Lists;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -35,6 +37,14 @@ public class ActionCollapseTest {
     private static final int TYPE_VM = 1;
     private static final int TYPE_DC = 2;
     private static final int TYPE_ST = 3;
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     @Test
     public final void testCollapsed_movesOnly() {

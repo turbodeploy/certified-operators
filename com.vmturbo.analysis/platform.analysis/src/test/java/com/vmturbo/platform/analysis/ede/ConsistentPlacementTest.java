@@ -9,8 +9,10 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
@@ -37,6 +39,14 @@ public class ConsistentPlacementTest {
     private static final Basket PM_SMALL = new Basket(CPU, MEM);
     private static final double CAPACITY = 111;
     private static final double UTILIZATION_UPPER_BOUND = 0.9;
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Return a list of test Traders.  All buyers will be added to a single scaling group

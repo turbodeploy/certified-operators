@@ -15,10 +15,12 @@ import junitparams.naming.TestCaseName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.commons.analysis.RawMaterialsMap;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.ByProducts;
@@ -51,6 +53,14 @@ public class ByProductDrivenResizerTest {
     private static final double RIGHT_SIZE_UPPER = 0.7;
 
     private static final Logger logger = LogManager.getLogger(UpdatingFunctionFactory.class);
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Create a Economy during setup.

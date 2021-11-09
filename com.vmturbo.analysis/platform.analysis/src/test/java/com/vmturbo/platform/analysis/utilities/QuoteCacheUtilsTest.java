@@ -6,9 +6,11 @@ import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -25,6 +27,14 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 public class QuoteCacheUtilsTest {
     // Fields
     private static final Basket EMPTY = new Basket();
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Dummy test for the {@link QuoteCacheUtils} implicitly-generated constructor as it's included

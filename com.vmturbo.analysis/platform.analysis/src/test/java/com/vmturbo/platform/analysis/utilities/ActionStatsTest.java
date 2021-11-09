@@ -11,10 +11,10 @@ import java.util.Map;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -44,6 +44,14 @@ public class ActionStatsTest {
     private @NonNull Trader pm2;
 
     private @NonNull Map<@NonNull Long, @NonNull Trader> traderOids = new HashMap<>();
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     @Before
     public void setUp() throws Exception {

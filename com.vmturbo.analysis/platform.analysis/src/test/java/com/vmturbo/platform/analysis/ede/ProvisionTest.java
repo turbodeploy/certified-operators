@@ -13,9 +13,11 @@ import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -82,6 +84,14 @@ public class ProvisionTest {
     private void assertMoveCount(List<Action> actions, int value) {
         assertTrue(actions.stream().
             filter(action -> action.getType() == ActionType.MOVE).count() == value);
+    }
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
     }
 
     @Test

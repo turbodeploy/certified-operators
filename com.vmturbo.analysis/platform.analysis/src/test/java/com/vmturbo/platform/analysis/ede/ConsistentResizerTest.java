@@ -19,11 +19,13 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterial;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -51,6 +53,14 @@ public class ConsistentResizerTest {
     private final Optional<RawMaterials> rawMaterials = Optional.of(
         new RawMaterials(RawMaterialInfo.newBuilder(
             Collections.emptyList()).requiresConsistentScalingFactor(true).build()));
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     /**
      * Test ResizingGroup.generateResizes when not eligible for resize down.

@@ -13,11 +13,13 @@ import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterial;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Resize;
@@ -57,6 +59,14 @@ public class ResizerTest {
                                                     Arrays.asList(TestUtils.VCPU, TestUtils.VMEM)));
     private static final double RIGHT_SIZE_LOWER = 0.3;
     private static final double RIGHT_SIZE_UPPER = 0.7;
+
+    /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
 
     @Before
     public void setUp() throws Exception {
