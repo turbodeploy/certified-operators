@@ -1,6 +1,5 @@
 package com.vmturbo.platform.analysis.actions;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
@@ -10,10 +9,8 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
 
 /**
  * The implementation for Action interface. This class is the superclass for any kind of
@@ -21,9 +18,6 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
  * It also keeps track of the state of an action instance whether it is being taken or not.
  */
 public abstract class ActionImpl implements Action {
-    // Action ID
-    private final long id_;
-
     // Fields
     private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
 
@@ -41,8 +35,6 @@ public abstract class ActionImpl implements Action {
 
     private @NonNull List<Action> subsequentActions_ = new LinkedList<>();
 
-    private final @NonNull List<RelatedActionTO> relatedActions_ = new ArrayList<>();
-
     // Constructors
 
     /**
@@ -52,16 +44,10 @@ public abstract class ActionImpl implements Action {
      * @param economy The economy of {@code this} action.
      */
     ActionImpl(@NonNull Economy economy) {
-        id_ = IdentityGenerator.next();
         economy_ = economy;
     }
 
     // Methods
-
-    @Override
-    public long getId() {
-        return id_;
-    }
 
     @Pure
     @Override
@@ -199,25 +185,5 @@ public abstract class ActionImpl implements Action {
     @Pure
     public @NonNull List<Action> getSubsequentActions() {
         return subsequentActions_;
-    }
-
-    /**
-     * Returns list of {@link RelatedActionTO} of current action.
-     *
-     * @return List of {@link RelatedActionTO} of current action.
-     */
-    @Override
-    public @NonNull List<RelatedActionTO> getRelatedActions() {
-        return relatedActions_;
-    }
-
-    /**
-     * Add a {@link RelatedActionTO} to current action.
-     *
-     * @param relatedActionTO Given RelatedActionTO to be added to current action.
-     */
-    @Override
-    public void addRelatedAction(RelatedActionTO relatedActionTO) {
-        relatedActions_.add(relatedActionTO);
     }
 }

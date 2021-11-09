@@ -21,7 +21,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
 import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
@@ -30,13 +29,6 @@ import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayExcept
 // TODO (Vaptistis): Do we need actions to be applicable to other economies than those used to
 // generate them?
 public interface Action {
-
-   /**
-    * Get unique Action ID.
-    *
-    * @return Action ID.
-    */
-   long getId();
 
    // Methods
     boolean setExecutable(boolean executable);
@@ -263,20 +255,6 @@ public interface Action {
     }
 
     @NonNull List<Action> getSubsequentActions();
-
-    /**
-     * Returns list of {@link RelatedActionTO} of current action.
-     *
-     * @return list of {@link RelatedActionTO} of current action.
-     */
-    @NonNull List<RelatedActionTO> getRelatedActions();
-
-    /**
-     * Add a {@link RelatedActionTO} to current action.
-     *
-     * @param relatedActionTO Given RelatedActionTO to be added to current action.
-     */
-    void addRelatedAction(RelatedActionTO relatedActionTO);
 
     /**
      * Return the list of this action as well as any subsequent actions.  This does not recurse.

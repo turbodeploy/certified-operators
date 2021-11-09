@@ -13,7 +13,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -71,8 +70,6 @@ public class ReconfigureTest {
     // TODO (Vaptistis): add more tests once semantics are clear.
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestSerialize() {
-        IdentityGenerator.initPrefix(0);
-
         @NonNull Map<@NonNull Trader, @NonNull String> oids = new HashMap<>();
         @NonNull Function<@NonNull Trader, @NonNull String> oid = oids::get;
 

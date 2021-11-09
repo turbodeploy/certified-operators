@@ -11,13 +11,11 @@ import java.util.concurrent.ThreadFactory;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.google.common.collect.BiMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -29,14 +27,6 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class DeployTest {
-
-    /**
-     * Initialize IdentityGenerator.
-     */
-    @BeforeClass
-    public static void init() {
-        IdentityGenerator.initPrefix(0);
-    }
 
     /**
      * Set up AnalysisServer

@@ -13,10 +13,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -101,14 +99,6 @@ public class PlacementIntegrationTest {
 
     private static final int LICENSE_ID = 7654;
     private static final int COUPON_ID = 7656;
-
-    /**
-     * Initialize IdentityGenerator.
-     */
-    @BeforeClass
-    public static void init() {
-        IdentityGenerator.initPrefix(0);
-    }
 
     @Test
     public void testPlacementDecisions() {

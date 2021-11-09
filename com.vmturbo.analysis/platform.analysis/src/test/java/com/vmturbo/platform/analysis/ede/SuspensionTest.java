@@ -11,10 +11,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -52,14 +50,6 @@ public class SuspensionTest {
     private static final Basket EMPTY = new Basket();
     private static final Basket PM_SMALL = new Basket(CPU, MEM);
     private static final Basket ST_SMALL = new Basket(STORAGE);
-
-    /**
-     * Initialize IdentityGenerator.
-     */
-    @BeforeClass
-    public static void init() {
-        IdentityGenerator.initPrefix(0);
-    }
 
     /**
      * Verify that we do not suspend non-suspendaable traders.

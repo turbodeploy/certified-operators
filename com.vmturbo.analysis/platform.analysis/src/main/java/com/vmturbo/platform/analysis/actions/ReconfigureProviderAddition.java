@@ -44,8 +44,7 @@ public class ReconfigureProviderAddition extends ReconfigureProvider {
     public @NonNull Action port(@NonNull Economy destinationEconomy,
             @NonNull Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull Function<@NonNull ShoppingList, @NonNull ShoppingList> destinationShoppingList) {
-        return new ReconfigureProviderAddition(destinationEconomy, (TraderWithSettings)destinationTrader.apply(getActionTarget()),
-                (TraderWithSettings)destinationTrader.apply(getModelSeller()), getReconfiguredCommodities());
+        return this;
     }
 
     @Override

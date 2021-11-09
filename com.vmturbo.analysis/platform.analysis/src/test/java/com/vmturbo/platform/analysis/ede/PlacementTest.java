@@ -16,7 +16,6 @@ import java.util.stream.Stream;
 import com.google.common.collect.Sets;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -24,7 +23,6 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
@@ -139,7 +137,6 @@ public class PlacementTest {
         // TODO: add tests with partially immovable traders
         @Parameters(name = "Test #{index}: placementActions({0}) == {1}")
         public static Collection<Object[]> shopTogetherTestCases() {
-            IdentityGenerator.initPrefix(0);
             final List<@NonNull Object @NonNull []> output = new ArrayList<>();
             /*
              * This is a 5 level array of arrays:
@@ -605,7 +602,6 @@ public class PlacementTest {
 
         @Parameters(name = "Test #{index}: placementActions({0}) == {1}")
         public static Collection<Object[]> shopAloneTestCases() {
-            IdentityGenerator.initPrefix(0);
             final List<@NonNull Object @NonNull []> output = new ArrayList<>();
             /*
              * This is a 5 level array of arrays:
@@ -927,12 +923,6 @@ public class PlacementTest {
         private ShoppingList getSl(Economy economy, Trader trader) {
             // Return the first (and only) ShoppingList for buyer
             return economy.getMarketsAsBuyer(trader).keySet().iterator().next();
-        }
-
-
-        @BeforeClass
-        public static void init() {
-            IdentityGenerator.initPrefix(0);
         }
 
         @Test

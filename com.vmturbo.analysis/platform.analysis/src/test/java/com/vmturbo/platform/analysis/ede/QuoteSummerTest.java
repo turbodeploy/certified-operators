@@ -14,12 +14,10 @@ import junitparams.naming.TestCaseName;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -43,13 +41,6 @@ public class QuoteSummerTest {
     private ShoppingList sl;
     private QuoteCache qc;
 
-    /**
-     * Initialize IdentityGenerator.
-     */
-    @BeforeClass
-    public static void init() {
-        IdentityGenerator.initPrefix(0);
-    }
 
     @Before
     public void setUp() {

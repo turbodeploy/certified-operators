@@ -29,7 +29,6 @@ import org.junit.runner.RunWith;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.commons.analysis.NumericIDAllocator;
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -173,8 +172,6 @@ public class DeactivateTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestDebugDescription() {
-        IdentityGenerator.initPrefix(0);
-
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Economy e1 = new Economy();

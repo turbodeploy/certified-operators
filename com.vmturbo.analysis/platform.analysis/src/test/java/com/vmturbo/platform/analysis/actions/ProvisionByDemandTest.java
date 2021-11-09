@@ -25,7 +25,6 @@ import org.junit.runner.RunWith;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
@@ -229,8 +228,6 @@ public class ProvisionByDemandTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestDebugDescription() {
-        IdentityGenerator.initPrefix(0);
-
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Trader t1 = topology1.addTrader("id1", "name1", "VM",TraderState.ACTIVE, Arrays.asList());

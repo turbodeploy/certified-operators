@@ -13,11 +13,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionCollapse;
 import com.vmturbo.platform.analysis.actions.ActionType;
@@ -52,14 +50,6 @@ public class BootstrapSupplyTest {
     private static final int PM_TYPE = 1;
     private static final int ST_TYPE = 2;
     List<Long> CLIQUE0 = Arrays.asList(0l);
-
-    /**
-     * Initialize IdentityGenerator.
-     */
-    @BeforeClass
-    public static void init() {
-        IdentityGenerator.initPrefix(0);
-    }
 
     @Test
     public void testShopTogetherBootstrapWithEnoughSupply() {

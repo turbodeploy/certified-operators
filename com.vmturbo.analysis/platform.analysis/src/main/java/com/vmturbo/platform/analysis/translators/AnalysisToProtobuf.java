@@ -23,6 +23,7 @@ import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -486,11 +487,10 @@ public final class AnalysisToProtobuf {
      * It keeps a traderOid map which will be used to populate the oid for traders.
      * @return The resulting {@link ActionTO}.
      */
-    public static @Nullable ActionTO actionTO(@NonNull Action input,
+    public static @NonNull ActionTO actionTO(@NonNull Action input,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     Topology topology) {
         ActionTO.Builder builder = ActionTO.newBuilder();
-        builder.setId(input.getId());
         builder.setIsNotExecutable(!input.isExecutable());
 
         if (input instanceof Move) {
@@ -749,7 +749,6 @@ public final class AnalysisToProtobuf {
             builder.setCompoundMove(compoundMoveTO);
         }
         builder.setImportance(((ActionImpl)input).getImportance());
-        builder.addAllRelatedActions(input.getRelatedActions());
         return builder.build();
     }
 
