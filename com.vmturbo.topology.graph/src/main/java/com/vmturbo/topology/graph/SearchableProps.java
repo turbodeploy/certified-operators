@@ -345,4 +345,15 @@ public interface SearchableProps {
         String getStorageTier();
     }
 
+    /**
+     * Searchable properties for database.
+     */
+    interface DatabaseProps extends SearchableProps {
+        /**
+         * Get Replication Role.
+         *
+         * @return Replication Role
+         */
+        String getReplicationRole();
+    }
 }

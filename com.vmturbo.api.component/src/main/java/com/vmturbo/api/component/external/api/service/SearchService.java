@@ -76,6 +76,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.FeatureState;
 import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.enums.QueryType;
+import com.vmturbo.api.enums.ReplicationRole;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -244,6 +245,7 @@ public class SearchService implements ISearchService {
                 .put(SearchableProperties.DB_STORAGE_AUTOSCALING,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
                 .put(SearchableProperties.DB_PERFORMANCE_INSIGHTS,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
                 .put(SearchableProperties.DB_CLUSTER_ROLE,(a, b, c) -> getEnumFilterOptions(ClusterRole.class))
+                .put(SearchableProperties.DB_REPLICATION_ROLE,(a, b, c) -> getEnumFilterOptions(ReplicationRole.class))
                 .build();
     }
 

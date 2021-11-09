@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.graph.SearchableProps;
 import com.vmturbo.topology.graph.SearchableProps.BusinessAccountProps;
+import com.vmturbo.topology.graph.SearchableProps.DatabaseProps;
 import com.vmturbo.topology.graph.SearchableProps.DatabaseServerProps;
 import com.vmturbo.topology.graph.SearchableProps.PmProps;
 import com.vmturbo.topology.graph.SearchableProps.ServiceProps;
@@ -390,6 +391,11 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getStorageTier()),
                         DatabaseServerProps.class);
             }
+            case SearchableProperties.DB_REPLICATION_ROLE: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getReplicationRole()),
+                DatabaseProps.class);
+            }
+
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);

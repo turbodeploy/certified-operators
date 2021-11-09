@@ -155,6 +155,8 @@ public class ThinSearchableProps implements SearchableProps {
                 return new ThinBusinessAccountProps(tagIndex, commodities, info);
             case DATABASE_SERVER:
                 return new ThinDatabaseServerProps(tagIndex, commodities, entity);
+            case DATABASE:
+                return new ThinDatabaseProps(tagIndex, commodities, entity);
             case SERVICE:
                 return new ThinServiceProps(tagIndex, commodities, info);
             default:
@@ -498,6 +500,26 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public String getStorageTier() {
             return storageTier;
+        }
+    }
+
+    /**
+     * Database properties.
+     */
+    public static class ThinDatabaseProps extends ThinSearchableProps implements DatabaseProps {
+        private final String replicationRole;
+
+        private ThinDatabaseProps(@Nonnull final TagIndex tagIndex,
+                                  @Nonnull final CommodityValueFetcher commodities,
+                                  @Nonnull final TopologyEntityDTO entityDTO) {
+            super(tagIndex, commodities);
+            replicationRole = entityDTO.getEntityPropertyMapOrDefault(StringConstants.DB_REPLICATION_ROLE,
+                    null);
+        }
+
+        @Override
+        public String getReplicationRole() {
+            return replicationRole;
         }
     }
 }
