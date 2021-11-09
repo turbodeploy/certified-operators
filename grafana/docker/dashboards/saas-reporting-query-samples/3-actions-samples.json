@@ -1,0 +1,2046 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": false,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 4699,
+    "links": [],
+    "panels": [
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 0
+        },
+        "id": 10,
+        "options": {
+          "content": "\n\n\n     SELECT count(*) as 'Total Actions' from Events    ",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total Actions",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 0
+        },
+        "id": 12,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT count(*) as 'Total Actions' from Events  ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions",
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 8
+        },
+        "id": 2,
+        "options": {
+          "content": "\n\n    SELECT * FROM EVENTS",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "EVENTS",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "events.start_time"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 130
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "events.end_time"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 119
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "events.type"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 147
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "events.id"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 129
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 8
+        },
+        "id": 4,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT * FROM EVENTS",
+            "refId": "A"
+          }
+        ],
+        "title": "Events Details",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 16
+        },
+        "id": 5,
+        "options": {
+          "content": "\n<pre>\n    SELECT \n        e.tags ->> '$.description' as 'Action Description', \n        e.tags ->> '$.state' as State,\n        e.tags ->> '$.type' as Type, \n        e.tags ->> '$.severity' as Severity \n    FROM\n        EVENTS as e\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "EVENTS",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "events.start_time"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 130
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "events.end_time"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 119
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "events.type"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 147
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Action Description"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 570
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "State"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 62
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Type"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 68
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 16
+        },
+        "id": 6,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n    e.tags ->> '$.description' as 'Action Description', \r\n    e.tags ->> '$.state' as State,\r\n    e.tags ->> '$.type' as Type,\r\n    e.tags ->> '$.severity' as Severity\r\nFROM \r\n    EVENTS as e",
+            "refId": "A"
+          }
+        ],
+        "title": "Actions Details with State,Type & Severity",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 10,
+          "x": 0,
+          "y": 24
+        },
+        "id": 26,
+        "options": {
+          "content": "\n<pre>\nSELECT \n    from_unix_timestamp(start_time) as 'Time First Recommended', \n    from_unix_timestamp(end_time) as 'End Time', \n    tags ->> '$.type' as Type,\n    tags ->> '$.state' as State,\n    tags ->> '$.cost.delta' as 'Cost Delta (USD/hour)',\n    tags ->> '$.description' as Description\nfrom events \n    where tags ->> '$.cost.delta' IS NOT NULL\norder by 'End Time' DESC\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Cloud Actions",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Type"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 80
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "State"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 57
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Cost Delta (USD/hour)"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 152
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "End Time"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 152
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Time First Recommended"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 182
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 14,
+          "x": 10,
+          "y": 24
+        },
+        "id": 25,
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Type"
+            }
+          ]
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\nfrom_unix_timestamp(start_time) as 'Time First Recommended', \r\nfrom_unix_timestamp(end_time) as 'End Time', \r\ntags ->> '$.type' as Type,\r\ntags ->> '$.state' as State,\r\ntags ->> '$.cost.delta' as 'Cost Delta (USD/hour)',\r\ntags ->> '$.description' as Description\r\nfrom events \r\nwhere tags ->> '$.cost.delta' IS NOT NULL\r\norder by 'End Time' DESC",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Cloud Actions",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 31
+        },
+        "id": 7,
+        "options": {
+          "content": "\n<pre>\nSELECT\n    count(*) as 'Total Actions',\n    e.tags ->> '$.type' as Type\nFROM \n    EVENTS as e\nGROUP BY Type\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By Type",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Type"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total Actions"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 31
+        },
+        "id": 8,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n    e.tags ->> '$.type' as Type,\r\n    count(*) as 'Total Actions'\r\nFROM \r\n    EVENTS as e\r\nGROUP BY Type",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By Type",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 10,
+          "x": 0,
+          "y": 39
+        },
+        "id": 13,
+        "options": {
+          "content": "\n<pre>\nSELECT \n    e.tags ->> '$.category' as Category,\n    count(*) as 'Total Actions'\nFROM\n    EVENTS as e\nGROUP BY Category\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By Category",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total Actions"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Category"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 14,
+          "x": 10,
+          "y": 39
+        },
+        "id": 14,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n    e.tags ->> '$.category' as Category,\r\n    count(*) as 'Total Actions'    \r\nFROM \r\n    EVENTS as e\r\nGROUP BY Category",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By Category",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 6,
+          "w": 10,
+          "x": 0,
+          "y": 46
+        },
+        "id": 16,
+        "options": {
+          "content": "\n<pre>\nSELECT\n    e.tags ->> '$.severity' as Severity,\n    count(*) as 'Total Actions'    \nFROM \n    EVENTS as e\nGROUP BY Severity\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By Severity",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total Actions"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Severity"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 6,
+          "w": 14,
+          "x": 10,
+          "y": 46
+        },
+        "id": 15,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n    e.tags ->> '$.severity' as Severity,\r\n    count(*) as 'Total Actions'    \r\nFROM \r\n    EVENTS as e\r\nGROUP BY Severity",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By Severity",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 10,
+          "x": 0,
+          "y": 52
+        },
+        "id": 17,
+        "options": {
+          "content": "\n<pre>\nSELECT\n    e.tags ->> '$.severity' as State,\n    count(*) as 'Total Actions'\nFROM \n    EVENTS as e\nGROUP BY State\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By  State",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total Actions"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "State"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 14,
+          "x": 10,
+          "y": 52
+        },
+        "id": 18,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n    e.tags ->> '$.state' as State,\r\n    count(*) as 'Total Actions'    \r\nFROM \r\n    EVENTS as e\r\nGROUP BY State",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By State",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 10,
+          "x": 0,
+          "y": 57
+        },
+        "id": 19,
+        "options": {
+          "content": "\n<pre>\nSELECT \n    e.tags ->> '$.mode' as Mode,\n    count(*) as 'Total Actions'    \nFROM\n    EVENTS as e\nGROUP BY Mode\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By  Mode",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total Actions"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Mode"
+              },
+              "properties": [
+                {
+                  "id": "custom.align",
+                  "value": "center"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 14,
+          "x": 10,
+          "y": 57
+        },
+        "id": 20,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n    e.tags ->> '$.mode' as Mode,\r\n    count(*) as 'Total Actions'    \r\nFROM \r\n    EVENTS as e\r\nGROUP BY Mode",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions By Mode",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 10,
+          "x": 0,
+          "y": 62
+        },
+        "id": 21,
+        "options": {
+          "content": "    \n<pre>\nSELECT\n    count(*) as 'onPrem Actions'   \nfrom \n    events as e  \nwhere\n    e.tags ->> '$.cost.delta' is null\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "onPrem Actions",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 14,
+          "x": 10,
+          "y": 62
+        },
+        "id": 22,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n    count(*) as 'onPrem Actions'\r\nfrom \r\n    events as e\r\nwhere\r\n    e.tags ->> '$.cost.delta' is null\r\n",
+            "refId": "A"
+          }
+        ],
+        "title": "onPrem Actions",
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 6,
+          "w": 10,
+          "x": 0,
+          "y": 67
+        },
+        "id": 24,
+        "options": {
+          "content": "    \n\n<pre>  \nSELECT\n    count(*) as 'Cloud Actions'  \nfrom \n    events as e \nwhere\n    e.tags ->> '$.cost.delta' is not null\n</pre>",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Cloud Actions",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 6,
+          "w": 14,
+          "x": 10,
+          "y": 67
+        },
+        "id": 23,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n   count(*) as 'Cloud Actions'\r\nfrom \r\n    events as e\r\nwhere\r\n    e.tags ->> '$.cost.delta' is not null\r\n",
+            "refId": "A"
+          }
+        ],
+        "title": "Cloud Actions",
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 73
+        },
+        "id": 29,
+        "options": {
+          "content": "\n<pre>\nSELECT\n  relabel(\n    ts_sum(\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\n    ),\n        e.tags ->> '$.category'\n    )\nfrom \n    events as e\nGroup By e.tags ->> '$.category'\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions over time by category",
+        "type": "text"
+      },
+      {
+        "cacheTimeout": null,
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 36,
+              "gradientMode": "hue",
+              "hideFrom": {
+                "graph": false,
+                "legend": false,
+                "tooltip": false
+              },
+              "lineInterpolation": "smooth",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 2,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 73
+        },
+        "id": 28,
+        "interval": null,
+        "links": [],
+        "options": {
+          "graph": {},
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltipOptions": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\r\n    ),\r\n        e.tags ->> '$.category'\r\n    )\r\nfrom \r\n    events as e\r\nGroup By e.tags ->> '$.category'\r\n",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total Actions over tIme by Category",
+        "type": "timeseries"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 81
+        },
+        "id": 30,
+        "options": {
+          "content": "\n<pre>\nSELECT\n  relabel(\n    ts_sum(\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\n    ),\n        e.tags ->> '$.type'\n    )\nfrom \n    events as e\nGroup By e.tags ->> '$.type'\n\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions over time by type",
+        "type": "text"
+      },
+      {
+        "cacheTimeout": null,
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 32,
+              "gradientMode": "hue",
+              "hideFrom": {
+                "graph": false,
+                "legend": false,
+                "tooltip": false
+              },
+              "lineInterpolation": "smooth",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 2,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false
+            },
+            "decimals": 0,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "__systemRef": "hideSeriesFrom",
+              "matcher": {
+                "id": "byNames",
+                "options": {
+                  "mode": "exclude",
+                  "names": [
+                    "Reconfigure"
+                  ],
+                  "prefix": "All except:",
+                  "readOnly": true
+                }
+              },
+              "properties": [
+                {
+                  "id": "custom.hideFrom",
+                  "value": {
+                    "graph": false,
+                    "legend": false,
+                    "tooltip": false
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 81
+        },
+        "id": 27,
+        "links": [],
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltipOptions": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\r\n    ),\r\n        e.tags ->> '$.type'\r\n    )\r\nfrom \r\n    events as e\r\nGroup By e.tags ->> '$.type'\r\n",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total Actions over time by type",
+        "type": "timeseries"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 89
+        },
+        "id": 32,
+        "options": {
+          "content": "\n<pre>\nSELECT\n  relabel(\n    ts_sum(\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\n    ),\n        e.tags ->> '$.severity'\n    )\nfrom \n    events as e\nGroup By e.tags ->> '$.severity'\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions over time by severity",
+        "type": "text"
+      },
+      {
+        "cacheTimeout": null,
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 32,
+              "gradientMode": "hue",
+              "hideFrom": {
+                "graph": false,
+                "legend": false,
+                "tooltip": false
+              },
+              "lineInterpolation": "smooth",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 2,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false
+            },
+            "decimals": 0,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "__systemRef": "hideSeriesFrom",
+              "matcher": {
+                "id": "byNames",
+                "options": {
+                  "mode": "exclude",
+                  "names": [
+                    "Major"
+                  ],
+                  "prefix": "All except:",
+                  "readOnly": true
+                }
+              },
+              "properties": [
+                {
+                  "id": "custom.hideFrom",
+                  "value": {
+                    "graph": false,
+                    "legend": false,
+                    "tooltip": false
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 89
+        },
+        "id": 31,
+        "links": [],
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltipOptions": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\r\n    ),\r\n        e.tags ->> '$.severity'\r\n    )\r\nfrom \r\n    events as e\r\nGroup By e.tags ->> '$.severity'\r\n",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total Actions over time by severity",
+        "type": "timeseries"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 97
+        },
+        "id": 35,
+        "options": {
+          "content": "\n<pre>\nSELECT\n  relabel(\n    ts_sum(\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\n    ),\n        e.tags ->> '$.severity'\n    )\nfrom \n    events as e\nGroup By e.tags ->> '$.severity'\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Total Actions over time by State",
+        "type": "text"
+      },
+      {
+        "cacheTimeout": null,
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 32,
+              "gradientMode": "hue",
+              "hideFrom": {
+                "graph": false,
+                "legend": false,
+                "tooltip": false
+              },
+              "lineInterpolation": "smooth",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 2,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false
+            },
+            "decimals": 0,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "__systemRef": "hideSeriesFrom",
+              "matcher": {
+                "id": "byNames",
+                "options": {
+                  "mode": "exclude",
+                  "names": [
+                    "Major"
+                  ],
+                  "prefix": "All except:",
+                  "readOnly": true
+                }
+              },
+              "properties": [
+                {
+                  "id": "custom.hideFrom",
+                  "value": {
+                    "graph": false,
+                    "legend": false,
+                    "tooltip": false
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 97
+        },
+        "id": 36,
+        "links": [],
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltipOptions": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n  relabel(\r\n    ts_sum(\r\n      ts_reduce_max(ts_mask(to_timerange(e.start_time, e.end_time)),'1h')\r\n    ),\r\n        e.tags ->> '$.state'\r\n    )\r\nfrom \r\n    events as e\r\nGroup By e.tags ->> '$.state'\r\n",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total Actions over time by State",
+        "type": "timeseries"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 105
+        },
+        "id": 33,
+        "options": {
+          "content": "\n<pre>\nSELECT\n  e.tags ->> '$.description' as Description,\n  json_extract(e.tags,'$.commodity_deltas') as 'Commodity Deltas'\nfrom \n    events as e\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Actions Descriptions with Commodity Deltas",
+        "type": "text"
+      },
+      {
+        "cacheTimeout": null,
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "decimals": 0,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 105
+        },
+        "id": 34,
+        "links": [],
+        "options": {
+          "showHeader": true
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n  e.tags ->> '$.description' as Description,\r\n  json_extract(e.tags,'$.commodity_deltas') as 'Commodity Deltas'\r\nfrom \r\n    events as e\r\nwhere \r\n   json_extract(e.tags,'$.commodity_deltas') is not null\r\n    and e.tags ->> '$.type' = 'Resize'",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Actions Descriptions with Commodity Deltas",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 113
+        },
+        "id": 38,
+        "options": {
+          "content": "\n<pre>\nSELECT\n  e.tags ->> '$.description' as Description,\n  json_extract(e.tags,'$.triggering_commodities') as 'Triggering Commodities'\nfrom \n    events as e\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Actions Descriptions with Triggering Commodities",
+        "type": "text"
+      },
+      {
+        "cacheTimeout": null,
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "decimals": 0,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Description"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 553
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 113
+        },
+        "id": 37,
+        "links": [],
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n  e.tags ->> '$.description' as Description,\r\n  json_extract(e.tags,'$.triggering_commodities') as 'Triggering Commodities'\r\nfrom \r\n    events as e",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Actions Descriptions with Triggering Commodities",
+        "type": "table"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 10,
+          "x": 0,
+          "y": 121
+        },
+        "id": 40,
+        "options": {
+          "content": "\n<pre>\n<p>\nSELECT\n  relabel(\n    ts_accum(\n      ts_reduce_area(\n        ts_sum(\n        ts_reduce_avg(\n        ts_mask(\n          to_timerange(\n            e.end_time, \n            ${__to:date:seconds}\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h')), '24h')),\n    e.tags ->> '$.type'\n  )\nFROM\n  events as e  \nWHERE\n  e.tags ->> '$.cost.delta' is not null     \nGroup by e.tags ->> '$.type'\n  </p>\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.oid, \r\n  vm.name \r\nFROM \r\n  GRAPH('(vm:VirtualMachine)')      ",
+            "refId": "A"
+          }
+        ],
+        "title": "Actions Descriptions with Triggering Commodities",
+        "type": "text"
+      },
+      {
+        "cacheTimeout": null,
+        "datasource": null,
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "bars",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "graph": false,
+                "legend": false,
+                "tooltip": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "spanNulls": true
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 14,
+          "x": 10,
+          "y": 121
+        },
+        "id": 39,
+        "interval": null,
+        "links": [],
+        "options": {
+          "graph": {},
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltipOptions": {
+            "mode": "single"
+          }
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\r\n  relabel(\r\n    ts_accum(\r\n      ts_reduce_area(\r\n        ts_sum(\r\n        ts_reduce_avg(\r\n        ts_mask(\r\n          to_timerange(\r\n            e.end_time, \r\n            ${__to:date:seconds}\r\n          )) * -1 * cast(e.tags ->> '$.cost.delta' as decimal) / 3600, '1h'))\r\n          , '24h'))\r\n        ,\r\n    e.tags ->> '$.type'\r\n  )\r\nFROM\r\n  events as e  \r\nWHERE\r\n  e.tags ->> '$.cost.delta' is not null     \r\nGroup by e.tags ->> '$.type'\r\n",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Daily savings by actions type",
+        "type": "timeseries"
+      }
+    ],
+    "refresh": false,
+    "schemaVersion": 27,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "2021-08-31T05:50:19.100Z",
+      "to": "2021-08-31T17:50:19.100Z"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Sample 3. Actions Query Samples",
+    "uid": "oBS38bD7k",
+    "version": 3
+  }

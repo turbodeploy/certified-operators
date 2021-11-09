@@ -1,0 +1,979 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": false,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 4701,
+    "links": [],
+    "panels": [
+      {
+        "collapsed": false,
+        "datasource": null,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 87,
+        "panels": [],
+        "title": "Reduce Functions with VM",
+        "type": "row"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 1
+        },
+        "id": 89,
+        "options": {
+          "content": "<h1>Use of reduce_max Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_max computes the maximum value of the timeseries function.</pre>\n\n<pre>\n  SELECT \n    vm.name, \n    reduce_max(com.used) as 'VMEM Maximum'\n  FROM \n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE\n    com.name in ('VMEM')\n  LIMIT 10\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "VMEM Maximum"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "decmbytes"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 1
+        },
+        "id": 97,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": " SELECT \r\n    vm.name, \r\n    reduce_max(com.used) as 'VMEM Maximum'\r\n  FROM \r\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\n  WHERE\r\n    com.name in ('VMEM')\r\n  LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 12
+        },
+        "id": 91,
+        "options": {
+          "content": "<h1>Use of reduce_avg Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_avg computes the arithmetic mean (aka average) value of the timeseries function.</pre>\n\n<pre>\n  SELECT \n    vm.name, \n    reduce_avg(com.used) as 'VCPU Average'\n  FROM \n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE\n    com.name in ('VCPU')\n  LIMIT 10\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "VCPU Average"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 12
+        },
+        "id": 98,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": " SELECT \r\n    vm.name, \r\n    reduce_avg(com.used) as 'VCPU Average'\r\n  FROM \r\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\n  WHERE\r\n    com.name in ('VCPU')\r\n  LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 23
+        },
+        "id": 93,
+        "options": {
+          "content": "<h1>Use of reduce_min Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_min computes the minimum value of the timeseries function.</pre>\n\n<pre>\n   SELECT \n    vm.name, \n    reduce_min(com.used) as 'VCPU Minimum'\n  FROM \n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE\n    com.name in ('VCPU')\n  LIMIT 10\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "VCPU Minimum"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 23
+        },
+        "id": 99,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": " SELECT \r\n    vm.name, \r\n    reduce_min(com.used) as 'VCPU Minimum'\r\n  FROM \r\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\n  WHERE\r\n    com.name in ('VCPU')\r\n  LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 34
+        },
+        "id": 95,
+        "options": {
+          "content": "<h1>Use of reduce_sum Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_sum computes sum of the values of the points of the timeseries</pre>\n\n<pre>\n   SELECT \n    vm.name, \n    reduce_sum(com.used) as 'VCPU Total'\n  FROM \n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE\n    com.name in ('VCPU')\n  LIMIT 10\n</pre>\n\n",
+          "mode": "html"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "VCPU Total"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 34
+        },
+        "id": 100,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": " SELECT \r\n    vm.name, \r\n    reduce_sum(com.used) as 'VCPU Total'\r\n  FROM \r\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\n  WHERE\r\n    com.name in ('VCPU')\r\n  LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 45
+        },
+        "id": 101,
+        "options": {
+          "content": "<h1>Use of reduce_geometric Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_geometric computes the geometric mean value of the timeseries function.</pre>\n\n<pre>\n  SELECT \n    vm.name, \n    reduce_geometric(com.used) as 'Geometric Mean Value'\n  FROM \n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE\n    com.name in ('VCPU')\n  LIMIT 10\n</pre>\n\n",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Geometric Mean Value"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 45
+        },
+        "id": 102,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": " SELECT \r\n    vm.name, \r\n    reduce_geometric(com.used) as 'Geometric Mean Value'\r\n  FROM \r\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\n  WHERE\r\n    com.name in ('VCPU')\r\n  LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 56
+        },
+        "id": 103,
+        "options": {
+          "content": "<h1>Use of reduce_last Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_last computes the last well-defined value of the timeseries function.</pre>\n\n<pre>\n  SELECT \n    vm.name, \n    reduce_last(com.used) as 'Last Value'\n  FROM \n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE\n    com.name in ('VCPU')\n  LIMIT 10\n</pre>\n\n",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Last Value"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 56
+        },
+        "id": 104,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": " SELECT \r\n    vm.name, \r\n    reduce_last(com.used) as 'Last Value'\r\n  FROM \r\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\n  WHERE\r\n    com.name in ('VCPU')\r\n  LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 67
+        },
+        "id": 105,
+        "options": {
+          "content": "<h1>Use of reduce_area Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_area computes the signed area beneath (aka definite integral of) the timeseries function.</pre>\n\n<pre>\n   SELECT \n    vm.name, \n    reduce_area(com.used) as 'Value'\n  FROM \n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n  WHERE\n    com.name in ('VCPU')\n  LIMIT 10\n</pre>\n\n",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Value"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 67
+        },
+        "id": 106,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": " SELECT \r\n    vm.name, \r\n    reduce_area(com.used) as 'Value'\r\n  FROM \r\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\n  WHERE\r\n    com.name in ('VCPU')\r\n  LIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 78
+        },
+        "id": 108,
+        "options": {
+          "content": "<h1>Use of reduce_median Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_median computes the median value of the timeseries function.</pre>\n\n<pre>\nSELECT \n  vm.name, \n  reduce_median(com.used) as 'Median Value'\nFROM \n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE\n  com.name in ('VCPU')\nLIMIT 10\n</pre>\n\n",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Median Value"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 78
+        },
+        "id": 107,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.name, \r\n  reduce_median(com.used) as 'Median Value'\r\nFROM \r\n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\nWHERE\r\n  com.name in ('VCPU')\r\nLIMIT 10\r\n",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 11,
+          "x": 0,
+          "y": 89
+        },
+        "id": 109,
+        "options": {
+          "content": "<h1>Use of reduce_harmonic Function with Commodity Used</h1>\n<br />\n<h2> Function Description </h2>\n\n<pre>reduce_harmonic computes the harmonic mean value of the timeseries function.</pre>\n\n<pre>\nSELECT \n  vm.name, \n  reduce_harmonic(com.used) as 'Harmonic Mean Value'\nFROM \n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nWHERE\n  com.name in ('VCPU')\nLIMIT 10\n</pre>\n\n",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "",
+            "refId": "A"
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Harmonic Mean Value"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "rothz"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vm.name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": null
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 13,
+          "x": 11,
+          "y": 89
+        },
+        "id": 110,
+        "options": {
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT \r\n  vm.name, \r\n  reduce_harmonic(com.used) as 'Harmonic Mean Value'\r\nFROM \r\n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \r\nWHERE\r\n  com.name in ('VCPU')\r\nLIMIT 10\r\n",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "type": "table"
+      }
+    ],
+    "refresh": false,
+    "schemaVersion": 27,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-12h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Sample 5. Reduce Functions Query Samples",
+    "uid": "4p2RwxD7z",
+    "version": 3
+  }

@@ -1,0 +1,158 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": false,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 4703,
+    "links": [],
+    "panels": [
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 23,
+          "x": 0,
+          "y": 0
+        },
+        "id": 2,
+        "options": {
+          "content": "# Types and Fields (Schema)\n\nThe list below details all the types and fields available in your data set. This can be considered a dynamic 'Schema' of the data based on your specific data set.\n\n \n         ",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.5.9",
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Panel Title",
+        "type": "text"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 23,
+          "x": 0,
+          "y": 4
+        },
+        "id": 4,
+        "options": {
+          "showHeader": true
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\n  t.name as `Type Name`,\n  f.field_name as `Field Name`,\n  f.data_type as `Data Type`\nFROM\n  graph_fields AS f\nLEFT JOIN graph_types AS t ON t.field_name = f.field_name\nWHERE f.field_name NOT LIKE ('tags%')\nORDER BY `Type Name`",
+            "refId": "A"
+          }
+        ],
+        "title": "Panel Title",
+        "type": "table"
+      },
+      {
+        "datasource": "Turbonomic Data Cloud",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 23,
+          "x": 0,
+          "y": 16
+        },
+        "id": 5,
+        "options": {
+          "showHeader": true
+        },
+        "pluginVersion": "7.5.9",
+        "targets": [
+          {
+            "format": "Auto",
+            "queryText": "SELECT\n  f.field_name as `Tag Name`  \nFROM\n  graph_fields AS f\nWHERE f.field_name LIKE ('tags%')\nOrder by f.field_name",
+            "refId": "A"
+          }
+        ],
+        "title": "Tags",
+        "type": "table"
+      }
+    ],
+    "schemaVersion": 27,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Sample A2. Types and Fields in the Schema",
+    "uid": "uQ1twbv7k",
+    "version": 3
+  }

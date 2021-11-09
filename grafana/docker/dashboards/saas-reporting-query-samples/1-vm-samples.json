@@ -1,0 +1,1442 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_TURBONOMIC_DATA CLOUD",
+      "label": "Turbonomic Data Cloud",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "turbonomic-datacloud-grafana-datasource",
+      "pluginName": "Turbonomic Data Cloud"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "7.5.9"
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "turbonomic-datacloud-grafana-datasource",
+      "name": "Turbonomic Data Cloud",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 1633700304954,
+  "links": [],
+  "panels": [
+    {
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 31,
+      "options": {
+        "content": "# VMs\n\nThe following samples show how to query for VMs and their data using the data from Turbonomic ARM\n         ",
+        "mode": "markdown"
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "downsample": true,
+          "format": "Auto",
+          "queryText": "",
+          "refId": "A",
+          "timeRangeExtension": true
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "type": "text"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 3
+      },
+      "id": 2,
+      "options": {
+        "content": "# List of VMs\n\n    SELECT \n      vm.oid, \n      vm.name \n    FROM \n      GRAPH('(vm:VirtualMachine)')        ",
+        "mode": "markdown"
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "",
+          "refId": "A"
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": null,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vm.oid"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vm.name"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 3
+      },
+      "id": 4,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "SELECT \n  vm.oid, \n  vm.name \nFROM \n  GRAPH('(vm:VirtualMachine)')\nLIMIT 10",
+          "refId": "A"
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 11
+      },
+      "id": 10,
+      "options": {
+        "content": "# List of all commodities sold by Virtual Machines\n<pre>\n    SELECT \n      DISTINCT com.name \n    FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \n    ORDER BY com.name       \n</pre>",
+        "mode": "markdown"
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "",
+          "refId": "A"
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "center",
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 11
+      },
+      "id": 11,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "SELECT \n  DISTINCT com.name as 'Commodities Sold'\nFROM \n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nORDER BY com.name ",
+          "refId": "A"
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 19
+      },
+      "id": 12,
+      "options": {
+        "content": "# List of all commodities bought by Virtual Machines\n<pre>\n    SELECT \n      DISTINCT com.name \n    FROM \n      GRAPH('(vm:VirtualMachine)-[bought:buys]->(com:Commodity)') \n    ORDER BY com.name       \n</pre>",
+        "mode": "markdown"
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "",
+          "refId": "A"
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "center",
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 19
+      },
+      "id": 13,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "SELECT \n  DISTINCT com.name as 'Commodities Bought'\nFROM \n  GRAPH('(vm:VirtualMachine)-[bought:buys]->(com:Commodity)') \nORDER BY com.name ",
+          "refId": "A"
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 27
+      },
+      "id": 5,
+      "options": {
+        "content": "<h1> vCPU Utilization of a VM</h1>\n<pre>\n    SELECT       \n      vm.name,\n      com.utilization\n    FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)')\n    Where\n      com.name = 'VCPU'\n</pre>",
+        "mode": "html"
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "",
+          "refId": "A"
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "graph": false,
+              "legend": false,
+              "tooltip": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 27
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltipOptions": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "downsample": true,
+          "format": "Auto",
+          "queryText": "SELECT       \n  relabel(com.utilization, vm.name)\nFROM \n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)')\nWHERE\n  com.name = 'VCPU'\nLIMIT 10",
+          "refId": "A",
+          "timeRangeExtension": true
+        }
+      ],
+      "title": "vCPU Utilization of a VM",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 35
+      },
+      "id": 7,
+      "options": {
+        "content": "<h1> vCPU and VMEM Utilization of a VM</h1>\n<pre>\n    SELECT       \n      relabel(com.utilization, concat(vm.name, ' ', com.name)      \n    FROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)')\n    WHERE \n      com.name in ('VCPU', 'VMEM')\n</pre>",
+        "mode": "html"
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "",
+          "refId": "A"
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "graph": false,
+              "legend": false,
+              "tooltip": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 35
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltipOptions": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "downsample": true,
+          "format": "Auto",
+          "queryText": "SELECT       \n      relabel(com.utilization, concat(vm.name, ' ', com.name))\nFROM \n      GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)')\nWHERE \ncom.name in ('VCPU', 'VMEM')\nLIMIT 10",
+          "refId": "A",
+          "timeRangeExtension": true
+        }
+      ],
+      "title": "vCPU and VMEM Utilization of a VM",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 43
+      },
+      "id": 22,
+      "options": {
+        "content": "<h1>Averaging VM Metrics</h1>\n<pre>\nSELECT\n    relabel(ts_avg(com.utilization), CONCAT(com.name,\" \", \"Utilization\"))\nFROM\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)')\nWHERE\n    com.name in (\"VCPU\", \"VMEM\", \"CPU_READY\")  \nGROUP BY com.name\n    \n</pre>",
+        "mode": "html"
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "format": "Auto",
+          "queryText": "",
+          "refId": "A"
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "graph": false,
+              "legend": false,
+              "tooltip": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 43
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltipOptions": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "downsample": true,
+          "format": "Auto",
+          "queryText": "SELECT\n    relabel(ts_avg(com.utilization), CONCAT(com.name,\" \", \"Utilization\"))\nFROM\n    GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)')\nWHERE\n    com.name in (\"VCPU\", \"VMEM\", \"CPU_READY\")  \nGROUP BY com.name\nLIMIT 100",
+          "refId": "A",
+          "timeRangeExtension": true
+        }
+      ],
+      "title": "Averaging VM Metrics",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "id": 43,
+      "panels": [
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 10,
+            "x": 0,
+            "y": 81
+          },
+          "id": 32,
+          "options": {
+            "content": "<h1>VMs - Associated Business Account</h1>\n\n<pre>\nSELECT\n    pm.name as 'Host Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(pm:PhysicalMachine)')\nWHERE\n    vm.name = ${vmCloud:sqlstring}\n</pre>\n\n\n\n# \n\n    ",
+            "mode": "markdown"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "center",
+                "filterable": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 14,
+            "x": 10,
+            "y": 81
+          },
+          "id": 33,
+          "options": {
+            "showHeader": true
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": true,
+              "format": "Auto",
+              "queryText": "SELECT\n    ba.name as 'Business Account Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:owns]-(ba:BusinessAccount)')\nwhere \n    vm.name = ${vmCloud:sqlstring}\n\n",
+              "refId": "A",
+              "timeRangeExtension": true
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 10,
+            "x": 0,
+            "y": 87
+          },
+          "id": 36,
+          "options": {
+            "content": "<h1>VMs - Associated Zone</h1>\n\n<pre>\nSELECT\n    z.name as 'Zone Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(z:AvailabilityZone)')\nWHERE \n    vm.name = ${vmCloud:sqlstring}\n</pre>\n",
+            "mode": "markdown"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "center",
+                "filterable": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 14,
+            "x": 10,
+            "y": 87
+          },
+          "id": 37,
+          "options": {
+            "showHeader": true
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": true,
+              "format": "Auto",
+              "queryText": "SELECT\n    z.name as 'Zone Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(z:AvailabilityZone)')\nwhere \n    vm.name = ${vmCloud:sqlstring}\n\n",
+              "refId": "A",
+              "timeRangeExtension": true
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 10,
+            "x": 0,
+            "y": 93
+          },
+          "id": 38,
+          "options": {
+            "content": "<h1>VMs - Associated Region</h1>\n\n<pre>\nSELECT\n    r.name as 'Region Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(z:AvailabilityZone)<-[:owns]-(r:Region)')\nWHERE\n    vm.name = ${vmCloud:sqlstring}\n</pre>",
+            "mode": "markdown"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "center",
+                "filterable": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 14,
+            "x": 10,
+            "y": 93
+          },
+          "id": 39,
+          "options": {
+            "showHeader": true
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": true,
+              "format": "Auto",
+              "queryText": "SELECT\n    r.name as 'Region Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(z:AvailabilityZone)<-[:owns]-(r:Region)')\nwhere \n    vm.name = ${vmCloud:sqlstring}\n\n",
+              "refId": "A",
+              "timeRangeExtension": true
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 10,
+            "x": 0,
+            "y": 99
+          },
+          "id": 34,
+          "options": {
+            "content": "<h1>VMs - Associated Volume</h1>\n\n<pre>\nSELECT\n    DISTINCT v.name as 'Volume Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(v:VirtualVolume)')\nWHERE\n    vm.name = ${vmCloud:sqlstring}\n</pre>\n# \n\n    ",
+            "mode": "markdown"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "center",
+                "filterable": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 14,
+            "x": 10,
+            "y": 99
+          },
+          "id": 35,
+          "options": {
+            "showHeader": true
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": false,
+              "format": "Auto",
+              "queryText": "SELECT\n  DISTINCT v.name as 'Volume Name'\nFROM\n  GRAPH('(vm:VirtualMachine)<-[:supports]-(v:VirtualVolume)')\nwhere\n  vm.name = ${vmCloud:sqlstring}",
+              "refId": "A",
+              "timeRangeExtension": false
+            }
+          ],
+          "type": "table"
+        }
+      ],
+      "title": "Cloud VM Queries",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 41,
+      "panels": [
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 10,
+            "x": 0,
+            "y": 52
+          },
+          "id": 26,
+          "options": {
+            "content": "<h1>VMs - Associated Host</h1>\n\n<pre>\nSELECT\n    pm.name as 'Host Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(pm:PhysicalMachine)')\nWHERE\n    vm.name = '${vmOnprem:displayName}'\n</pre>",
+            "mode": "html"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "center",
+                "filterable": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 14,
+            "x": 10,
+            "y": 52
+          },
+          "id": 27,
+          "options": {
+            "showHeader": true
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": true,
+              "format": "Auto",
+              "queryText": "SELECT\n    pm.name as 'Host Name'\nFROM\n    GRAPH('(vm:VirtualMachine)<-[:supports]-(pm:PhysicalMachine)')\nWHERE\n    vm.name = ${vmOnprem:sqlstring}",
+              "refId": "A",
+              "timeRangeExtension": true
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 10,
+            "x": 0,
+            "y": 58
+          },
+          "id": 29,
+          "options": {
+            "content": "<h1>VMs - Associated Datastore</h1>\n\n<pre>\n    SELECT\n        DISTINCT ds.name as 'Datastore Name'\n    FROM\n        GRAPH('(vm:VirtualMachine)<-[:supports]-(ds:Storage)')\n    WHERE\n        vm.name = ${vmOnprem:sqlstring}\n</pre>\n\n",
+            "mode": "html"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "center",
+                "filterable": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 14,
+            "x": 10,
+            "y": 58
+          },
+          "id": 28,
+          "options": {
+            "showHeader": true
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": true,
+              "format": "Auto",
+              "queryText": "SELECT\n  DISTINCT ds.name as 'Datastore Name'\nFROM\n  GRAPH('(vm:VirtualMachine)<-[:supports]-(ds:Storage)-[:sells]->(com:Commodity)')\nwhere\n  vm.name = ${vmOnprem:sqlstring}",
+              "refId": "A",
+              "timeRangeExtension": true
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 10,
+            "x": 0,
+            "y": 64
+          },
+          "id": 24,
+          "options": {
+            "content": "<h1> Host Metrics for a VM</h1>\n<pre>\nSELECT\n  relabel(com.utilization, CONCAT(com.name, \" Utilization\"))\nFROM\n  GRAPH('(vm:VirtualMachine)<-[:supports]-(pm:PhysicalMachine)-[:sells]->(com)')\nWHERE\n  vm.name = ${vmOnprem:sqlstring}\n  AND com.name in (\"CPU\", \"MEM\", \"SWAPPING\", \"BALLOONING\", \"Q1_VCPU\", \"Q2_VCPU\", \"Q4_VCPU\", \"Q8_VCPU\", \"Q16_VCPU\", \"Q32_VCPU\")  \n</pre>",
+            "mode": "html"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "graph": false,
+                  "legend": false,
+                  "tooltip": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 14,
+            "x": 10,
+            "y": 64
+          },
+          "id": 25,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltipOptions": {
+              "mode": "single"
+            }
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": true,
+              "format": "Auto",
+              "queryText": "SELECT\n  relabel(com.utilization, CONCAT(com.name, \" Utilization\"))\nFROM\n  GRAPH('(vm:VirtualMachine)<-[:supports]-(pm:PhysicalMachine)-[:sells]->(com)')\nwhere\n  vm.name = ${vmOnprem:sqlstring}\n  AND com.name in (\"CPU\", \"MEM\", \"SWAPPING\", \"BALLOONING\", \"Q1_VCPU\", \"Q2_VCPU\", \"Q4_VCPU\", \"Q8_VCPU\", \"Q16_VCPU\", \"Q32_VCPU\")  ",
+              "refId": "A",
+              "timeRangeExtension": true
+            }
+          ],
+          "title": "Host Metrics for a VM",
+          "type": "timeseries"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 10,
+            "x": 0,
+            "y": 72
+          },
+          "id": 21,
+          "options": {
+            "content": "<h1>Storage Metrics for a VM</h1>\n<pre>\nSELECT\n  relabel(com.utilization, com.name)\nFROM\n  GRAPH('(vm:VirtualMachine)<-[:supports]-(ds:Storage)-[:sells]->(com:Commodity)')\nwhere\n  vm.name = ${vmOnprem:sqlstring}\n  AND com.name in (\"STORAGE_AMOUNT\", \"STORAGE_ACCESS\", \"STORAGE_LATENCY\")  \n\n</pre>",
+            "mode": "html"
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "format": "Auto",
+              "queryText": "",
+              "refId": "A"
+            }
+          ],
+          "type": "text"
+        },
+        {
+          "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "graph": false,
+                  "legend": false,
+                  "tooltip": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 14,
+            "x": 10,
+            "y": 72
+          },
+          "id": 23,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltipOptions": {
+              "mode": "single"
+            }
+          },
+          "pluginVersion": "7.5.9",
+          "targets": [
+            {
+              "downsample": true,
+              "format": "Auto",
+              "queryText": "SELECT\n  relabel(com.utilization, com.name)\nFROM\n  GRAPH('(vm:VirtualMachine)<-[:supports]-(ds:Storage)-[:sells]->(com:Commodity)')\nwhere\n  vm.name = ${vmOnprem:sqlstring}\n  AND com.name in (\"STORAGE_AMOUNT\", \"STORAGE_ACCESS\", \"STORAGE_LATENCY\")  \n",
+              "refId": "A",
+              "timeRangeExtension": true
+            }
+          ],
+          "title": "Storage Metrics for a VM",
+          "type": "timeseries"
+        }
+      ],
+      "title": "On-Prem VM Queries",
+      "type": "row"
+    }
+  ],
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+        "definition": "-- Provide a query that returns one column. Optionally return a second column to be used as a label for the value\nSELECT \nvm.name\nFROM GRAPH('(pm:PhysicalMachine)-[:supports]->(vm:VirtualMachine)')\n",
+        "description": null,
+        "error": null,
+        "hide": 2,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "vmOnprem",
+        "options": [],
+        "query": {
+          "queryText": "-- Provide a query that returns one column. Optionally return a second column to be used as a label for the value\nSELECT \nvm.name\nFROM GRAPH('(pm:PhysicalMachine)-[:supports]->(vm:VirtualMachine)')\n"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+        "definition": "-- Provide a query that returns one column. Optionally return a second column to be used as a label for the value\nSELECT \nvm.name\nFROM GRAPH('(ba:BusinessAccount)-[:owns]->(vm:VirtualMachine)')\n\n",
+        "description": null,
+        "error": null,
+        "hide": 2,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "vmCloud",
+        "options": [],
+        "query": {
+          "queryText": "-- Provide a query that returns one column. Optionally return a second column to be used as a label for the value\nSELECT \nvm.name\nFROM GRAPH('(ba:BusinessAccount)-[:owns]->(vm:VirtualMachine)')\n\n"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": "${DS_TURBONOMIC_DATA CLOUD}",
+        "definition": "-- Provide a query that returns one column. Optionally return a second column to be used as a label for the value\nSELECT\nvm.name\nFROM \nGRAPH('(vm:VirtualMachine)')\nLIMIT 100",
+        "description": null,
+        "error": null,
+        "hide": 2,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "vmAny",
+        "options": [],
+        "query": {
+          "queryText": "-- Provide a query that returns one column. Optionally return a second column to be used as a label for the value\nSELECT\nvm.name\nFROM \nGRAPH('(vm:VirtualMachine)')\nLIMIT 100"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Sample 1. VM Query Samples",
+  "uid": "8NST8bvnk",
+  "version": 4
+}
