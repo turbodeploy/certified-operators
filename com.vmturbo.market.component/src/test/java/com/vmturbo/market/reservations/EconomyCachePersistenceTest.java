@@ -17,6 +17,7 @@ import com.google.common.collect.HashBiMap;
 import org.apache.commons.lang.ArrayUtils;
 import org.jooq.DSLContext;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMo
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.component.db.Market;
 import com.vmturbo.market.component.db.tables.EconomyCache;
@@ -81,6 +83,14 @@ public class EconomyCachePersistenceTest {
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder()
                         .setType(CommodityType.CLUSTER_VALUE).setKey(cluster2Key).build(),
                 CLUSTER2_COMM_SPEC_TYPE);
+    }
+
+    /**
+     * Set up.
+     */
+    @Before
+    public void setUpBefore() {
+        IdentityGenerator.initPrefix(0);
     }
 
     /**
