@@ -61,10 +61,20 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     private boolean enableMultiADGroupSupport;
 
     /**
-     * Feature flag to enable assign Report Editor role to external group user.
+     * Auth feature flag to enable assign Report Editor role to external group user.
+     * It's not officially documented, but used in some customers. Keeping it for backward
+     * comparability.
      */
     @Value("${isReportingEnabled:false}")
     private boolean isReportingEnabled;
+
+    /**
+     * Feature flag to enable reporting features on API and extractor components.
+     * Using this flag to also enable AUTH component reporting features too.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
 
     /**
      * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
