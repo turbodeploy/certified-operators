@@ -213,7 +213,9 @@ public class ActionSearchUtilTest {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
         when(groupExpander.expandOids(Collections.singleton(scopeId))).thenReturn(scope);
-        when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
+        when(supplyChainFetcherFactory.expandScope(scope,
+                Collections.singletonList(EntityType.VIRTUAL_MACHINE.name())))
+                .thenReturn(scope);
         when(serviceProviderExpander.expand(scope)).thenReturn(scope);
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
@@ -227,9 +229,10 @@ public class ActionSearchUtilTest {
             e.printStackTrace();
         }
 
-        verify(supplyChainFetcherFactory).expandAggregatedEntities(any());
-        verify(supplyChainFetcherFactory, times(0)).expandScope(any(), any());
-        verify(actionSpecMapper).createActionFilter(any(), any(), any());
+        verify(supplyChainFetcherFactory, times(1))
+                .expandScope(any(), any());
+        verify(actionSpecMapper, times(1))
+                .createActionFilter(any(), any(), any());
     }
 
     /**
