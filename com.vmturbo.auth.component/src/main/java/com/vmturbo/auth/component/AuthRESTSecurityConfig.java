@@ -225,8 +225,8 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public UserPolicy userPolicy() {
         final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
-        final ReportPolicy reportPolicy =
-                new ReportPolicy(licensingConfig.licenseCheckService(), isReportingEnabled);
+        final ReportPolicy reportPolicy = new ReportPolicy(licensingConfig.licenseCheckService(),
+                enableReporting ? true : isReportingEnabled);
         final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy);
         AuditLog.newEntry(userPolicy.getAuditAction(),
                 "User login policy is set to " + loginPolicy, true)
