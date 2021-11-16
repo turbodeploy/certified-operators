@@ -41,14 +41,14 @@ public class ConsistentScalingManager {
     private final ConsistentScalingConfig config_;
 
     // Maps Entity OIDs to their internal scaling group
-    private Map<Long, ScalingGroup> entityToScalingGroup = new HashMap<>();
+    private final Map<Long, ScalingGroup> entityToScalingGroup = new HashMap<>();
     // Maps Group ID + CSP type to internal scaling group
-    private Map<String, ScalingGroup> groups = new HashMap<>();
+    private final Map<String, ScalingGroup> groups = new HashMap<>();
 
     // List of entities that are consistent scaling due to policy
-    private List<ScalingGroupMember> enabledEntities = new ArrayList<>();
+    private final List<ScalingGroupMember> enabledEntities = new ArrayList<>();
     // List of entities that are not consistent scaling due to policy
-    private Set<Long> disabledEntities = new HashSet<>();
+    private final Set<Long> disabledEntities = new HashSet<>();
 
     /**
      * Constructor.
@@ -82,46 +82,46 @@ public class ConsistentScalingManager {
      *                                    scalingGroupMembership settings for each entity.
      */
     public void addScalingGroupSettings(final Map<Long, Map<String, SettingAndPolicyIdRecord>>
-                                            userSettingsByEntityAndName) {
+            userSettingsByEntityAndName) {
         groups.values().stream()
-            .collect(Collectors.groupingBy(ScalingGroup::getScalingGroupId))
-            .forEach((groupId, groups) -> {
-                final boolean hasDuplicates = groups.size() > 1;
-                groups.forEach(group -> {
-                    // When we have two groups with the same name, distinguish them further by ID.
-                    // This reduces visual clutter when we don't need the ID, and prevents accidentally
-                    // merging by name when there are multiple with the same name.
-                    final String groupName = groupId + (hasDuplicates ? ("[" + group.key + "]") : "");
-                    // Add a scaling group membership setting to each group.
-                    group.getMemberList().stream()
-                        // Since the settings are shared amongst all members of the scaling group, the
-                        // setting will apply to all of them.
-                        .findAny()
-                        .ifPresent(oid -> {
+                .collect(Collectors.groupingBy(ScalingGroup::getScalingGroupId))
+                .forEach((groupId, groups) -> {
+                    final boolean hasDuplicates = groups.size() > 1;
+                    groups.forEach(group -> {
+                        // When we have two groups with the same name, distinguish them further by ID.
+                        // This reduces visual clutter when we don't need the ID, and prevents accidentally
+                        // merging by name when there are multiple with the same name.
+                        final String groupName = groupId + (hasDuplicates ? ("[" + group.key + "]") : "");
+                        // Add a scaling group membership setting to each group.
+                        for (Long oid : group.getMemberList()) {
                             // policies cannot be null, because all scaling group members have an entry
                             // pre-populated in userSettingsByEntityAndName.
                             Map<String, SettingAndPolicyIdRecord> policies =
-                                userSettingsByEntityAndName.get(oid);
+                                    userSettingsByEntityAndName.computeIfAbsent(oid,
+                                            k -> new HashMap<>());
                             Setting setting = Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.ScalingGroupMembership
-                                    .getSettingName())
-                                .setStringSettingValue(StringSettingValue.newBuilder()
-                                    .setValue(groupName)).build();
+                                    .setSettingSpecName(EntitySettingSpecs.ScalingGroupMembership.getSettingName())
+                                    .setStringSettingValue(
+                                            StringSettingValue.newBuilder().setValue(groupName)).build();
                             SettingAndPolicyIdRecord settingAndPolicyIdRecord =
-                                new SettingAndPolicyIdRecord(TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
-                                    Collections.singletonList(setting)), 0L,
-                                    Type.USER, false);
+                                    new SettingAndPolicyIdRecord(TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                                            Collections.singletonList(setting)), 0L, Type.USER, false);
                             policies.put(EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
-                                settingAndPolicyIdRecord);
-                        });
+                                    settingAndPolicyIdRecord);
+                            // Since the settings are shared amongst all members of a cloud scaling
+                            // group, the setting will apply to all of them.
+                            if (group.isCloud()) {
+                                break;
+                            }
+                        }
+                    });
                 });
-            });
     }
 
     /**
      * Internal scaling group definition.
      */
-    class ScalingGroupMember {
+    static class ScalingGroupMember {
         public Grouping grouping;
         public TopologyEntity entity;
         public List<SettingPolicy> policies;
@@ -274,7 +274,7 @@ public class ConsistentScalingManager {
         // add the rest to scaling groups.
         enabledEntities.stream()
             .filter(member -> !disabledEntities.contains(member.entity.getOid()))
-            .forEach(member -> addEntity(member));
+            .forEach(this::addEntity);
 
         /*
          * Now pre-populate the settings map. The EntitySettingsResolver populates a single
@@ -297,11 +297,11 @@ public class ConsistentScalingManager {
     /**
      * Contains state for internal scaling groups.
      */
-    class ScalingGroup {
-        private boolean isCloud;
+    static class ScalingGroup {
+        private final boolean isCloud;
         private final String key;
-        private Set<Long> memberList;
-        private Set<String> contributingGroups;
+        private final Set<Long> memberList;
+        private final Set<String> contributingGroups;
 
         @Override
         public String toString() {
@@ -327,7 +327,7 @@ public class ConsistentScalingManager {
         }
 
         public String getContributingGroupsString() {
-            return this.contributingGroups.stream().collect(Collectors.joining(", "));
+            return String.join(", ", this.contributingGroups);
         }
 
         Set<String> getContributingGroups() {
