@@ -39,7 +39,8 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 // username property configuration is made to work with MySQL which has a username length restriction of 16.
-@TestPropertySource(properties = {"enableReporting=true", "dbs.search.user=s", "dbs.search.host=localhost", "dbs.search.port=3306"})
+@TestPropertySource(properties = {"enableReporting=true", "dbs.search.user=s",
+        "dbs.search.host=localhost", "dbs.search.port=3306", "sqlDialect=POSTGRES"})
 public class ExtractorDbConfigTest {
     private static final Logger logger = LogManager.getLogger();
 

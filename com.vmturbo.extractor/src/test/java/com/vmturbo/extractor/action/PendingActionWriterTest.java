@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -70,6 +71,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
+@TestPropertySource(properties = {"sqlDialect=POSTGRES"})
 public class PendingActionWriterTest {
 
     private static final long ACTION_WRITING_INTERVAL_MS = 10_000;
