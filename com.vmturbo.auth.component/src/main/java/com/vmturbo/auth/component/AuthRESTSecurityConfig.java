@@ -63,8 +63,10 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     /**
      * Auth feature flag to enable assign Report Editor role to external group user.
      * It's not officially documented, but used in some customers. Keeping it for backward
-     * comparability.
+     * compatibility.
+     * @deprecated use enableReporting instead.
      */
+    @Deprecated
     @Value("${isReportingEnabled:false}")
     private boolean isReportingEnabled;
 
@@ -236,7 +238,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     public UserPolicy userPolicy() {
         final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
         final ReportPolicy reportPolicy = new ReportPolicy(licensingConfig.licenseCheckService(),
-                enableReporting ? true : isReportingEnabled);
+                enableReporting || isReportingEnabled);
         final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy);
         AuditLog.newEntry(userPolicy.getAuditAction(),
                 "User login policy is set to " + loginPolicy, true)
