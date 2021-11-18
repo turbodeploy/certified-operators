@@ -86,7 +86,7 @@ public class AuthProviderRoleTest {
         licenseCheckService = mock(LicenseCheckService.class);
         Supplier<String> keyValueDir = () -> "";
         authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(licenseCheckService, false), Optional.empty()), ssoUtil, false, false, null);
+                new ReportPolicy(licenseCheckService, false)), ssoUtil, false, false, null);
     }
 
     /**

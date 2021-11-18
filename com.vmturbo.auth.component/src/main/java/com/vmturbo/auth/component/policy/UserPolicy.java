@@ -28,19 +28,15 @@ public class UserPolicy {
     private final Logger logger = LogManager.getLogger();
     private final ReportPolicy reportPolicy;
 
-    private Optional<String> groupContainerDN;
-
     /**
      * Constructor.
      *
      * @param loginPolicy login policy.
      * @param reportPolicy report policy.
-     * @param groupContainerDN AD group container DN.
      */
-    public UserPolicy(@Nonnull final LoginPolicy loginPolicy, @Nonnull final ReportPolicy reportPolicy, @Nonnull final Optional<String> groupContainerDN) {
+    public UserPolicy(@Nonnull final LoginPolicy loginPolicy, @Nonnull final ReportPolicy reportPolicy) {
         this.loginPolicy = Objects.requireNonNull(loginPolicy);
         this.reportPolicy = Objects.requireNonNull(reportPolicy);
-        this.groupContainerDN = groupContainerDN;
         logger.info("System is using {} login policy.", loginPolicy);
         logger.info("System has maximum allowed report editor {}.", reportPolicy.getAllowedMaximumEditors());
     }
@@ -199,14 +195,6 @@ public class UserPolicy {
     public boolean isStandAloneExternalUser(AuthUserDTO userDTO) {
         return userDTO.getProvider() == AuthUserDTO.PROVIDER.LDAP
                 && (userDTO.getRoles().size() > 1 || !roleMatched(userDTO, REPORT_EDITOR));
-    }
-
-    /**
-     * Get Group DN.
-     * @return group DN
-     */
-    public Optional<String> getGroupContainerDN() {
-        return groupContainerDN;
     }
 
     /**

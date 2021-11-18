@@ -372,7 +372,7 @@ public class AuthProvider extends AuthProviderBase {
             // only perform LDAP authentication where ldap server(s) are avaliable
             if (!ldapServers.isEmpty()) {
                 List<SecurityGroupDTO> userGroups = ssoUtil.authenticateUserInGroup(userName, password, ldapServers,
-                        enableMultiExternalGroupSupport, userPolicy.getGroupContainerDN());
+                        enableMultiExternalGroupSupport);
                 // In mocked test userGroups can be null. A bug?
                 if (userGroups != null && !userGroups.isEmpty()) {
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);

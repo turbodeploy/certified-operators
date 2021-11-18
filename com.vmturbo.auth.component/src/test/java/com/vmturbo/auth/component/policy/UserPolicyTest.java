@@ -60,9 +60,9 @@ public class UserPolicyTest {
         when(oneEditor.getAllowedMaximumEditors()).thenReturn(1);
         ReportPolicy twoEditor = mock(ReportPolicy.class);
         when(twoEditor.getAllowedMaximumEditors()).thenReturn(2);
-        oneEditorPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, oneEditor, Optional.empty());
-        twoEditorsPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, twoEditor, Optional.empty());
-        reportEditorPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, new ReportPolicy(mock(LicenseCheckService.class), true), Optional.empty());
+        oneEditorPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, oneEditor);
+        twoEditorsPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, twoEditor);
+        reportEditorPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, new ReportPolicy(mock(LicenseCheckService.class), true));
     }
 
     /**

@@ -1,7 +1,5 @@
 package com.vmturbo.auth.component;
 
-import java.util.Optional;
-
 import javax.annotation.Nonnull;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,12 +72,6 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
      */
     @Value("${enableExternalSecrets:false}")
     private boolean enableExternalSecrets;
-
-    /**
-     * Group container distinguished name(DN). It's optional and intended to improve performance when using LDAP_MATCHING_RULE_IN_CHAIN.
-     */
-    @Value("${groupContainerDN:}")
-    private String groupContainerDN;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -235,7 +227,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
         final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
         final ReportPolicy reportPolicy =
                 new ReportPolicy(licensingConfig.licenseCheckService(), isReportingEnabled);
-        final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy, Optional.of(groupContainerDN));
+        final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy);
         AuditLog.newEntry(userPolicy.getAuditAction(),
                 "User login policy is set to " + loginPolicy, true)
                 .targetName("Login Policy")
