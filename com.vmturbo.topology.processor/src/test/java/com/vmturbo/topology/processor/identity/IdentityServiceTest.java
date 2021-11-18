@@ -18,6 +18,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -238,6 +239,26 @@ public class IdentityServiceTest {
         // clean up
         idSvc.removeEntity(oid);
         idSvc.removeEntity(hopefullySameOid);
+    }
+
+    /**
+     * Tests that given two entities with same non volatile and volatile properties, they
+     * get assigned the same oid.
+     * @throws IdentityServiceException if the store is not initialized
+     */
+    @Test
+    public void testDuplicateEntities() throws IdentityServiceException {
+        EntityDescriptor descriptor = new EntityDescriptorMock(
+                Collections.singletonList("VM"),
+                Collections.singletonList("Volatile2"),
+                Arrays.asList("Heuristic1", "Heuristic2"));
+        EntityMetadataDescriptor metadataDescriptor = Mockito.mock(EntityMetadataDescriptor.class);
+
+        EntryData data1 = new EntryData(descriptor, metadataDescriptor, probeId, entityDTO);
+        EntryData data2 = new EntryData(descriptor, metadataDescriptor, probeId, entityDTO);
+
+        List<Long> oids = idSvc.getOidsForObjects(Arrays.asList(data1, data2));
+        Assert.assertEquals(oids.get(0), oids.get(1));
     }
 
 }

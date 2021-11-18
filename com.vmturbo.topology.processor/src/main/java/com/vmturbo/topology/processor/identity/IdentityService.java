@@ -7,7 +7,6 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +22,7 @@ import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMet
 import com.vmturbo.topology.processor.identity.services.EntityProxyDescriptor;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
+import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore.IdentityRecordsOperation;
 
 /**
  * The IdentityService implements the identity service.
@@ -36,14 +36,11 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
     public static final long INVALID_OID = IdentityGenerator.nextDummy();
 
     /**
-     * Track the time taken to perform oid assignment. This will be broken into two steps:
-     *   "assign" -- the amount of time it takes to assign OID's.
-     *   "store" -- the amount of time it takes to store the OID assignments.
+     * Track the time taken to perform oid assignment.
      */
     private static final DataMetricSummary OID_ASSIGNMENT_TIME = DataMetricSummary.builder()
             .withName("tp_oid_assignment_seconds")
             .withHelp("Time (in seconds) spent assigning entity oids.")
-            .withLabelNames("step")
             .build()
             .register();
 
@@ -84,23 +81,16 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
     @Override
     public List<Long> getOidsForObjects(@Nonnull final List<EntryData> entries)
             throws IdentityServiceException {
-        final Map<Long, EntryData> entriesToUpdate = new HashMap<>();
-
         final List<Long> retList = new ArrayList<>(entries.size());
 
-        try {
-            try (DataMetricTimer timer = OID_ASSIGNMENT_TIME.labels("assign").startTimer()) {
-                for (EntryData data : entries) {
-                    retList.add(getOidToUse(data, entriesToUpdate));
-                }
-            }
-            try (DataMetricTimer storeTimer = OID_ASSIGNMENT_TIME.labels("store").startTimer()) {
-                store_.upsertEntries(entriesToUpdate);
+        try (IdentityRecordsOperation identityRecordsOperation = store_.createTransaction();
+             DataMetricTimer timer = OID_ASSIGNMENT_TIME.startTimer()) {
+            for (EntryData data : entries) {
+                retList.add(getOidToUse(data, identityRecordsOperation));
             }
         } catch (IdentityServiceStoreOperationException | IdentityUninitializedException e) {
-            throw new IdentityServiceException("Failed upserting entries " + entriesToUpdate, e);
+            throw new IdentityServiceException("Failed upserting entries " + entries, e);
         }
-
 
         return Collections.unmodifiableList(retList);
     }
@@ -111,16 +101,14 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
      * {@link IdentityServiceUnderlyingStore} in a separate step.
      *
      * @param entryData The data for the entry to assign the OID to.
-     * @param entriesToUpsert If the entryData requires an upsert to the database
-     *            (e.g. if it's a newly assigned OID, or if volatile properties changed), this
-     *            method will add the entryData and the associated ID to this map.
-     * @return The OID to use for the input entryData.
+     * @param identityRecordsOperation transaction with all the entities that need to be updated.
+     * @return the assigned oid
      * @throws IdentityServiceStoreOperationException In the case of an error interacting with the
      *                                              underlying store.
      * @throws IdentityUninitializedException If the identity service initialization is incomplete.
      */
     private long getOidToUse(@Nonnull final EntryData entryData,
-                             @Nonnull final Map<Long, EntryData> entriesToUpsert)
+                             @Nonnull final IdentityRecordsOperation identityRecordsOperation)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         final EntityDescriptor descriptor = entryData.getDescriptor();
         final EntityMetadataDescriptor metadataDescriptor = entryData.getMetadata();
@@ -133,7 +121,7 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
         existingOid = store_.lookupByIdentifyingSet(nonVolatileProperties, volatileProperties);
         if (existingOid != INVALID_OID) {
             if (!volatileProperties.isEmpty()) {
-                entriesToUpsert.put(existingOid, entryData);
+                identityRecordsOperation.addEntry(existingOid, entryData);
             }
             return existingOid;
         }
@@ -151,7 +139,7 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
         // properties have changed.
         // We will perform the heuristic match, and we need all the Entities that could be a
         // potential hit.
-        if (heuristicsNow != null && heuristicsNow.size() > 0) {
+        if (heuristicsNow.size() > 0) {
             for (EntityProxyDescriptor match : store_.getDtosByNonVolatileProperties(nonVolatileProperties)) {
                 // We have volatile properties. Perform heuristics
                 Iterable<PropertyDescriptor> heuristicsLast = match.getHeuristicProperties();
@@ -163,16 +151,14 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
                     // Update immediately. This is because, if there is a placeholder match(e.g. matching a dummy
                     // value during upgrade) and it gets substituted with the actual value, the record has to be
                     // updated so that subsequent entities won't match and get a new oid.
-                    HashMap<Long, EntryData> newEntry = new HashMap<>();
-                    newEntry.put(match.getOID(), entryData);
-                    store_.upsertEntries(newEntry);
+                    identityRecordsOperation.addEntry(match.getOID(), entryData);
                     return match.getOID();
                 }
             }
         }
         // Exhausted all possibilities. No match. Generate a new one.
         final long oid = IdentityGenerator.next();
-        entriesToUpsert.put(oid, entryData);
+        identityRecordsOperation.addEntry(oid, entryData);
         return oid;
     }
 

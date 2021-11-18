@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -98,7 +97,7 @@ public class IdentityRecordsBasedCache implements IdentityCache {
     @Override
     public int remove(Set<Long> oidsToRemove) {
         int removedOids = 0;
-        logger.info("Performing bulk remove of {} oids", oidsToRemove.size());
+        logger.info("Performing bulk removal of {} oids", oidsToRemove.size());
         final Stopwatch sw = Stopwatch.createStarted();
         for (Long oid : oidsToRemove) {
             if (remove(oid) != null) {
@@ -106,8 +105,8 @@ public class IdentityRecordsBasedCache implements IdentityCache {
             }
         }
         oidToIdentity.keySet().removeAll(oidsToRemove);
-        logger.info("Done performing bulk remove of {} oids in {}", oidsToRemove.size(),
-                sw.stop().elapsed(TimeUnit.SECONDS));
+        logger.info("Done performing bulk removal of {} oids in {} seconds", oidsToRemove.size(),
+                sw);
         return removedOids;
     }
 

@@ -47,8 +47,7 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
 
     public EntityInMemoryProxyDescriptor(final long oid,
                              @Nonnull final EntityDescriptor entityDescriptor,
-                             @Nonnull final EntityMetadataDescriptor metadataDescriptor)
-            throws IdentityWrongSetException {
+                             @Nonnull final EntityMetadataDescriptor metadataDescriptor) {
         this(oid,
             entityDescriptor.getIdentifyingProperties(metadataDescriptor),
             entityDescriptor.getHeuristicProperties(metadataDescriptor));
