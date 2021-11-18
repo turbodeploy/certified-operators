@@ -21,7 +21,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
@@ -631,12 +633,19 @@ public class Analysis {
                                                             .setType(CommodityDTO.CommodityType
                                                                     .COUPON_VALUE).build()).getBaseType());
                             for (Entry<Long, Set<Long>> entry : cloudVmOidToTraderTOs.entrySet()) {
+                                long vmTraderOid = entry.getKey();
+                                TopologyEntityDTO vmDTO = converter.getUnmodifiableEntityOidToDtoMap().get(vmTraderOid);
                                 Set<Long> providerOIDList = new HashSet<>();
-                                for (Long traderTO : entry.getValue()) {
-                                    Optional<Long> computeTierID = converter.getTopologyEntityOIDForOnDemandMarketTier(traderTO);
-                                    computeTierID.ifPresent(providerOIDList::add);
+                                for (Long traderTOOid : entry.getValue()) {
+                                    // Exclude CTs that are not available on the given VM's zone.
+                                    MarketTier marketTier = converter.getCloudTc().getMarketTier(traderTOOid);
+                                    if (MarketAnalysisUtils.isCTAvailableForVM(marketTier.getTier(), vmDTO)) {
+                                        Optional<Long> computeTierID = converter
+                                                .getTopologyEntityOIDForOnDemandMarketTier(marketTier);
+                                        computeTierID.ifPresent(providerOIDList::add);
+                                    }
                                 }
-                                cloudVmOidToProvidersOIDsMap.put(entry.getKey(), providerOIDList);
+                                cloudVmOidToProvidersOIDsMap.put(vmTraderOid, providerOIDList);
                             }
                             boolean isOptimizeCloudPlan = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
                                     .equals(StringConstants.OPTIMIZE_CLOUD_PLAN));

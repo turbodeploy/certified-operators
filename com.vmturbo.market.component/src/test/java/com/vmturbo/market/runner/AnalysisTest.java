@@ -2,6 +2,7 @@ package com.vmturbo.market.runner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -69,6 +70,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -97,6 +99,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -780,6 +783,46 @@ public class AnalysisTest {
         assertTrue(analysis.getActionPlan().isPresent());
         assertFalse(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
         featureFlagTestRule.reset();
+    }
+
+    /**
+     * Test MarketAnalysisUtils.isCTAvailableForVM with
+     * 1. a compute tier connected with AZs and a VM connected with one of those AZs.
+     * 2. a compute tier connected with AZs and a VM is not connected with any of them.
+     */
+    @Test
+    public void testIsCTAvailableForVM() {
+        final long zone1Id = 12345L;
+        final long zone2Id = 22345L;
+        final long vmOid = 100001L;
+        TopologyEntityDTO ct1 = TopologyEntityDTO.newBuilder().setOid(98765L)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .setConnectedEntityId(zone1Id).build())
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .setConnectedEntityId(zone2Id).build()).build();
+        TopologyEntityDTO vm = TopologyEntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(vmOid).addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .setConnectedEntityId(zone1Id).build()).build();
+
+        assertTrue(MarketAnalysisUtils.isCTAvailableForVM(ct1, vm));
+
+        // AWS/Azure compute tiers have region as connected entities.
+        final long zone3Id = 44444L;
+        final long zone4Id = 55555L;
+        TopologyEntityDTO ct2 = TopologyEntityDTO.newBuilder().setOid(88765L)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .setConnectedEntityId(zone3Id).build())
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .setConnectedEntityId(zone4Id).build()).build();
+        assertFalse(MarketAnalysisUtils.isCTAvailableForVM(ct2, vm));
+
     }
 
     /**

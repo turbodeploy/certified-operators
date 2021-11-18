@@ -597,4 +597,37 @@ public final class MarketAnalysisUtils {
         return commType.getType() == CommodityDTO.CommodityType.SEGMENTATION_VALUE
                 ? Math.floor(bundle.maxAvailable.get()) : bundle.maxAvailable.get();
     }
+
+    /**
+     * Check whether a given compute tier topologyEntityDTO is available on the given vmDTO's zone.
+     * In particular, the tier is a compute tier instance.
+     *
+     * @param computeTier a compute tier
+     * @param vmDTO a cloud vm.
+     * @return true if the compute tier has vmDTO's zone under its connectedEntityList.
+     */
+    public static boolean isCTAvailableForVM(TopologyEntityDTO computeTier, @Nonnull TopologyEntityDTO vmDTO) {
+        if (computeTier.getEntityType() != EntityType.COMPUTE_TIER_VALUE) {
+            return true;
+        }
+        // AWS and Azure compute tier's connected entity list has regions. With a set of DC comm created
+        // on CTs and VMs, the economy basket matching already figure out the AWS/Azure CT's regional
+        // availability.
+        if (computeTier.getConnectedEntityListList().stream().anyMatch(ce -> ce.getConnectedEntityType()
+                == EntityType.REGION_VALUE)) {
+            return true;
+        }
+        Set<Long> vmConnectedEntityOids = vmDTO.getConnectedEntityListList().stream()
+                .filter(ce -> ce.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                .map(ce -> ce.getConnectedEntityId()).collect(Collectors.toSet());
+        // GCP compute tier have no regions but only zones in the connected entity list.
+        // If the vm's connected zone is part of the tier's connected entity list, the tier
+        // is available for this vm.
+        if (computeTier.getConnectedEntityListList().stream()
+                .anyMatch(az -> vmConnectedEntityOids.contains(az.getConnectedEntityId()))) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 }

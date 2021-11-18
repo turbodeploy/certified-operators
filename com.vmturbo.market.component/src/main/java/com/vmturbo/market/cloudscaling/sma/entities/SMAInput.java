@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.HashBasedTable;
@@ -39,6 +40,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -53,7 +55,6 @@ import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ReservedInstanceKey;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -533,18 +534,28 @@ public class SMAInput {
      * @param cloudTopology dictionary
      * @return compute tiers partitioned by region ID.
      */
-    private Map<Long, List<TopologyEntityDTO>> partitionComputeTiersByRegionId(List<TopologyEntityDTO> computeTiers,
+    @VisibleForTesting
+    Map<Long, List<TopologyEntityDTO>> partitionComputeTiersByRegionId(List<TopologyEntityDTO> computeTiers,
                                                                                Set<Long> validRegionIds,
                                                                                CloudTopology<TopologyEntityDTO> cloudTopology) {
         // map from region ID to list of compute tiers in that region
         Map<Long, List<TopologyEntityDTO>> map = new HashMap<>();
         for (TopologyEntityDTO dto: computeTiers) {
             // list of regions this compute tier belongs to
-            List<Long> regionIds = dto.getConnectedEntityListList().stream()
-            .filter(connEntity -> connEntity.hasConnectedEntityType()
-                && (connEntity.getConnectedEntityType() == EntityType.REGION_VALUE))
-                .map(connEntity -> connEntity.getConnectedEntityId())
-                .collect(Collectors.toList());
+            Set<Long> regionIds = new HashSet<>();
+            for (ConnectedEntity ce : dto.getConnectedEntityListList()) {
+                if (ce.hasConnectedEntityType() && ce.getConnectedEntityType() == EntityType.REGION_VALUE) {
+                    //AWS and Azure compute tiers.
+                    regionIds.add(ce.getConnectedEntityId());
+                } else if (ce.hasConnectedEntityType() && EntityType.AVAILABILITY_ZONE_VALUE
+                        == ce.getConnectedEntityType()) {
+                    // Gcp compute tiers.
+                    Optional<TopologyEntityDTO> zoneOpt = cloudTopology.getEntity(ce.getConnectedEntityId());
+                    if (zoneOpt.isPresent()) {
+                        cloudTopology.getOwner(zoneOpt.get().getOid()).ifPresent(region -> regionIds.add(region.getOid()));
+                    }
+                }
+            }
             for (Long oid: regionIds) {
                 if (validRegionIds.contains(oid)) {
                     // Only interested in valid regions
@@ -739,7 +750,7 @@ public class SMAInput {
                     context);
             }
             template.setOnDemandCost(businessAccountId, osType, new SMACost(
-                (float)computePrice.hourlyComputeRate(), (float)computePrice.hourlyLicenseRate()));
+                    (float)computePrice.hourlyComputeRate(), (float)computePrice.hourlyLicenseRate()));
 
             /*
              * compute discounted costs
