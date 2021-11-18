@@ -34,6 +34,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -558,21 +559,21 @@ public class EntityStore {
         // There may be duplicate entries (though that's a bug in the probes),
         // and we should deal with that without throwing exceptions.
         final Map<Long, EntityDTO> finalEntitiesById = new HashMap<>();
-
-        identityProvider.getIdsForEntities(probeId, entityDTOList)
-            .forEach((entityId, entityDto) -> {
-
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        Map<Long, EntityDTO> oidToEntity = identityProvider.getIdsForEntities(probeId, entityDTOList);
+        oidToEntity.forEach((entityId, entityDto) -> {
             final EntityDTO existingEntry = finalEntitiesById.putIfAbsent(entityId, entityDto);
             if (existingEntry != null) {
-                logger.error("Entity with ID {} and local ID {} appears " +
-                        "more than once in discovered entities for target {}! The descriptions are {}.\n" +
-                        "Entity 1: {}\n Entity 2: {}\n",
+                logger.error("Entity with ID {} and local ID {} appears "
+                                + "more than once in discovered entities for target {}! The DTOs are {}.\n"
+                                + "Entity 1: {}\n Entity 2: {}\n",
                     entityId, existingEntry.getId(), targetId,
                     existingEntry.equals(entityDto) ? "equal" : "not equal",
                     existingEntry, entityDto);
             }
         });
-
+        logger.info("Assigned {} oids for target {} in {}", oidToEntity.size(), targetId,
+                stopwatch);
         return finalEntitiesById;
     }
 

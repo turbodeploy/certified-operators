@@ -4,9 +4,10 @@ import java.io.Reader;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -31,12 +32,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.identity.EntityDescriptor;
-import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.identity.EntryData;
 import com.vmturbo.topology.processor.identity.IdentityServiceStoreOperationException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
-import com.vmturbo.topology.processor.identity.IdentityWrongSetException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.cache.DescriptorsBasedCache;
 import com.vmturbo.topology.processor.identity.cache.IdentityCache;
@@ -316,63 +316,6 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         }
     }
 
-    /**
-     * {@inheritDoc}}
-     */
-    public void upsertEntries(@Nonnull final Map<Long, EntryData> entryMap)
-        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
-        checkInitialized();
-
-        List<IdentityRecord> updatedRecords = new ArrayList<>();
-        for (final Entry<Long, EntryData> entry : entryMap.entrySet()) {
-            try {
-                final EntryData entryData = entry.getValue();
-                final EntityInMemoryProxyDescriptor vmtPD =
-                    new EntityInMemoryProxyDescriptor(entry.getKey(),
-                        entryData.getDescriptor(),
-                        entryData.getMetadata());
-                final EntityInMemoryProxyDescriptor oldPd = identityCache.get(vmtPD.getOID());
-                EntityType entityType = entryData.getEntityDTO().get().getEntityType();
-                if (!vmtPD.equals(oldPd)) {
-                    updatedRecords.add(new IdentityRecord(entityType, vmtPD, entryData.getProbeId()));
-                }
-            } catch (IdentityWrongSetException e) {
-                throw new IdentityServiceStoreOperationException(e);
-            }
-        }
-
-        try {
-            identityDatabaseStore.saveDescriptors(updatedRecords);
-            } catch (IdentityDatabaseException e) {
-            throw new IdentityServiceStoreOperationException(e);
-        }
-
-        // Do this after the database update is successful, to keep the in-memory index from
-        // being out-of-date with the database.
-        updatedRecords.forEach(record -> identityCache.addIdentityRecord(record));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void addEntry(final long oid,
-                         @Nonnull final EntityDescriptor descriptor,
-                         @Nonnull final EntityMetadataDescriptor metadataDescriptor,
-                         @Nonnull final EntityType entityType,
-                         final long probeId)
-        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
-        checkInitialized();
-        try {
-            final EntityInMemoryProxyDescriptor vmtPD =
-                    new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
-            IdentityRecord identityRecord = new IdentityRecord(entityType, vmtPD, probeId);
-            identityDatabaseStore.saveDescriptors(Collections.singletonList(identityRecord));
-            identityCache.addIdentityRecord(identityRecord);
-        } catch (IdentityWrongSetException | IdentityDatabaseException e) {
-            throw new IdentityServiceStoreOperationException(e);
-        }
-    }
 
     /**
      * {@inheritDoc}
@@ -396,17 +339,12 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     }
 
     /**
-     * Delete an OID from the in memory cache but leave it in the database. This is used
+     * Delete OIDs from the in memory cache but leave them in the database. This is used
      * for expiring OIDs (see {@link com.vmturbo.topology.processor.identity.StaleOidManager}).
      *
-     * @param oid the oid to remove.
+     * @param oidsToRemove oids to remove.
      * @return true if the oid was found in the cache; false if not.
      */
-    @Override
-    public boolean shallowRemove(long oid) {
-        return identityCache.remove(Collections.singleton(oid)) == 1;
-    }
-
     @Override
     public int bulkRemove(Set<Long> oidsToRemove) {
         return identityCache.remove(oidsToRemove);
@@ -434,6 +372,15 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         return identityCache.getDtosByNonVolatileProperties(properties);
     }
 
+    /**
+     * Creates a {@link IdentityRecordsOperation}.
+     * @return the IdentityRecordsOperation
+     * @throws IdentityUninitializedException if the store hasn't been initialized yet
+     */
+    public IdentityRecordsOperation createTransaction() throws IdentityUninitializedException {
+        checkInitialized();
+        return new IdentityRecordsOperation(identityCache, identityDatabaseStore);
+    }
     /**
      * {@inheritDoc}
      */
@@ -523,9 +470,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
             boolean useIdentityRecordsCache, boolean useOptimizedIdentityRecordsCache) {
         if (useOptimizedIdentityRecordsCache) {
             this.identityCache = new OptimizedIdentityRecordsBasedCache(perProbeMetadata);
-            return;
-        }
-        if (useIdentityRecordsCache) {
+        } else if (useIdentityRecordsCache) {
             this.identityCache = new IdentityRecordsBasedCache(perProbeMetadata);
         } else {
             this.identityCache = new DescriptorsBasedCache();
@@ -542,5 +487,95 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         builder.registerTypeAdapter(EntityInMemoryProxyDescriptor.class,
             (JsonDeserializer<EntityInMemoryProxyDescriptor>) (json, type, context) -> converter.from(json.getAsJsonPrimitive().getAsString()));
         return builder.create();
+    }
+
+    /**
+     * Class that adds records to the cache, and then, stores them in the database. We do this in
+     * two phases for two reasons: 1) we need to update the cache as soon as we assign a new oid, so that if
+     * a duplicate entity comes into the same response, we return the same oid. 2) We do not want to
+     * perform one write per new oid, but instead, batch them and do one for all the new oids in
+     * a discovery response.
+     */
+    public static class IdentityRecordsOperation implements AutoCloseable {
+        /**
+         * Track the time taken to store a batch of oids.IdentityRecordsBasedCache.
+         */
+        private static final DataMetricSummary OID_STORING_TIME = DataMetricSummary.builder()
+                .withName("tp_oid_storing_seconds")
+                .withHelp("Time (in seconds) spent storing entity oids.")
+                .build()
+                .register();
+
+        private final List<IdentityRecord> identityRecordsToUpdate = new ArrayList<>();
+        private final List<IdentityRecord> oldIdentityRecords = new ArrayList<>();
+        private final IdentityCache identityCache;
+        private final IdentityDatabaseStore identityDatabaseStore;
+        private final Set<Long> addedOids = new HashSet<>();
+
+        /**
+         * Created an IdentityRecordsOperation.
+         * @param identityCache the cache with the records
+         * @param identityDatabaseStore the underlying database
+         */
+        public IdentityRecordsOperation(final IdentityCache identityCache, IdentityDatabaseStore identityDatabaseStore) {
+            this.identityCache = identityCache;
+            this.identityDatabaseStore = identityDatabaseStore;
+        }
+
+        /**
+         * Add an entry to the transaction. This will add the entry to the cache.
+         * @param oid of the entity
+         * @param entryData the entity to add
+         * @throws IdentityUninitializedException if the identity store was not initialized
+         */
+        public void addEntry(final long oid, final EntryData entryData)
+                throws IdentityUninitializedException {
+            final EntityInMemoryProxyDescriptor vmtPD;
+            vmtPD = new EntityInMemoryProxyDescriptor(oid,
+                    entryData.getDescriptor(),
+                    entryData.getMetadata());
+            EntityType entityType = entryData.getEntityDTO().get().getEntityType();
+            final IdentityRecord identityRecord = new IdentityRecord(entityType, vmtPD, entryData.getProbeId());
+
+            //If the oid is present and the entity hasn't changed, do nothing
+            final EntityInMemoryProxyDescriptor existingDescriptor = identityCache.get(oid);
+            if (Objects.equals(existingDescriptor, vmtPD)) {
+                return;
+            }
+            if (existingDescriptor == null) {
+                addedOids.add(oid);
+            } else {
+                // Cache the existing records before updating them, in case we need to roll back the changes
+                oldIdentityRecords.add(new IdentityRecord(entityType, existingDescriptor, entryData.getProbeId()));
+            }
+
+            identityCache.addIdentityRecord(identityRecord);
+            identityRecordsToUpdate.add(identityRecord);
+        }
+
+        /**
+         * This method saves all the newly added record to the cache, as part of this transaction,
+         * to the database. It will always be invoked once a transaction gets closed.
+         * @throws IdentityServiceStoreOperationException if there's an issue with the database
+         */
+        @Override
+        public void close() throws IdentityServiceStoreOperationException {
+            if (identityRecordsToUpdate.size() > 0) {
+                Stopwatch stopwatch = Stopwatch.createStarted();
+                try (DataMetricTimer timer = OID_STORING_TIME.startTimer()) {
+                    identityDatabaseStore.saveDescriptors(identityRecordsToUpdate);
+                } catch (IdentityDatabaseException e) {
+                    final String error = String.format("Could not store descriptors for %d entities",
+                            addedOids.size());
+                    LOGGER.error(error);
+                    identityCache.remove(addedOids);
+                    // Revert the non updated identity records
+                    oldIdentityRecords.forEach(identityCache::addIdentityRecord);
+                    throw new IdentityServiceStoreOperationException(error, e);
+                }
+                LOGGER.info("Successfully stored {} entity descriptors in {} seconds",
+                        identityRecordsToUpdate.size(), stopwatch);
+            }
+        }
     }
 }

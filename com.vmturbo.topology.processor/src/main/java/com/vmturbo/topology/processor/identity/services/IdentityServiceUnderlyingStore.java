@@ -11,15 +11,12 @@ import javax.annotation.Nonnull;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.components.common.RequiresDataInitialization;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.identity.EntityDescriptor;
-import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
-import com.vmturbo.topology.processor.identity.EntryData;
 import com.vmturbo.topology.processor.identity.IdentityServiceStoreOperationException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
 import com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptor;
+import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore.IdentityRecordsOperation;
 
 /**
  * The IdentityServiceUnderlyingStore implements the Identity Service underlying service.
@@ -40,34 +37,6 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
-     * Adds the entry to the underlying store.
-     *
-     * @param oid                The object id.
-     * @param descriptor         The descriptor.
-     * @param metadataDescriptor The metadata descriptor.
-     * @param entityType         The type of the entity.
-     * @param probeId            The ID of the probe of the target which discovered the entity.
-     * @throws IdentityServiceStoreOperationException In case of an error adding the Entity.
-     * @throws IdentityUninitializedException If the store is not initialized yet.
-     */
-    void addEntry(final long oid,
-                  @Nonnull final EntityDescriptor descriptor,
-                  @Nonnull final EntityMetadataDescriptor metadataDescriptor,
-                  @Nonnull final EntityType entityType,
-                  final long probeId)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException;
-
-    /**
-     * A bulk insert of entities into the store. The insert will happen atomically.
-     *
-     * @param entryMap The map from OID to the entity-specific data for that entry.
-     * @throws IdentityServiceStoreOperationException In case of an operational error.
-     * @throws IdentityUninitializedException If the store is not initialized yet.
-     */
-    void upsertEntries(@Nonnull final Map<Long, EntryData> entryMap)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException;
-
-    /**
      * Remove the entry to the underlying store.
      *
      * @param oid The object id.
@@ -78,14 +47,10 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
     boolean removeEntry(long oid) throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
-     * Delete an OID from the in memory cache but leave it in the database. This is used
-     * for expiring OIDs (see {@link com.vmturbo.topology.processor.identity.StaleOidManager}).
-     *
-     * @param oid the oid to remove.
-     * @return true if the oid was found in the cache; false if not.
+     * Remove oids from the cache.
+     * @param oids to remove
+     * @return number of succesfully removed oids
      */
-    boolean shallowRemove(long oid);
-
     int bulkRemove(Set<Long> oids);
 
     /**
@@ -105,6 +70,13 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
     List<EntityInMemoryProxyDescriptor> getDtosByNonVolatileProperties(
         @Nonnull List<PropertyDescriptor> properties)
             throws IdentityUninitializedException;
+
+    /**
+     * Creates an IdentityRecordsOperation to cache new oids and then store them.
+     * @return the IdentityRecordsOperation
+     * @throws IdentityUninitializedException if the store was not initialized
+     */
+    IdentityRecordsOperation createTransaction() throws IdentityUninitializedException;
 
     /**
      * Checks whether entity with such OID is already present.
