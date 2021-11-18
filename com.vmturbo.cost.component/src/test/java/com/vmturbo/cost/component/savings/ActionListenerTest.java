@@ -672,6 +672,109 @@ public class ActionListenerTest {
         assertEquals(0, store.size());
     }
 
+    /**
+     * The before and after action costs of an action can be unreliable when the action is in
+     * progress. So if we already have an RECOMMENDATION_ADDED event for an action, we won't
+     * create another RECOMMENDATION_ADDED event when the action status becomes IN_PROGRESS, even
+     * if the cost has changed.
+     *
+     * <p>To support the automation use case, we will still need to create a RECOMMENDATION_ADDED event
+     * if the action status is IN_PROGRESS and we don't already have a RECOMMENDATION_ADDED event
+     * for the action.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testPriceChangeDuringActionExecution() throws Exception {
+        final long vmIdScale1 = 1L;
+        final long volumeIdScale2 = 3L;
+
+        final ActionEntity actionEntityScale1 =
+                createCloudActionEntity(vmIdScale1, EntityType.VIRTUAL_MACHINE_VALUE);
+        final Scale scale1 = createScale(actionEntityScale1);
+        final ActionEntity actionEntityScale2 =
+                createCloudActionEntity(volumeIdScale2, EntityType.VIRTUAL_VOLUME_VALUE);
+        final Scale scale2 = createScale(actionEntityScale2);
+
+        ActionSpec actionSpec1 =
+                createActionSpec(scale1, 1234L, 1234L, System.currentTimeMillis(), ActionState.READY);
+        ActionSpec actionSpec2 =
+                createActionSpec(scale2, 3333L, 4444, System.currentTimeMillis(), ActionState.IN_PROGRESS);
+
+        FilteredActionResponse filteredResponse1 = createFilteredActionResponse(actionSpec1);
+        FilteredActionResponse filteredResponse2 = createFilteredActionResponse(actionSpec2);
+
+        doReturn(Arrays.asList(filteredResponse1, filteredResponse2))
+                .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
+
+        // Make fake cost response
+        Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
+        beforeEntityCostbyOid.put(vmIdScale1, entityCost1);
+        beforeEntityCostbyOid.put(volumeIdScale2, entityCost3);
+
+        Map<Long, EntityCost> afterEntityCostbyOid = new HashMap<>();
+        afterEntityCostbyOid.put(vmIdScale1, entityCost3);
+        afterEntityCostbyOid.put(volumeIdScale2, entityCost2);
+
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
+                .willReturn(afterEntityCostbyOid);
+        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
+                beforeEntityCostbyOid));
+        when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+
+        // Execute Actions Update.
+        actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
+                .setActionPlanId(actionPlanId)
+                .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo
+                                        .newBuilder()
+                                        .setTopologyContextId(realTimeTopologyContextId))))
+                .build());
+
+        // In this invocation of onActionsUpdated, we expect 2 events added to the event journal,
+        // one for each action.
+        // The first action is in READY state, so an event should be added.
+        // The second action is in IN_PROGRESS state, but it is the first time we see this action,
+        // so an event will be created for it. It is the automated action use case.
+        assertEquals(2, store.size());
+        assertEquals(2, actionListener.getExistingActionsInfoToEntityIdMap().size());
+
+
+        Map<Long, EntityCost> beforeEntityCostbyOidDuringExecution = new HashMap<>();
+        beforeEntityCostbyOidDuringExecution.put(vmIdScale1, entityCost1);
+        Map<Long, EntityCost> afterEntityCostbyOidDuringExecution = new HashMap<>();
+        afterEntityCostbyOidDuringExecution.put(vmIdScale1, entityCost1);
+
+        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
+                beforeEntityCostbyOidDuringExecution));
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
+                .willReturn(afterEntityCostbyOidDuringExecution);
+
+        ActionSpec actionSpec1InProgress =
+                createActionSpec(scale1, 1234L, 1234L, System.currentTimeMillis(), ActionState.IN_PROGRESS);
+        FilteredActionResponse filteredResponse1b = createFilteredActionResponse(actionSpec1InProgress);
+        doReturn(Arrays.asList(filteredResponse1b, filteredResponse2))
+                .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
+
+        // Execute Actions Update.
+        actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
+                .setActionPlanId(actionPlanId)
+                .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo
+                                        .newBuilder()
+                                        .setTopologyContextId(realTimeTopologyContextId))))
+                .build());
+
+        // In the second invocation of the onActionsUpdated method, the state of the first action
+        // is changed to IN_PROGRESS, and the cost of the action is change. In this case, we don't
+        // want to create a new event for it. So we expect the number of event in the journal to
+        // remain at 2.
+        assertEquals(2, store.size());
+        assertEquals(2, actionListener.getExistingActionsInfoToEntityIdMap().size());
+    }
+
     @Nonnull
     private FilteredActionResponse createFilteredActionResponse(ActionSpec actionSpec1) {
         return FilteredActionResponse.newBuilder()

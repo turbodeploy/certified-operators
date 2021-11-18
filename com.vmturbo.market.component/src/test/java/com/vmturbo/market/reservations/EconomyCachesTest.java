@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -122,6 +123,7 @@ public class EconomyCachesTest {
      */
     @Before
     public void setUpBefore() {
+        IdentityGenerator.initPrefix(0);
         economyCaches.economyCachePersistence = economyCachePersistenceSpy;
     }
 

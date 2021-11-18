@@ -36,7 +36,7 @@ public class CloudCommitmentInfoMapper extends TypeSpecificInfoMapper {
                 cloudCommitmentInfoBuilder.setFamilyRestricted(cloudCommitmentData.getFamilyRestricted());
                 break;
             default:
-                logger.error("No scope found on Cloud Commitment Data {}", cloudCommitmentData.toString());
+                logger.error("No scope found on Cloud Commitment Data {}", cloudCommitmentData);
                 break;
         }
         switch (cloudCommitmentData.getCommitmentCase()) {
@@ -46,8 +46,13 @@ public class CloudCommitmentInfoMapper extends TypeSpecificInfoMapper {
             case NUMBER_COUPONS:
                 cloudCommitmentInfoBuilder.setNumberCoupons(cloudCommitmentData.getNumberCoupons());
                 break;
+            case COMMODITIES_BOUGHT:
+                cloudCommitmentInfoBuilder.setCommoditiesBought(
+                        cloudCommitmentData.getCommoditiesBought());
+                break;
             default:
-                logger.error("No commitment found on Cloud Commitment Data {}", cloudCommitmentData.toString());
+                logger.error("No commitment found on Cloud Commitment Data {}",
+                        cloudCommitmentData);
         }
         if (cloudCommitmentData.hasExpirationTimeMilliseconds()) {
             cloudCommitmentInfoBuilder.setExpirationTimeMilliseconds(cloudCommitmentData.getExpirationTimeMilliseconds());
@@ -64,7 +69,15 @@ public class CloudCommitmentInfoMapper extends TypeSpecificInfoMapper {
         if (cloudCommitmentData.hasProviderSpecificType()) {
             cloudCommitmentInfoBuilder.setProviderSpecificType(cloudCommitmentData.getProviderSpecificType());
         }
-        return TypeSpecificInfo.newBuilder().setCloudCommitmentData(cloudCommitmentInfoBuilder.build())
+        if (cloudCommitmentData.hasCommitmentStatus()) {
+            cloudCommitmentInfoBuilder.setCommitmentStatus(
+                    cloudCommitmentData.getCommitmentStatus());
+        }
+        if (cloudCommitmentData.hasCommitmentScope()) {
+            cloudCommitmentInfoBuilder.setCommitmentScope(cloudCommitmentData.getCommitmentScope());
+        }
+        return TypeSpecificInfo.newBuilder()
+                .setCloudCommitmentData(cloudCommitmentInfoBuilder)
                 .build();
     }
 }

@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>8.3.6-SNAPSHOT</version>
+        <version>8.4.1-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -527,7 +527,7 @@
         <dependency>
             <groupId>org.eclipse.birt.runtime</groupId>
             <artifactId>org.eclipse.datatools.modelbase.sql</artifactId>
-            <version>1.0.6.v201208230744</version>
+            <version>1.0.6.v201208.4.044</version>
         </dependency>
         <dependency>
             <groupId>org.eclipse.birt.runtime</groupId>

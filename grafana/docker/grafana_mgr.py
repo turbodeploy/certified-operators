@@ -332,15 +332,15 @@ class LicenseUpdateOperation:
         except grpc.RpcError as rpc_error:
             self.logger.error('gRPC call to auth failed: %s', rpc_error)
 
-    def ensure_editors_exist(self, editor_count):
+    def ensure_editors_exist(self, editor_count, retries=5):
         if self.saas_reporting_enabled:
             for i in range(editor_count):
                 editor_name = f'{self.editor_user_prefix}-{i}'
-                id = self.ensure_user_exists(editor_name)
+                id = self.ensure_user_exists(editor_name, retries=retries)
                 self.ensure_user_role(id, 1, 'Admin')
 
-    def ensure_user_exists(self, name):
-        with self.get_admin_session() as s:
+    def ensure_user_exists(self, name, retries=5):
+        with self.get_admin_session(retries=retries) as s:
             try:
                 resp = s.get(f"http://localhost:{self.admin_port}/api/users/lookup",
                              params={'loginOrEmail': name})
@@ -371,10 +371,10 @@ class LicenseUpdateOperation:
             except requests.exceptions.RequestException as e:
                 raise RuntimeError(f"Failed to update user id {id} to role {role}") from e
 
-    def get_admin_session(self):
+    def get_admin_session(self, retries=5):
         s = requests.Session()
         # try up to about half a minute to get a connection
-        s.mount('http://', HTTPAdapter(max_retries=Retry(connect=5, backoff_factor=1)))
+        s.mount('http://', HTTPAdapter(max_retries=Retry(connect=retries, backoff_factor=1)))
         s.auth = (self.admin_user, self.admin_password)
         return s
 
@@ -446,7 +446,11 @@ def main():
                     # Grafana may crash, or fail to start up (e.g. if the extractor hasn't finished
                     # initializing the database users).
                     grafana.ensure_started()
-                    license_update_op.ensure_editors_exist(1)
+                    # allow extra retries in case this is first start and we're going through
+                    # database migrations
+                    # TODO do something smarter about detecting the server is up but not yet
+                    # ready for connections
+                    license_update_op.ensure_editors_exist(1, retries=8)
                     time.sleep(10)
     except RuntimeError:
         if sys.exc_info()[0] != SystemExit:

@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
@@ -93,6 +94,7 @@ public class InitialPlacementFinderTest {
      */
     @Before
     public void before() {
+        IdentityGenerator.initPrefix(0);
         reservationServiceBlockingStub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 

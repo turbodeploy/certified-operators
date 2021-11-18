@@ -201,6 +201,12 @@ public class ActionSearchUtilTest {
         verifyZeroInteractions(actionSpecMapper);
     }
 
+    /**
+     * Verify that {@code expandAggregatedEntities} method is invoked even if list of related
+     * entity types {@code relatedEntityTypes} is defined.
+     *
+     * @throws Exception should not happen.
+     */
     @Test
     public void testGetActionsByEntityWithRelatedEntity() throws Exception {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);

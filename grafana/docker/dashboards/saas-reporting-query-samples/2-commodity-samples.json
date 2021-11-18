@@ -1,0 +1,211 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 4697,
+  "links": [],
+  "panels": [
+    {
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "content": "<h1>Getting a list of Commodity Names</h1>\n\n<pre>\nSELECT \n  DISTINCT com.name \nFROM \n   GRAPH('(com:Commodity)') \nORDER BY com.name ASC\n</pre>\n         ",
+        "mode": "html"
+      },
+      "pluginVersion": "7.5.9",
+      "timeFrom": null,
+      "timeShift": null,
+      "type": "text"
+    },
+    {
+      "datasource": "Turbonomic Data Cloud",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": null,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "hideTimeOverride": true,
+      "id": 2,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "downsample": true,
+          "format": "Auto",
+          "queryText": "SELECT DISTINCT com.name FROM GRAPH('(com:Commodity)') ORder by com.name ASC LIMIT 100",
+          "refId": "A",
+          "timeRangeExtension": true
+        }
+      ],
+      "timeFrom": "10m",
+      "title": "Commodity Names",
+      "type": "table"
+    },
+    {
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "content": "<h1>Getting an average of Commodity utilization across entities</h1>\n\n<pre>\nSELECT \n  relabel(ts_avg(com.utilization), com.name)\nFROM \n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nGroup by com.name\n</pre>\n         ",
+        "mode": "html"
+      },
+      "pluginVersion": "7.5.9",
+      "timeFrom": null,
+      "timeShift": null,
+      "type": "text"
+    },
+    {
+      "datasource": "Turbonomic Data Cloud",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "graph": false,
+              "legend": false,
+              "tooltip": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "hideTimeOverride": true,
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltipOptions": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "7.5.9",
+      "targets": [
+        {
+          "downsample": true,
+          "format": "Auto",
+          "queryText": "SELECT \n  relabel(ts_avg(com.utilization), com.name)\nFROM \n  GRAPH('(vm:VirtualMachine)-[:sells]->(com:Commodity)') \nGroup by com.name\nLimit 10\n\n",
+          "refId": "A",
+          "timeRangeExtension": true
+        }
+      ],
+      "timeFrom": null,
+      "title": "Panel Title",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Sample 2. Commodities Query Samples",
+  "uid": "7ABuUbvnk",
+  "version": 4
+}

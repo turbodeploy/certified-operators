@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
@@ -13,8 +14,10 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.ReplicationRole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Topology Extension data related to Database type-specific data.
@@ -42,6 +45,8 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
                     .put(DB_SERVICE_TIER, DBEntityAspectApiDTO::setServiceTier)
                     .put(DB_COMPUTE_TIER, DBEntityAspectApiDTO::setComputeTier)
                     .put(DB_HW_GENERATION, DBEntityAspectApiDTO::setHardwareGeneration)
+                    .put(StringConstants.DB_REPLICATION_ROLE,
+                            (aspect, v) -> Optional.of(ReplicationRole.valueOf(v)).ifPresent(aspect::setReplicationRole))
                     .build();
 
 

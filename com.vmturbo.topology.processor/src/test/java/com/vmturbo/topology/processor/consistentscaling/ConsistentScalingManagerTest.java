@@ -185,7 +185,7 @@ public class ConsistentScalingManagerTest {
         makeGrouping(104L, "DiscoveredGroup-A", EnvironmentType.CLOUD, 4L, 6L);
         makeGrouping(105L, "DiscoveredGroup-B", EnvironmentType.CLOUD, 7L);
         makeGrouping(106L, "One-VM-in-DiscoveredGroup-A", EnvironmentType.CLOUD, 6L);
-        // VMs 10, 11 and 12 are powered off
+        // VMs 20, 21, and 22 are powered off
         makeGrouping(109L, "One-VM-powered-off", EnvironmentType.CLOUD, 9L, 20L);
         makeGrouping(111L, "All-VMs-powered-off", EnvironmentType.CLOUD, 21L, 22L);
         makeGrouping(112L, "On-prem-group", EnvironmentType.ON_PREM, 11L, 12L);
@@ -200,6 +200,7 @@ public class ConsistentScalingManagerTest {
         makeSettingPolicy(1007L, 107L, true);
         makeSettingPolicy(1009L, 109L, true);
         makeSettingPolicy(1011L, 111L, true);
+        makeSettingPolicy(1012L, 112L, true);
     }
 
     /**
@@ -216,7 +217,7 @@ public class ConsistentScalingManagerTest {
         // The are 7 VMs in the topology, and VM-6 has consistent scaling disabled via policy.
         // Ensure that there are 6 entries in the user settings map and that 6 does not exist.
         Assert.assertEquals(userSettingsByEntityAndName.keySet(),
-                new HashSet<>(Arrays.asList(1L, 2L, 3L, 4L, 5L, 7L, 9L)));
+                new HashSet<>(Arrays.asList(1L, 2L, 3L, 4L, 5L, 7L, 9L, 11L, 12L)));
         // Ensure that the "scalingGroupMembership" setting is present for all of these
         Assert.assertTrue(userSettingsByEntityAndName.values().stream()
             .allMatch(m -> m.keySet()
@@ -269,8 +270,8 @@ public class ConsistentScalingManagerTest {
         // not be created.  The internal group list is not exposed in the CSM and I don't feel like
         // doing it just for test, so if the scaling group ID query for both members returns empty,
         // then we can be assured that there was no group created for them.
-        Assert.assertFalse(csm.getScalingGroupId(11L).isPresent());
-        Assert.assertFalse(csm.getScalingGroupId(12L).isPresent());
+        Assert.assertFalse(csm.getScalingGroupId(21L).isPresent());
+        Assert.assertFalse(csm.getScalingGroupId(22L).isPresent());
     }
 
     /**

@@ -568,6 +568,11 @@ public class StringConstants {
     public static final String DBS_STORAGE_TIER = "storage_tier";
 
     /**
+     * Database replication role.
+     */
+    public static final String DB_REPLICATION_ROLE = "replication_role";
+
+    /**
      * Azure availability set recommend only policy prefix.
      */
     public static final String AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX = "ASRO:";

@@ -49,9 +49,9 @@ setup() {
   ln -s -f /grafana-plugins/* "$GF_PATHS_PLUGINS"
   ln -s -f /grafana-$context-runtime $GF_PATHS_HOME
 
+  ln -s -f /grafana-dashboards/system-dashboards.yaml $GF_PATHS_PROVISIONING/dashboards
+  ln -s -f /grafana-datasources/standard-datasources.yaml $GF_PATHS_PROVISIONING/datasources
   if $SAAS_REPORTING; then
-    ln -s -f /grafana-dashboards/system-dashboards.yaml $GF_PATHS_PROVISIONING/dashboards
-    ln -s -f /grafana-datasources/standard-datasources.yaml $GF_PATHS_PROVISIONING/datasources
     if [[ $context == 'saas-reporting' ]]; then
       /util/install_saas_reporting_datasources.sh
       ln -s -f /grafana-dashboards/saas-reporting-dashboards.yaml \

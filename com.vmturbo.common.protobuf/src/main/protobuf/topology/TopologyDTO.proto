@@ -272,12 +272,15 @@ message TypeSpecificInfo {
         oneof commitment {
             common_dto.CurrencyAmount spend = 3;
             int64 number_coupons = 4;
+            common_dto.EntityDTO.CloudCommitmentData.CommittedCommoditiesBought commodities_bought = 10;
         }
         optional common_dto.PaymentOption payment = 5;
         optional int64 term_milliseconds = 6;
         optional int64 start_time_milliseconds = 7;
         optional int64 expiration_time_milliseconds = 8;
         optional common_dto.EntityDTO.CloudCommitmentData.ProviderType provider_specific_type = 9;
+        optional common_dto.EntityDTO.CloudCommitmentData.CloudCommitmentStatus commitment_status = 11;
+        optional common_dto.EntityDTO.CloudCommitmentData.CloudCommitmentScope commitment_scope = 12;
     }
 
     // Architectures

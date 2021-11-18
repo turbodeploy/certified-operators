@@ -1905,6 +1905,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final ActionApprovalMessageHandler handler = new ActionApprovalMessageHandler(operation,
                 remoteMediationServer.getMessageHandlerExpirationClock(), discoveryTimeoutMs,
                 internalCallback);
+        logger.info("Sending {} actions for approval to {} target", requests.size(), target.getDisplayName());
         remoteMediationServer.sendActionApprovalsRequest(target, request, handler);
         operationStart(handler);
         return operation;
@@ -1930,6 +1931,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final GetActionStateMessageHandler handler = new GetActionStateMessageHandler(operation,
                 remoteMediationServer.getMessageHandlerExpirationClock(), discoveryTimeoutMs,
                 internalCallback);
+        logger.info("Getting the states of {} actions from {} target",
+                actions.size(), target.getDisplayName());
         remoteMediationServer.sendGetActionStatesRequest(target, request, handler);
         operationStart(handler);
         return operation;
@@ -1953,6 +1956,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final ActionUpdateStateMessageHandler handler = new ActionUpdateStateMessageHandler(
                 operation, remoteMediationServer.getMessageHandlerExpirationClock(),
                 discoveryTimeoutMs, internalCallback);
+        logger.info("Sending the states of {} actions to {}", actions.size(), target.getDisplayName());
         remoteMediationServer.sendActionUpdateStateRequest(target, request, handler);
         operationStart(handler);
         return operation;
