@@ -469,11 +469,15 @@ public class ActionListener implements ActionsListener {
             // cause the event to be removed.
             long eventTime = newActionInfo.recommendationTime < periodStartTime
                     ? currentTime : newActionInfo.getRecommendationTime();
-            if (actionPriceChange != null) {
-                logger.debug("New action price change for {}, {}, {}, {}:",
-                        newActionId,
-                        actionState, actionPriceChange.getSourceCost(),
-                        actionPriceChange.getDestinationCost());
+            boolean recommendationExistsForActionId = existingActionsInfoToEntityId.keySet().stream()
+                    .map(EntityActionInfo::getActionId)
+                    .anyMatch(id -> id.equals(newActionId));
+            // We require all actions to have an RECOMMENDATION_ADDED event, but we want to avoid
+            // querying entity costs when an action is in progress. Therefore, we will only generate
+            // the RECOMMENDATION_ADDED event if an action is in READY state OR we don't already
+            // have a RECOMMENDATION_ADDED event for the action.
+            if (actionPriceChange != null
+                    && (ActionState.READY.equals(actionState) || !recommendationExistsForActionId)) {
                 SavingsEvent pendingActionEvent = createActionEvent(entityId,
                         eventTime,
                         ActionEventType.RECOMMENDATION_ADDED,
@@ -481,13 +485,14 @@ public class ActionListener implements ActionsListener {
                         actionPriceChange,
                         newActionInfo, Optional.empty());
                 newPendingActionEvents.add(pendingActionEvent);
-                logger.debug("Added new pending event for action {}, entity {},"
-                         + " action state {}, source oid {}, destination oid {},"
-                         + " entity type {}",
-                         newActionId, entityId, actionState,
-                         newActionInfo.getSourceOid(),
-                         newActionInfo.getDestinationOid(),
-                         newActionInfo.getEntityType());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Created RECOMMENDATION_ADDED event for action {}, action state {}, "
+                                    + "entity {}, entity type {}, source OID {}, source cost {}, "
+                                    + "destination OID {}, destination cost {}",
+                            newActionId, actionState, entityId, newActionInfo.getEntityType(),
+                            newActionInfo.getSourceOid(), actionPriceChange.getSourceCost(),
+                            newActionInfo.getDestinationOid(), actionPriceChange.getDestinationCost());
+                }
             }
         });
         final Stopwatch pendingWatch = Stopwatch.createStarted();
@@ -618,7 +623,7 @@ public class ActionListener implements ActionsListener {
      */
     private static SavingsEvent
             createActionEvent(Long entityId, Long timestamp, ActionEventType actionType,
-                              long actionId, @Nonnull final EntityPriceChange priceChange,
+                              long actionId, final EntityPriceChange priceChange,
                               final EntityActionInfo actionInfo, final Optional<Long> expiration) {
         final ActionEvent.Builder actionEventBuilder = new ActionEvent.Builder()
                         .actionId(actionId)
