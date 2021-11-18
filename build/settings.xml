@@ -4,7 +4,15 @@
     <localRepository>${user.home}/.m2/repository</localRepository>
     <interactiveMode>false</interactiveMode>
     <offline>false</offline>
-    <mirrors/>
+    <mirrors>
+          <mirror>
+               <id>maven-default-http-blocker</id>
+               <mirrorOf>dummy</mirrorOf>
+               <name>Dummy mirror to override default blocking mirror that blocks http</name>
+               <url>http://0.0.0.0/</url>
+               <blocked>true</blocked>
+         </mirror>
+    </mirrors>
     <proxies/>
     <profiles>
         <profile>
@@ -45,14 +53,14 @@
                         <enabled>true</enabled>
                     </snapshots>
                 </repository>
-                <!-- https://github.com/Swagger2Markup/swagger2markup/issues/300 -->
-                <!--repository>
-                    <id>spring-libs-milestone</id>
-                    <url>https://repo.spring.io/milestone</url>
+                <repository>
+                    <id>mavencentral</id>
+                    <name>mavencentral</name>
+                    <url>https://repo.maven.apache.org/maven2</url>
                     <snapshots>
                         <enabled>false</enabled>
                     </snapshots>
-                </repository -->
+                </repository>
             </repositories>
             <pluginRepositories>
                 <pluginRepository>
@@ -78,15 +86,8 @@
                     <name>Turbonomic Repository</name>
                     <url>http://build.vmturbo.com:8081/nexus/content/repositories/thirdparty</url>
                 </pluginRepository>
-                <!-- https://github.com/Swagger2Markup/swagger2markup/issues/300 -->
-                <!--pluginRepository>
-                    <id>spring-plugins-release</id>
-                    <url>https://repo.spring.io/plugins-release</url>
-                    <snapshots>
-                        <enabled>false</enabled>
-                    </snapshots>
-                </pluginRepository -->
             </pluginRepositories>
         </profile>
     </profiles>
 </settings>
+
