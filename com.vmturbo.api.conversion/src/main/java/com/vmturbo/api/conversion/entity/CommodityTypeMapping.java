@@ -176,8 +176,6 @@ public class CommodityTypeMapping {
             .put(CommodityType.STORAGE_ACCESS_SSD_WRITE, CommodityInfo.of("IopsSSDWrite", "IopsSSDWrite", "IOPS"))
             .put(CommodityType.STORAGE_ACCESS_STANDARD_READ, CommodityInfo.of("IopsStandardRead", "IopsStandardRead", "IOPS"))
             .put(CommodityType.STORAGE_ACCESS_STANDARD_WRITE, CommodityInfo.of("IopsStandardWrite", "IopsStandardWrite", "IOPS"))
-            .put(CommodityType.IO_THROUGHPUT_READ, CommodityInfo.of("IOThroughputRead", "IOThroughputRead", "KByte/sec"))
-            .put(CommodityType.IO_THROUGHPUT_WRITE, CommodityInfo.of("IOThroughputWrite", "IOThroughputWrite", "KByte/sec"))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 
