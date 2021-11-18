@@ -73,6 +73,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     /**
      * Feature flag to enable reporting features on API and extractor components.
      * Using this flag to also enable AUTH component reporting features too.
+     * This flag take the priority over `isReportingEnabled`.
      */
     @Value("${enableReporting:false}")
     private boolean enableReporting;
