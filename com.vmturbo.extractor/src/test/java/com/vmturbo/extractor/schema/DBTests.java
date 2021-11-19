@@ -39,7 +39,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"enableReporting=true"})
+@TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
 public class DBTests {
 
     private DbEndpoint endpoint = null;
