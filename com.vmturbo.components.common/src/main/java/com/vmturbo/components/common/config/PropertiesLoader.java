@@ -32,10 +32,9 @@ import org.apache.commons.lang.SystemUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertiesPropertySource;
 import org.springframework.core.env.PropertySource;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -74,19 +73,19 @@ public class PropertiesLoader {
 
     /**
      * Load the configuration properties from "properties.yaml" and the "other" configuration
-     * properties into PropertySources and add those to the given {@link Environment}.
+     * properties into PropertySources and add those to the given ApplicationContext.
      *
-     * @param environment spring environment where properties should be loaded
-     * @throws ContextConfigurationException if there is an error reading any of the
-     *         property configuration sources
+     * @param applicationContext the context for the component to be configured
+     * @throws ContextConfigurationException if there is an error reading any of the property
+     * configuration sources
      */
     public static void addConfigurationPropertySources(
-            @Nonnull final ConfigurableEnvironment environment)
+        @Nonnull final AnnotationConfigWebApplicationContext applicationContext)
             throws ContextConfigurationException {
         // Fetch external configuration properties from  to add to context
         String propertiesYamlFilePath = EnvironmentUtils
-                .getOptionalEnvProperty(PROP_PROPERTIES_YAML_PATH)
-                .orElse(DEFAULT_PROPERTIES_YAML_FILE_PATH);
+            .getOptionalEnvProperty(PROP_PROPERTIES_YAML_PATH)
+            .orElse(DEFAULT_PROPERTIES_YAML_FILE_PATH);
         final String secretYamlFilePath = EnvironmentUtils
                 .getOptionalEnvProperty(PROP_SECRETS_YAML_PATH)
                 .orElse(DEFAULT_SECRETS_YAML_FILE_PATH);
@@ -95,17 +94,18 @@ public class PropertiesLoader {
                 .getOptionalEnvProperty(PROP_TLS_SECRETS_YAML_PATH)
                 .orElse(DEFAULT_TLS_SECRETS_YAML_FILE_PATH);
 
-        final String componentType = environment.getRequiredProperty(PROP_COMPONENT_TYPE);
+        final String componentType = applicationContext.getEnvironment().getRequiredProperty(PROP_COMPONENT_TYPE);
         final PropertySource<?> mergedPropertyConfiguration =
-                fetchConfigurationProperties(componentType, propertiesYamlFilePath,
-                        secretYamlFilePath, tlsSecretYamlFilePath);
-        environment.getPropertySources().addFirst(mergedPropertyConfiguration);
+            fetchConfigurationProperties(componentType, propertiesYamlFilePath, secretYamlFilePath, tlsSecretYamlFilePath);
+        applicationContext.getEnvironment().getPropertySources()
+            .addFirst(mergedPropertyConfiguration);
         // Fetch other configuration properties from files compiled into the component
-        environment.getPropertySources().addFirst(fetchOtherProperties(CONFIG));
+        applicationContext.getEnvironment().getPropertySources()
+            .addFirst(fetchOtherProperties(CONFIG));
         if (logger.isInfoEnabled()) {
             // print the property source list
             logger.info("Application context property sources:");
-            environment.getPropertySources().iterator()
+            applicationContext.getEnvironment().getPropertySources().iterator()
                     .forEachRemaining(source -> logger.info("    {}", source.getName()));
         }
     }

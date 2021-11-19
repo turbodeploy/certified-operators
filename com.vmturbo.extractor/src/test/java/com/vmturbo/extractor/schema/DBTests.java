@@ -19,7 +19,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
@@ -27,7 +26,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests of certain schema objects that require a live database.
@@ -39,7 +37,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@TestPropertySource(properties = {"enableReporting=true"})
 public class DBTests {
 
     private DbEndpoint endpoint = null;
@@ -54,11 +52,6 @@ public class DBTests {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
-
-    /** Manage feature flag states. */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     /**
      * Set up for tests.

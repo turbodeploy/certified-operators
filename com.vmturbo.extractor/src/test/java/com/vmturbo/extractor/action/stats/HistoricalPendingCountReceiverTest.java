@@ -19,7 +19,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.action.orchestrator.api.export.ActionRollupExport.ActionGroup;
@@ -47,7 +46,6 @@ import com.vmturbo.sql.utils.DbEndpoint;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-@TestPropertySource(properties = {"sqlDialect=POSTGRES"})
 public class HistoricalPendingCountReceiverTest {
 
     /**

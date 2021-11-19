@@ -37,7 +37,7 @@ public class PropertyReader {
     public ConnectionConfiguration getConnectionConfiguration() throws ContextConfigurationException {
         registerConfiguration(context, PropertyConfiguration.class);
         registerConfiguration(context, TopologyProcessorClientConfig.class);
-        PropertiesLoader.addConfigurationPropertySources(context.getEnvironment());
+        PropertiesLoader.addConfigurationPropertySources(context);
         final TopologyProcessorClientConfig tpConfig = context.getBean(TopologyProcessorClientConfig.class);
         final ConfigurableEnvironment env = context.getEnvironment();
         final ConnectionProperties properties = new ConnectionProperties(

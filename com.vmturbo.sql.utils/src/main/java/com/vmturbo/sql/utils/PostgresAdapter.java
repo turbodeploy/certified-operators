@@ -24,7 +24,8 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * {@link DbAdapter} implementation for PostgreSQL endpoints.
  */
-public class PostgresAdapter extends DbAdapter {
+public class
+PostgresAdapter extends DbAdapter {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -407,10 +408,5 @@ public class PostgresAdapter extends DbAdapter {
             logger.error("Failed to drop writers group {}",
                     getGroupName(WRITERS_GROUP_ROLE_PREFIX), e);
         }
-    }
-
-    @Override
-    protected String quote(final String name) {
-        return "\"" + name + "\"";
     }
 }

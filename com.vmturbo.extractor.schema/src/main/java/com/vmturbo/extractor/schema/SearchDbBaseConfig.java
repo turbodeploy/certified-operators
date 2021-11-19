@@ -1,18 +1,24 @@
 package com.vmturbo.extractor.schema;
 
 import org.jooq.SQLDialect;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpointsConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * Configuration of DB endpoints needed for extractor component.
  */
 @Configuration
-public class SearchDbBaseConfig extends DbEndpointsConfig {
+@Import(SQLDatabaseConfig2.class)
+public class SearchDbBaseConfig {
+
+    @Autowired
+    private SQLDatabaseConfig2 dbConfig;
 
     /**
      * Default name of database for extractor database.
@@ -45,7 +51,7 @@ public class SearchDbBaseConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint extractorMySqlDbEndpoint() {
-        return abstractDbEndpoint(null, SQLDialect.MYSQL)
+        return dbConfig.abstractDbEndpoint(null, SQLDialect.MYSQL)
                 .withDatabaseName(searchDatabaseName)
                 .withSchemaName(searchDatabaseName)
                 .withRootUserName(searchDatabaseRootUser)

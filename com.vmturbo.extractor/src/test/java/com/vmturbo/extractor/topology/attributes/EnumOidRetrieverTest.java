@@ -18,7 +18,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityState;
@@ -27,7 +26,6 @@ import com.vmturbo.extractor.topology.attributes.EnumOidRetriever.PostgresEnumOi
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link EnumOidRetriever}.
@@ -35,7 +33,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@TestPropertySource(properties = {"enableReporting=true"})
 public class EnumOidRetrieverTest {
 
     @Autowired
@@ -47,13 +45,6 @@ public class EnumOidRetrieverTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
-
-    /**
-     * Manage feature flags.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     private DbEndpoint ingesterEndpoint;
 

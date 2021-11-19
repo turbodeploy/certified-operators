@@ -137,7 +137,7 @@ public class Voltron extends BaseVmtComponent {
     @Nonnull
     private static VoltronContext createContext(
             @Nonnull ServletContextHandler contextServer, String namespace, VoltronConfiguration config)
-            throws IOException {
+            throws ContextConfigurationException, IOException {
 
         PropertyRegistry propertyRegistry = new PropertyRegistry(namespace, config.getDataPath(), config);
 
@@ -262,8 +262,7 @@ public class Voltron extends BaseVmtComponent {
         // been torn down yet.
         Runtime.getRuntime().addShutdownHook(new Thread(onExitDemolisher));
         try {
-            StandardEnvironment environment = new StandardEnvironment();
-             startServer((contextServer, environment1) -> {
+             startServer((contextServer) -> {
                 try {
                     final VoltronContext context = createContext(contextServer, namespace, config);
                     voltronContext.trySetValue(context);
@@ -272,10 +271,10 @@ public class Voltron extends BaseVmtComponent {
                     }
                     WebSocketServerContainerInitializer.configureContext(contextServer);
                     return context.getRootContext();
-                } catch (ServletException | IOException e) {
+                } catch (ServletException e) {
                     throw new ContextConfigurationException("Could not configure websockets", e);
                 }
-            }, environment);
+            });
 
              voltronContext.getValue().ifPresent(v -> {
                  RefreshController refreshCtrl = v.rootContext.getBean(RefreshController.class);

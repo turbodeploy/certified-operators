@@ -33,7 +33,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -59,14 +58,12 @@ import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory.BottomU
 import com.vmturbo.extractor.util.TopologyTestUtil;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests for EntityCostWriter class.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-@TestPropertySource(properties = {"sqlDialect=POSTGRES"})
 public class EntityCostListenerTest {
 
     @Autowired
@@ -89,9 +86,6 @@ public class EntityCostListenerTest {
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(costService);
 
-    /** Manage feature flags. */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Set up for tests.

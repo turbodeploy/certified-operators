@@ -3,6 +3,7 @@ package com.vmturbo.components.common.featureflags;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.springframework.core.env.Environment;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationException;
 import com.vmturbo.components.common.config.PropertiesLoader;
@@ -25,8 +26,24 @@ public class PropertiesLoaderFeatureFlagEnablementStore implements FeatureFlagEn
      * @throws ContextConfigurationException if there's a problem loading properties
      */
     @VisibleForTesting
-    public PropertiesLoaderFeatureFlagEnablementStore(Environment environment) {
+    PropertiesLoaderFeatureFlagEnablementStore(Environment environment) throws ContextConfigurationException {
+        if (environment == null) {
+            final AnnotationConfigWebApplicationContext context =
+                    new AnnotationConfigWebApplicationContext();
+            PropertiesLoader.addConfigurationPropertySources(context);
+            environment = context.getEnvironment();
+        }
         this.environment = environment;
+    }
+
+    /**
+     * Create a new instance that draws enablement state from properties injected by {@link
+     * PropertiesLoader}.
+     *
+     * @throws ContextConfigurationException if there's a problem loading properties
+     */
+    public PropertiesLoaderFeatureFlagEnablementStore() throws ContextConfigurationException {
+        this(null);
     }
 
     @Override

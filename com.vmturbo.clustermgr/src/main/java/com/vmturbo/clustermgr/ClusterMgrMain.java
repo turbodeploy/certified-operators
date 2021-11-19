@@ -1,6 +1,5 @@
 package com.vmturbo.clustermgr;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -10,7 +9,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nonnull;
 import javax.annotation.PreDestroy;
 import javax.servlet.Servlet;
-import javax.sql.DataSource;
 
 import io.grpc.BindableService;
 
@@ -18,7 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
@@ -26,7 +23,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.core.env.StandardEnvironment;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
@@ -36,11 +32,8 @@ import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 import com.vmturbo.clustermgr.management.ComponentRegistrationConfig;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.config.PropertiesLoader;
-import com.vmturbo.components.common.featureflags.FeatureFlagManager;
-import com.vmturbo.components.common.featureflags.PropertiesLoaderFeatureFlagEnablementStore;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * The ClusterMgrMain is a utility to launch each of the VmtComponent Docker Containers configured to run on the
@@ -49,8 +42,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  * persistent key/value server and is injected automatically by Spring Cloud Configuration.
  */
 @Configuration("theComponent")
-@Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class,
-        DbAccessConfig.class})
+@Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class, ClustermgrDBConfig.class})
 public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent> {
 
     private static final Logger log = LogManager.getLogger();
@@ -64,7 +56,7 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
     private ClusterMgrConfig clusterMgrConfig;
 
     @Autowired
-    private DbAccessConfig dbAccessConfig;
+    private ClustermgrDBConfig clustermgrDBConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -106,20 +98,17 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
     public static void main(String[] args) {
         final Logger logger = LogManager.getLogger();
         logger.info("Starting web server with spring context");
-        try {
-            StandardEnvironment environment = new StandardEnvironment();
-            PropertiesLoader.addConfigurationPropertySources(environment);
-            FeatureFlagManager.setStore(new PropertiesLoaderFeatureFlagEnablementStore(environment));
-            final String serverPort = requireEnvProperty("serverHttpPort");
+        final String serverPort = requireEnvProperty("serverHttpPort");
 
-            final org.eclipse.jetty.server.Server server =
-                    new org.eclipse.jetty.server.Server(Integer.parseInt(serverPort));
-            final ServletContextHandler contextServer =
-                    new ServletContextHandler(ServletContextHandler.SESSIONS);
+        final org.eclipse.jetty.server.Server server =
+                new org.eclipse.jetty.server.Server(Integer.parseInt(serverPort));
+        final ServletContextHandler contextServer =
+                new ServletContextHandler(ServletContextHandler.SESSIONS);
+        try {
             server.setHandler(contextServer);
             final AnnotationConfigWebApplicationContext applicationContext =
                     new AnnotationConfigWebApplicationContext();
-            applicationContext.setEnvironment(environment);
+            PropertiesLoader.addConfigurationPropertySources(applicationContext);
             applicationContext.register(ClusterMgrMain.class);
             final Servlet dispatcherServlet = new DispatcherServlet(applicationContext);
             final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
@@ -139,6 +128,7 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
             ComponentGrpcServer.get().start(applicationContext.getEnvironment());
 
             applicationContext.getBean(ClusterMgrMain.class).run();
+
         } catch (Exception e) {
             logger.error("Web server failed to start. Shutting down.", e);
             System.exit(1);
@@ -162,19 +152,10 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
      */
     @Bean
     public CompositeHealthMonitor healthMonitor() {
-        final DataSource dataSource;
-        try {
-            dataSource = dbAccessConfig.dataSource();
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create CompositeHealthMonitor", e);
-        }
         final CompositeHealthMonitor healthMonitor =
                 new CompositeHealthMonitor("Clustermgr Component");
         healthMonitor.addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                dataSource::getConnection));
+                clustermgrDBConfig.dataSource()::getConnection));
         return healthMonitor;
     }
 

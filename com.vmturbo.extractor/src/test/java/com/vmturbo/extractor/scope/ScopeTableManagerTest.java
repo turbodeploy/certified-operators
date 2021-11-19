@@ -40,7 +40,6 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test class for {@link ScopeTableManager}.
@@ -48,7 +47,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@TestPropertySource(properties = {"enableReporting=true"})
 public class ScopeTableManagerTest {
     private DSLContext dsl;
     private DbEndpoint endpoint;
@@ -66,10 +65,6 @@ public class ScopeTableManagerTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
-
-    /** Manage feature flags. */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Set up for tests.

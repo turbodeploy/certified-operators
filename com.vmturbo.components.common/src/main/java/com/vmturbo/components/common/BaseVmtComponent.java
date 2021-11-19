@@ -56,9 +56,7 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
-import org.springframework.core.env.StandardEnvironment;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
@@ -77,6 +75,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.featureflags.FeatureFlagEnablementStore;
 import com.vmturbo.components.common.featureflags.FeatureFlagManager;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.featureflags.PropertiesLoaderFeatureFlagEnablementStore;
 import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
@@ -339,8 +338,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * @param status the current execution status of the component; initially NEW
      */
     protected void setStatus(ExecutionStatus status) {
-        logger.info("Component transition from " + this.status.toString()
-                + " to " + status.toString() + " for " + getComponentName());
+        logger.info("Component transition from " + this.status.toString() + " to " + status.toString() +
+                " for " + getComponentName());
         this.status = status;
     }
 
@@ -678,11 +677,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     /**
      * Initialize a Spring context configured for a Web Application. Register the given
-     * Configuration class in the context, install an environment reflecting external configuration
-     * and define a DispatcherServlet in the context. Return the Context as "active".
+     * Configuration class in the context, load the external configuration properties as
+     * property sources, and define a DispatcherServlet in the context. Return the Context
+     * as "active".
      *
      * @param contextConfigurer add context configuration specific to a particular component
-     * @param environment spring Environment for application context
      * @param configurationClass the main @Configuration class to load into the context
      * @return the ConfigurableWebApplicationContext configured with the given @Configuration class
      * and set to "active"
@@ -692,16 +691,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Nonnull
     protected static ConfigurableWebApplicationContext attachSpringContext(
             @Nonnull ServletContextHandler contextConfigurer,
-            @Nonnull ConfigurableEnvironment environment,
             @Nonnull Class<?> configurationClass) throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext applicationContext =
                 new AnnotationConfigWebApplicationContext();
-        applicationContext.setEnvironment(environment);
-        logger.info(
-                "Creating application context for: componentType {}; instanceId {}; instanceIp {};",
-                EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE),
-                EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID),
-                getInitializedInstanceIp());
+        logger.info("Creating application context for: componentType {}; instanceId {}; instanceIp {};",
+            EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE),
+            EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID),
+            getInitializedInstanceIp());
+        PropertiesLoader.addConfigurationPropertySources(applicationContext);
 
         // Add the main @Configuration class to the context and add servlet dispatcher and holder
         applicationContext.register(configurationClass);
@@ -724,8 +721,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * @param configurationClass starting point for Spring context creation
      */
     protected static void runComponent(@Nonnull Class<?> configurationClass) {
-        runComponent((servletContextHolder, environment) ->
-                attachSpringContext(servletContextHolder, environment, configurationClass));
+        runComponent(servletContextHolder ->
+                attachSpringContext(servletContextHolder, configurationClass));
     }
 
     /**
@@ -738,18 +735,16 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      *                          servlet context
      */
     protected static void runComponent(ContextConfigurer contextConfigurer) {
-        StandardEnvironment environment = new StandardEnvironment();
+        configureFeatureFlagStore();
+        startContext(contextConfigurer);
+    }
+
+    private static void configureFeatureFlagStore() {
         try {
-            PropertiesLoader.addConfigurationPropertySources(environment);
-            configureFeatureFlagStore(environment);
-            startContext(contextConfigurer, environment);
+            FeatureFlagManager.setStore(new PropertiesLoaderFeatureFlagEnablementStore());
         } catch (ContextConfigurationException e) {
             throw new FatalBeanException("Failed to configure a feature flag store", e);
         }
-    }
-
-    private static void configureFeatureFlagStore(Environment environment) {
-        FeatureFlagManager.setStore(new PropertiesLoaderFeatureFlagEnablementStore(environment));
     }
 
     protected static void addMetricsServlet(@Nonnull final ServletContextHandler contextServer) {
@@ -760,18 +755,16 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     @Nonnull
     protected static ConfigurableWebApplicationContext startServer(
-            @Nonnull ContextConfigurer contextConfigurer,
-            @Nonnull ConfigurableEnvironment environment)
-            throws Exception {
+            @Nonnull ContextConfigurer contextConfigurer) throws Exception {
         logger.info("Starting web server with spring context");
         final int serverPort = EnvironmentUtils.parseOptionalIntegerFromEnv(PROP_serverHttpPort)
-                .orElse(DEFAULT_SERVER_HTTP_PORT);
+            .orElse(DEFAULT_SERVER_HTTP_PORT);
         System.setProperty("org.jooq.no-logo", "true");
 
         // This shouldn't be null, because the only way ensureSet returns null is if
         // the inner supplier returns null.
         org.eclipse.jetty.server.Server server = JETTY_SERVER.ensureSet(() ->
-                new org.eclipse.jetty.server.Server(serverPort));
+            new org.eclipse.jetty.server.Server(serverPort));
 
         final ServletContextHandler contextServer =
             new ServletContextHandler(ServletContextHandler.SESSIONS);
@@ -783,7 +776,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         httpConnector.setPort(serverPort);
         server.setConnectors( new Connector[] { httpConnector } );
         server.setHandler(contextServer);
-        context = contextConfigurer.configure(contextServer, environment);
+        context = contextConfigurer.configure(contextServer);
         addMetricsServlet(contextServer);
         server.start();
         if (!context.isActive()) {
@@ -801,15 +794,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      *
      * @param contextConfigurer configuration callback to perform some specific
      *         configuration on the servlet context
-     * @param environment spring environment reflecting external configuration
      * @return Spring context, created as the result of webserver startup.
      */
     @Nonnull
     protected static ConfigurableWebApplicationContext startContext(
-            @Nonnull ContextConfigurer contextConfigurer,
-            @Nonnull ConfigurableEnvironment environment) {
+            @Nonnull ContextConfigurer contextConfigurer) {
         try {
-            return startServer(contextConfigurer, environment);
+            return startServer(contextConfigurer);
         } catch (Exception e) {
             logger.error("Web server failed to start. Shutting down.", e);
             System.exit(1);
@@ -937,13 +928,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
          * the health status of the container.
          *
          * @param servletContext servlet context handler
-         * @param environment sprint Environment reflecting external configuration
          * @return Spring context to track
          * @throws ContextConfigurationException if exception thrown while configuring
-         *         servlets and contexts
+         *         servlets
+         *         and contexts
          */
-        ConfigurableWebApplicationContext configure(@Nonnull ServletContextHandler servletContext,
-                @Nonnull ConfigurableEnvironment environment)
-                throws ContextConfigurationException;
+        ConfigurableWebApplicationContext configure(@Nonnull ServletContextHandler servletContext)
+            throws ContextConfigurationException, IOException;
     }
 }

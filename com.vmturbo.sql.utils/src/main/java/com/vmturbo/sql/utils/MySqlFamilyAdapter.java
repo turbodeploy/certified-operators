@@ -170,9 +170,4 @@ class MySqlFamilyAdapter extends DbAdapter {
             logger.error("Failed to drop user {}", config.getUserName(), e);
         }
     }
-
-    @Override
-    protected String quote(final String name) {
-        return "`" + name + "`";
-    }
 }

@@ -5,56 +5,31 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Table;
 
-import org.jooq.DSLContext;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.clustermgr.ClustermgrDBConfig2;
 import com.vmturbo.clustermgr.db.Clustermgr;
 import com.vmturbo.clustermgr.db.Tables;
 import com.vmturbo.clustermgr.db.tables.records.RegisteredComponentRecord;
-import com.vmturbo.clustermgr.management.ComponentRegistryTest.TestClustermgrDBConfig2;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentIdentifier;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentInfo;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentStarting;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.UriInfo;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link ComponentRegistry}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestClustermgrDBConfig2.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"dbPort=3306", "dbRootPassword=vmturbo", "sqlDialect=MARIADB"})
 public class ComponentRegistryTest {
-
-    @Autowired(required = false)
-    private TestClustermgrDBConfig2 dbConfig;
 
     private static final UriInfo URI_INFO = UriInfo.newBuilder()
         .setRoute("route")
@@ -76,40 +51,20 @@ public class ComponentRegistryTest {
     @Rule
     public DbCleanupRule dbCleanupRule = dbConfigurationRule.cleanupRule();
 
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("clustermgr");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
-
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
-    private ComponentRegistry componentRegistry;
 
-    /**
-     * Set up before each test.
-     *
-     * @throws SQLException if there is db error
-     * @throws UnsupportedDialectException if the dialect is not supported
-     * @throws InterruptedException if interrupted
-     */
-    @Before
-    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbConfig.clusterMgrEndpoint());
-            dsl = dbConfig.clusterMgrEndpoint().dslContext();
-        } else {
-            dsl = dbConfigurationRule.getDslContext();
-        }
-        componentRegistry = new ComponentRegistry(dsl, clock, UNHEALTHY_DEREGISTRATION_SEC, TimeUnit.SECONDS);
+    private ComponentRegistry componentRegistry = new ComponentRegistry(
+        dbConfigurationRule.getDslContext(), clock, UNHEALTHY_DEREGISTRATION_SEC, TimeUnit.SECONDS);
+
+    private ComponentStarting newComponentStarting(String componentType, String instanceId, long jvmId) {
+        return ComponentStarting.newBuilder()
+            .setComponentInfo(ComponentInfo.newBuilder()
+                .setId(ComponentIdentifier.newBuilder()
+                    .setComponentType(componentType)
+                    .setInstanceId(instanceId)
+                    .setJvmId(jvmId))
+                .setUriInfo(URI_INFO))
+            .build();
     }
 
     /**
@@ -140,7 +95,7 @@ public class ComponentRegistryTest {
         assertThat(registeredBarInstance1.getComponentInfo(), is(barInstance1.getComponentInfo()));
 
         // Check the times.
-        dsl.selectFrom(Tables.REGISTERED_COMPONENT)
+        dbConfigurationRule.getDslContext().selectFrom(Tables.REGISTERED_COMPONENT)
             .fetch()
             .forEach(record -> {
                 assertThat(record.getRegistrationTime(), is(LocalDateTime.now(clock)));
@@ -215,7 +170,7 @@ public class ComponentRegistryTest {
         assertThat(registeredComponents.get("foo", "instance1").getComponentHealth(), is(ComponentHealth.HEALTHY));
         // We don't retrieve the status descriptions because we don't need them, but make sure
         // they're up to date.
-        final RegisteredComponentRecord record = dsl.selectFrom(Tables.REGISTERED_COMPONENT)
+        final RegisteredComponentRecord record = dbConfigurationRule.getDslContext().selectFrom(Tables.REGISTERED_COMPONENT)
             .where(Tables.REGISTERED_COMPONENT.INSTANCE_ID.eq("instance1"))
             .fetchOne();
         assertThat(record.getStatusDescription(), is(statusDesc));
@@ -247,7 +202,7 @@ public class ComponentRegistryTest {
         assertThat(registeredComponents.get("foo", fooInstance1.getComponentInfo().getId().getInstanceId()).getComponentHealth(), is(ComponentHealth.HEALTHY));
         // We don't retrieve the status descriptions because we don't need them, but make sure
         // they're up to date.
-        final RegisteredComponentRecord record = dsl.selectFrom(Tables.REGISTERED_COMPONENT)
+        final RegisteredComponentRecord record = dbConfigurationRule.getDslContext().selectFrom(Tables.REGISTERED_COMPONENT)
             .where(Tables.REGISTERED_COMPONENT.INSTANCE_ID.eq("instance1"))
             .fetchOne();
         assertThat(record.getStatusDescription(), is(finalStatusDesc));
@@ -280,7 +235,7 @@ public class ComponentRegistryTest {
         assertThat(registeredComponents.get("foo", fooInstance1.getComponentInfo().getId().getInstanceId()).getComponentHealth(), is(ComponentHealth.HEALTHY));
         // We don't retrieve the status descriptions because we don't need them, but make sure
         // they're up to date.
-        final RegisteredComponentRecord record = dsl.selectFrom(Tables.REGISTERED_COMPONENT)
+        final RegisteredComponentRecord record = dbConfigurationRule.getDslContext().selectFrom(Tables.REGISTERED_COMPONENT)
             .where(Tables.REGISTERED_COMPONENT.INSTANCE_ID.eq("instance1"))
             .fetchOne();
         assertThat(record.getStatusDescription(), is(finalStatusDesc));
@@ -311,25 +266,4 @@ public class ComponentRegistryTest {
         assertThat(componentRegistry.getRegisteredComponents().size(), is(0));
     }
 
-    private ComponentStarting newComponentStarting(String componentType, String instanceId, long jvmId) {
-        return ComponentStarting.newBuilder()
-                .setComponentInfo(ComponentInfo.newBuilder()
-                        .setId(ComponentIdentifier.newBuilder()
-                                .setComponentType(componentType)
-                                .setInstanceId(instanceId)
-                                .setJvmId(jvmId))
-                        .setUriInfo(URI_INFO))
-                .build();
-    }
-
-    /**
-     * Workaround for ClustermgrDBConfig2 (remove conditional annotation), since it's conditionally
-     * initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we test all combinations
-     * of it using {@link FeatureFlagTestRule}, first it's false, so ClustermgrDBConfig2 is not
-     * created; then second it's true, ClustermgrDBConfig2 is created, but the endpoint inside is
-     * also eagerly initialized due to the same FF, which results in several issues like: it
-     * doesn't go through DbEndpointTestRule, making call to auth to get root password, etc.
-     */
-    @Configuration
-    static class TestClustermgrDBConfig2 extends ClustermgrDBConfig2 {}
 }

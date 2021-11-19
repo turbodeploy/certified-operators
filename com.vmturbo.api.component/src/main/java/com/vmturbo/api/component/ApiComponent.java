@@ -23,7 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
@@ -44,6 +43,7 @@ import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.search.SearchDBConfig;
 
 /**
@@ -191,18 +191,16 @@ public class ApiComponent extends BaseVmtComponent {
      * reporting CGI-BIN directory.
      *
      * @param contextServer Jetty context handler to register with
-     * @param environment spring Environment to use for the root context
      * @return rest application context
      * @throws ContextConfigurationException if there is an error loading the external configuration
      * properties
      */
     private static ConfigurableWebApplicationContext createContext(
-            @Nonnull ServletContextHandler contextServer,
-            @Nonnull ConfigurableEnvironment environment) throws ContextConfigurationException {
+            @Nonnull ServletContextHandler contextServer) throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
-        rootContext.setEnvironment(environment);
         rootContext.register(ApiComponent.class);
+        PropertiesLoader.addConfigurationPropertySources(rootContext);
         final Servlet dispatcherServlet = new DispatcherServlet(rootContext);
         final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
         contextServer.addServlet(servletHolder, "/*");

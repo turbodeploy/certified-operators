@@ -5,11 +5,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.extractor.schema.SearchDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpointsConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * Configuration of {@link DbEndpoint} needed for component.
@@ -18,14 +17,14 @@ import com.vmturbo.sql.utils.DbEndpointsConfig;
  * Initialization occurs in ApiComponent.onStartComponent()</p>
  */
 @Configuration
-@Import({DbEndpointsConfig.class, SearchDbBaseConfig.class})
+@Import({SQLDatabaseConfig2.class, SearchDbBaseConfig.class})
 public class SearchDBConfig {
 
     @Autowired
     private SearchDbBaseConfig searchDbBaseConfig;
 
     @Autowired
-    private DbEndpointsConfig dbConfig;
+    private SQLDatabaseConfig2 dbConfig;
 
     @Value("${enableSearchApi:false}")
     private boolean enableSearchApi;
@@ -36,7 +35,6 @@ public class SearchDBConfig {
     @Value("${apiPaginationMaxLimit:500}")
     private int apiPaginationMaxLimit;
 
-    @Primary
     @Bean
     DbEndpoint queryEndpoint() {
         return dbConfig.derivedDbEndpoint("dbs.extractor.query",

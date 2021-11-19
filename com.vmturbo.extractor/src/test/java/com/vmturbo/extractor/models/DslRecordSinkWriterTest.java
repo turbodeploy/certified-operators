@@ -40,7 +40,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
@@ -51,7 +50,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Live DB tests that record sinks can store data into a database.
@@ -59,7 +57,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@TestPropertySource(properties = {"enableReporting=true"})
 public class DslRecordSinkWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
@@ -84,13 +82,6 @@ public class DslRecordSinkWriterTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
-
-    /**
-     * Manage feature flags.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     private final Map<String, Object> metricData1 = createMetricRecordMap(
             OffsetDateTime.now(), 1L, MetricType.CPU, null, null, null, null, 1.0, 2L, null, null,

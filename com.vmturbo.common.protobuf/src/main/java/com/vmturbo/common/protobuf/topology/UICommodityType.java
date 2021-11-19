@@ -267,10 +267,6 @@ public enum UICommodityType {
     STORAGE_ACCESS_STANDARD_READ(CommodityType.STORAGE_ACCESS_STANDARD_READ, "IOPS Standard Read"),
     /** The commodity STORAGE_ACCESS_STANDARD_WRITE. */
     STORAGE_ACCESS_STANDARD_WRITE(CommodityType.STORAGE_ACCESS_STANDARD_WRITE, "IOPS Standard Write"),
-    /** The commodity IO_THROUGHPUT_READ **/
-    IO_THROUGHPUT_READ(CommodityType.IO_THROUGHPUT_READ, "IO Throughput Read"),
-    /** The commodity IO_THROUGHPUT_WRITE **/
-    IO_THROUGHPUT_WRITE(CommodityType.IO_THROUGHPUT_WRITE, "IO Throughput Write"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 

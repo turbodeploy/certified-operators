@@ -544,7 +544,7 @@ public abstract class DbAdapter {
         try (Connection conn = getNonRootConnection()) {
             for (final String table : getAllTableNames(conn)) {
                 try (Statement statement = conn.createStatement()) {
-                    statement.execute(String.format("TRUNCATE TABLE %s", quote(table)));
+                    statement.execute(String.format("TRUNCATE TABLE \"%s\"", table));
                 }
             }
         }
@@ -558,13 +558,4 @@ public abstract class DbAdapter {
      * <p>This method is used by the test rule at the end of test class execution.</p>
      */
     protected abstract void tearDown();
-
-    /**
-     * Quote the given name (table, database, etc.) and quote it as appropriate for this endpoint's
-     * dialect.
-     *
-     * @param name name to be quoted
-     * @return quoted name
-     */
-    protected abstract String quote(String name);
 }

@@ -2,29 +2,24 @@ package com.vmturbo.sql.utils;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 
 /**
- * Common configuration that should be subclassed by config classes that want to create {@link DbEndpoint}s.
+ * Common configuration that should be imported by classes that want to create {@link DbEndpoint}s.
  *
  * <p>This is intended to (eventually) replace {@link SQLDatabaseConfig}.</p>
  */
-@Primary
 @Configuration
-public class DbEndpointsConfig {
-    private static final Logger logger = LogManager.getLogger();
+public class SQLDatabaseConfig2 {
 
     @Value("${authHost:auth}")
     private String authHost;
@@ -41,14 +36,11 @@ public class DbEndpointsConfig {
     @Value("${dbEndpointMaxAwaitCompletion:30m}")
     private String dbEndpointMaxAwaitCompletion;
 
-    @Value("${sqlDialect}")
-    protected SQLDialect sqlDialect;
-
     /**
      * The Spring environment, injected by the framework.
      */
     @Autowired
-    private Environment springEnvironment;
+    private Environment environment;
 
     /**
      * The {@link DbEndpointCompleter} that acts as a factory for {@link DbEndpoint}s.
@@ -58,7 +50,7 @@ public class DbEndpointsConfig {
     @Bean
     @Lazy
     public DbEndpointCompleter endpointCompleter() {
-        return new DbEndpointCompleter(springEnvironment::getProperty, endpointPasswordUtil(),
+        return new DbEndpointCompleter(environment::getProperty, endpointPasswordUtil(),
                 dbEndpointMaxAwaitCompletion);
     }
 

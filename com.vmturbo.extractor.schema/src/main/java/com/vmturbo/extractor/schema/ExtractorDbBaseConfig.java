@@ -1,19 +1,24 @@
 package com.vmturbo.extractor.schema;
 
 import org.jooq.SQLDialect;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
-import com.vmturbo.sql.utils.DbEndpointsConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * Configuration of DB endpoints needed for extractor component.
  */
 @Configuration
-public class ExtractorDbBaseConfig extends DbEndpointsConfig {
+@Import(SQLDatabaseConfig2.class)
+public class ExtractorDbBaseConfig {
+    @Autowired
+    private SQLDatabaseConfig2 dbConfig;
 
     /** Default name of database for extractor database. */
     @Value("${dbs.extractor.databaseName:extractor}")
@@ -40,7 +45,7 @@ public class ExtractorDbBaseConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint extractorDbEndpointBase() {
-        return abstractDbEndpoint(null, SQLDialect.POSTGRES)
+        return dbConfig.abstractDbEndpoint(null, SQLDialect.POSTGRES)
                 .withDatabaseName(extractorDatabaseName)
                 .withSchemaName(extractorSchemaName)
                 .withHost(dbHost)
@@ -55,7 +60,7 @@ public class ExtractorDbBaseConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint extractorQueryDbEndpointBase() {
-        return abstractDbEndpoint(null, SQLDialect.POSTGRES)
+        return dbConfig.abstractDbEndpoint(null, SQLDialect.POSTGRES)
                 .like(extractorDbEndpointBase())
                 .withUserName(queryUserName)
                 .withHost(dbHost)

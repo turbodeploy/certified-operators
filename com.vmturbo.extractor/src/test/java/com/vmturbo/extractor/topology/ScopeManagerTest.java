@@ -40,7 +40,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.extractor.ExtractorDbConfig;
@@ -52,7 +51,6 @@ import com.vmturbo.extractor.schema.tables.records.ScopeRecord;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test class for {@link ScopeManager}.
@@ -60,7 +58,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@TestPropertySource(properties = {"enableReporting=true"})
 public class ScopeManagerTest {
 
     private ScopeManager scopeManager;
@@ -75,11 +73,6 @@ public class ScopeManagerTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
-
-    /** Manage feature flags. */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     private final DataPack<Long> oidPack = new LongDataPack();
 

@@ -17,10 +17,8 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.PropertiesPropertySource;
 import org.springframework.core.env.PropertySource;
-import org.springframework.core.env.StandardEnvironment;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
@@ -140,7 +138,7 @@ public class ConfigMapSpringValueTest {
         ConfigurableWebApplicationContext context = null;
         try {
             server.setHandler(contextServer);
-            context = contextConfigurer.configure(contextServer, new StandardEnvironment());
+            context = contextConfigurer.configure(contextServer);
             context.getEnvironment().getPropertySources().addFirst(testPropertySource);
             context.getEnvironment().getPropertySources().forEach(propertySource ->
                 logger.info("property source: {} -> {}",
@@ -160,10 +158,9 @@ public class ConfigMapSpringValueTest {
 
     @Nonnull
     private static ConfigurableWebApplicationContext attachSpringContext(
-        @Nonnull ServletContextHandler contextServer, @Nonnull ConfigurableEnvironment environment) {
+        @Nonnull ServletContextHandler contextServer) {
         final AnnotationConfigWebApplicationContext applicationContext =
             new AnnotationConfigWebApplicationContext();
-        applicationContext.setEnvironment(environment);
         applicationContext.register(SimpleTestComponent.class);
         final Servlet dispatcherServlet = new DispatcherServlet(applicationContext);
         final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);

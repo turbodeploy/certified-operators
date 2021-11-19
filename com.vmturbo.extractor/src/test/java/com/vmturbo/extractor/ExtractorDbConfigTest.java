@@ -24,7 +24,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbAdapter;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -32,7 +31,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointConfig;
 import com.vmturbo.sql.utils.DbEndpointResolver;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test that DbEndpoints can be activated and provide proper DB access.
@@ -41,8 +39,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 // username property configuration is made to work with MySQL which has a username length restriction of 16.
-@TestPropertySource(properties = {"enableReporting=true", "dbs.search.user=s",
-        "dbs.search.host=localhost", "dbs.search.port=3306", "sqlDialect=POSTGRES"})
+@TestPropertySource(properties = {"enableReporting=true", "dbs.search.user=s", "dbs.search.host=localhost", "dbs.search.port=3306"})
 public class ExtractorDbConfigTest {
     private static final Logger logger = LogManager.getLogger();
 
@@ -61,11 +58,6 @@ public class ExtractorDbConfigTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
-
-    /** rule to manage feature flags. */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     /**
      * Set our endpoints up for management by the test rule.
