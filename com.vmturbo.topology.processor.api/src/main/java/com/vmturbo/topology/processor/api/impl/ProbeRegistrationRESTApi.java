@@ -9,8 +9,9 @@ import javax.annotation.Nullable;
 
 import io.swagger.annotations.ApiModelProperty;
 
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.topology.processor.api.ProbeRegistrationInfo;
+
+import common.HealthCheck.HealthState;
 
 /**
  * REST API classes (DTO part) for probe registrations.

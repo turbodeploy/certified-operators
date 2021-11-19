@@ -19,6 +19,7 @@ import javax.ws.rs.BadRequestException;
 import javax.ws.rs.ForbiddenException;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 
@@ -39,10 +40,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
@@ -52,14 +53,12 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
-import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
@@ -69,6 +68,7 @@ import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.AccountValueVerifier;
 import com.vmturbo.topology.processor.targets.DuplicateTargetException;
@@ -76,8 +76,9 @@ import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+
+import common.HealthCheck.HealthState;
 
 
 /**
@@ -98,7 +99,7 @@ public class TargetController {
 
     private final IOperationManager operationManager;
 
-    private final TargetStatusTracker targetStatusTracker;
+    private final TargetHealthRetriever targetHealthRetriever;
 
     private final TopologyHandler topologyHandler;
 
@@ -123,6 +124,7 @@ public class TargetController {
      * @param topologyHandler the {@link TopologyHandler} instance
      * @param settingPolicyServiceBlockingStub the setting policy service
      * @param workflowServiceBlockingStub the workflow service
+     * @param targetHealthRetriever the target health retriever
      */
     public TargetController(@Nonnull final Scheduler scheduler,
             @Nonnull final TargetStore targetStore, @Nonnull final ProbeStore probeStore,
@@ -130,7 +132,7 @@ public class TargetController {
             @Nonnull final TopologyHandler topologyHandler,
             @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
             @Nonnull final WorkflowServiceBlockingStub workflowServiceBlockingStub,
-            @Nonnull final TargetStatusTracker targetStatusTracker) {
+            @Nonnull final TargetHealthRetriever targetHealthRetriever) {
         this.scheduler = Objects.requireNonNull(scheduler);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -138,7 +140,7 @@ public class TargetController {
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.settingPolicyRpcService = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.workflowRpcService = Objects.requireNonNull(workflowServiceBlockingStub);
-        this.targetStatusTracker = Objects.requireNonNull(targetStatusTracker);
+        this.targetHealthRetriever = Objects.requireNonNull(targetHealthRetriever);
     }
 
     @RequestMapping(method = RequestMethod.POST,
@@ -387,11 +389,11 @@ public class TargetController {
         final String lastEditingUser = target.getNoSecretDto().getSpec().hasLastEditingUser() ? target.getNoSecretDto().getSpec().getLastEditingUser() : null;
         final Long lastEditTime = target.getNoSecretDto().getSpec().hasLastEditTime() ? target.getNoSecretDto().getSpec().getLastEditTime() : null;
         boolean isProbeConnected = probeStore.isAnyTransportConnectedForTarget(target);
-        final ProbeRegistrationDescription probeRegistration = probeStore.getProbeRegistrationsForTarget(target).stream()
-                .reduce(new ProbeRegistrationDescription(), (r1, r2) -> r1.getHealthState().compareTo(r2.getHealthState()) <= 0 ? r1 : r2);
-        final Pair<HealthState, String> status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected, probeRegistration);
-        return success(target, isProbeConnected, status.getSecond(), lastValidated, lastEditingUser,
-                lastEditTime, status.getFirst());
+        final TargetHealth targetHealth = targetHealthRetriever.getTargetHealth(Collections.singleton(target.getId()), true).get(target.getId());
+        final String status = getStatus(latestFinished, currentValidation, currentDiscovery,
+                isProbeConnected, targetHealth == null ? "" : targetHealth.getMessageText());
+        return success(target, isProbeConnected, status, lastValidated, lastEditingUser,
+                lastEditTime, targetHealth == null ? HealthState.NORMAL : targetHealth.getHealthState());
     }
 
     /**
@@ -401,47 +403,47 @@ public class TargetController {
      * @param latestFinished latest finished operation on the target (if present)
      * @param inProgressValidation current validation task
      * @param inProgressDiscovery current discovery task
-     * @param isProbeConnected Status of the connection to the probe.
-     * @param probeRegistration Status of the connection to the probe.
-     * @return a pair of health state and the target status string
+     * @param isProbeConnected Status of the connection to the probe
+     * @param targetHealthMessageText Target health message text
+     * @return the target status
      */
     @Nonnull
-    private Pair<HealthState, String> getStatus(
+    private String getStatus(
             @Nonnull Optional<? extends Operation> latestFinished,
             @Nonnull Optional<Validation> inProgressValidation,
             @Nonnull Optional<Discovery> inProgressDiscovery, boolean isProbeConnected,
-            final ProbeRegistrationDescription probeRegistration) {
+            final String targetHealthMessageText) {
         if (inProgressValidation.isPresent() && inProgressValidation.get().getUserInitiated()) {
-            return Pair.create(HealthState.NORMAL, StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+            return StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS;
         }
 
         if (inProgressDiscovery.isPresent() && inProgressDiscovery.get().getUserInitiated()) {
-            return Pair.create(HealthState.NORMAL, StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+            return StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS;
         }
 
         if (latestFinished.isPresent()) {
             // If there is no on-going operation which was initiated by the user - show the
             // status of the last operation.
             if (latestFinished.get().getStatus() == OperationStatus.Status.SUCCESS) {
-                if (probeRegistration.getHealthState() == HealthState.NORMAL) {
-                    return Pair.create(HealthState.NORMAL, StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS);
+                if (!Strings.isNullOrEmpty(targetHealthMessageText)) {
+                    return targetHealthMessageText;
                 }
-                return Pair.create(probeRegistration.getHealthState(), probeRegistration.getStatus());
+                return StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS;
             }
             final String lastError = latestFinished.get().getErrorString();
             // If this is a no-transports error, strip off the debug logging details.
             final String status = lastError.contains(ProbeStore.NO_TRANSPORTS_MESSAGE)
                     ? lastError.substring(0, lastError.indexOf(ProbeStore.NO_TRANSPORTS_MESSAGE)
                     + ProbeStore.NO_TRANSPORTS_MESSAGE.length()) : lastError;
-            return Pair.create(HealthState.CRITICAL, status);
+            return status;
         }
 
         if (!isProbeConnected) {
-            return Pair.create(HealthState.CRITICAL, ProbeStore.NO_TRANSPORTS_MESSAGE);
+            return ProbeStore.NO_TRANSPORTS_MESSAGE;
         }
 
         // If the target status is unknown, show as "Validating"
-        return Pair.create(HealthState.NORMAL, VALIDATING);
+        return VALIDATING;
     }
 
     /**

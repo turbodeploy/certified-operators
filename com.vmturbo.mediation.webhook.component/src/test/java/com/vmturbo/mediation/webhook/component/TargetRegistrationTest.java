@@ -10,7 +10,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -21,6 +20,8 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Test class for {@link TargetRegistration}.
