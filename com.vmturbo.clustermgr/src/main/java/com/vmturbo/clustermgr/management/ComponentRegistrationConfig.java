@@ -1,5 +1,6 @@
 package com.vmturbo.clustermgr.management;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -7,24 +8,26 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.clustermgr.ClustermgrDBConfig;
+import com.vmturbo.clustermgr.DbAccessConfig;
 import com.vmturbo.component.status.api.ComponentStatusClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration for beans related to component registration and health.
  */
 @Configuration
-@Import({ClustermgrDBConfig.class, ComponentStatusClientConfig.class})
+@Import({DbAccessConfig.class, ComponentStatusClientConfig.class})
 public class ComponentRegistrationConfig {
 
     @Autowired
-    private ClustermgrDBConfig dbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private ComponentStatusClientConfig componentStatusClientConfig;
@@ -51,8 +54,15 @@ public class ComponentRegistrationConfig {
      */
     @Bean
     public ComponentRegistry componentRegistry() {
-        return new ComponentRegistry(dbConfig.dsl(), Clock.systemUTC(),
-            unhealthyDeregistrationSeconds, TimeUnit.SECONDS);
+        try {
+            return new ComponentRegistry(dbAccessConfig.dsl(), Clock.systemUTC(),
+                    unhealthyDeregistrationSeconds, TimeUnit.SECONDS);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ComponentRegistry", e);
+        }
     }
 
     /**

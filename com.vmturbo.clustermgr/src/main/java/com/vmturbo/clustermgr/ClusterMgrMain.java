@@ -1,5 +1,6 @@
 package com.vmturbo.clustermgr;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nonnull;
 import javax.annotation.PreDestroy;
 import javax.servlet.Servlet;
+import javax.sql.DataSource;
 
 import io.grpc.BindableService;
 
@@ -16,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
@@ -34,6 +37,7 @@ import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * The ClusterMgrMain is a utility to launch each of the VmtComponent Docker Containers configured to run on the
@@ -42,7 +46,8 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
  * persistent key/value server and is injected automatically by Spring Cloud Configuration.
  */
 @Configuration("theComponent")
-@Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class, ClustermgrDBConfig.class})
+@Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class,
+        DbAccessConfig.class})
 public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent> {
 
     private static final Logger log = LogManager.getLogger();
@@ -56,7 +61,7 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
     private ClusterMgrConfig clusterMgrConfig;
 
     @Autowired
-    private ClustermgrDBConfig clustermgrDBConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -152,10 +157,19 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
      */
     @Bean
     public CompositeHealthMonitor healthMonitor() {
+        final DataSource dataSource;
+        try {
+            dataSource = dbAccessConfig.dataSource();
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CompositeHealthMonitor", e);
+        }
         final CompositeHealthMonitor healthMonitor =
                 new CompositeHealthMonitor("Clustermgr Component");
         healthMonitor.addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                clustermgrDBConfig.dataSource()::getConnection));
+                dataSource::getConnection));
         return healthMonitor;
     }
 

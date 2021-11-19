@@ -36,6 +36,9 @@ public class SQLDatabaseConfig2 {
     @Value("${dbEndpointMaxAwaitCompletion:30m}")
     private String dbEndpointMaxAwaitCompletion;
 
+    @Value("${sqlDialect}")
+    protected SQLDialect sqlDialect;
+
     /**
      * The Spring environment, injected by the framework.
      */
