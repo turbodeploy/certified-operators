@@ -4,8 +4,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -16,15 +18,15 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.opentracing.Tracer;
-
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ShortMap;
 import it.unimi.dsi.fastutil.longs.Long2ShortOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongConsumer;
 import it.unimi.dsi.fastutil.longs.LongIterator;
@@ -33,24 +35,17 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer.MemoryMeasurement;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
-import com.vmturbo.components.api.tracing.Tracing;
-import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.GroupUpdateListener;
 import com.vmturbo.group.group.IGroupStore;
-import com.vmturbo.oid.identity.RoaringBitmapOidSet;
+import com.vmturbo.group.service.GroupMemberCachePopulator.CachedGroupMembers;
+import com.vmturbo.group.service.GroupMemberCachePopulator.GroupMembershipRelationships;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * A {@link GroupMemberCalculator} that delegates to an internal {@link GroupMemberCalculator},
@@ -58,6 +53,9 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  */
 public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpdateListener {
 
+    /**
+     * An instance of CachedGroupMembers that represents empty members.
+     */
     private static final CachedGroupMembers EMPTY_GROUP = new CachedGroupMembers() {
         @Override
         public boolean get(LongConsumer consumer) {
@@ -80,48 +78,79 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
 
     private final GroupDAO groupDAO;
 
+    /**
+     * The lock object used to make sure one re-group operation happen at a time.
+     */
+    private final Object regroupLock = new Object();
+
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
-    @GuardedBy("lock")
-    private final Long2ObjectMap<CachedGroupMembers> cachedMembers = new Long2ObjectOpenHashMap<>();
-
-    @GuardedBy("lock")
-    private final Long2ObjectOpenHashMap<LongOpenHashSet> memberParents =
-        new Long2ObjectOpenHashMap<>();
-
-    private final boolean cacheEntityParentGroups;
-
     /**
-     * A set of all currently known group IDs.
+     * The map from group ids to their cached immediate members list.
      */
     @GuardedBy("lock")
-    private final Long2ShortOpenHashMap groupToType = new Long2ShortOpenHashMap();
+    private Long2ObjectMap<CachedGroupMembers> groupIdToCachedMembers =
+        new Long2ObjectOpenHashMap<>();
+
+    /**
+     * The map from entities to their immediate parent groups.
+     */
+    @GuardedBy("lock")
+    private Long2ObjectMap<LongSet> memberIdToParentGroupIds =
+        new Long2ObjectOpenHashMap<>();
+
+    /**
+     * A map from group ids to their types.
+     */
+    @GuardedBy("lock")
+    private Long2ShortMap groupToType = new Long2ShortOpenHashMap();
+
+    /**
+     * This queue is used for saving group changes during a regroup operation. The list
+     * of changes are then applied on the membership relationships calculated during regroup.
+     */
+    @GuardedBy("lock")
+    private final Queue<GroupChange> groupChanges = new LinkedList<>();
+
+    /**
+     * This is true when regroup operation is in progress.
+     */
+    private boolean isRegroupRunning = false;
+
+    private final boolean cacheParentGroups;
 
     private final Supplier<CachedGroupMembers> cachedMemberFactory;
+
+
+    private final Supplier<GroupMembershipRelationships> membershipRelationshipsSupplier;
 
     CachingMemberCalculator(@Nonnull final GroupDAO groupDAO,
             @Nonnull final GroupMemberCalculator internalCalculator,
             @Nonnull final CachedGroupMembers.Type memberCacheType,
-            boolean cacheEntityParentGroups) {
-        this(groupDAO, internalCalculator, memberCacheType, cacheEntityParentGroups, Thread::new);
+            boolean cacheParentGroups) {
+        this(groupDAO, internalCalculator, memberCacheType, cacheParentGroups, Thread::new,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, memberCacheType.getFactory(), cacheParentGroups));
     }
 
     @VisibleForTesting
     CachingMemberCalculator(@Nonnull final GroupDAO groupDAO,
             @Nonnull final GroupMemberCalculator internalCalculator,
             @Nonnull final CachedGroupMembers.Type memberCacheType,
-            final boolean cacheEntityParentGroups,
-            BiFunction<Runnable, String, Thread> threadFactory) {
+            final boolean cacheParentGroups,
+            BiFunction<Runnable, String, Thread> threadFactory,
+            Supplier<GroupMembershipRelationships> membershipRelationshipsSupplier) {
         this.groupDAO = groupDAO;
         this.internalCalculator = internalCalculator;
-        this.cacheEntityParentGroups = cacheEntityParentGroups;
+        this.cacheParentGroups = cacheParentGroups;
         this.cachedMemberFactory = memberCacheType.getFactory();
+        this.membershipRelationshipsSupplier = membershipRelationshipsSupplier;
 
         // When the group component comes up, we try to do regrouping to initialize the cache.
         threadFactory.apply(() -> {
             try {
                 RetriableOperation.newOperation(this::regroup)
-                        .retryOnOutput(Objects::isNull)
+                        .retryOnOutput(r -> !r.isSuccessfull())
                         .run(10, TimeUnit.MINUTES);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -157,121 +186,92 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
      *         then only the successful flag carries meaningful information.
      */
     public RegroupingResult regroup() {
-        final Tracer tracer = Tracing.tracer();
-        try (DataMetricTimer timer = Metrics.REGROUPING_SUMMARY.startTimer();
-             TracingScope scope = Tracing.trace("regrouping", tracer)) {
-            final LongSet distinctMembers = new LongOpenHashSet();
-            long totalMemberCnt = 0;
-            final Collection<Grouping> groups;
-            try {
-                groups = groupDAO.getGroups(GroupDTO.GroupFilter.getDefaultInstance());
-            } catch (DataAccessException e) {
-                logger.error("Abandoning regrouping because the query for all groups failed.", e);
-                return new RegroupingResult(false, null, 0, 0, null);
-            } finally {
-                // Clear all cached members even if there was an error.
-                // We don't need to clear the "allGroupIds" in the error case because we will
-                // not reassign the ids of previously-existing groups to new non-group objects.
-                lock.writeLock().lock();
-                try {
-                    cachedMembers.clear();
-                    memberParents.clear();
-                } finally {
-                    lock.writeLock().unlock();
-                }
-            }
-
-            // Record all the group IDs.
+        // At this time, we only support one regroup operation running at a time.
+        // The reason for that is that the regroup operation is unblocking, which means
+        // group create/update/delete can update the cache. We need to make sure that
+        // after getting the new group relationships, we apply the changes that happened during
+        // regroup to the result cache. Managing these changes for multiple regroup is hard and
+        // introduces additional complexity that we don't need.
+        synchronized (regroupLock) {
             lock.writeLock().lock();
             try {
-                groupToType.clear();
-                groups.forEach(g -> groupToType.put(g.getId(),
-                    (short)g.getDefinition().getType().getNumber()));
-                groupToType.trim();
+                isRegroupRunning = true;
+                groupChanges.clear();
             } finally {
                 lock.writeLock().unlock();
             }
 
-            for (final Grouping group : groups) {
-                // Before resolving the group, check to make sure it's not already cached.
-                // A concurrent request may have triggered the computation + caching of the
-                // group's members and member parents.
-                lock.readLock().lock();
-                try {
-                    if (cachedMembers.containsKey(group.getId())) {
-                        continue;
-                    }
-                } finally {
-                    lock.readLock().unlock();
-                }
+            final GroupMembershipRelationships updatedMembershipsResult =
+                    membershipRelationshipsSupplier.get();
 
-                // Do not expand nested groups - we only put the direct members into the
-                // cache, and resolve nested groups recursively at query-time.
-                try {
-                    final CachedGroupMembers cachedGroupMembers = cachedMemberFactory.get();
-                    final Set<Long> groupMembers =
-                        getGroupMembers(groupDAO, group.getDefinition(), false);
-                    cachedGroupMembers.set(groupMembers);
-                    lock.writeLock().lock();
-                    try {
-                        // There are two ways the group may find itself in the cache:
-                        // 1) There was a concurrent external query for the group's members, and the
-                        //    results were cached. In this case it's safe to keep the cached results.
-                        // 2) There was a concurrent update to an existing group, and the
-                        //    new members were eagerly cached. In this case it would be wrong to
-                        //    overwrite.
-                        CachedGroupMembers currentValue =
-                            this.cachedMembers.putIfAbsent(group.getId(), cachedGroupMembers);
-                        // if the group does not already exists in the map, add entity to parent
-                        // relationship to the map
-                        if (cacheEntityParentGroups && currentValue == null) {
-                            for (long memberId : groupMembers) {
-                                memberParents.computeIfAbsent(memberId, v -> new LongOpenHashSet())
-                                    .add(group.getId());
-                            }
-                        }
+            final RegroupingResult result;
 
-                    } finally {
-                        lock.writeLock().unlock();
-                    }
-
-                    cachedGroupMembers.get(distinctMembers::add);
-                    totalMemberCnt += cachedGroupMembers.size();
-                } catch (RuntimeException | StoreOperationException e) {
-                    logger.error("An error occurred during regrouping for group with uuid: "
-                            + group.getId() + ". Error: ", e);
-                }
-            }
-
-            if (cacheEntityParentGroups) {
-                lock.writeLock().lock();
-                try {
-                    // try to trim the members to reduce memory footprint
-                    this.memberParents.trim();
-                    this.memberParents.values().forEach(LongOpenHashSet::trim);
-                } finally {
-                    lock.writeLock().unlock();
-                }
-            }
-
-            lock.readLock().lock();
+            // replace the old cache with the new one. There co
+            lock.writeLock().lock();
             try {
-                final MemoryMeasurement memory = MemoryMeasurer.measure(cachedMembers);
-                final MemoryMeasurement entityParentMemory = MemoryMeasurer.measure(memberParents);
-                final MemoryMeasurement totalMemory = MemoryMeasurement.add(memory,
-                    entityParentMemory);
-                Metrics.REGROUPING_SIZE_SUMMARY.observe((double)totalMemory.getTotalSizeBytes());
-                Metrics.REGROUPING_CNT_SUMMARY.observe((double)totalMemberCnt);
-                Metrics.REGROUPING_DISTINCT_CNT_SUMMARY.observe((double)distinctMembers.size());
-                logger.info("Completed regrouping in {} seconds. {} members ({} distinct entities)"
-                    + " in {} groups. Cached members memory: {} Cached parents memory: {}",
-                    timer.getTimeElapsedSecs(), totalMemberCnt, distinctMembers.size(),
-                    groups.size(), memory, entityParentMemory);
-                return new RegroupingResult(true, groupToType.keySet(), totalMemberCnt,
-                        distinctMembers.size(), totalMemory);
+                if (updatedMembershipsResult.getSuccess()) {
+                    groupIdToCachedMembers = updatedMembershipsResult.getGroupIdToGroupMemberIdsMap();
+                    memberIdToParentGroupIds = updatedMembershipsResult.getEntityIdToGroupIdsMap();
+                    groupToType = updatedMembershipsResult.getGroupIdToType();
+                    // Re-apply the changes that happens during regroup to the cache. This makes
+                    // sure that the changes that are made to the user groups during regroup
+                    // operation are  also applied to the replacement caches.
+                    // Let's give an example. Assume, we have a user group A with members [1, 2].
+                    // This means we have the following state when the regroup operation starts:
+                    // A [1,2]  CACHE [1, 2] GROUPS MEMBERS READ FROM DB FOR REGROUP [1, 2]
+                    // DATABASE [1, 2]
+                    // Let's assume a user updates group A during this period so A now has [3, 4].
+                    // Since the lock is released the CACHE and DATABASE will get update. However,
+                    // groups read from DB for regrouping will not this change.
+                    // We add this change to group changes queue.
+                    // A [3, 4] CACHE [3, 4] GROUPS MEMBERS READ FROM DB FOR REGROUP [1, 2]
+                    // DATABASE [3, 4] GROUP_CHANGE [ A -> [3, 4]]
+                    // After, the groups members for all groups are retrieved, we will have a wrong
+                    // value for group A if we simply use the values come from regroup operation.
+                    // A [3, 4] CACHE [1, 2] GROUPS MEMBERS READ FROM DB FOR REGROUP N/A
+                    // DATABASE [3, 4] GROUP_CHANGE [A -> [3, 4]]
+                    // Therefore we apply the changes stored in groups changes queue on the cache
+                    // A [3, 4] CACHE [3, 4] GROUPS MEMBERS READ FROM DB FOR REGROUP N/A
+                    // DATABASE [3, 4] GROUP_CHANGE []
+                    // the readers will not see the transient state where cache has outdated value
+                    // since the writing lock is acquired during the last two operations.
+                    // There is this possibility that of the effect of the change we saved to
+                    // group changes queue has been already reflected in the members read from db.
+                    // That should be fine as the application of group changes are idempotent
+                    // so applying one change twice does not break anything.
+                    logger.debug("There are {} changes to apply.", () -> groupChanges.size());
+                    while (!groupChanges.isEmpty()) {
+                        final GroupChange change = groupChanges.remove();
+                        logger.trace("Applying change {} to cache.", change);
+                        switch (change.getType()) {
+                            case CREATE:
+                            case UPDATE:
+                                cacheGroupMembers(change.getId(), change.getGroupType(),
+                                        change.getMembers());
+                                break;
+                            case DELETE:
+                                remove(change.getId());
+                                break;
+                            default:
+                                throw new IllegalStateException("Unexpected group change type "
+                                        + change.getType());
+                        }
+                    }
+
+                    result = new RegroupingResult(true,
+                            updatedMembershipsResult.getResolvedGroupsIds(),
+                            updatedMembershipsResult.getTotalMemberCount(),
+                            updatedMembershipsResult.getDistinctEntitiesCount(),
+                            updatedMembershipsResult.getMemoryMeasurement());
+                } else {
+                    groupChanges.clear();
+                    result = new RegroupingResult(false, null, 0, 0, null);
+                }
             } finally {
-                lock.readLock().unlock();
+                isRegroupRunning = false;
+                lock.writeLock().unlock();
             }
+            return result;
         }
     }
 
@@ -315,7 +315,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
                 final LongIterator groupIt = groupsToExpand.iterator();
                 while (groupIt.hasNext()) {
                     final long groupId = groupIt.nextLong();
-                    final CachedGroupMembers cachedUnexpandedGroups = this.cachedMembers.getOrDefault(groupId, EMPTY_GROUP);
+                    final CachedGroupMembers cachedUnexpandedGroups = this.groupIdToCachedMembers.getOrDefault(groupId, EMPTY_GROUP);
                     final boolean present = cachedUnexpandedGroups.get(memberIdConsumer);
 
                     // If there was a cache hit, we remove this group ID.
@@ -339,7 +339,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
                     cachedMembers.set(restOfDirectMembers);
                     lock.writeLock().lock();
                     try {
-                        this.cachedMembers.put(groupsToExpand.iterator().nextLong(), cachedMembers);
+                        this.groupIdToCachedMembers.put(groupsToExpand.iterator().nextLong(), cachedMembers);
                     } finally {
                         lock.writeLock().unlock();
                     }
@@ -362,16 +362,11 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
     }
 
     @Override
-    public void onUserGroupCreated(final long createdGroup, @Nonnull final GroupDefinition groupDefinition) {
-        cacheGroupMembers(createdGroup, groupDefinition);
-    }
-
-    @Override
     @Nonnull
     public Map<Long, Set<Long>> getEntityGroups(@Nonnull IGroupStore groupStore,
                     @Nonnull Set<Long> entityIds,
                     @Nonnull Set<GroupType> groupTypes) throws StoreOperationException {
-        if (cacheEntityParentGroups) {
+        if (cacheParentGroups) {
             final Set<Short> types = groupTypes
                 .stream()
                 .map(GroupType::getNumber)
@@ -380,16 +375,21 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
 
             final Map<Long, Set<Long>> result = new HashMap<>();
 
-            for (long entityId : entityIds) {
-                final LongOpenHashSet groups = memberParents.get(entityId);
-                if (groups != null) {
-                    final Set<Long> filteredGroup = groups.stream()
-                        .filter(e -> types.isEmpty() || types.contains(groupToType.get((long)e)))
-                        .collect(Collectors.toSet());
-                    result.put(entityId, filteredGroup);
-                } else {
-                    result.put(entityId, Collections.emptySet());
+            lock.readLock().lock();
+            try {
+                for (long entityId : entityIds) {
+                    final LongSet groups = memberIdToParentGroupIds.get(entityId);
+                    if (groups != null) {
+                        final Set<Long> filteredGroup = groups.stream()
+                                .filter(e -> types.isEmpty() || types.contains(groupToType.get((long)e)))
+                                .collect(Collectors.toSet());
+                        result.put(entityId, filteredGroup);
+                    } else {
+                        result.put(entityId, Collections.emptySet());
+                    }
                 }
+            } finally {
+                lock.readLock().unlock();
             }
             return result;
         } else {
@@ -397,64 +397,65 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
         }
     }
 
-    private void cacheGroupMembers(final long groupId, @Nonnull final GroupDefinition groupDefinition) {
-        lock.writeLock().lock();
+    @Nullable
+    private Set<Long> cacheGroupMembers(final long groupId, @Nonnull final GroupDefinition groupDefinition) {
         try {
-            // Ensure the group ID is known.
-            groupToType.put(groupId, (short)groupDefinition.getType().getNumber());
-            CachedGroupMembers m = cachedMembers.computeIfAbsent(groupId, k -> cachedMemberFactory.get());
             final Set<Long> groupMembers = internalCalculator
                 .getGroupMembers(groupDAO, groupDefinition, false);
-            // updating entity parents logic
-            if (cacheEntityParentGroups) {
-                final Set<Long> newMembers = new HashSet<>(groupMembers);
-                final Set<Long> removedMembers = new HashSet<>();
-                m.get(removedMembers::add);
-                // new members are those members are in not in current set of members
-                newMembers.removeAll(removedMembers);
-                // removed members are those that are in old groups members and not in the new
-                // members
-                removedMembers.removeAll(groupMembers);
-                // add new members
-                for (long memberId : newMembers) {
-                    memberParents.computeIfAbsent(memberId, v -> new LongOpenHashSet()).add(groupId);
-                }
-                // remove members
-                removedMembers.forEach(memberId -> removeParentRelationship(groupId, memberId));
-            }
-            m.set(groupMembers);
-
+            cacheGroupMembers(groupId, groupDefinition.getType(), groupMembers);
+            return groupMembers;
         } catch (StoreOperationException e) {
             logger.error("Failed to eagerly populate members of group {} (id: {})",
                 groupDefinition.getDisplayName(), groupId, e);
-        } finally {
-            lock.writeLock().unlock();
+            return null;
         }
+    }
+
+    private void cacheGroupMembers(final long groupId, GroupType groupType,
+                                   @Nonnull final Set<Long> groupMembers) {
+        // Ensure the group ID is known.
+        groupToType.put(groupId, (short)groupType.getNumber());
+        CachedGroupMembers cachedGroupMembers = groupIdToCachedMembers.computeIfAbsent(groupId,
+                k -> cachedMemberFactory.get());
+
+        // updating entity parents logic
+        if (cacheParentGroups) {
+            final Set<Long> newMembers = new HashSet<>(groupMembers);
+            final Set<Long> removedMembers = new HashSet<>();
+            cachedGroupMembers.get(removedMembers::add);
+            // new members are those members are in not in current set of members
+            newMembers.removeAll(removedMembers);
+            // removed members are those that are in old groups members and not in the new
+            // members
+            removedMembers.removeAll(groupMembers);
+            // add new members
+            for (long memberId : newMembers) {
+                memberIdToParentGroupIds.computeIfAbsent(memberId, v -> new LongOpenHashSet()).add(groupId);
+            }
+            // remove members
+            removedMembers.forEach(memberId -> removeParentRelationship(groupId, memberId));
+        }
+        cachedGroupMembers.set(groupMembers);
     }
 
     private void remove(final long groupId) {
-        lock.writeLock().lock();
-        try {
-            if (cacheEntityParentGroups) {
-                final CachedGroupMembers m = cachedMembers.get(groupId);
-                if (m != null) {
-                    m.get(memberId -> removeParentRelationship(groupId, memberId));
-                }
+        if (cacheParentGroups) {
+            final CachedGroupMembers cachedGroupMembers = groupIdToCachedMembers.get(groupId);
+            if (cachedGroupMembers != null) {
+                cachedGroupMembers.get(memberId -> removeParentRelationship(groupId, memberId));
             }
-            groupToType.remove(groupId);
-            cachedMembers.remove(groupId);
-        } finally {
-            lock.writeLock().unlock();
         }
+        groupToType.remove(groupId);
+        groupIdToCachedMembers.remove(groupId);
     }
 
     private void removeParentRelationship(long groupId, long removedMemberId) {
-        LongOpenHashSet groups = memberParents.get(removedMemberId);
+        LongSet groups = memberIdToParentGroupIds.get(removedMemberId);
         if (groups != null) {
             groups.remove(groupId);
-            // if there no more parent just remove the entry
+            // if there is no more parent just remove the entry
             if (groups.isEmpty()) {
-                memberParents.remove(removedMemberId);
+                memberIdToParentGroupIds.remove(removedMemberId);
             }
         }
     }
@@ -464,7 +465,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
     public Collection<Long> getEmptyGroupIds(@Nonnull IGroupStore groupStore) {
         lock.readLock().lock();
         try {
-            return cachedMembers.long2ObjectEntrySet().stream()
+            return groupIdToCachedMembers.long2ObjectEntrySet().stream()
                     .filter(e -> e.getValue().size() == 0)
                     .map(Entry::getLongKey)
                     .collect(Collectors.toSet());
@@ -474,19 +475,48 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
     }
 
     @Override
-    public void onUserGroupDeleted(final long groupId) {
-        remove(groupId);
+    public void onUserGroupCreated(final long createdGroup, @Nonnull final GroupDefinition groupDefinition) {
+        lock.writeLock().lock();
+        try {
+            Set<Long> members = cacheGroupMembers(createdGroup, groupDefinition);
+            if (isRegroupRunning) {
+                groupChanges.add(GroupChange.create(createdGroup, groupDefinition.getType(), members));
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     @Override
     public void onUserGroupUpdated(final long updatedGroup, @Nonnull final GroupDefinition groupDefinition) {
-        cacheGroupMembers(updatedGroup, groupDefinition);
+        lock.writeLock().lock();
+        try {
+            Set<Long> members = cacheGroupMembers(updatedGroup, groupDefinition);
+            if (isRegroupRunning) {
+                groupChanges.add(GroupChange.update(updatedGroup, groupDefinition.getType(), members));
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    @Override
+    public void onUserGroupDeleted(final long groupId) {
+        lock.writeLock().lock();
+        try {
+            if (isRegroupRunning) {
+                groupChanges.add(GroupChange.delete(groupId));
+            }
+            remove(groupId);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     /**
      * Wrapper for the result of regrouping.
      */
-    public class RegroupingResult {
+    public static class RegroupingResult {
         private final boolean success;
         private final LongSet resolvedGroupsIds;
         private final long totalMemberCount;
@@ -535,135 +565,72 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
     }
 
     /**
-     * Cached members of a group. Interface exists to support swapping in different implementations.
+     * This keeps information about changes to a group.
      */
-    interface CachedGroupMembers {
-        boolean get(LongConsumer consumer);
+    private static class GroupChange {
+        final GroupChangeType type;
+        final long id;
+        final Set<Long> members;
+        final GroupType groupType;
 
-        void set(Collection<Long> members);
-
-        int size();
-
-        /**
-         * The type of the implementation, used for a more user-friendly configuration interface
-         * for the {@link CachingMemberCalculator}.
-         */
-        enum Type {
-            /**
-             * Backed by a fastutil LongSet.
-             */
-            SET(FastUtilCachedGroupMembers::new),
-
-            /**
-             * Backed by a RoaringNavigableBitmap.
-             */
-            BITMAP(BitmapCachedGroupMembers::new);
-
-            private final Supplier<CachedGroupMembers> factory;
-
-            Type(Supplier<CachedGroupMembers> factory) {
-                this.factory = factory;
-            }
-
-            @Nonnull
-            public Supplier<CachedGroupMembers> getFactory() {
-                return factory;
-            }
-
-            @Nonnull
-            public static Type fromString(String str) {
-                for (Type t : values()) {
-                    if (str.equalsIgnoreCase(t.name())) {
-                        return t;
-                    }
-                }
-                // SET is the default.
-                return Type.SET;
-            }
+        private GroupChange(@Nonnull final GroupChangeType type,
+                            final long id,
+                            @Nullable final GroupType groupType,
+                            @Nullable final Set<Long> members) {
+            this.type = Objects.requireNonNull(type);
+            this.id = id;
+            this.members = members;
+            this.groupType = groupType;
         }
-    }
 
-    /**
-     * {@link CachedGroupMembers} backed by a {@link RoaringBitmapOidSet}, which may compress
-     * better.
-     */
-    private static class BitmapCachedGroupMembers implements CachedGroupMembers {
-        private RoaringBitmapOidSet members = null;
+        public static GroupChange create(final long id, final GroupType groupType, final Set<Long> members) {
+            return new GroupChange(GroupChangeType.CREATE, id, Objects.requireNonNull(groupType),
+                    Objects.requireNonNull(members));
+        }
 
-        @Override
-        public boolean get(LongConsumer consumer) {
-            if (members != null) {
-                members.iterator().forEachRemaining((java.util.function.LongConsumer)consumer);
-                return true;
-            }
-            return false;
+        public static GroupChange update(final long id, final GroupType groupType, final Set<Long> members) {
+            return new GroupChange(GroupChangeType.UPDATE, id, Objects.requireNonNull(groupType),
+                    Objects.requireNonNull(members));
+        }
+
+        public static GroupChange delete(final long id) {
+            return new GroupChange(GroupChangeType.DELETE, id, null, null);
+        }
+
+        @Nonnull
+        GroupChangeType getType() {
+            return type;
+        }
+
+        long getId() {
+            return id;
+        }
+
+        @Nullable
+        Set<Long> getMembers() {
+            return members;
+        }
+
+        @Nullable
+        public GroupType getGroupType() {
+            return groupType;
         }
 
         @Override
-        public void set(Collection<Long> members) {
-            this.members = new RoaringBitmapOidSet(members);
-        }
-
-        @Override
-        public int size() {
-            return members == null ? 0 : members.size();
+        public String toString() {
+            return "GroupChange{"
+                    + "type=" + type
+                    + ", id=" + id
+                    + ", members=" + members
+                    + "}";
         }
 
     }
 
     /**
-     * {@link CachedGroupMembers} implementation that uses the fastutil library to store
-     * members in a primitive set.
+     * The type of group change.
      */
-    private static class FastUtilCachedGroupMembers implements CachedGroupMembers {
-
-        private LongSet members = null;
-
-        @Override
-        public boolean get(LongConsumer consumer) {
-            if (members != null) {
-                members.forEach((java.util.function.LongConsumer)consumer);
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public void set(Collection<Long> members) {
-            // No need to "trim" because we initialize directly from the collection.
-            this.members = new LongOpenHashSet(members);
-        }
-
-        @Override
-        public int size() {
-            return members == null ? 0 : members.size();
-        }
-    }
-
-    /**
-     * Metrics for the class.
-     */
-    private static class Metrics {
-        /**
-         * This metric tracks the total duration of a topology broadcast (i.e. all the stages
-         * in the pipeline).
-         */
-        private static final DataMetricSummary REGROUPING_SUMMARY =
-            DataMetricSummary.builder().withName("group_regrouping_duration_seconds").withHelp(
-                "Duration to repopulate the group member cache.").build().register();
-
-        private static final DataMetricSummary REGROUPING_SIZE_SUMMARY =
-            DataMetricSummary.builder().withName("group_regrouping_cache_size_bytes").withHelp(
-                "Size of the cache after regrouping, in bytes.").build().register();
-
-        private static final DataMetricSummary REGROUPING_CNT_SUMMARY =
-            DataMetricSummary.builder().withName("group_regrouping_total_members_count")
-                .withHelp("Number of cached group members")
-                .build().register();
-
-        private static final DataMetricSummary REGROUPING_DISTINCT_CNT_SUMMARY =
-            DataMetricSummary.builder().withName("group_regrouping_distinct_members_count")
-                    .withHelp("Total number of entities that appear in some groups.")
-                    .build().register();
+    private enum GroupChangeType {
+        CREATE, UPDATE, DELETE
     }
 }

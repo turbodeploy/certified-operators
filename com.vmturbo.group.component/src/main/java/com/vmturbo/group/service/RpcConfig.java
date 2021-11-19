@@ -30,7 +30,7 @@ import com.vmturbo.group.group.pagination.GroupPaginationConfig;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
-import com.vmturbo.group.service.CachingMemberCalculator.CachedGroupMembers;
+import com.vmturbo.group.service.GroupMemberCachePopulator.CachedGroupMembers;
 import com.vmturbo.group.setting.DefaultSettingPolicyCreator;
 import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.setting.SettingConfig;
@@ -116,8 +116,8 @@ public class RpcConfig {
     /**
      * Determines if we are caching parent groups for entities.
      */
-    @Value("${cacheEntityParentGroups:true}")
-    private boolean cacheEntityParentGroups;
+    @Value("${cacheParentGroups:true}")
+    private boolean cacheParentGroups;
 
     @Bean
     public PolicyRpcService policyService() {
@@ -148,7 +148,7 @@ public class RpcConfig {
                 groupConfig.groupStore(),
                 new GroupMemberCalculatorImpl(targetService(),
                         repositoryClientConfig.searchServiceClient()),
-                CachedGroupMembers.Type.fromString(memberCacheType), cacheEntityParentGroups);
+                CachedGroupMembers.Type.fromString(memberCacheType), cacheParentGroups);
         groupConfig.groupStore().addUpdateListener(cachingCalc);
         transactionProvider().addGroupUpdateListener(cachingCalc);
         return cachingCalc;

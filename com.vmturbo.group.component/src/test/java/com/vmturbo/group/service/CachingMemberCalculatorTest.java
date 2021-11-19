@@ -2,6 +2,7 @@ package com.vmturbo.group.service;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -9,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -19,11 +21,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ShortOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
@@ -37,14 +46,20 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
-import com.vmturbo.group.service.CachingMemberCalculator.CachedGroupMembers;
-import com.vmturbo.group.service.CachingMemberCalculator.CachedGroupMembers.Type;
+import com.vmturbo.group.service.GroupMemberCachePopulator.CachedGroupMembers;
+import com.vmturbo.group.service.GroupMemberCachePopulator.CachedGroupMembers.Type;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * Unit tests for {@link CachingMemberCalculator}.
  */
 public class CachingMemberCalculatorTest {
+    private static final long GROUP_1_ID = 1L;
+    private static final long GROUP_2_ID = 2L;
+    private static final long GROUP_3_ID = 3L;
+    private static final long GROUP_4_ID = 4L;
+    private static final long GROUP_5_ID = 5L;
+    private static final long GROUP_6_ID = 6L;
 
     private GroupMemberCalculator internalCalculator = mock(GroupMemberCalculator.class);
 
@@ -75,7 +90,9 @@ public class CachingMemberCalculatorTest {
     public void testRegrouping() throws Exception {
         // ARRANGE
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                  groupDAO, Type.SET.getFactory(), true));
 
         Grouping g1 = Grouping.newBuilder()
             .setId(1)
@@ -130,7 +147,9 @@ public class CachingMemberCalculatorTest {
     public void testExecutionContinuesAfterSingleGroupFailure() throws Exception {
         // GIVEN
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
 
         Grouping g1 = Grouping.newBuilder()
                 .setId(1)
@@ -171,7 +190,9 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testRecursiveGroupResolution() throws Exception {
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-            internalCalculator, Type.SET, true, threadFactory);
+            internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
 
         Grouping g1 = Grouping.newBuilder()
             .setId(1)
@@ -205,7 +226,9 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testGetExpandedMembers() throws Exception {
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
 
         GroupDefinition parentGroupDefinition = GroupDefinition.newBuilder()
                 .setDisplayName("foo").build();
@@ -247,7 +270,9 @@ public class CachingMemberCalculatorTest {
     public void testUserGroupCreated() throws Exception {
         // Regrouping set to "true" because otherwise we don't eagerly cache created groups.
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
         GroupDefinition groupDefinition = GroupDefinition.newBuilder()
                 .setDisplayName("foo")
                 .build();
@@ -283,7 +308,9 @@ public class CachingMemberCalculatorTest {
     public void testUserGroupUpdated() throws Exception {
         // ARRANGE
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
 
         Grouping g1 = Grouping.newBuilder()
                 .setId(1)
@@ -342,7 +369,9 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testUserGroupDeleted() throws Exception {
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
 
         Grouping g1 = Grouping.newBuilder()
                 .setId(1)
@@ -385,7 +414,9 @@ public class CachingMemberCalculatorTest {
     public void testRegroupOnInitialize() throws Exception {
         final ArgumentCaptor<Runnable> initCaptor = ArgumentCaptor.forClass(Runnable.class);
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
         verify(threadFactory).apply(initCaptor.capture(), anyString());
 
         Grouping g1 = Grouping.newBuilder()
@@ -415,7 +446,9 @@ public class CachingMemberCalculatorTest {
     @Test
     public void getEntityGroupsWithType() throws StoreOperationException {
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-            internalCalculator, Type.SET, true, threadFactory);
+            internalCalculator, Type.SET, true, threadFactory,
+                () -> GroupMemberCachePopulator.calculate(internalCalculator,
+                        groupDAO, Type.SET.getFactory(), true));
 
         Grouping g1 = Grouping.newBuilder()
             .setId(1)
@@ -479,5 +512,354 @@ public class CachingMemberCalculatorTest {
         m.set(Sets.newHashSet(1L, 2L));
         assertTrue(m.get(output::add));
         assertThat(output, containsInAnyOrder(1L, 2L));
+    }
+
+    /**
+     * Test the case that some updates happens during regroup. The new cache
+     * should have the updates happening during regroup.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testConcurrentUpdateOnRegroup() throws Exception {
+        // ARRANGE
+        // this semaphore is used to block regroup operation for a period of time
+        // so we can simulate operations during regroup
+        final Semaphore semaphore = new Semaphore(1);
+        final AtomicBoolean returnNewValues = new AtomicBoolean(false);
+
+        final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> {
+                    try {
+                        semaphore.acquire();
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        semaphore.release();
+                    }
+                    final Long2ShortOpenHashMap groupToType = createGroupToTypeMap(
+                            returnNewValues.get());
+                    final Long2ObjectOpenHashMap<CachedGroupMembers> groupIdToMemberIds =
+                            createGroupIdToMemberIds(returnNewValues.get());
+                    final Long2ObjectOpenHashMap<LongSet> entityIdToParentGroupIds =
+                            createEntityIdToParentGroupIds(returnNewValues.get());
+                    return ImmutableGroupMembershipRelationships.builder()
+                            .success(true)
+                            .groupIdToGroupMemberIdsMap(groupIdToMemberIds)
+                            .entityIdToGroupIdsMap(entityIdToParentGroupIds)
+                            .groupIdToType(groupToType)
+                            .build();
+                });
+
+        // ACT 1: Perform the regroup operation
+        memberCalculator.regroup();
+
+        // ASSERT 1
+        assertThat(Arrays.asList(memberCalculator.getCachedGroupIds().toArray()),
+                containsInAnyOrder(GROUP_1_ID, GROUP_2_ID, GROUP_3_ID, GROUP_4_ID, GROUP_5_ID));
+        assertThat(memberCalculator.getEmptyGroupIds(groupDAO), containsInAnyOrder(GROUP_3_ID));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_1_ID), false),
+                equalTo(ImmutableSet.of(100L, 101L, 102L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_2_ID), false),
+                equalTo(ImmutableSet.of(101L, 103L, 104L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_3_ID), false),
+                equalTo(Collections.emptySet()));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_4_ID), false),
+                equalTo(ImmutableSet.of(100L, 101L, 102L, 103L, 104L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_5_ID), false),
+                equalTo(ImmutableSet.of(203L, 204L)));
+         Map<Long, Set<Long>> parents = memberCalculator.getEntityGroups(groupDAO, ImmutableSet
+                 .of(100L, 101L, 102L, 103L, 104L, 105L, 203L, 204L), Collections.emptySet());
+        assertThat(parents.get(100L), equalTo(ImmutableSet.of(GROUP_1_ID, GROUP_4_ID)));
+        assertThat(parents.get(101L), equalTo(ImmutableSet.of(GROUP_1_ID, GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(102L), equalTo(ImmutableSet.of(GROUP_1_ID, GROUP_4_ID)));
+        assertThat(parents.get(103L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(104L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(105L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(203L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+        assertThat(parents.get(204L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+
+        // ARRANGE 2
+        semaphore.acquire();
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        final Future<CachingMemberCalculator.RegroupingResult> regroupFuture =
+                executorService.submit(() -> memberCalculator.regroup());
+        final GroupDefinition group5 = GroupDefinition.newBuilder()
+                .setType(CommonDTO.GroupDTO.GroupType.REGULAR)
+                .setDisplayName("group5").build();
+        when(internalCalculator.getGroupMembers(any(), eq(group5), anyBoolean()))
+                .thenReturn(ImmutableSet.of(100L, 105L));
+
+        // ACT 2: Create a group  during the regroup operation
+        memberCalculator.onUserGroupCreated(GROUP_6_ID, group5);
+
+        // ASSERT 2
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_6_ID), false),
+                equalTo(ImmutableSet.of(100L, 105L)));
+        parents = memberCalculator.getEntityGroups(groupDAO, ImmutableSet
+                .of(100L, 105L), Collections.emptySet());
+        assertThat(parents.get(100L), equalTo(ImmutableSet.of(GROUP_1_ID, GROUP_6_ID, GROUP_4_ID)));
+        assertThat(parents.get(105L), equalTo(ImmutableSet.of(GROUP_6_ID)));
+
+        // ARRANGE 3
+        final GroupDefinition group2_updated = GroupDefinition.newBuilder()
+                .setType(CommonDTO.GroupDTO.GroupType.REGULAR)
+                .setDisplayName("group2_updated").build();
+        when(internalCalculator.getGroupMembers(any(), eq(group2_updated), anyBoolean()))
+                .thenReturn(ImmutableSet.of(101L, 104L, 106L));
+        final GroupDefinition group5_updated = GroupDefinition.newBuilder()
+                .setType(CommonDTO.GroupDTO.GroupType.REGULAR)
+                .setDisplayName("group5_updated").build();
+        when(internalCalculator.getGroupMembers(any(), eq(group5_updated), anyBoolean()))
+                .thenReturn(ImmutableSet.of(105L, 106L));
+        final GroupDefinition group1_updated = GroupDefinition.newBuilder()
+                .setType(CommonDTO.GroupDTO.GroupType.REGULAR)
+                .setDisplayName("group1_updated").build();
+        when(internalCalculator.getGroupMembers(any(), eq(group1_updated), anyBoolean()))
+                .thenReturn(Collections.emptySet());
+
+        // ACT 3: Update three groups
+        memberCalculator.onUserGroupUpdated(GROUP_2_ID, group2_updated);
+        memberCalculator.onUserGroupUpdated(GROUP_6_ID, group5_updated);
+        memberCalculator.onUserGroupUpdated(GROUP_1_ID, group1_updated);
+
+        // ASSERT 3
+        assertThat(Arrays.asList(memberCalculator.getCachedGroupIds().toArray()),
+                containsInAnyOrder(GROUP_1_ID, GROUP_2_ID, GROUP_3_ID, GROUP_4_ID, GROUP_5_ID, GROUP_6_ID));
+        assertThat(memberCalculator.getEmptyGroupIds(groupDAO), containsInAnyOrder(GROUP_3_ID,
+                GROUP_1_ID));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_1_ID), false),
+                equalTo(Collections.emptySet()));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_2_ID), false),
+                equalTo(ImmutableSet.of(101L, 104L, 106L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_3_ID), false),
+                equalTo(Collections.emptySet()));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_4_ID), false),
+                equalTo(ImmutableSet.of(100L, 101L, 102L, 103L, 104L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_6_ID), false),
+                equalTo(ImmutableSet.of(105L, 106L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_5_ID), false),
+                equalTo(ImmutableSet.of(203L, 204L)));
+        parents = memberCalculator.getEntityGroups(groupDAO, ImmutableSet
+                .of(100L, 101L, 102L, 103L, 104L, 105L, 106L, 203L, 204L), Collections.emptySet());
+        assertThat(parents.get(100L), equalTo(Collections.singleton(GROUP_4_ID)));
+        assertThat(parents.get(101L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(102L), equalTo(Collections.singleton(GROUP_4_ID)));
+        assertThat(parents.get(103L), equalTo(Collections.singleton(GROUP_4_ID)));
+        assertThat(parents.get(104L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(105L), equalTo(Collections.singleton(GROUP_6_ID)));
+        assertThat(parents.get(106L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_6_ID)));
+        assertThat(parents.get(203L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+        assertThat(parents.get(204L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+
+        // ACT 4: Delete a group
+        memberCalculator.onUserGroupDeleted(GROUP_4_ID);
+
+        // ASSERT 4
+        assertThat(Arrays.asList(memberCalculator.getCachedGroupIds().toArray()),
+                containsInAnyOrder(GROUP_1_ID, GROUP_2_ID, GROUP_3_ID, GROUP_5_ID, GROUP_6_ID));
+        assertThat(memberCalculator.getEmptyGroupIds(groupDAO), containsInAnyOrder(GROUP_3_ID,
+                GROUP_1_ID));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_1_ID), false),
+                equalTo(Collections.emptySet()));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_2_ID), false),
+                equalTo(ImmutableSet.of(101L, 104L, 106L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_3_ID), false),
+                equalTo(Collections.emptySet()));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_4_ID), false),
+                equalTo(Collections.emptySet()));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_6_ID), false),
+                equalTo(ImmutableSet.of(105L, 106L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_5_ID), false),
+                equalTo(ImmutableSet.of(203L, 204L)));
+        parents = memberCalculator.getEntityGroups(groupDAO, ImmutableSet
+                .of(100L, 101L, 102L, 103L, 104L, 105L, 106L, 203L, 204L), Collections.emptySet());
+        assertThat(parents.get(100L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(101L), equalTo(Collections.singleton(GROUP_2_ID)));
+        assertThat(parents.get(102L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(103L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(104L), equalTo(Collections.singleton(GROUP_2_ID)));
+        assertThat(parents.get(105L), equalTo(Collections.singleton(GROUP_6_ID)));
+        assertThat(parents.get(106L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_6_ID)));
+        assertThat(parents.get(203L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+        assertThat(parents.get(204L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+
+        // ARRANGE 5
+        // release the semaphore so the group goes on
+        returnNewValues.set(true);
+        semaphore.release();
+
+        // ACT 5 Verify the changes during regroup are not lost
+        regroupFuture.get();
+
+        // ASSERT 5: Here we expect that we have both changes coming from db changes
+        // and also changes that happen to the user groups during the regroup operation.
+        assertThat(Arrays.asList(memberCalculator.getCachedGroupIds().toArray()),
+                containsInAnyOrder(GROUP_1_ID, GROUP_2_ID, GROUP_5_ID, GROUP_6_ID));
+        assertThat(memberCalculator.getEmptyGroupIds(groupDAO), containsInAnyOrder(
+                GROUP_1_ID));
+        // Group 1 got updated during regroup and now it should be empty
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_1_ID), false),
+                equalTo(Collections.emptySet()));
+        // Group 2 updated during regroup and it should have new groups
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_2_ID), false),
+                equalTo(ImmutableSet.of(101L, 104L, 106L)));
+        // Group 3 is no longer discovered, so if we ask for its members we should return emtpy
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_3_ID), false),
+                equalTo(Collections.emptySet()));
+        // Group 4 got deleted by the user during regroup so if we get its memeber, we should
+        // return empty
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_4_ID), false),
+                equalTo(Collections.emptySet()));
+        // Group 5 members got updated as a result of regroup. Now it should have the new members
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_5_ID), false),
+                equalTo(ImmutableSet.of(204L, 205L)));
+        // Group 6 got created and updated during regroup. Now it should have the latest members.
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_6_ID), false),
+                equalTo(ImmutableSet.of(105L, 106L)));
+        parents = memberCalculator.getEntityGroups(groupDAO, ImmutableSet
+                .of(100L, 101L, 102L, 103L, 104L, 105L, 106L, 203L, 204L, 205L), Collections.emptySet());
+        assertThat(parents.get(100L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(101L), equalTo(Collections.singleton(GROUP_2_ID)));
+        assertThat(parents.get(102L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(103L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(104L), equalTo(Collections.singleton(GROUP_2_ID)));
+        assertThat(parents.get(105L), equalTo(Collections.singleton(GROUP_6_ID)));
+        assertThat(parents.get(106L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_6_ID)));
+        assertThat(parents.get(203L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(204L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+        assertThat(parents.get(205L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+    }
+
+    /**
+     * Tests the case that regroup fails.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testRegroupFailure() throws Exception {
+        // ARRANGE
+        final AtomicBoolean returnFailure = new AtomicBoolean(false);
+
+        final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
+                internalCalculator, Type.SET, true, threadFactory,
+                () -> {
+                    final Long2ShortOpenHashMap groupToType = createGroupToTypeMap(false);
+                    final Long2ObjectOpenHashMap<CachedGroupMembers> groupIdToMemberIds =
+                            createGroupIdToMemberIds(false);
+                    final Long2ObjectOpenHashMap<LongSet> entityIdToParentGroupIds =
+                            createEntityIdToParentGroupIds(false);
+                    if (!returnFailure.get()) {
+                        return ImmutableGroupMembershipRelationships.builder()
+                                .success(true)
+                                .groupIdToGroupMemberIdsMap(groupIdToMemberIds)
+                                .entityIdToGroupIdsMap(entityIdToParentGroupIds)
+                                .groupIdToType(groupToType)
+                                .build();
+                    } else {
+                        return ImmutableGroupMembershipRelationships.builder()
+                                .success(false)
+                                .build();
+                    }
+
+                });
+        memberCalculator.regroup();
+        returnFailure.set(true);
+
+        // ACT
+        final CachingMemberCalculator.RegroupingResult regroupResult = memberCalculator.regroup();
+
+        // ASSERT
+        assertFalse(regroupResult.isSuccessfull());
+        assertThat(Arrays.asList(memberCalculator.getCachedGroupIds().toArray()),
+                containsInAnyOrder(GROUP_1_ID, GROUP_2_ID, GROUP_3_ID, GROUP_4_ID, GROUP_5_ID));
+        assertThat(memberCalculator.getEmptyGroupIds(groupDAO), containsInAnyOrder(GROUP_3_ID));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_1_ID), false),
+                equalTo(ImmutableSet.of(100L, 101L, 102L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_2_ID), false),
+                equalTo(ImmutableSet.of(101L, 103L, 104L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_3_ID), false),
+                equalTo(Collections.emptySet()));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_4_ID), false),
+                equalTo(ImmutableSet.of(100L, 101L, 102L, 103L, 104L)));
+        assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(GROUP_5_ID), false),
+                equalTo(ImmutableSet.of(203L, 204L)));
+        Map<Long, Set<Long>> parents = memberCalculator.getEntityGroups(groupDAO, ImmutableSet
+                .of(100L, 101L, 102L, 103L, 104L, 105L, 203L, 204L), Collections.emptySet());
+        assertThat(parents.get(100L), equalTo(ImmutableSet.of(GROUP_1_ID, GROUP_4_ID)));
+        assertThat(parents.get(101L), equalTo(ImmutableSet.of(GROUP_1_ID, GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(102L), equalTo(ImmutableSet.of(GROUP_1_ID, GROUP_4_ID)));
+        assertThat(parents.get(103L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(104L), equalTo(ImmutableSet.of(GROUP_2_ID, GROUP_4_ID)));
+        assertThat(parents.get(105L), equalTo(Collections.emptySet()));
+        assertThat(parents.get(203L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+        assertThat(parents.get(204L), equalTo(ImmutableSet.of(GROUP_5_ID)));
+    }
+
+    /**
+     * Create a map of group types as a result of regroup.
+     *
+     * @param returnNewValue this is used to simulate changes in regroup in consequent regroups.
+     * @return the map from group id to type.
+     */
+    private Long2ShortOpenHashMap createGroupToTypeMap(final boolean returnNewValue) {
+        final Long2ShortOpenHashMap groupToType = new Long2ShortOpenHashMap();
+        groupToType.put(GROUP_1_ID, (short)CommonDTO.GroupDTO.GroupType.REGULAR.getNumber());
+        groupToType.put(GROUP_2_ID, (short)CommonDTO.GroupDTO.GroupType.REGULAR.getNumber());
+        if (!returnNewValue) {
+            groupToType.put(GROUP_3_ID, (short)CommonDTO.GroupDTO.GroupType.RESOURCE.getNumber());
+        }
+        groupToType.put(GROUP_4_ID, (short)CommonDTO.GroupDTO.GroupType.REGULAR.getNumber());
+        groupToType.put(GROUP_5_ID, (short)CommonDTO.GroupDTO.GroupType.RESOURCE.getNumber());
+        return groupToType;
+    }
+
+    private Long2ObjectOpenHashMap<CachedGroupMembers> createGroupIdToMemberIds(
+            final boolean returnNewValue) {
+        final Long2ObjectOpenHashMap<CachedGroupMembers> groupIdToMemberIds =
+                new Long2ObjectOpenHashMap<>();
+        CachedGroupMembers group1Members = Type.SET.getFactory().get();
+        group1Members.set(Arrays.asList(100L, 101L, 102L));
+        groupIdToMemberIds.put(GROUP_1_ID, group1Members);
+        CachedGroupMembers group2Members = Type.SET.getFactory().get();
+        group2Members.set(Arrays.asList(101L, 103L, 104L));
+        groupIdToMemberIds.put(GROUP_2_ID, group2Members);
+        if (!returnNewValue) {
+            CachedGroupMembers group3Members = Type.SET.getFactory().get();
+            group3Members.set(Arrays.asList());
+            groupIdToMemberIds.put(GROUP_3_ID, group3Members);
+        }
+        CachedGroupMembers group4Members = Type.SET.getFactory().get();
+        group4Members.set(Arrays.asList(100L, 101L, 102L, 103L, 104L));
+        groupIdToMemberIds.put(GROUP_4_ID, group4Members);
+        CachedGroupMembers group5Members = Type.SET.getFactory().get();
+        if (!returnNewValue) {
+            group5Members.set(Arrays.asList(203L, 204L));
+        } else {
+            group5Members.set(Arrays.asList(204L, 205L));
+        }
+        groupIdToMemberIds.put(GROUP_5_ID, group5Members);
+        return groupIdToMemberIds;
+    }
+
+    private Long2ObjectOpenHashMap<LongSet> createEntityIdToParentGroupIds(
+            final boolean returnNewValue) {
+        final Long2ObjectOpenHashMap<LongSet> entityIdToParentGroupIds =
+                new Long2ObjectOpenHashMap<>();
+        entityIdToParentGroupIds.put(100L, new LongOpenHashSet(Arrays.asList(GROUP_1_ID, GROUP_4_ID)));
+        entityIdToParentGroupIds.put(101L, new LongOpenHashSet(Arrays.asList(GROUP_1_ID,
+                GROUP_2_ID, GROUP_4_ID)));
+        entityIdToParentGroupIds.put(102L, new LongOpenHashSet(Arrays.asList(GROUP_1_ID, GROUP_4_ID)));
+        entityIdToParentGroupIds.put(103L, new LongOpenHashSet(Arrays.asList(GROUP_2_ID, GROUP_4_ID)));
+        entityIdToParentGroupIds.put(104L, new LongOpenHashSet(Arrays.asList(GROUP_2_ID, GROUP_4_ID)));
+        entityIdToParentGroupIds.put(204L, new LongOpenHashSet(Arrays.asList(GROUP_5_ID)));
+        if (!returnNewValue) {
+            entityIdToParentGroupIds.put(203L, new LongOpenHashSet(Arrays.asList(GROUP_5_ID)));
+        } else {
+            entityIdToParentGroupIds.put(205L, new LongOpenHashSet(Arrays.asList(GROUP_5_ID)));
+        }
+
+        return entityIdToParentGroupIds;
     }
 }
