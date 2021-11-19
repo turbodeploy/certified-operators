@@ -58,6 +58,7 @@ import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory.BottomU
 import com.vmturbo.extractor.util.TopologyTestUtil;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests for EntityCostWriter class.
@@ -86,6 +87,9 @@ public class EntityCostListenerTest {
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(costService);
 
+    /** Manage feature flags. */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Set up for tests.

@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
@@ -63,6 +64,7 @@ import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -107,6 +109,11 @@ public class PendingActionWriterTest {
      */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend, severityService, policyBackend);
+
+    /** Rule to manage feature flags. */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
+            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     private ReportPendingActionWriter reportingActionWriter = mock(ReportPendingActionWriter.class);
     private ActionWriterFactory actionWriterFactory = mock(ActionWriterFactory.class);

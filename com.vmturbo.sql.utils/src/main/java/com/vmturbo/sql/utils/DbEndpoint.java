@@ -30,6 +30,7 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultExecuteListenerProvider;
+import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
@@ -41,6 +42,7 @@ import com.vmturbo.components.api.RetriableOperation.Operation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 
 /**
  * This class manages access to a database, including initializing the database on first use,
@@ -370,11 +372,11 @@ public class DbEndpoint {
      * Class to manage the initialization of endpoint, resulting in completion of the {@link
      * Future}s created during endpoint registration.
      */
-    public static class DbEndpointCompleter implements ServerStartedListener {
+    public static class DbEndpointCompleter implements ServerStartedListener, EnvironmentAware {
 
         final List<DbEndpoint> pendingEndpoints = new ArrayList<>();
 
-        private final AtomicBoolean serverStarted = new AtomicBoolean(false);
+        private final AtomicBoolean completionStarted = new AtomicBoolean(false);
         private final AtomicReference<UnaryOperator<String>> resolver;
         private final AtomicReference<DBPasswordUtil> passwordUtil;
         private final long maxAwaitCompletionMs;
@@ -394,7 +396,9 @@ public class DbEndpoint {
             this.resolver = new AtomicReference<>(resolver);
             this.passwordUtil = new AtomicReference<>(passwordUtil);
             this.maxAwaitCompletionMs = getDurationMs(maxAwaitCompletion);
-            ServerStartedNotifier.get().registerListener(this);
+            if (!FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+                ServerStartedNotifier.get().registerListener(this);
+            }
         }
 
         /**
@@ -439,7 +443,7 @@ public class DbEndpoint {
             }
             final DbEndpoint endpoint = new DbEndpoint(config, this);
             synchronized (pendingEndpoints) {
-                if (serverStarted.get()) {
+                if (completionStarted.get()) {
                     completeEndpoint(endpoint);
                 } else {
                     pendingEndpoints.add(endpoint);
@@ -449,10 +453,28 @@ public class DbEndpoint {
         }
 
         @Override
+        public void setEnvironment(Environment environment) {
+            if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+                logger.info("Eager endpoint completion underway");
+                startCompletion();
+            }
+        }
+
+        @Override
         public void onServerStarted(ConfigurableWebApplicationContext serverContext) {
-            this.serverStarted.set(true);
-            synchronized (pendingEndpoints) {
-                completePendingEndpoints();
+            if (!FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+                logger.info("Non-eager endpoint completion underway");
+                startCompletion();
+            }
+        }
+
+        private void startCompletion() {
+            if (this.completionStarted.compareAndSet(false, true)) {
+                synchronized (pendingEndpoints) {
+                    completePendingEndpoints();
+                }
+            } else {
+                logger.warn("Endpoint completion start requested, but already underway");
             }
         }
 
@@ -529,7 +551,7 @@ public class DbEndpoint {
         void resetAll() {
             synchronized (pendingEndpoints) {
                 pendingEndpoints.clear();
-                this.serverStarted.set(false);
+                this.completionStarted.set(false);
                 this.resolver.set(null);
                 this.passwordUtil.set(null);
             }
