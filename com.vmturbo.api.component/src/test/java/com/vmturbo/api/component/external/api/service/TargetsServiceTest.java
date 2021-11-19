@@ -82,8 +82,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import common.HealthCheck.HealthState;
-
 import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
@@ -170,6 +168,8 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Test the {@link TargetsService}. Mocks calls to the underlying {@link TopologyProcessor}.
@@ -368,7 +368,7 @@ public class TargetsServiceTest {
                 new HashSet<>(Arrays.asList(accountValues)));
         when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
         when(targetInfo.getStatus()).thenReturn("Validated");
-        when(targetInfo.getHealthState()).thenReturn(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL);
+        when(targetInfo.getHealthState()).thenReturn(HealthState.NORMAL);
         when(targetInfo.isHidden()).thenReturn(false);
         when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
         registeredTargets.put(targetId, targetInfo);
