@@ -9,10 +9,11 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.probes.ProbeVersionFactory.ProbeVersionErrorMessage;
 import com.vmturbo.topology.processor.probes.ProbeVersionFactory.ServerVersionErrorMessage;
+
+import common.HealthCheck.HealthState;
 
 /**
  * {@link ProbeVersionToHealthDeducerTest} has a set of test cases for the "deduceProbeHealth()"

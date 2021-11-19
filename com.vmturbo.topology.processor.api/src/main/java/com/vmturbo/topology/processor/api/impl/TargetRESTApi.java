@@ -17,13 +17,14 @@ import com.google.common.collect.Lists;
 
 import io.swagger.annotations.ApiModelProperty;
 
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec.Builder;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Common class for Java objects representing request and response objects

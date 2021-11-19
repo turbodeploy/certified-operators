@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.mapper.HealthDataMapper.HEALTH_STATE_CONVERTER;
 import static com.vmturbo.common.protobuf.topology.UIMapping.getUserFacingCategoryString;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
 
@@ -172,7 +173,7 @@ public class TargetMapper {
         targetApiDTO.setUuid(Long.toString(targetInfo.getId()));
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
         final TargetHealthSummaryApiDTO targetHealthSummaryApiDTO = new TargetHealthSummaryApiDTO();
-        targetHealthSummaryApiDTO.setHealthState(targetInfo.getHealthState());
+        targetHealthSummaryApiDTO.setHealthState(HEALTH_STATE_CONVERTER.get(targetInfo.getHealthState()));
         targetApiDTO.setHealthSummary(targetHealthSummaryApiDTO);
         targetApiDTO.setReadonly(targetInfo.isReadOnly());
 

@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.rpc;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -28,6 +29,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ErrorTypeInfoCase
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.OtherErrorType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
+import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -213,7 +215,7 @@ public class TargetHealthRetriever {
     private TargetHealth reportNoDiscoveryData(TargetHealth.Builder targetHealthBuilder,
                     Target target, boolean successfulValidation) {
         //Check if the probe has lost connection.
-        if (!probeStore.isProbeConnected(target.getProbeId())) {
+        if (!probeStore.isAnyTransportConnectedForTarget(target)) {
             return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                     .setSubcategory(successfulValidation ? TargetHealthSubCategory.DISCOVERY
                             : TargetHealthSubCategory.VALIDATION)
@@ -229,15 +231,22 @@ public class TargetHealthRetriever {
             return reportDelayedData(targetHealthBuilder, target.getId(), discoveryTimingStatus);
         }
 
-        targetHealthBuilder.setSubcategory(TargetHealthSubCategory.VALIDATION);
-        if (successfulValidation) {
-            targetHealthBuilder.setHealthState(HealthState.NORMAL)
-                .setMessageText("Validation passed. Waiting for discovery.");
-        } else {
-            targetHealthBuilder.setHealthState(HealthState.MINOR)
-                .setMessageText("Validation pending.");
+        if (!successfulValidation) {
+            return targetHealthBuilder.setHealthState(HealthState.MINOR)
+                    .setSubcategory(TargetHealthSubCategory.VALIDATION)
+                    .setMessageText("Validation pending.").build();
         }
-        return targetHealthBuilder.build();
+
+        final Pair<HealthState, String> probeStatus = getMostSevereProbeHealth(target);
+        if (HealthState.NORMAL != probeStatus.getFirst()) {
+            return targetHealthBuilder.setHealthState(probeStatus.getFirst())
+                    .setSubcategory(TargetHealthSubCategory.VALIDATION)
+                    .setMessageText(probeStatus.getSecond()).build();
+        }
+
+        return targetHealthBuilder.setHealthState(HealthState.NORMAL)
+                .setSubcategory(TargetHealthSubCategory.VALIDATION)
+                .setMessageText("Validation passed. Waiting for discovery.").build();
     }
 
     /**
@@ -262,6 +271,13 @@ public class TargetHealthRetriever {
         DiscoveryTimingStatus discoveryTimingStatus = checkForDelayedData(target);
         if (discoveryTimingStatus != DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED) {
             return reportDelayedData(targetHealthBuilder, target.getId(), discoveryTimingStatus);
+        }
+
+        final Pair<HealthState, String> probeStatus = getMostSevereProbeHealth(target);
+        if (HealthState.NORMAL != probeStatus.getFirst()) {
+            return targetHealthBuilder.setHealthState(probeStatus.getFirst())
+                    .setSubcategory(TargetHealthSubCategory.VALIDATION)
+                    .setMessageText(probeStatus.getSecond()).build();
         }
 
         return targetHealthBuilder.setHealthState(HealthState.NORMAL)
@@ -323,7 +339,7 @@ public class TargetHealthRetriever {
                     .setTimeOfFirstFailure(
                             TimeUtil.localTimeToMillis(discoveryFailure.getFailTime(), clock))
                     .build();
-        } else if (!probeStore.isProbeConnected(target.getProbeId())) {
+        } else if (!probeStore.isAnyTransportConnectedForTarget(target)) {
             //The probe got disconnected. Report it.
             return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
@@ -419,5 +435,26 @@ public class TargetHealthRetriever {
         long lengthOfLastRediscovery = lastSuccessfulDiscoveryTime.getSecond() - lastSuccessfulDiscoveryTime.getFirst();
         return currentInstant - lastSuccessfulDiscoveryTime.getSecond() > rediscoveryPeriodThreshold
                         || lengthOfLastRediscovery > rediscoveryPeriodThreshold;
+    }
+
+    /**
+     * Fetch all probe registrations associated with the given target and select the one with the
+     * most severe health state and return the health state and the status string.
+     *
+     * <p/> If there are no probe registrations, then a critical health state and the associated
+     * message will be returned.
+     *
+     * @param target the target which associated probe registrations to be examined
+     * @return a pair of health state and the status string
+     */
+    private Pair<HealthState, String> getMostSevereProbeHealth(final Target target) {
+        final Collection<ProbeRegistrationDescription> probeRegistrations =
+                probeStore.getProbeRegistrationsForTarget(target);
+        if (probeRegistrations.isEmpty()) {
+            return Pair.create(HealthState.CRITICAL, ProbeStore.NO_TRANSPORTS_MESSAGE);
+        }
+        final ProbeRegistrationDescription probeRegistration = probeRegistrations.stream()
+                .reduce(new ProbeRegistrationDescription(), (r1, r2) -> r1.getHealthState().compareTo(r2.getHealthState()) <= 0 ? r1 : r2);
+        return Pair.create(probeRegistration.getHealthState(), probeRegistration.getStatus());
     }
 }
