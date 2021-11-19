@@ -24,10 +24,8 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -440,41 +438,6 @@ public class EntityStoreTest {
         // verify the discovery order is preserved
         assertEquals(new ArrayList<>(entitiesOrderedByDiscovery3.keySet()),
             Lists.newArrayList(messageId1, messageId3));
-    }
-
-    /**
-     * Test that we can properly get incremental entities by their message id.
-     * @throws TargetNotFoundException if the target can't be found
-     * @throws DuplicateTargetException if a duplicate target is found
-     * @throws IdentityServiceException if the identity store was not initialized
-     */
-    @Test
-    public void testGetEntitiesByMessageId()
-            throws TargetNotFoundException, DuplicateTargetException, IdentityServiceException {
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-
-        final long targetId1 = 2001;
-        final long oid1 = 1L;
-        final long oid2 = 2L;
-        final EntityDTO entity1 = EntityDTO.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE)
-                .setId("pm1")
-                .build();
-        final EntityDTO entity2 = EntityDTO.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE)
-                .setId("pm2")
-                .build();
-        Map<Long, EntityDTO> entitiesMap1 = ImmutableMap.of(oid1, entity1);
-        Map<Long, EntityDTO> entitiesMap2 = ImmutableMap.of(oid2, entity2);
-        final int messageId = 1;
-        addEntities(entitiesMap1, targetId1, 0, DiscoveryType.INCREMENTAL, messageId);
-        addEntities(entitiesMap2, targetId1, 0, DiscoveryType.INCREMENTAL, messageId);
-
-        Assert.assertTrue(entityStore.getIncrementalEntities(targetId1).isPresent());
-        LinkedHashMap<Integer, Collection<EntityDTO>>
-                entities = entityStore.getIncrementalEntities(targetId1).get().getEntitiesByMessageId();
-        Assert.assertEquals( 2, entities.get(messageId).size());
-        Assert.assertEquals(entities.get(messageId), Arrays.asList(entity1, entity2));
     }
 
     /**
