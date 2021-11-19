@@ -34,7 +34,6 @@ import org.mockito.Mockito;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -88,6 +87,8 @@ import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperati
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Tests for the {@link com.vmturbo.plan.orchestrator.project.PlanProjectExecutor} class.

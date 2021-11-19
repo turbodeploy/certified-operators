@@ -9,9 +9,10 @@ import com.cisco.intersight.client.model.AssetService;
 import com.cisco.intersight.client.model.AssetService.StatusEnum;
 import com.cisco.intersight.client.model.AssetTarget;
 
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.topology.processor.api.TargetInfo;
+
+import common.HealthCheck.HealthState;
 
 /**
  * A wrapper combining both representations of the same target: the {@link AssetTarget} discovered

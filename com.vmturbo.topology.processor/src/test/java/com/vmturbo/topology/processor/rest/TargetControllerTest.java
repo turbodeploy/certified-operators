@@ -111,6 +111,7 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
@@ -246,17 +247,17 @@ public class TargetControllerTest {
         public TargetController targetController() {
             return new TargetController(schedulerMock(), targetStore(), probeStore(),
                 operationManager(), topologyHandler(), settingPolicyServiceBlockingStub(),
-                workflowServiceBlockingStub(), targetStatusTracker());
+                workflowServiceBlockingStub(), targetHealthRetriever());
         }
 
         /**
-         * Target Status Tracker.
+         * Target Health Retriever.
          *
-         * @return {@link TargetStatusTracker}.
+         * @return {@link TargetHealthRetriever}.
          */
         @Bean
-        public TargetStatusTracker targetStatusTracker() {
-            return mock(TargetStatusTracker.class);
+        public TargetHealthRetriever targetHealthRetriever() {
+            return mock(TargetHealthRetriever.class);
         }
     }
 
