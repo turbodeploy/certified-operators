@@ -11,11 +11,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
-
-import common.HealthCheck.HealthState;
 
 /**
  * Wrapper for target info for API.

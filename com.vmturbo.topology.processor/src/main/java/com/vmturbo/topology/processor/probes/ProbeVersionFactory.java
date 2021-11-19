@@ -6,9 +6,8 @@ import com.google.common.base.Strings;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.platform.sdk.common.util.Pair;
-
-import common.HealthCheck.HealthState;
 
 /**
  * A factory related to probe versions.
@@ -19,9 +18,9 @@ public class ProbeVersionFactory {
      */
     enum ProbeVersionErrorMessage {
         MISSING("Probe version is missing%s; please upgrade probe to version '%s'."),
-        CUSTOM("Probe version ('%s') is custom; please confirm image being used supports server version '%s'."),
-        OLDER("Probe version ('%s') is not current; please upgrade probe to version '%s'."),
-        NEWER("Probe version ('%s') is newer than the server version ('%s'); please ensure this is expected.");
+        CUSTOM("Probe version is custom ('%s'); please confirm image being used supports server version '%s'."),
+        OLDER("Probe version is not current ('%s'); please upgrade probe to version '%s'."),
+        NEWER("Probe version is newer ('%s') than the server version ('%s'); please ensure this is expected.");
 
         private final String format;
 

@@ -25,6 +25,7 @@ import org.junit.rules.TestName;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
@@ -45,8 +46,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
-
-import common.HealthCheck.HealthState;
 
 /**
  * Test various API calls using Jetty server started up and some clients connecting to.

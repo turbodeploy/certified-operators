@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableList;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -45,13 +43,11 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.probes.ProbeVersionFactory;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
@@ -94,9 +90,6 @@ public class TargetHealthRetrieverTest {
             .setDataIsMissingErrorType(DataIsMissingErrorType.getDefaultInstance()).build();
     private static final ErrorTypeInfo delayedDataError = ErrorTypeInfo.newBuilder()
             .setDelayedDataErrorType(DelayedDataErrorType.getDefaultInstance()).build();
-    private static final ProbeRegistrationDescription olderProbe = mockProbe("8.3.5", "8.3.6");
-    private final ProbeRegistrationDescription newerProbe = mockProbe("8.3.7", "8.3.6");
-    private final ProbeRegistrationDescription perfectProbe = mockProbe("8.3.6", "8.3.6");
 
     /**
      * Common setup before each test.
@@ -109,7 +102,7 @@ public class TargetHealthRetrieverTest {
         when(operationManager.getLastValidationForTarget(anyLong())).thenReturn(Optional.empty());
         when(operationManager.getLastDiscoveryForTarget(anyLong(), any())).thenReturn(Optional.empty());
 
-        when(probeStore.isAnyTransportConnectedForTarget(any())).thenReturn(true);
+        when(probeStore.isProbeConnected(PROBE_ID)).thenReturn(true);
         probeInfo = ProbeInfo.newBuilder()
                         .setProbeCategory(ProbeCategory.ORCHESTRATOR.getCategory())
                         .setProbeType(SDKProbeType.SERVICENOW.getProbeType())
@@ -152,7 +145,6 @@ public class TargetHealthRetrieverTest {
     public void testSingleTargetHealthNoGoodValidationButDiscoveryOk() throws Exception {
         final Target target = mockTarget(PROBE_ID, 1, "43");
         final long targetId = target.getId();
-        when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
 
         final Discovery discovery = new Discovery(PROBE_ID, targetId, identityProvider);
         discovery.success();
@@ -212,7 +204,7 @@ public class TargetHealthRetrieverTest {
         Assert.assertFalse(healthInfo.hasConsecutiveFailureCount());
 
         //Now set the probe to be unconnected.
-        when(probeStore.isAnyTransportConnectedForTarget(target)).thenReturn(false);
+        when(probeStore.isProbeConnected(PROBE_ID)).thenReturn(false);
         healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.VALIDATION, healthInfo.getSubcategory());
@@ -228,36 +220,9 @@ public class TargetHealthRetrieverTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testSingleTargetWithProbeVersionMismatch() throws Exception   {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
-        final long targetId = target.getId();
-        when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(
-                ImmutableList.of(olderProbe, newerProbe, perfectProbe));
-
-        final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
-        final Discovery discovery = new Discovery(PROBE_ID, targetId, identityProvider);
-        validation.success();
-        discovery.success();
-        when(operationManager.getLastValidationForTarget(targetId))
-                .thenReturn(Optional.of(validation));
-        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
-                .thenReturn(Optional.of(discovery));
-
-        TargetHealth healthInfo = getTargetHealth(targetId);
-        Assert.assertEquals(HealthState.MAJOR, healthInfo.getHealthState());
-        Assert.assertEquals(TargetHealthSubCategory.VALIDATION, healthInfo.getSubcategory());
-    }
-
-    /**
-     * Test single target health - super healthy.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
     public void testSingleTargetHealthOk() throws Exception   {
         final Target target = mockTarget(PROBE_ID, 1, "43");
         final long targetId = target.getId();
-        when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
 
         final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
         final Discovery discovery = new Discovery(PROBE_ID, targetId, identityProvider);
@@ -340,7 +305,6 @@ public class TargetHealthRetrieverTest {
     public void testSingleTargetHealthDiscoveryFailed() throws Exception   {
         final Target target = mockTarget(PROBE_ID, 1, "43");
         final long targetId = target.getId();
-        when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
 
         final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
         validation.success();
@@ -579,20 +543,5 @@ public class TargetHealthRetrieverTest {
 
     private TargetHealth getTargetHealth(long targetId) {
         return healthRetriever.getTargetHealth(Collections.singleton(targetId), false).get(targetId);
-    }
-
-    /**
-     * Mock a {@link ProbeRegistrationDescription} object with health state and status derived from
-     * the given probe and platform versions.
-     *
-     * @param probeVersion the probe version
-     * @param platformVersion the platform version
-     * @return the mocked probe registration
-     */
-    private static ProbeRegistrationDescription mockProbe(final String probeVersion, final String platformVersion) {
-        final Pair<HealthState, String> probeHealth = ProbeVersionFactory.deduceProbeHealth(probeVersion, platformVersion);
-        final ProbeRegistrationDescription probeRegistration = new ProbeRegistrationDescription(
-                0, 0, "", probeVersion, 0, "", probeHealth.getFirst(), probeHealth.getSecond());
-        return probeRegistration;
     }
 }

@@ -27,6 +27,7 @@ import com.google.protobuf.util.JsonFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -42,8 +43,6 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.Target;
-
-import common.HealthCheck.HealthState;
 
 /**
  * Store for remote probe information. It publishes several convenient methods to operate with

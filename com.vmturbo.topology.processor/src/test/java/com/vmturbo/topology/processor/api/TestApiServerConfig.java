@@ -37,7 +37,6 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
@@ -89,12 +88,10 @@ import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
 import com.vmturbo.topology.processor.rest.TargetController;
-import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
@@ -262,13 +259,13 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
-     * Target Health Retriever.
+     * Target Status Tracker.
      *
-     * @return {@link TargetHealthRetriever}.
+     * @return {@link TargetStatusTracker}.
      */
     @Bean
-    public TargetHealthRetriever targetHealthRetriever() {
-        return mock(TargetHealthRetriever.class);
+    public TargetStatusTracker targetStatusTracker() {
+        return mock(TargetStatusTracker.class);
     }
 
     @Override
@@ -282,7 +279,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public TargetController targetController() {
         return new TargetController(scheduler(), targetStore(), probeStore(), operationManager(),
                 topologyHandler(), settingPolicyServiceBlockingStub(),
-                workflowServiceBlockingStub(), targetHealthRetriever());
+                workflowServiceBlockingStub(), targetStatusTracker());
     }
 
     @Bean

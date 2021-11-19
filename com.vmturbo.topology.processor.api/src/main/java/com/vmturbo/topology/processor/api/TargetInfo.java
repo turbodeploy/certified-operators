@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import common.HealthCheck.HealthState;
+import com.vmturbo.api.enums.healthCheck.HealthState;
 
 /**
  * Represents target in topology processor.

@@ -119,10 +119,7 @@ public class HealthDataMapper {
         return result;
     }
 
-    /**
-     * A utility map to convert a topology processor HealthState to an API HealthState.
-     */
-    public static final Map<HealthCheck.HealthState, HealthState> HEALTH_STATE_CONVERTER =
+    private static final Map<HealthCheck.HealthState, HealthState> HEALTH_STATE_CONVERTER =
                     initializeHealthStateConverter();
 
     private static Map<HealthCheck.HealthState, HealthState> initializeHealthStateConverter() {

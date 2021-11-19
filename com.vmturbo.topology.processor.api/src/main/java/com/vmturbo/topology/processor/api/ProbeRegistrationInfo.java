@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import common.HealthCheck.HealthState;
+import com.vmturbo.api.enums.healthCheck.HealthState;
 
 /**
  * Represents a probe registration in topology processor.
