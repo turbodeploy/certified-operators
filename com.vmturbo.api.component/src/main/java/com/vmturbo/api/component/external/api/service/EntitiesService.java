@@ -64,6 +64,7 @@ import com.vmturbo.api.constraints.ConstraintApiInputDTO;
 import com.vmturbo.api.constraints.PlacementOptionApiDTO;
 import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.MarketsController;
+import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -1340,6 +1341,7 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull Consumer<List<BaseApiDTO>> code)
             throws StatusRuntimeException {
         final Stream<MinimalEntity> neighbors = repositoryApi.newSearchRequest(
+
             SearchProtoUtil.neighbors(oid, traversalDirection)).getMinimalEntities();
         code.accept(neighbors.map(ServiceEntityMapper::toBaseServiceEntityApiDTO)
                 .collect(Collectors.toList()));
@@ -1408,6 +1410,23 @@ public class EntitiesService implements IEntitiesService {
             throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
         }
         return apiId.oid();
+    }
+
+    /**
+     * Get list of cloud cost statistics for given entity.
+     * POST /entities/{entity_Uuid}/cost
+     *
+     * @param cloudEntityUuid uuid of a cloud entity
+     * @param costInputApiDTO Filters and groupings applied to cost statistic
+     * @return List of {@link StatSnapshotApiDTO} containing cloud cost data
+     * @throws Exception //TODO add futher description with Jira OM-76838
+     */
+    @Override
+    public List<StatSnapshotApiDTO> getEntityCloudCostStats(@Nonnull String cloudEntityUuid,
+                                                @Nullable CostInputApiDTO costInputApiDTO)
+                    throws Exception {
+        //TODO: Planned implementation Jira OM-76838
+        return Collections.emptyList();
     }
 }
 
