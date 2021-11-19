@@ -740,11 +740,10 @@ public class TopologyConverter {
     /**
      * get the TopologyEntityDTO OID corresponding to the oid of a On-demand TemplateProvider.
      * return empty if the traderTOOID is a CBTP.
-     * @param traderTOOID  oid of a TemplateProvider
+     * @param marketTier the TemplateProvider.
      * @return the OID of corresponding TopologyEntityDTO
      */
-    public Optional<Long> getTopologyEntityOIDForOnDemandMarketTier(Long traderTOOID) {
-        MarketTier marketTier = cloudTc.getMarketTier(traderTOOID);
+    public Optional<Long> getTopologyEntityOIDForOnDemandMarketTier(MarketTier marketTier) {
         if (marketTier.hasRIDiscount()) {
             return Optional.empty();
         } else {
@@ -3716,9 +3715,20 @@ public class TopologyConverter {
             }
             // Create DC comm bought
             if (!isCloudMigration) {
-                // Having DC commodity prevents us from going from one CSP to another for migration.
-                createDCCommodityBoughtForCloudEntity(providerOid, entityForSLOid)
-                        .ifPresent(values::add);
+                TopologyEntityDTO marketTier = cloudTc.getMarketTier(providerOid).getTier();
+                Optional<CommodityBoughtTO> regionComm;
+                if (EntityType.COMPUTE_TIER_VALUE == marketTier.getEntityType() && marketTier
+                        .getConnectedEntityListList().stream().anyMatch(ce -> ce.getConnectedEntityType()
+                                == EntityType.AVAILABILITY_ZONE_VALUE)) {
+                    // Skip creating DC comm representing the regional availability for GCP compute
+                    // tiers as GCP directly rely on connectedEntityList to achieve zonal availability.
+                    regionComm = Optional.empty();
+                } else {
+                    // Having DC commodity prevents us from going from one CSP to another for migration.
+                    // AWS and Azure reaches here and regional access is done by DC comm.
+                    regionComm = createDCCommodityBoughtForCloudEntity(providerOid, entityForSLOid);
+                }
+                regionComm.ifPresent(values::add);
             }
             if (!isSMAOnly() || isCloudMigration) {
                 // Create Coupon Comm

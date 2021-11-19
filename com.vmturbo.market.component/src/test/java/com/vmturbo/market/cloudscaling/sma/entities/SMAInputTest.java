@@ -1,5 +1,6 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -18,6 +19,7 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -133,11 +135,11 @@ public class SMAInputTest {
 
     // create a compute tier that is t2.micro
     private TopologyEntityDTO ct1Dto = createComputeTier(ct1Id, ct1Name, ctFamily, ct1Coupons,
-        regionId);
+        regionId, EntityType.REGION_VALUE);
     private final ComputePriceBundle ct1PriceBundle = createComputePriceBundle(0.2f, 0.35f);
 
     private final TopologyEntityDTO ct2Dto = createComputeTier(ct2Id, "ct2", "m5",
-        ct1Coupons, regionId);
+        ct1Coupons, regionId, EntityType.REGION_VALUE);
     private final ComputePriceBundle ct2PriceBundle = createComputePriceBundle(0.25f, 0.30f);
 
     private Optional<TopologyEntityDTO> computeTier1Optional = Optional.of(ct1Dto);
@@ -302,33 +304,33 @@ public class SMAInputTest {
         //create SMAInput
         final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
                 marketCloudRateExtractor, consistentScalingHelper, false, false);
-        Assert.assertEquals(1, smaInput.getContexts().size());
+        assertEquals(1, smaInput.getContexts().size());
         final SMAInputContext smaContext = smaInput.getContexts().iterator().next();
-        Assert.assertEquals(2, smaContext.getVirtualMachines().size());
+        assertEquals(2, smaContext.getVirtualMachines().size());
 
         //this VM is not movable, so it should remain on same template, and it is also covered by
         //bought RI
         final Optional<SMAVirtualMachine> vm1 = findVMByOid(smaContext, vm1Id);
         Assert.assertTrue(vm1.isPresent());
         // no provider templates, because VM is not movable
-        Assert.assertEquals(0, vm1.get().getProviders().size());
-        Assert.assertEquals(1, vm1.get().getGroupProviders().size());
-        Assert.assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getGroupProviders().iterator().next());
+        assertEquals(0, vm1.get().getProviders().size());
+        assertEquals(1, vm1.get().getGroupProviders().size());
+        assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getGroupProviders().iterator().next());
         //natural template == current template, because VM is not movable
-        Assert.assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getNaturalTemplate());
-        Assert.assertEquals(vm1.get().getCurrentTemplate().getCoupons(),
+        assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getNaturalTemplate());
+        assertEquals(vm1.get().getCurrentTemplate().getCoupons(),
                 vm1.get().getCurrentRICoverage(), 0.001f);
 
         //this VM is movable and should have provider templates
         final Optional<SMAVirtualMachine> vm2 = findVMByOid(smaContext, vm2Id);
         Assert.assertTrue(vm2.isPresent());
-        Assert.assertEquals(1, vm2.get().getProviders().size());
-        Assert.assertEquals(ct1Name, vm2.get().getProviders().iterator().next().getName());
+        assertEquals(1, vm2.get().getProviders().size());
+        assertEquals(ct1Name, vm2.get().getProviders().iterator().next().getName());
 
-        Assert.assertEquals(1, smaContext.getTemplates().size());
-        Assert.assertEquals(ct1Name, smaContext.getTemplates().iterator().next().getName());
+        assertEquals(1, smaContext.getTemplates().size());
+        assertEquals(ct1Name, smaContext.getTemplates().iterator().next().getName());
 
-        Assert.assertEquals(1, smaContext.getReservedInstances().size());
+        assertEquals(1, smaContext.getReservedInstances().size());
     }
 
     /**
@@ -353,7 +355,7 @@ public class SMAInputTest {
         // then naturalTemplate must be ct2 as it has lower rates for Windows than ct1 (Windows
         // rates are considered for Windows VM with LICENSE_INCLUDED OS License model)
         Assert.assertNotNull(smaVirtualMachine);
-        Assert.assertEquals(ct2Id, smaVirtualMachine.getNaturalTemplate().getOid());
+        assertEquals(ct2Id, smaVirtualMachine.getNaturalTemplate().getOid());
     }
 
     /**
@@ -379,7 +381,57 @@ public class SMAInputTest {
         // then naturalTemplate must be ct1 as it has lower rates for Linux than ct2 (Linux rates
         // are considered for Windows VMs with AHUB License model)
         Assert.assertNotNull(smaVirtualMachine);
-        Assert.assertEquals(ct1Id, smaVirtualMachine.getNaturalTemplate().getOid());
+        assertEquals(ct1Id, smaVirtualMachine.getNaturalTemplate().getOid());
+    }
+
+    /**
+     *  Create a Region that is accessible for zone1 and zone2, a CT that is only connected with zone1.
+     *  Test partitionComputeTiersByRegionId for the given CT.
+     */
+    @Test
+    public void testPartitionComputeTiersByRegionId() {
+        final long regionId = 2345678L;
+        final long zone1Id = 44444L;
+        TopologyEntityDTO zone1Dto = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                .setOid(zone1Id)
+                .setDisplayName("Zone" + zone1Id)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        final long zone2Id = 55555L;
+        TopologyEntityDTO zone2Dto = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                .setOid(zone2Id)
+                .setDisplayName("Zone" + zone2Id)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        // Connecting two zones to a region.
+        TopologyEntityDTO regDto = TopologyEntityDTO.newBuilder().setEntityType(
+                EntityType.REGION_VALUE).setOid(regionId).setDisplayName(regionName)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(zone1Id)
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(zone2Id)
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)).build();
+        // Connecting only zone1 to the GCP CT.
+        TopologyEntityDTO gcpCT = createComputeTier(ct1Id, ct1Name, ctFamily, 0,
+                zone1Id, EntityType.AVAILABILITY_ZONE_VALUE);
+        CloudCostData costData = mockCloudCostData();
+        CloudTopology<TopologyEntityDTO> cloudTopology = spy(defaultFactory.newCloudTopology(Stream
+                .of(gcpCT, regDto, zone1Dto, zone2Dto)));
+        final CloudRateExtractor marketCloudRateExtractor = mockCloudRateExtractor();
+        SMAInput smaInput = new SMAInput(cloudTopology, new HashMap<>(), costData,
+                marketCloudRateExtractor, consistentScalingHelper, false, false);
+
+        when(cloudTopology.getOwner(zone1Id)).thenReturn(Optional.of(regDto));
+        when(cloudTopology.getOwner(zone2Id)).thenReturn(Optional.of(regDto));
+        Map<Long, List<TopologyEntityDTO>> map = smaInput.partitionComputeTiersByRegionId(
+                Arrays.asList(gcpCT), Sets.newHashSet(regionId), cloudTopology);
+
+        assertEquals(1, map.get(regionId).size());
+        assertEquals(gcpCT, map.get(regionId).get(0));
     }
 
     private ComputePriceBundle createComputePriceBundle(final float linuxRate,
@@ -450,7 +502,7 @@ public class SMAInputTest {
 
     private static TopologyEntityDTO createComputeTier(final long oid, final String displayName,
                                                        final String familyName, int numCoupons,
-                                                       long regionId) {
+                                                       long regionOrZoneId, int connectedEntityType) {
         return TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
             .setOid(oid)
@@ -463,8 +515,8 @@ public class SMAInputTest {
                         .setFamily(familyName)
                         .setNumCoupons(numCoupons))).addConnectedEntityList(
             ConnectedEntity.newBuilder()
-                .setConnectedEntityId(regionId)
-                .setConnectedEntityType(EntityType.REGION_VALUE)
+                .setConnectedEntityId(regionOrZoneId)
+                .setConnectedEntityType(connectedEntityType)
                 .build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()

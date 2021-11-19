@@ -84,6 +84,7 @@ public class ComputeTierConverter implements TierConverter {
                 .setIsEligibleForResizeDown(false)
                 .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                         .setRiskBased(RiskBased.newBuilder()
+                                // TODO: OM-77598 Create zone level computeTier costDTO for M2 analysis.
                                 .setCloudCost(costDTOCreator.createCostDTO(computeTier, connectedRegions,
                                         uniqueAccountPricingData)).build()))
                 .setQuoteFactor(1)
