@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import org.junit.Test;
 
@@ -26,7 +27,7 @@ public class ComputeTierAspectMapperTest extends BaseAspectMapperTest {
                 .setComputeTier(TopologyDTO.TypeSpecificInfo.ComputeTierInfo.newBuilder()
                         .setFamily(TEST_TIER_FAMILY)
                         .setInstanceDiskSizeGb(TEST_TIER_SIZE_INSTANCEDISK)
-                        .setNumInstanceDisks(TEST_TIER_NUM_INSTANCEDISKS)
+                        .addInstanceDiskCounts(TEST_TIER_NUM_INSTANCEDISKS)
                         .build()).build();
         final TopologyDTO.TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(
                 CommonDTO.EntityDTO.EntityType.COMPUTE_TIER, typeSpecificInfo);
@@ -34,6 +35,7 @@ public class ComputeTierAspectMapperTest extends BaseAspectMapperTest {
         // act
         final ComputeTierAspectApiDTO computeTierAspectApiDTO = mapper.mapEntityToAspect(topologyEntityDTO.build());
         // assert
+        assertNotNull(computeTierAspectApiDTO);
         assertEquals(TEST_TIER_FAMILY, computeTierAspectApiDTO.getTierFamily());
         assertEquals(new Float(TEST_TIER_NUM_INSTANCEDISKS), computeTierAspectApiDTO.getNumInstanceStorages());
         assertEquals(new Float(TEST_TIER_SIZE_INSTANCEDISK), computeTierAspectApiDTO.getInstanceStorageSize());

@@ -113,6 +113,11 @@ message TypeSpecificInfo {
 
         // The mark that shows whether cores per socket property of the VM can be changed or not
         optional bool coresPerSocketChangeable = 15 [default = false];
+
+        // Corresponding setting from CommonDTO.proto's VirtualMachineData coming from probe.
+        // Count of how many ephemeral disks (instance stores for AWS, or local SSDs for GCP) are
+        // currently attached to the VM. Required because GCP supports multiple disk count options.
+        optional int32 numEphemeralStorages = 16;
     }
 
     // Properties unique to a PhysicalMachine in the model
@@ -227,8 +232,9 @@ message TypeSpecificInfo {
             repeated VirtualizationType supportedVirtualizationTypes = 4;
         }
 
+        // DEPRECATED: Use newer 'instance_disk_counts' instead.
         //Number of Ephemeral disks supported by this tier
-        optional int32 num_instance_disks = 6;
+        optional int32 num_instance_disks = 6 [deprecated = true];
         //Size of each Ephemeral disk supported by this tier in GB
         optional int32 instance_disk_size_gb = 7;
         //disk type of Ephemeral storage
@@ -243,7 +249,11 @@ message TypeSpecificInfo {
            // deprecated from a single value in 8.0.7, 8.1.0 to a list.
            optional common_dto.EntityDTO.ScalingPenaltyReason reason = 2 [deprecated = true];
            repeated common_dto.EntityDTO.ScalingPenaltyReason reasons = 3;
-           }
+        }
+
+        // Possible disk counts supported for compute tier. Normally single value like 8 for AWS,
+        // but others like GCP support multiple options like: 2, 4, 8, 16, or 24
+        repeated int32 instance_disk_counts = 12;
      }
 
 
