@@ -87,9 +87,6 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         if (!vmData.getConnectedNetworkList().isEmpty()) {
             vmInfo.addAllConnectedNetworks(vmData.getConnectedNetworkList());
         }
-        if (vmData.hasNumEphemeralStorages()) {
-            vmInfo.setNumEphemeralStorages(vmData.getNumEphemeralStorages());
-        }
         CommonDTO.EntityDTO.VirtualMachineRelatedData vmRelatedData =
                 sdkEntity.getVirtualMachineRelatedData();
         if (vmRelatedData.hasMemory()) {

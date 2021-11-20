@@ -1392,7 +1392,7 @@ public class EntitySettingsApplicatorTest {
                         .setComputeTier(ComputeTierInfo.newBuilder()
                                 .setInstanceDiskSizeGb(INSTANCE_DISK_SIZE_GB)
                                 .setInstanceDiskType(InstanceDiskType.HDD)
-                                .addInstanceDiskCounts(3)
+                                .setNumInstanceDisks(3)
                                 .build())
                         .build());
     }
@@ -1444,9 +1444,8 @@ public class EntitySettingsApplicatorTest {
                         CoreMatchers.is(Collections.singleton(true)));
         Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_SIZE),
                         CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
-        // Compute tier sold capacity should be max as that is what is it is set to during creation.
         Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_COUNT),
-                        CoreMatchers.is(SDKConstants.ACCESS_COMMODITY_CAPACITY));
+                        CoreMatchers.is(NUM_DISKS));
         Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_TYPE),
                 CoreMatchers.is(SDKConstants.ACCESS_COMMODITY_CAPACITY));
         final String instanceTypeKey = findCommodity(soldCommodities,

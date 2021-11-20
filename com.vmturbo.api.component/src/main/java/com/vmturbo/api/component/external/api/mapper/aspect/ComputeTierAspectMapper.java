@@ -28,15 +28,7 @@ public class ComputeTierAspectMapper extends AbstractAspectMapper {
         ComputeTierAspectApiDTO computeTierAspectApiDTO = new ComputeTierAspectApiDTO();
         TopologyDTO.TypeSpecificInfo.ComputeTierInfo computeTier = entity.getTypeSpecificInfo().getComputeTier();
         computeTierAspectApiDTO.setTierFamily(computeTier.getFamily());
-        // This should continue to work as before for AWS instance tier, but for GCP which supports
-        // multiple combinations of local SSDs (e.g 2, 4, 16), we keep the max allowed count (16).
-        // This to avoid breaking backward compatibility with /entities/{entity_Uuid}/aspects API.
-
-        // How many disk size options are available for this tier, e.g 3 for above case.
-        int diskOptions = computeTier.getInstanceDiskCountsCount();
-        // Largest disk count size, e.g 16 for above case. Counts are sorted ascending count order.
-        int diskCounts = diskOptions > 0 ? computeTier.getInstanceDiskCounts(diskOptions - 1) : 0;
-        computeTierAspectApiDTO.setNumInstanceStorages((float)diskCounts);
+        computeTierAspectApiDTO.setNumInstanceStorages((float)computeTier.getNumInstanceDisks());
         computeTierAspectApiDTO.setInstanceStorageSize((float)computeTier.getInstanceDiskSizeGb());
         return computeTierAspectApiDTO;
     }
