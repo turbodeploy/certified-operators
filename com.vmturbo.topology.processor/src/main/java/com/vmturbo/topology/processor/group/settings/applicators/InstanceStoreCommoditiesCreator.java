@@ -7,6 +7,7 @@ package com.vmturbo.topology.processor.group.settings.applicators;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -52,8 +53,8 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
      * Checks whether {@link ComputeTierInfo} instance has information about number of instance
      * disks.
      */
-    protected static final Predicate<ComputeTierInfo> INSTANCE_NUM_DISKS_PREDICATE =
-                    (cti) -> cti.hasNumInstanceDisks() && cti.getNumInstanceDisks() > 0;
+    protected static final Predicate<ComputeTierInfo> INSTANCE_DISK_COUNTS_PREDICATE =
+                    (cti) -> cti.getInstanceDiskCountsCount() > 0;
     /**
      * Checks whether {@link ComputeTierInfo} instance has information about instance disk size.
      */
@@ -103,11 +104,16 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
      * @param computeTierInfo information about computer tier which will provide
      *                 information required for instance store commodity creation process.
      * @param <E> type of the entity which commodities collection will be updated.
+     * @param usedEphemeralDisks If non null (for VMs that currently have attached ephemeral disks),
+     *      this has the count of such disks, and are used for creating VM's bought commodities.
+     *      For sold commodity creation, this is *always* null, we use the tier's supported disk
+     *      counts to create the commodities.
      * @return number of commodity builders that have been created.
      */
     @Nonnull
-    public <E> Collection<B> create(@Nonnull Function<E, Collection<B>> commoditiesExtractor,
-                    @Nonnull E entityToUpdate, @Nonnull ComputeTierInfo computeTierInfo) {
+    protected <E> Collection<B> create(@Nonnull Function<E, Collection<B>> commoditiesExtractor,
+                    @Nonnull E entityToUpdate, @Nonnull ComputeTierInfo computeTierInfo,
+            @Nullable final Integer usedEphemeralDisks) {
         final Collection<B> commodities = commoditiesExtractor.apply(entityToUpdate);
         if (commodities.stream().anyMatch(c -> INSTANCE_COMMODITY_TYPES
                         .contains(commodityTypeGetter.apply(c)))) {
@@ -117,9 +123,18 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
         getInstanceStoreDiskSize(computeTierInfo).ifPresent(value -> result
                         .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_SIZE,
                                         null, value.doubleValue())));
-        getNumInstanceDisks(computeTierInfo).ifPresent(value -> result
-                        .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_COUNT,
-                                null, value.doubleValue())));
+        if (usedEphemeralDisks != null) {
+            // When creating bought commodities, create it based on count of disks actually used,
+            // rather than what the compute tier supports (which could be different for GCP).
+            result.add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_COUNT,
+                    String.valueOf(usedEphemeralDisks), usedEphemeralDisks.doubleValue()));
+        } else {
+            // Creating sold commodities, create based on all distinct disk counts that are
+            // supported by the tier. E.g '2, 4, 8' for GCP.
+            getInstanceDiskCounts(computeTierInfo).forEach(value -> result.add(
+                    createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_COUNT,
+                            String.valueOf(value), SDKConstants.ACCESS_COMMODITY_CAPACITY)));
+        }
         getInstanceStoreDiskType(computeTierInfo).ifPresent(value -> result
                         .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_TYPE,
                                         value, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
@@ -142,15 +157,18 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
 
     /**
      * Returns number of the disks, available for the {@link ComputeTierInfo} instance.
+     * Normally 1 disk count is returned (e.g for AWS instance store), but could be multiple counts
+     * as well as in case of GCP.
      *
      * @param computeTierInfo which reflects template information.
      * @return number of the disks, available for template.
      */
     @Nonnull
-    private static Optional<? extends Number> getNumInstanceDisks(
+    private static List<Integer> getInstanceDiskCounts(
                     @Nonnull ComputeTierInfo computeTierInfo) {
-        return Optional.of(computeTierInfo).filter(INSTANCE_NUM_DISKS_PREDICATE)
-                        .map(ComputeTierInfo::getNumInstanceDisks);
+        return Optional.of(computeTierInfo).filter(INSTANCE_DISK_COUNTS_PREDICATE)
+                        .map(ComputeTierInfo::getInstanceDiskCountsList)
+                .orElse(Collections.emptyList());
     }
 
     /**

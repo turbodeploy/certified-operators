@@ -80,8 +80,17 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
         if (ctData.hasInstanceDiskType()) {
             computeTierInfoBuilder.setInstanceDiskType(ctData.getInstanceDiskType());
         }
-        if (ctData.hasNumInstanceDisks()) {
-            computeTierInfoBuilder.setNumInstanceDisks(ctData.getNumInstanceDisks());
+        if (ctData.getInstanceDiskCountsCount() > 0) {
+            computeTierInfoBuilder.addAllInstanceDiskCounts(ctData.getInstanceDiskCountsList());
+        } else if (ctData.hasNumInstanceDisks()) {
+            // This 'else' is only done for backward compatibility fallback option.
+            // If TP is newer (after upgrade) while probe (AWS) is still old, it might send data
+            // in this old field, so read that and use it. This should happen only for a short
+            // time when either there is some delay between upgrade of probes, or in case of TP
+            // starting up first after the upgrade in which case it will read older discovery
+            // response (containing 'numInstanceDisks' value).
+            // This will also apply to loading the saved discoveries immediately after the upgrade.
+            computeTierInfoBuilder.addInstanceDiskCounts(ctData.getNumInstanceDisks());
         }
         if (ctData.hasScalePenalty()) {
                 computeTierInfoBuilder.setScalePenalty(ScalingPenalty.newBuilder()
