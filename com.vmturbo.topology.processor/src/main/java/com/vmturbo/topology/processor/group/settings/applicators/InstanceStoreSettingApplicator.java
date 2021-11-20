@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -44,15 +45,14 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
     private static final Collection<Predicate<ComputeTierInfo>> INSTANCE_STORE_PREDICATES =
                     ImmutableList.of(InstanceStoreCommoditiesCreator.INSTANCE_DISK_SIZE_PREDICATE,
                                     InstanceStoreCommoditiesCreator.INSTANCE_DISK_TYPE_PREDICATE,
-                                    InstanceStoreCommoditiesCreator.INSTANCE_NUM_DISKS_PREDICATE);
+                                    InstanceStoreCommoditiesCreator.INSTANCE_DISK_COUNTS_PREDICATE);
 
     private final Logger logger = LogManager.getLogger(getClass());
     private final TopologyGraph<TopologyEntity> topologyGraph;
-    private final InstanceStoreCommoditiesCreator<CommodityBoughtDTO.Builder> vmCommoditiesCreator;
-    private final InstanceStoreCommoditiesCreator<CommoditySoldDTO.Builder>
-                    computeTierCommoditiesCreator;
+    private final VmInstanceStoreCommoditiesCreator vmCommoditiesCreator;
+    private final ComputeTierInstanceStoreCommoditiesCreator computeTierCommoditiesCreator;
     private boolean computeTiersCommoditiesCreated;
-    private TopologyInfo topologyInfo;
+    private final TopologyInfo topologyInfo;
 
     /**
      * Creates {@link InstanceStoreSettingApplicator} instance.
@@ -66,8 +66,8 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
      * @param topologyInfo the topologyInfo associated with topology graph.
      */
     public InstanceStoreSettingApplicator(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
-                    @Nonnull InstanceStoreCommoditiesCreator<CommodityBoughtDTO.Builder> vmCommoditiesCreator,
-                    @Nonnull InstanceStoreCommoditiesCreator<CommoditySoldDTO.Builder> computeTierCommoditiesCreator,
+                    @Nonnull VmInstanceStoreCommoditiesCreator vmCommoditiesCreator,
+                    @Nonnull ComputeTierInstanceStoreCommoditiesCreator computeTierCommoditiesCreator,
                     @Nonnull TopologyInfo topologyInfo) {
         super(EntitySettingSpecs.InstanceStoreAwareScaling);
         this.topologyGraph = Objects.requireNonNull(topologyGraph);
@@ -90,7 +90,7 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
         // figuring out the exact cloud migration scenario, we can skip the instance store commodity
         // creation in all migration cases, e.g: on prem to AWS/Azure, AWS to Azure, Azure to AWS.
         if (TopologyDTOUtil.isCloudMigrationPlan(topologyInfo)) {
-        return;
+            return;
         }
         if (isApplicable(entity, setting)) {
             populateInstanceStoreCommodities(entity);
@@ -130,9 +130,10 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
                         .filter(InstanceStoreSettingApplicator::hasComputeTierInfo)
                         .map(item -> item.getTypeSpecificInfo().getComputeTier());
         ct.ifPresent(computeTierInfo -> {
+            final Integer usedEphemeralDisks = getUsedEphemeralDisks(entity, ct.get());
             final Collection<CommodityBoughtDTO.Builder> boughtCommodities = vmCommoditiesCreator
                     .create(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList,
-                            computeTierProvider, computeTierInfo);
+                            computeTierProvider, computeTierInfo, usedEphemeralDisks);
             if (!boughtCommodities.isEmpty()) {
                 boughtCommodities.forEach(computeTierProvider::addCommodityBought);
                 if (!computeTiersCommoditiesCreated) {
@@ -142,13 +143,37 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
         });
     }
 
+    /**
+     * Used to get number of ephemeral disks currently attached to the VM.
+     *
+     * @param vmBuilder Tries to get from VM's TopologyEntityDTO 'numEphemeralStorages' field.
+     * @param computeTierInfo If not available from VM, gets it from Compute Tier's info.
+     * @return Ephemeral storage used count, or 0.
+     */
+    private static int getUsedEphemeralDisks(@Nonnull final TopologyEntityDTO.Builder vmBuilder,
+            @Nonnull final ComputeTierInfo computeTierInfo) {
+        final Integer vmEphemeralDisks = vmBuilder.hasTypeSpecificInfo()
+                && vmBuilder.getTypeSpecificInfo().hasVirtualMachine()
+                ? vmBuilder.getTypeSpecificInfo().getVirtualMachine().getNumEphemeralStorages()
+                : null;
+        if (vmEphemeralDisks != null) {
+            return vmEphemeralDisks;
+        }
+        // Try and get it from computeTierInfo, this is more for backward compatibility if
+        // 'numEphemeralStorages' value is not provided for the VM from probe.
+        if (computeTierInfo.getInstanceDiskCountsCount() > 0) {
+            return computeTierInfo.getInstanceDiskCounts(0);
+        }
+        return 0;
+    }
+
     private void createSoldCommodities() {
         final Stream<TopologyEntity> computeTiers =
                 topologyGraph.entitiesOfType(EntityType.COMPUTE_TIER);
         computeTiers.map(TopologyEntity::getTopologyEntityDtoBuilder).forEach(ct -> {
             final Collection<CommoditySoldDTO.Builder> ctCommodities = computeTierCommoditiesCreator
                     .create(Builder::getCommoditySoldListBuilderList, ct,
-                            ct.getTypeSpecificInfo().getComputeTier());
+                            ct.getTypeSpecificInfo().getComputeTier(), null);
             ctCommodities.forEach(ct::addCommoditySoldList);
         });
         computeTiersCommoditiesCreated = true;
