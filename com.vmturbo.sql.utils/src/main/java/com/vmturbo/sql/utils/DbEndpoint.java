@@ -251,24 +251,6 @@ public class DbEndpoint {
         return adapter;
     }
 
-    /**
-     * Test if this endpoint's completion cycle has run its course and failed, resulting in an
-     * unsuable endpoint.
-     *
-     * @return true if this endpoint is and will remain unusable
-     */
-    public boolean isFailed() {
-        return future != null
-                && future.isDone()
-                && (future.isCompletedExceptionally() || future.isCancelled());
-    }
-
-    /**
-     * Test if this endpoint's completion cycle has run its course and resulted in a functioning
-     * endpoint.
-     *
-     * @return true if endpoint is ready for use
-     */
     public boolean isReady() {
         return future != null
                 && future.isDone()
