@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -42,6 +43,7 @@ import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -373,9 +375,9 @@ public class SsoUtil {
      */
     public List<SecurityGroupDTO> authenticateUserInGroup(final @Nonnull String userName,
             final @Nonnull String userPassword, final @Nonnull Collection<String> ldapServers,
-            final boolean multipleGroupSupport) {
+            final boolean multipleGroupSupport, final Optional<String> groupBaseDN) {
         if (multipleGroupSupport) {
-            return authenticateUserInMultiGroups(userName, userPassword, ldapServers);
+            return authenticateUserInMultiGroups(userName, userPassword, ldapServers, groupBaseDN);
         } else {
             final SecurityGroupDTO groupDTO =
                     authenticateUserInSingleGroup(userName, userPassword, ldapServers);
@@ -532,7 +534,9 @@ public class SsoUtil {
 
     @Nonnull
     private List<SecurityGroupDTO> authenticateUserInMultiGroups(@Nonnull String userName,
-            @Nonnull String userPassword, @Nonnull Collection<String> ldapServers) {
+            @Nonnull String userPassword, @Nonnull Collection<String> ldapServers,
+            @Nonnull Optional<String> groupBaseDN) {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
         final String pureUsername = getPureUsername(userName);
         final String fullUsername = createFullUsername(pureUsername);
         final String dn = getUserDn(pureUsername, userPassword, ldapServers);
@@ -558,7 +562,7 @@ public class SsoUtil {
             try {
                 ctx = new InitialDirContext(props);
                 final NamingEnumeration<SearchResult> answer =
-                        ctx.search(adSearchBase_, searchFilter, sCtrl);
+                        ctx.search(groupBaseDN.orElse(adSearchBase_), searchFilter, sCtrl);
 
                 while (answer.hasMoreElements()) {
                     final SearchResult sr = answer.next();
@@ -601,6 +605,9 @@ public class SsoUtil {
                                             g.getRoleName()))
                             .collect(Collectors.joining(System.lineSeparator())));
         }
+
+        logger.info("Nested group finished search in {} seconds with base DN {}",
+                stopwatch.stop().elapsed(TimeUnit.SECONDS), groupBaseDN.orElse(adSearchBase_));
         return securityGroupDTOS;
     }
 

@@ -233,7 +233,7 @@ public class RestTest {
                     .build());
             authStore = new AuthProvider(kvStore, null,
                     () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL,
-                    new ReportPolicy(licenseCheckService, false)), ssoUtil, false, false, () -> false);
+                    new ReportPolicy(licenseCheckService, false), Optional.empty()), ssoUtil, false, false, () -> false);
             return authStore;
         }
 
