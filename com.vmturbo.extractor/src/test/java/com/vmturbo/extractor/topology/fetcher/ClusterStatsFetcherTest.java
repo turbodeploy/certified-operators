@@ -52,6 +52,7 @@ import com.vmturbo.extractor.schema.tables.Metric;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests of the ClusterStatsFetcherTest class.
@@ -78,6 +79,10 @@ public class ClusterStatsFetcherTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
+
+    /** Manage feature flags. */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private static final StatSnapshot STAT_SNAPSHOT = StatSnapshot.newBuilder()
         .setSnapshotDate(Clock.systemUTC().millis())

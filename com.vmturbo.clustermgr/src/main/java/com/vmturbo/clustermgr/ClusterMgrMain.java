@@ -23,6 +23,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
@@ -32,6 +33,8 @@ import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 import com.vmturbo.clustermgr.management.ComponentRegistrationConfig;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.config.PropertiesLoader;
+import com.vmturbo.components.common.featureflags.FeatureFlagManager;
+import com.vmturbo.components.common.featureflags.PropertiesLoaderFeatureFlagEnablementStore;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 
@@ -98,17 +101,20 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
     public static void main(String[] args) {
         final Logger logger = LogManager.getLogger();
         logger.info("Starting web server with spring context");
-        final String serverPort = requireEnvProperty("serverHttpPort");
-
-        final org.eclipse.jetty.server.Server server =
-                new org.eclipse.jetty.server.Server(Integer.parseInt(serverPort));
-        final ServletContextHandler contextServer =
-                new ServletContextHandler(ServletContextHandler.SESSIONS);
         try {
+            StandardEnvironment environment = new StandardEnvironment();
+            PropertiesLoader.addConfigurationPropertySources(environment);
+            FeatureFlagManager.setStore(new PropertiesLoaderFeatureFlagEnablementStore(environment));
+            final String serverPort = requireEnvProperty("serverHttpPort");
+
+            final org.eclipse.jetty.server.Server server =
+                    new org.eclipse.jetty.server.Server(Integer.parseInt(serverPort));
+            final ServletContextHandler contextServer =
+                    new ServletContextHandler(ServletContextHandler.SESSIONS);
             server.setHandler(contextServer);
             final AnnotationConfigWebApplicationContext applicationContext =
                     new AnnotationConfigWebApplicationContext();
-            PropertiesLoader.addConfigurationPropertySources(applicationContext);
+            applicationContext.setEnvironment(environment);
             applicationContext.register(ClusterMgrMain.class);
             final Servlet dispatcherServlet = new DispatcherServlet(applicationContext);
             final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
@@ -128,7 +134,6 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
             ComponentGrpcServer.get().start(applicationContext.getEnvironment());
 
             applicationContext.getBean(ClusterMgrMain.class).run();
-
         } catch (Exception e) {
             logger.error("Web server failed to start. Shutting down.", e);
             System.exit(1);
