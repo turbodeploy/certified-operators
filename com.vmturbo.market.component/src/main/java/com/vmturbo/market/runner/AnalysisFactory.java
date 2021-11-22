@@ -149,6 +149,10 @@ public interface AnalysisFactory {
 
         private ExternalReconfigureActionEngine externalReconfigureActionEngine;
 
+        private final boolean singleVMonHost;
+
+        private final float customUtilizationThreshold;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -177,7 +181,9 @@ public interface AnalysisFactory {
                                       final boolean fastProvisionEnabled,
                                       final boolean branchAndBoundEnabled,
                                       final boolean useVMReservationAsUsed,
-                                      @Nonnull ExternalReconfigureActionEngine externalReconfigureActionEngine) {
+                                      @Nonnull ExternalReconfigureActionEngine externalReconfigureActionEngine,
+                                      final boolean singleVMonHost,
+                                      final float customUtilizationThreshold) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -213,6 +219,8 @@ public interface AnalysisFactory {
             this.branchAndBoundEnabled = branchAndBoundEnabled;
             this.useVMReservationAsUsed = useVMReservationAsUsed;
             this.externalReconfigureActionEngine = externalReconfigureActionEngine;
+            this.singleVMonHost = singleVMonHost;
+            this.customUtilizationThreshold = customUtilizationThreshold;
         }
 
         /**
@@ -229,7 +237,8 @@ public interface AnalysisFactory {
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
-                licensePriceWeightScale, enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed);
+                licensePriceWeightScale, enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed,
+                singleVMonHost, customUtilizationThreshold);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
@@ -393,6 +402,16 @@ public interface AnalysisFactory {
         private boolean useVMReservationAsUsed;
 
         /**
+         * Enabling specific logic for single vm on host.
+         */
+        private final boolean singleVMonHost;
+
+        /**
+         * A utilization threshold that can be used for custom logic.
+         */
+        private final float customUtilizationThreshold;
+
+        /**
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
          * @param marketMode              the run mode of the market?
@@ -412,6 +431,8 @@ public interface AnalysisFactory {
          *                                softwareLicenseCommodity sold by a provider.
          * @param enableOP enables the changes for OverProvisioning.
          * @param useVMReservationAsUsed Use max(reservation, used) as VM's commodity bought used.
+         * @param singleVMonHost Enabling specific logic for single vm on host.
+         * @param customUtilizationThreshold A utilization threshold that can be used for custom logic.
          */
         private AnalysisConfig(final MarketMode marketMode,
                               final float quoteFactor,
@@ -430,7 +451,9 @@ public interface AnalysisFactory {
                               final boolean enableOP,
                               final boolean fastProvisionEnabled,
                               final boolean branchAndBoundEnabled,
-                              final boolean useVMReservationAsUsed) {
+                              final boolean useVMReservationAsUsed,
+                              final boolean singleVMonHost,
+                              final float customUtilizationThreshold) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -449,6 +472,8 @@ public interface AnalysisFactory {
             this.fastProvisionEnabled = fastProvisionEnabled;
             this.branchAndBoundEnabled = branchAndBoundEnabled;
             this.useVMReservationAsUsed = useVMReservationAsUsed;
+            this.singleVMonHost = singleVMonHost;
+            this.customUtilizationThreshold = customUtilizationThreshold;
         }
 
         public float getQuoteFactor() {
@@ -488,6 +513,14 @@ public interface AnalysisFactory {
          */
         public boolean useVMReservationAsUsed() {
             return useVMReservationAsUsed;
+        }
+
+        public boolean isSingleVMonHost() {
+            return singleVMonHost;
+        }
+
+        public float getCustomUtilizationThreshold() {
+            return customUtilizationThreshold;
         }
 
         public MarketMode getMarketMode() {
@@ -595,7 +628,7 @@ public interface AnalysisFactory {
                  final int licensePriceWeightScale, final boolean enableOP) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
                 suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                enableOP, true, true, true);
+                enableOP, true, true, true, false, 0.5f);
         }
 
         /**
@@ -615,6 +648,8 @@ public interface AnalysisFactory {
          *            softwareLicenseCommodity sold by a provider.
          * @param enableOP is OverProvisioning changes enabled.
          * @param useVMReservationAsUsed Use max(reservation, used) as VM's commodity bought used.
+         * @param singleVMonHost Enabling specific logic for single vm on host.
+         * @param customUtilizationThreshold A utilization threshold that can be used for custom logic.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilderWithSMA(final MarketMode marketMode, final float quoteFactor, final float liveMarketMoveCostFactor,
@@ -625,10 +660,13 @@ public interface AnalysisFactory {
                                                 final boolean enableOP,
                                                 final boolean fastProvisionEnabled,
                                                 final boolean branchAndBoundEnabled,
-                                                final boolean useVMReservationAsUsed) {
+                                                final boolean useVMReservationAsUsed,
+                                                final boolean singleVMonHost,
+                                                final float customUtilizationThreshold) {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                    enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed);
+                    enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed,
+                    singleVMonHost, customUtilizationThreshold);
         }
 
         public boolean isFastProvisionEnabled() {
@@ -676,6 +714,10 @@ public interface AnalysisFactory {
 
             private final boolean useVMReservationAsUsed;
 
+            private final boolean singleVMonHost;
+
+            private final float customUtilizationThreshold;
+
             private Builder(final MarketMode marketMode,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
@@ -686,7 +728,9 @@ public interface AnalysisFactory {
                             final boolean enableOP,
                             final boolean fastProvisionEnabled,
                             final boolean branchAndBoundEnabled,
-                            final boolean useVMReservationAsUsed) {
+                            final boolean useVMReservationAsUsed,
+                            final boolean singleVMonHost,
+                            final float customUtilizationThreshold) {
                 this.quoteFactor = quoteFactor;
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -698,6 +742,8 @@ public interface AnalysisFactory {
                 this.fastProvisionEnabled = fastProvisionEnabled;
                 this.branchAndBoundEnabled = branchAndBoundEnabled;
                 this.useVMReservationAsUsed = useVMReservationAsUsed;
+                this.singleVMonHost = singleVMonHost;
+                this.customUtilizationThreshold = customUtilizationThreshold;
             }
 
             /**
@@ -808,7 +854,7 @@ public interface AnalysisFactory {
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
                     rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
                     licensePriceWeightScale, enableOP, fastProvisionEnabled,
-                    branchAndBoundEnabled, useVMReservationAsUsed);
+                    branchAndBoundEnabled, useVMReservationAsUsed, singleVMonHost, customUtilizationThreshold);
             }
         }
     }

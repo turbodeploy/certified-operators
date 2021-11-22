@@ -147,6 +147,18 @@ public class MarketRunnerConfig {
     @Value("${useVMReservationAsUsed:false}")
     private boolean useVMReservationAsUsed;
 
+    /**
+     * Enabling specific logic for single vm on host.
+     */
+    @Value("${singleVMonHost:false}")
+    private boolean singleVMonHost;
+
+    /**
+     * A utilization threshold that can be used for custom logic.
+     */
+    @Value("${customUtilizationThreshold:0.5}")
+    private float customUtilizationThreshold;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -224,8 +236,9 @@ public class MarketRunnerConfig {
                 fastProvisionEnabled,
                 branchAndBoundEnabled,
                 useVMReservationAsUsed,
-                newReconfigureActionAnalysisEngine()
-                );
+                newReconfigureActionAnalysisEngine(),
+                singleVMonHost,
+                customUtilizationThreshold);
     }
 
     /**

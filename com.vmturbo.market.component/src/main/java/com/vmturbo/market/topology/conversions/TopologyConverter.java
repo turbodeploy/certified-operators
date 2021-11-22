@@ -456,6 +456,16 @@ public class TopologyConverter {
     private boolean useVMReservationAsUsed = false;
 
     /**
+     * Enabling specific logic for single vm on host.
+     */
+    private boolean singleVMonHost = false;
+
+    /**
+     * A utilization threshold that can be used for custom logic.
+     */
+    private float customUtilizationThreshold;
+
+    /**
      * Constructor with includeGuaranteedBuyer parameter. Entry point from Analysis.
      *
      * @param topologyInfo Information about the topology.
@@ -475,6 +485,8 @@ public class TopologyConverter {
      * @param licensePriceWeightScale value to scale the price weight of commodities for every
      *            softwareLicenseCommodity sold by a provider.
      * @param enableOP flag to check if to use over provisioning commodity changes.
+     * @param singleVMonHost Enabling specific logic for single vm on host.
+     * @param customUtilizationThreshold A utilization threshold that can be used for custom logic.
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
@@ -491,7 +503,9 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
                              final boolean enableOP,
-                             final boolean useVMReservationAsUsed) {
+                             final boolean useVMReservationAsUsed,
+                             final boolean singleVMonHost,
+                             final float customUtilizationThreshold) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -529,6 +543,8 @@ public class TopologyConverter {
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
         this.reversibilitySettingFetcher = reversibilitySettingFetcher;
         this.useVMReservationAsUsed = useVMReservationAsUsed;
+        this.singleVMonHost = singleVMonHost;
+        this.customUtilizationThreshold = customUtilizationThreshold;
     }
 
     /**
@@ -557,7 +573,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, true);
+                false, true, false, 0.5f);
     }
 
     /**
@@ -588,7 +604,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, true);
+                false, true, false, 0.5f);
     }
 
 
@@ -622,7 +638,8 @@ public class TopologyConverter {
                 marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale(),
-                analysisConfig.isEnableOP(), analysisConfig.useVMReservationAsUsed());
+                analysisConfig.isEnableOP(), analysisConfig.useVMReservationAsUsed(),
+                analysisConfig.isSingleVMonHost(), analysisConfig.getCustomUtilizationThreshold());
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
@@ -642,11 +659,14 @@ public class TopologyConverter {
                                      reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
                              final boolean enableOP,
-                             final boolean useVMReservationAsUsed) {
+                             final boolean useVMReservationAsUsed,
+                             final boolean singleVMonHost,
+                             final float customUtilizationThreshold) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, incomingCommodityConverter, null,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, useVMReservationAsUsed);
+                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, useVMReservationAsUsed,
+                singleVMonHost, customUtilizationThreshold);
     }
 
     /**
@@ -684,7 +704,7 @@ public class TopologyConverter {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
-            enableOP, true);
+            enableOP, true, false, 0.5f);
     }
 
     /**
@@ -703,6 +723,8 @@ public class TopologyConverter {
      * @param licensePriceWeightScale value to scale the price weight of commodities for every
      *            softwareLicenseCommodity sold by a provider.
      * @param enableOP flag to check if to use over provisioning commodity changes.
+     * @param singleVMonHost Enabling specific logic for single vm on host.
+     * @param customUtilizationThreshold A utilization threshold that can be used for custom logic.
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -720,11 +742,13 @@ public class TopologyConverter {
             final int licensePriceWeightScale,
             final CloudTopology cloudTopology,
             final boolean enableOP,
-            final boolean useVMReservationAsUsed) {
+            final boolean useVMReservationAsUsed,
+            final boolean singleVMonHost,
+            final float customUtilizationThreshold) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale,
-                enableOP, useVMReservationAsUsed);
+                enableOP, useVMReservationAsUsed, singleVMonHost, customUtilizationThreshold);
     }
 
 
@@ -3684,11 +3708,7 @@ public class TopologyConverter {
             @Nonnull final CommoditiesBoughtFromProvider additionalCommBought) {
         long entityForSLOid = entityForSL.getOid();
         TopologyDTO.TopologyEntityDTO provider = (providerOid != null) ? entityOidToDto.get(providerOid) : null;
-        float moveCost = !isPlan() && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
-                && provider != null // this check is for testing purposes
-                && provider.getEntityType() == EntityType.STORAGE_VALUE)
-                ? (float)(totalStorageAmountBought(entityForSL) / Units.KIBI)
-                : 0.0f;
+        float moveCost = calculateMoveCost(entityForSL, entityType, provider, commBoughtGroupingForSL);
         final List<CommodityBoughtDTO> allCommBought;
         if (additionalCommBought.getCommodityBoughtCount() == 0) {
             allCommBought = commBoughtGroupingForSL.getCommodityBoughtList();
@@ -5263,5 +5283,47 @@ public class TopologyConverter {
     @VisibleForTesting
     void setUseVMReservationAsUsed(final boolean useVMReservationAsUsed) {
         this.useVMReservationAsUsed = useVMReservationAsUsed;
+    }
+
+    /**
+     * Calculate cost of move for a shopping list.
+     *
+     * @param entityForSL the entity for sl
+     * @param entityType entity type
+     * @param provider the provider
+     * @param commBoughtGroupingForSL the comm bought grouping
+     * @return the cost
+     */
+    private float calculateMoveCost(@Nonnull final TopologyEntityDTO entityForSL,
+            final int entityType,
+            @Nullable TopologyDTO.TopologyEntityDTO provider,
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
+        // Only consider move cost for real time and VMs with provider.
+        if (!isPlan() && provider != null && entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+            // Cost of move for VM Storage consumer is determined by StorageAmount bought.
+            if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
+                return (float)(totalStorageAmountBought(entityForSL) / Units.KIBI);
+            // Cost of move for a single VM on host is being set to a high value when the VM
+            // consumes most of the host's capacity for Memory to avoid disruptive moves due to
+            // potential fluctuations in memory observed and potential overhead.
+            } else if (singleVMonHost && provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE
+                && commBoughtGroupingForSL.getCommodityBoughtList().stream()
+                    .filter(commBought -> commBought.getCommodityType().getType() == CommodityDTO.CommodityType.MEM_VALUE)
+                    .anyMatch(commBought -> {
+                        return numConsumersOfSoldCommTable.get(provider.getOid(), commBought.getCommodityType()) == 1
+                            && provider.getCommoditySoldListList().stream()
+                            .anyMatch(commSold -> {
+                                return commSold.getCommodityType().getType() == commBought.getCommodityType().getType()
+                                && commBought.hasHistoricalUsed()
+                                    ? commBought.getHistoricalUsed().getHistUtilization()
+                                        / commSold.getCapacity() >= customUtilizationThreshold
+                                    : commBought.getUsed() / commSold.getCapacity() >= customUtilizationThreshold;
+                            });
+                    })) {
+                logger.info("Setting high cost of move for " + entityForSL.getDisplayName());
+                return 10000000f;
+            }
+        }
+        return 0.0f;
     }
 }
