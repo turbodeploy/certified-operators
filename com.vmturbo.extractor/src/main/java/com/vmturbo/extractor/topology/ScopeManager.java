@@ -211,7 +211,6 @@ public class ScopeManager {
     public void finishTopology(Int2IntMap entityTypes) {
         logger.info("Scope is complete for {}", currentTimestamp);
         trim(currentScope); // scope map is complete, so this is a good time to optimize
-        boolean errorOccurred = false;
         try (TableWriter scopeInserter = getScopeInsertWriter();
              TableWriter scopeUpdater = getScopeUpdateWriter()) {
 
@@ -222,30 +221,13 @@ public class ScopeManager {
                     .forEach(scopedIid ->
                             // handle every entity that appeared in this or prior topology
                             finishScopingEntity(scopedIid, scopeInserter, scopeUpdater, entityTypes));
-
-        } catch (SQLException e) {
-            logger.error("Error occurred while storing scope table updates: " + e.getMessage(), e);
-            // Since an error occurred while writing records, it's possible that our in-memory cache
-            // is out-of-sync with the actual state of the database table.
-            // Therefore, we invalidate our cache, forcing it to be reloaded.
-            logger.warn("Invalidating the scope cache based on previous error. The cache will be "
-                    + "rebuilt by reading the database while processing the subsequent topology.");
-            priorScope.clear();
-            currentScope.clear();
-            priorTimestamp = null;
-            currentTimestamp = null;
-            errorOccurred = true;
-        }
-
-        // If the operation was successful, advance our in memory cache to point to the new model
-        if (!errorOccurred) {
-            logger.info("Successfully processed scope updates for {}", currentTimestamp);
+        } finally {
+            logger.info("Finished scope updates for {}", currentTimestamp);
             priorScope = currentScope;
             currentScope = new Int2ObjectOpenHashMap<>();
             priorTimestamp = currentTimestamp;
             currentTimestamp = null;
         }
-        logger.info("Finished scope updates for {}", currentTimestamp);
     }
 
     /**

@@ -154,14 +154,10 @@ public class DslRecordSink extends AbstractRecordSink {
                 try {
                     return writeData(stmt, dsl, inputStream);
                 } catch (DataAccessException e) {
-                    // Note: jOOQ will convert any checked exceptions to a DataAccessException as
-                    // part of its transaction management; see: DSLContext::transaction.
-                    // Close reader side stream so the writer side got terminated with IOException
+                    // close reader side stream so the writer side got terminated with IOException
                     // rather than waiting forever
                     inputStream.close();
                     // rethrow to terminate the reader thread
-                    // Note: this exception will ultimately be converted to an ExecutionException
-                    // and be caught by the RecordWriter::close method.
                     throw e;
                 }
             });
@@ -188,7 +184,7 @@ public class DslRecordSink extends AbstractRecordSink {
                 } catch (Exception e) {
                     logger.error("Failed performing copy to table {}", getWriteTableName(), e);
                     // rethrow to rollback transaction
-                    throw new DataAccessException(e.getMessage(), e);
+                    throw e;
                 }
                 try {
                     runHook(transConn, getPostCopyHookSql(transConn), "post-copy");
@@ -226,11 +222,9 @@ public class DslRecordSink extends AbstractRecordSink {
         /**
          * Called when the sink is detached from its table, to finish up the COPY operation and
          * report its results.
-         *
-         * @throws RecordWriteException if an error occurs when writing records
          */
         @VisibleForTesting
-        void close() throws RecordWriteException {
+        void close() {
             try {
                 if (outputStream != null) {
                     // this will cause the COPY operation to hit EOF on its reader and complete its
@@ -244,7 +238,6 @@ public class DslRecordSink extends AbstractRecordSink {
                 }
             } catch (TimeoutException | InterruptedException | ExecutionException | IOException e) {
                 logger.error("Failed to complete writing to table {}", getWriteTableName(), e);
-                throw new RecordWriteException(e.getMessage(), e);
             }
 
             if (recordWriteFailureCount > 0) {
