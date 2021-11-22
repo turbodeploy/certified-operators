@@ -25,15 +25,15 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.SearchDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
-import com.vmturbo.sql.utils.SQLDatabaseConfig2;
+import com.vmturbo.sql.utils.DbEndpointsConfig;
 import com.vmturbo.sql.utils.sizemon.DbSizeMonitor;
 
 /**
  * Config class that defines DB endpoints used by extractor component.
  */
 @Configuration
-@Import({SQLDatabaseConfig2.class, ExtractorGlobalConfig.class, ExtractorDbBaseConfig.class, SearchDbBaseConfig.class})
-public class ExtractorDbConfig {
+@Import({ExtractorGlobalConfig.class, ExtractorDbBaseConfig.class, SearchDbBaseConfig.class})
+public class ExtractorDbConfig extends DbEndpointsConfig {
     private static final Logger logger = LogManager.getLogger();
 
     @Autowired
@@ -41,9 +41,6 @@ public class ExtractorDbConfig {
 
     @Autowired
     private ExtractorGlobalConfig extractorGlobalConfig;
-
-    @Autowired
-    private SQLDatabaseConfig2 dbConfig;
 
     @Autowired
     private SearchDbBaseConfig searchDbBaseConfig;
@@ -140,9 +137,10 @@ public class ExtractorDbConfig {
      *
      * @return endpoint the endpoint
      */
+    @Primary
     @Bean
     public DbEndpoint ingesterEndpoint() {
-        return dbConfig.derivedDbEndpoint("dbs.extractor", dbBaseConfig.extractorDbEndpointBase())
+        return derivedDbEndpoint("dbs.extractor", dbBaseConfig.extractorDbEndpointBase())
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
                 .withRootAccessEnabled(true)
@@ -158,7 +156,7 @@ public class ExtractorDbConfig {
      */
     @Bean
     public DbEndpoint ingesterMySqlEndpoint() {
-        return dbConfig.derivedDbEndpoint("dbs.search", searchDbBaseConfig.extractorMySqlDbEndpoint())
+        return derivedDbEndpoint("dbs.search", searchDbBaseConfig.extractorMySqlDbEndpoint())
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
                 .withRootAccessEnabled(true)
@@ -173,7 +171,7 @@ public class ExtractorDbConfig {
      */
     @Bean
     public DbEndpoint queryEndpoint() {
-        return dbConfig.derivedDbEndpoint("dbs.extractor.query",
+        return derivedDbEndpoint("dbs.extractor.query",
                 dbBaseConfig.extractorQueryDbEndpointBase())
                 .withShouldProvisionUser(true)
                 .withRootAccessEnabled(true)
@@ -194,7 +192,7 @@ public class ExtractorDbConfig {
      */
     @Bean
     public DbEndpoint grafanaWriterEndpoint() {
-        return dbConfig.dbEndpoint("dbs.grafana", SQLDialect.POSTGRES)
+        return dbEndpoint("dbs.grafana", SQLDialect.POSTGRES)
                 .withSchemaName("grafana_writer")
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)

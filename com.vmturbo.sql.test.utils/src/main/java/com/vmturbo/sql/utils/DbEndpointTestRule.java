@@ -3,12 +3,13 @@ package com.vmturbo.sql.utils;
 import static com.vmturbo.sql.utils.DbEndpointResolver.COMPONENT_TYPE_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.HOST_PROPERTY;
-import static com.vmturbo.sql.utils.DbEndpointResolver.NAME_SUFFIX_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.PORT_PROPERTY;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +22,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import net.jpountz.xxhash.XXHash32;
+import net.jpountz.xxhash.XXHashFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.SQLDialect;
@@ -31,6 +35,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -51,10 +56,16 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  *         no-ops.</p>
  *
  *         <p>When provisioning database, schemas, and users for an endpoint, the configured names
- *         for these objects are all suffixed with a tag, so it is safe to run tests against a
- *         database server that is also used operational appliances. The same suffix will be used
- *         all objects provisioned during a given test class execution, so "like" endpoints will
- *         use same database and schema objects as their template endpoints, as intended.</p>
+ *         for these objects are all "mangled"  so it is safe to run tests against a
+ *         database server that is also used operational appliances. The mangling takes the form
+ *         of the first 8 characters of the natural identifier, followed by an underscore and
+ *         a 7-character suffix comprising lower-case letters and digits. The suffix is computed by
+ *         creating a 32-bit cryptographic hash of the full natural name, along with the current
+ *         time as a 64-bit millis-since-epoch value. The natural name is part of the input for
+ *         this hash, so that if two endpoints collide wrt their 9-character prefixes, they will
+ *         nevertheless have different mangled names.</p>
+ *
+ *         <p>The 16-char overall limit is to conform with early versions of MySQL/MariaDB</p>
  *     </li>
  *     <li>
  *         Truncates all tables appearing in the databases configured for all the provided endpoints.
@@ -87,16 +98,19 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 public class DbEndpointTestRule implements TestRule {
     private static final Logger logger = LogManager.getLogger();
+    private static final String BASE36_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
     private final Set<DbEndpoint> endpoints = new LinkedHashSet<>();
     private final Map<String, String> propertySettings;
-    private final String provisioningSuffix;
+    private final long instantiationTime = System.currentTimeMillis();
+    private static final XXHashFactory xxHash = XXHashFactory.safeInstance();
 
     /**
      * Create a new rule instance to manage the provided endpoints.
      *
-     * @param componentName name of component, for object naming defaults (those defaults are
-     *                      normally set via the Spring-supplied component_type property)
+     * @param componentName name of component, for object naming defaults (those defaults
+     *         are
+     *         normally set via the Spring-supplied component_type property)
      */
     public DbEndpointTestRule(String componentName) {
         this(componentName, Collections.emptyMap());
@@ -113,10 +127,9 @@ public class DbEndpointTestRule implements TestRule {
     public DbEndpointTestRule(String componentName, Map<String, String> propertySettings) {
         this.propertySettings = new HashMap<>(propertySettings);
         this.propertySettings.put(COMPONENT_TYPE_PROPERTY, componentName);
-        this.provisioningSuffix = "_" + System.currentTimeMillis();
     }
 
-    private void setOverridesForEndpoint(final DbEndpoint endpoint, final String provisioningSuffix)
+    private void setOverridesForEndpoint(final DbEndpoint endpoint)
             throws UnsupportedDialectException {
         final SQLDialect dialect = endpoint.getConfig().getDialect();
         final String endpointName = endpoint.getConfig().getName();
@@ -130,8 +143,6 @@ public class DbEndpointTestRule implements TestRule {
         dbPortDefault = dbPortDefault != null ? dbPortDefault
                 : Integer.toString(DbEndpointResolver.getDefaultPort(dialect));
         propertySettings.putIfAbsent(getPropertyName(endpointName, PORT_PROPERTY), dbPortDefault);
-        // set suffix for provisioned object names
-        propertySettings.putIfAbsent(getPropertyName(endpointName, NAME_SUFFIX_PROPERTY), provisioningSuffix);
         // we should always allow destructive provisioning operations in a test database
         propertySettings.putIfAbsent(
                 getPropertyName(endpointName, DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY), "true");
@@ -191,8 +202,9 @@ public class DbEndpointTestRule implements TestRule {
     public void addEndpoints(final DbEndpoint... endpoints) throws InterruptedException, UnsupportedDialectException, SQLException {
         for (final DbEndpoint endpoint : endpoints) {
             DbEndpointCompleter endpointCompleter = endpoint.getEndpointCompleter();
-            setOverridesForEndpoint(endpoint, provisioningSuffix);
+            setOverridesForEndpoint(endpoint);
             endpointCompleter.setResolver(propertySettings::get, mockPasswordUtil());
+            endpoint.getConfig().setIdentifierMangler(this::mangleIdentifier);
             endpointCompleter.completeEndpoint(endpoint);
 
             if (!endpoint.isReady()) {
@@ -212,7 +224,32 @@ public class DbEndpointTestRule implements TestRule {
         }
     }
 
-    private static String getFromSystemProperties(String endpointName, String propertyName, SQLDialect dialect)
+    private String mangleIdentifier(String original) {
+        XXHash32 hash32 = xxHash.hash32();
+        byte[] origBytes = original.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer bytes = ByteBuffer.allocate(origBytes.length + Long.BYTES + Long.BYTES);
+        bytes.put(origBytes);
+        bytes.putLong(instantiationTime);
+        bytes.putLong(Thread.currentThread().getId());
+        bytes.position(0);
+        int hash = hash32.hash(bytes, 0);
+        return Strings.truncate(original, 8) + "_" + base36(hash);
+    }
+
+    private String base36(int i) {
+        StringBuilder sb = new StringBuilder();
+        // ensure we're working with a non-negative value
+        long v = (long)i & 0xFFFFFFFFL;
+        while (v != 0) {
+            int next = (int)(v % 36);
+            v = (v - next) / 36;
+            sb.append(BASE36_CHARS.charAt(next));
+        }
+        return sb.toString();
+    }
+
+    private static String getFromSystemProperties(String endpointName, String propertyName,
+            SQLDialect dialect)
             throws UnsupportedDialectException {
         List<String> names = new ArrayList<>();
         names.add(endpointName);

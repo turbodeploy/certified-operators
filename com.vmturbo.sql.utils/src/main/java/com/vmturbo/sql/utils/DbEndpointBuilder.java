@@ -39,9 +39,9 @@ public class DbEndpointBuilder {
     /**
      * Internal constructor for a new endpoint instance.
      *
-     * <p>Client code should use {@link SQLDatabaseConfig2#dbEndpoint(String, SQLDialect)} or
-     * {@link SQLDatabaseConfig2#abstractDbEndpoint(String, SQLDialect)} or {@link
-     * SQLDatabaseConfig2#derivedDbEndpoint(String, DbEndpoint)} to declare endpoints.</p>
+     * <p>Client code should use {@link DbEndpointsConfig#dbEndpoint(String, SQLDialect)} or
+     * {@link DbEndpointsConfig#abstractDbEndpoint(String, SQLDialect)} or {@link
+     * DbEndpointsConfig#derivedDbEndpoint(String, DbEndpoint)} to declare endpoints.</p>
      *
      * @param name              name for this endpoint
      * @param dialect           server type, identified by {@link SQLDialect}
@@ -306,19 +306,6 @@ public class DbEndpointBuilder {
      */
     public DbEndpointBuilder withShouldProvisionUser(boolean shouldProvisionUser) {
         config.setShouldProvisionUser(shouldProvisionUser);
-        return this;
-    }
-
-    /**
-     * Set a provisioning suffix for this endpoint.
-     *
-     * <p>This is normally used in tests, and affects names of provisioned database objects.</p>
-     *
-     * @param provisioningSuffix provisioning suffix
-     * @return this endpoint
-     */
-    public DbEndpointBuilder withProvisioningSuffix(String provisioningSuffix) {
-        config.setProvisioningSuffix(provisioningSuffix);
         return this;
     }
 

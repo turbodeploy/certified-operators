@@ -161,7 +161,6 @@ public class DbEndpointResolver {
     }
 
     void resolve() throws UnsupportedDialectException {
-        resolveProvisioningSuffix();
         resolveHost();
         resolvePort();
         resolveDatabaseName();
@@ -222,7 +221,7 @@ public class DbEndpointResolver {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getDatabaseName);
         final String value = firstNonNull(configuredPropValue(DATABASE_NAME_PROPERTY),
                 config.getDatabaseName(), fromTemplate, getComponentName());
-        config.setDatabaseName(addSuffix(value));
+        config.setDatabaseName(config.isAbstract() ? value : config.mangleIdentifier(value));
     }
 
     /**
@@ -234,7 +233,7 @@ public class DbEndpointResolver {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getSchemaName);
         final String value = firstNonNull(configuredPropValue(SCHEMA_NAME_PROPERTY),
                 config.getSchemaName(), fromTemplate, getComponentName());
-        config.setSchemaName(addSuffix(value));
+        config.setSchemaName(config.isAbstract() ? value : config.mangleIdentifier(value));
     }
 
     /**
@@ -246,7 +245,7 @@ public class DbEndpointResolver {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUserName);
         final String value = firstNonNull(configuredPropValue(USER_NAME_PROPERTY),
                 config.getUserName(), fromTemplate, getComponentName());
-        config.setUserName(addSuffix(value));
+        config.setUserName(config.isAbstract() ? value : config.mangleIdentifier(value));
     }
 
     /**
@@ -463,17 +462,6 @@ public class DbEndpointResolver {
 
 
     /**
-     * Resolve the dbProvisioningSuffix property for this endpoint.
-     *
-     * @throws UnsupportedDialectException if endpoint has bad dialect
-     */
-    public void resolveProvisioningSuffix() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getProvisioningSuffix);
-        config.setProvisioningSuffix(firstNonNull(configuredPropValue(NAME_SUFFIX_PROPERTY),
-                config.getProvisioningSuffix(), fromTemplate, ""));
-    }
-
-    /**
      * Resolve the dbShouldProvisionDatabase property.
      *
      * @throws UnsupportedDialectException if endpoint is mis-configured
@@ -549,13 +537,6 @@ public class DbEndpointResolver {
 
     private String firstNonNull(String... choices) {
         return Stream.of(choices).filter(Objects::nonNull).findFirst().orElse(null);
-    }
-
-    private String addSuffix(String value) {
-        final String suffix = config.getProvisioningSuffix();
-        return !Strings.isNullOrEmpty(suffix) && !value.endsWith(suffix)
-                ? value + suffix
-                : value;
     }
 
     private <T> String getFromTemplate(Function<DbEndpointConfig, T> getter) {

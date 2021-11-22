@@ -73,7 +73,6 @@ public class DbEndpointResolverTest {
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("pw"));
         assertThat(config.getPort(), is(5432));
-        assertThat(config.getProvisioningSuffix(), is(""));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("postgres"));
         assertThat(config.isRootAccessEnabled(), is(false));
@@ -108,7 +107,6 @@ public class DbEndpointResolverTest {
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("pw"));
         assertThat(config.getPort(), is(3306));
-        assertThat(config.getProvisioningSuffix(), is(""));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("root"));
         assertThat(config.isRootAccessEnabled(), is(false));
@@ -143,7 +141,6 @@ public class DbEndpointResolverTest {
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("pw"));
         assertThat(config.getPort(), is(3306));
-        assertThat(config.getProvisioningSuffix(), is(""));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("root"));
         assertThat(config.isRootAccessEnabled(), is(false));
@@ -169,7 +166,7 @@ public class DbEndpointResolverTest {
         new DbEndpointResolver(ep.getConfig(), resolver, dbPasswordUtil).resolve();
         final DbEndpointConfig config = ep.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.ALL));
-        assertThat(config.getDatabaseName(), is("foobar-xxxx"));
+        assertThat(config.getDatabaseName(), is("foobar"));
         assertThat(config.getDialect(), is(SQLDialect.MYSQL));
         assertThat(config.getDriverProperties(), is(ImmutableMap.of("cookies", "yum")));
         assertThat(config.getEndpointEnabled(), is(false));
@@ -179,16 +176,15 @@ public class DbEndpointResolverTest {
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("user-pw"));
         assertThat(config.getPort(), is(12345));
-        assertThat(config.getProvisioningSuffix(), is("-xxxx"));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
         assertThat(config.isRootAccessEnabled(), is(true));
-        assertThat(config.getSchemaName(), is("s-xxxx"));
+        assertThat(config.getSchemaName(), is("s"));
         assertThat(config.getSecure(), is(true));
         assertThat(config.getShouldProvisionDatabase(), is(true));
         assertThat(config.getShouldProvisionUser(), is(true));
         assertThat(config.getTemplate(), is(nullValue()));
-        assertThat(config.getUserName(), is("u-xxxx"));
+        assertThat(config.getUserName(), is("u"));
         assertThat(config.getMinPoolSize(), is(1));
         // Should be set to the absolute maximum pool size (currently 500), since we configured it
         // higher than the maximum.
@@ -208,7 +204,7 @@ public class DbEndpointResolverTest {
         new DbEndpointResolver(ep.getConfig(), resolver, dbPasswordUtil).resolve();
         final DbEndpointConfig config = ep.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.ALL));
-        assertThat(config.getDatabaseName(), is("foobar-xxxx"));
+        assertThat(config.getDatabaseName(), is("foobar"));
         assertThat(config.getDialect(), is(SQLDialect.MYSQL));
         assertThat(config.getDriverProperties(), is(ImmutableMap.of("cookies", "yum")));
         assertThat(config.getEndpointEnabled(), is(false));
@@ -218,16 +214,15 @@ public class DbEndpointResolverTest {
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("user-pw"));
         assertThat(config.getPort(), is(12345));
-        assertThat(config.getProvisioningSuffix(), is("-xxxx"));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
         assertThat(config.isRootAccessEnabled(), is(true));
-        assertThat(config.getSchemaName(), is("s-xxxx"));
+        assertThat(config.getSchemaName(), is("s"));
         assertThat(config.getSecure(), is(true));
         assertThat(config.getShouldProvisionDatabase(), is(true));
         assertThat(config.getShouldProvisionUser(), is(true));
         assertThat(config.getTemplate(), is(nullValue()));
-        assertThat(config.getUserName(), is("u-xxxx"));
+        assertThat(config.getUserName(), is("u"));
         assertThat(config.getMinPoolSize(), is(3));
         assertThat(config.getMaxPoolSize(), is(7));
     }
@@ -240,15 +235,18 @@ public class DbEndpointResolverTest {
      */
     @Test
     public void testThatDerivedEndpointUsesBaseValuesAsDefaults() throws UnsupportedDialectException {
-        final DbEndpoint base = new DbEndpointBuilder("base", SQLDialect.MYSQL, completer).build();
+        final DbEndpoint base = new DbEndpointBuilder("base", SQLDialect.MYSQL, completer)
+                .setAbstract()
+                .build();
         fullyConfigure("base");
         new DbEndpointResolver(base.getConfig(), resolver, dbPasswordUtil).resolve();
         final DbEndpoint derived = new DbEndpointBuilder("derived", SQLDialect.MYSQL, completer)
-                .like(base).build();
+                .like(base)
+                .build();
         new DbEndpointResolver(derived.getConfig(), resolver, dbPasswordUtil).resolve();
         final DbEndpointConfig config = derived.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.ALL));
-        assertThat(config.getDatabaseName(), is("foobar-xxxx"));
+        assertThat(config.getDatabaseName(), is("foobar"));
         assertThat(config.getDialect(), is(SQLDialect.MYSQL));
         assertThat(config.getDriverProperties(), is(ImmutableMap.of("cookies", "yum")));
         assertThat(config.getEndpointEnabled(), is(false));
@@ -258,16 +256,15 @@ public class DbEndpointResolverTest {
         assertThat(config.getName(), is("derived"));
         assertThat(config.getPassword(), is("user-pw"));
         assertThat(config.getPort(), is(12345));
-        assertThat(config.getProvisioningSuffix(), is("-xxxx"));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
         assertThat(config.isRootAccessEnabled(), is(true));
-        assertThat(config.getSchemaName(), is("s-xxxx"));
+        assertThat(config.getSchemaName(), is("s"));
         assertThat(config.getSecure(), is(true));
         assertThat(config.getShouldProvisionDatabase(), is(true));
         assertThat(config.getShouldProvisionUser(), is(true));
         assertThat(config.getTemplate(), is(base));
-        assertThat(config.getUserName(), is("u-xxxx"));
+        assertThat(config.getUserName(), is("u"));
         assertThat(config.getMinPoolSize(), is(3));
         assertThat(config.getMaxPoolSize(), is(7));
     }
@@ -283,18 +280,23 @@ public class DbEndpointResolverTest {
         fullyConfigure("base");
         configMap.put("middle.databaseName", "middle");
         configMap.put("last.schemaName", "last");
-        final DbEndpoint base = new DbEndpointBuilder("base", SQLDialect.MYSQL, completer).build();
+        final DbEndpoint base = new DbEndpointBuilder("base", SQLDialect.MYSQL, completer)
+                .setAbstract()
+                .build();
         new DbEndpointResolver(base.getConfig(), resolver, dbPasswordUtil).resolve();
         final DbEndpoint middle = new DbEndpointBuilder("middle", SQLDialect.MYSQL, completer)
-                .like(base).build();
+                .setAbstract()
+                .like(base)
+                .build();
         new DbEndpointResolver(middle.getConfig(), resolver, dbPasswordUtil).resolve();
         final DbEndpoint last = new DbEndpointBuilder("last", SQLDialect.MYSQL, completer)
-                .like(middle).build();
+                .like(middle)
+                .build();
         new DbEndpointResolver(last.getConfig(), resolver, dbPasswordUtil).resolve();
         final DbEndpointConfig config = last.getConfig();
-        assertThat(config.getUserName(), is("u-xxxx"));
-        assertThat(config.getDatabaseName(), is("middle-xxxx"));
-        assertThat(config.getSchemaName(), is("last-xxxx"));
+        assertThat(config.getUserName(), is("u"));
+        assertThat(config.getDatabaseName(), is("middle"));
+        assertThat(config.getSchemaName(), is("last"));
         assertThat(config.getMinPoolSize(), is(3));
         assertThat(config.getMaxPoolSize(), is(7));
     }
@@ -445,7 +447,6 @@ public class DbEndpointResolverTest {
         configMap.put(prefix + "migrationLocations", "db.mig1,db.mig2");
         configMap.put(prefix + "password", "user-pw");
         configMap.put(prefix + "port", "12345");
-        configMap.put(prefix + "nameSuffix", "-xxxx");
         configMap.put(prefix + "rootPassword", "root-pw");
         configMap.put(prefix + "rootUserName", "myroot");
         configMap.put(prefix + "rootAccessEnabled", "true");
@@ -475,7 +476,6 @@ public class DbEndpointResolverTest {
                 .withMigrationLocations("db.mig1,db.mig2")
                 .withPassword("user-pw")
                 .withPort(12345)
-                .withProvisioningSuffix("-xxxx")
                 .withRootPassword("root-pw")
                 .withRootUserName("myroot")
                 .withRootAccessEnabled(true)

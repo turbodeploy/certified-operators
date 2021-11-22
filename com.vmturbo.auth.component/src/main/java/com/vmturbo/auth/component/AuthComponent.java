@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
@@ -35,7 +36,6 @@ import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 
 /**
@@ -128,15 +128,17 @@ public class AuthComponent extends BaseVmtComponent {
      * REST DispatcherServlet.
      *
      * @param contextServer Jetty context handler to register with
+     * @param environment spring Environment to use for root context
      * @return rest application context
      * @throws ContextConfigurationException if there is an error loading the external configuration
      * properties
      */
     private static ConfigurableWebApplicationContext createContext(
-            @Nonnull ServletContextHandler contextServer) throws ContextConfigurationException {
+            @Nonnull ServletContextHandler contextServer, @Nonnull ConfigurableEnvironment environment)
+            throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
-        PropertiesLoader.addConfigurationPropertySources(rootContext);
+        rootContext.setEnvironment(environment);
         rootContext.register(AuthComponent.class);
 
         final AnnotationConfigWebApplicationContext restContext =
