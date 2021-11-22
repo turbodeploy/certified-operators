@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.SortedMap;
@@ -14,6 +15,7 @@ import io.grpc.BindableService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +25,7 @@ import org.springframework.web.context.ConfigurableWebApplicationContext;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
@@ -123,7 +126,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     private TopologyProcessorApiConfig topologyProcessorApiConfig;
 
     @Autowired
-    private TopologyProcessorDBConfig topologyProcessorDBConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
@@ -137,13 +140,18 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
-        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-            topologyProcessorDBConfig.dataSource()::getConnection));
+        try {
+            getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                dbAccessConfig.dataSource()::getConnection));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create MariaDBHealthMonitor", e);
+        }
         getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.messageProducerHealthMonitor());
 
-        if (topologyProcessorDBConfig.isDbMonitorEnabled()) {
-            topologyProcessorDBConfig.startDbMonitor();
-        }
+        dbAccessConfig.startDbMonitor();
     }
 
     @Override

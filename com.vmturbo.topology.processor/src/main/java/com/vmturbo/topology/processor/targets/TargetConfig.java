@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.targets;
 
+import java.sql.SQLException;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -7,13 +8,14 @@ import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
 import com.vmturbo.auth.api.authorization.keyprovider.KVKeyProvider;
@@ -32,9 +34,10 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.securekvstore.SecureKeyValueStoreConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.DbAccessConfig;
 import com.vmturbo.topology.processor.KVConfig;
-import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.probeproperties.GlobalProbePropertiesSettingsLoader;
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
@@ -48,7 +51,7 @@ import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl;
  */
 @Configuration
 @SuppressFBWarnings
-@Import({ProbeConfig.class, KVConfig.class, TopologyProcessorDBConfig.class,
+@Import({ProbeConfig.class, KVConfig.class, DbAccessConfig.class,
     GroupClientConfig.class, RepositoryClientConfig.class, SecureKeyValueStoreConfig.class,
     PublicKeyStoreConfig.class})
 public class TargetConfig {
@@ -71,7 +74,7 @@ public class TargetConfig {
     private SecureKeyValueStoreConfig vaultKeyValueStoreConfig;
 
     @Autowired
-    private TopologyProcessorDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -151,7 +154,14 @@ public class TargetConfig {
 
     @Bean
     public PersistentIdentityStore persistentIdentityStore() {
-        return new PersistentTargetSpecIdentityStore(databaseConfig.dsl());
+        try {
+            return new PersistentTargetSpecIdentityStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PersistentIdentityStore", e);
+        }
     }
 
     @Bean

@@ -1,4 +1,4 @@
-package com.vmturbo.clustermgr;
+package com.vmturbo.topology.processor;
 
 import java.sql.SQLException;
 
@@ -6,6 +6,7 @@ import javax.sql.DataSource;
 
 import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -19,14 +20,30 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  * based on feature flag.
  */
 @Configuration
-@Import({ClustermgrDBConfig.class, ClustermgrDbEndpointConfig.class})
+@Import({TopologyProcessorDBConfig.class, TopologyProcessorDbEndpointConfig.class})
 public class DbAccessConfig {
 
     @Autowired(required = false)
-    private ClustermgrDBConfig clustermgrDBConfig;
+    private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
     @Autowired(required = false)
-    private ClustermgrDbEndpointConfig clustermgrDbEndpointConfig;
+    private TopologyProcessorDbEndpointConfig topologyProcessorDbEndpointConfig;
+
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    /**
+     * Start db monitor if enabled.
+     */
+    public void startDbMonitor() {
+        if (dbMonitorEnabled) {
+            // todo: OM-76858 implement dbmonitor for postgres
+            if (topologyProcessorDBConfig != null) {
+                topologyProcessorDBConfig.startDbMonitor();
+            }
+        }
+    }
 
     /**
      * Get the {@link DSLContext} on a given {@link DbEndpoint} or legacy {@link SQLDatabaseConfig}
@@ -39,8 +56,8 @@ public class DbAccessConfig {
      */
     public DSLContext dsl() throws SQLException, UnsupportedDialectException, InterruptedException {
         return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
-                ? clustermgrDbEndpointConfig.clusterMgrEndpoint().dslContext()
-                : clustermgrDBConfig.dsl();
+                ? topologyProcessorDbEndpointConfig.tpEndpoint().dslContext()
+                : topologyProcessorDBConfig.dsl();
     }
 
     /**
@@ -54,7 +71,7 @@ public class DbAccessConfig {
      */
     public DataSource dataSource() throws SQLException, UnsupportedDialectException, InterruptedException {
         return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
-                ? clustermgrDbEndpointConfig.clusterMgrEndpoint().datasource()
-                : clustermgrDBConfig.dataSource();
+                ? topologyProcessorDbEndpointConfig.tpEndpoint().datasource()
+                : topologyProcessorDBConfig.dataSource();
     }
 }

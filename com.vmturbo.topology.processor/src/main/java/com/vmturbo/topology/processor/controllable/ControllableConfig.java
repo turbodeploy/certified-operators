@@ -1,11 +1,13 @@
 package com.vmturbo.topology.processor.controllable;
 
+import java.sql.SQLException;
 import java.time.Clock;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,7 +17,8 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.AffectedEntitiesServiceGrpc;
 import com.vmturbo.common.protobuf.action.AffectedEntitiesServiceGrpc.AffectedEntitiesServiceBlockingStub;
-import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.topology.processor.DbAccessConfig;
 
 /**
  * Configuration related to all pieces responsible for managing controllable flag like
@@ -23,7 +26,7 @@ import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
  */
 @Configuration
 @Import({
-        TopologyProcessorDBConfig.class,
+        DbAccessConfig.class,
         ActionOrchestratorClientConfig.class
 })
 public class ControllableConfig {
@@ -72,7 +75,7 @@ public class ControllableConfig {
     private boolean useAffectedEntitiesService;
 
     @Autowired
-    private TopologyProcessorDBConfig topologyProcessorDBConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
@@ -95,12 +98,19 @@ public class ControllableConfig {
                     resizeSucceedRecordExpiredSeconds);
         } else {
             logger.info("Using old EntityActionDaoImp");
-            return new EntityActionDaoImp(topologyProcessorDBConfig.dsl(),
-                    moveSucceedRecordExpiredSeconds,
-                    inProgressActionExpiredSeconds,
-                    activateSucceedRecordExpiredSeconds,
-                    scaleSucceedRecordExpiredSeconds,
-                    resizeSucceedRecordExpiredSeconds);
+            try {
+                return new EntityActionDaoImp(dbAccessConfig.dsl(),
+                        moveSucceedRecordExpiredSeconds,
+                        inProgressActionExpiredSeconds,
+                        activateSucceedRecordExpiredSeconds,
+                        scaleSucceedRecordExpiredSeconds,
+                        resizeSucceedRecordExpiredSeconds);
+            } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new BeanCreationException("Failed to create EntityActionDao", e);
+            }
         }
     }
 
@@ -111,8 +121,15 @@ public class ControllableConfig {
      */
     @Bean
     public EntityMaintenanceTimeDao entityMaintenanceTimeDao() {
-        return new EntityMaintenanceTimeDao(topologyProcessorDBConfig.dsl(), drsMaintenanceProtectionWindow,
-            Clock.systemUTC(), accountForVendorAutomation);
+        try {
+            return new EntityMaintenanceTimeDao(dbAccessConfig.dsl(), drsMaintenanceProtectionWindow,
+                Clock.systemUTC(), accountForVendorAutomation);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntityMaintenanceTimeDao", e);
+        }
     }
 
     /**

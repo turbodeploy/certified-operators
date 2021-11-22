@@ -38,13 +38,13 @@ public class V_01_00_04__RemoveOrphanedTargetsMigration extends AbstractMigratio
      */
     public V_01_00_04__RemoveOrphanedTargetsMigration(@Nonnull TargetStore targetStore,
             @Nonnull ProbeStore probeStore, @Nonnull TargetDao targetDao) {
-        logger.info("Starting migration for 'first generation orphaned targets' removal");
         this.migrationOrphanedTargetsRemover = new MigrationOrphanedTargetsRemover(targetStore,
             probeStore, targetDao);
     }
 
     @Override
     protected MigrationProgressInfo doStartMigration() {
+        logger.info("Starting migration for 'first generation orphaned targets' removal");
         return migrationOrphanedTargetsRemover.removeOrphanedTargets();
     }
 }

@@ -26,11 +26,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.clustermgr.ClustermgrDBConfig2;
+import com.vmturbo.clustermgr.ClustermgrDbEndpointConfig;
 import com.vmturbo.clustermgr.db.Clustermgr;
 import com.vmturbo.clustermgr.db.Tables;
 import com.vmturbo.clustermgr.db.tables.records.RegisteredComponentRecord;
-import com.vmturbo.clustermgr.management.ComponentRegistryTest.TestClustermgrDBConfig2;
+import com.vmturbo.clustermgr.management.ComponentRegistryTest.TestClustermgrDbEndpointConfig;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentIdentifier;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentInfo;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentStarting;
@@ -48,13 +48,13 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
  * Unit tests for {@link ComponentRegistry}.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestClustermgrDBConfig2.class})
+@ContextConfiguration(classes = {TestClustermgrDbEndpointConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"dbPort=3306", "dbRootPassword=vmturbo", "sqlDialect=MARIADB"})
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class ComponentRegistryTest {
 
     @Autowired(required = false)
-    private TestClustermgrDBConfig2 dbConfig;
+    private TestClustermgrDbEndpointConfig dbConfig;
 
     private static final UriInfo URI_INFO = UriInfo.newBuilder()
         .setRoute("route")
@@ -323,13 +323,14 @@ public class ComponentRegistryTest {
     }
 
     /**
-     * Workaround for ClustermgrDBConfig2 (remove conditional annotation), since it's conditionally
-     * initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we test all combinations
-     * of it using {@link FeatureFlagTestRule}, first it's false, so ClustermgrDBConfig2 is not
-     * created; then second it's true, ClustermgrDBConfig2 is created, but the endpoint inside is
-     * also eagerly initialized due to the same FF, which results in several issues like: it
-     * doesn't go through DbEndpointTestRule, making call to auth to get root password, etc.
+     * Workaround for {@link ClustermgrDbEndpointConfig} (remove conditional annotation), since
+     * it's conditionally initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we
+     * test all combinations of it using {@link FeatureFlagTestRule}, first it's false, so
+     * {@link ClustermgrDbEndpointConfig} is not created; then second it's true,
+     * {@link ClustermgrDbEndpointConfig} is created, but the endpoint inside is also eagerly
+     * initialized due to the same FF, which results in several issues like: it doesn't go through
+     * DbEndpointTestRule, making call to auth to get root password, etc.
      */
     @Configuration
-    static class TestClustermgrDBConfig2 extends ClustermgrDBConfig2 {}
+    static class TestClustermgrDbEndpointConfig extends ClustermgrDbEndpointConfig {}
 }
