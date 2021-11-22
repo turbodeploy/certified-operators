@@ -117,7 +117,9 @@ public class DbEndpointCompatConfig {
 
     protected DbEndpointBuilder fixEndpointForMultiDb(DbEndpointBuilder builder) {
         if (dbSchemaName != null) {
-            builder = builder.withSchemaName(dbSchemaName);
+            builder = builder.withSchemaName(dbSchemaName)
+                    // MySqlFamilyAdapter uses databaseName, not schemaName
+                    .withDatabaseName(dbSchemaName);
         }
         // unlike most properties, the dbUsername property includes the component name as a prefix,
         if (getDbUserName() != null) {

@@ -4,6 +4,7 @@ import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -16,22 +17,46 @@ import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
 import org.jooq.Result;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.topology.processor.TopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImpTest.TestTopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestTopologyProcessorDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class EntityActionDaoImpTest {
+
+    @Autowired(required = false)
+    private TestTopologyProcessorDbEndpointConfig dbEndpointConfig;
+    
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -47,11 +72,22 @@ public class EntityActionDaoImpTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("tp");
 
-    private EntityActionDaoImp controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
-                                                IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS,
-                                                SCALE_SUCCEED_SECONDS, RESIZE_SUCCEED_SECONDS);
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+    
+    private DSLContext dsl;
+
+    private EntityActionDaoImp controllableDaoImp;
 
     private static final int IN_PROGRESS_EXPIRED_SECONDS = 3000;
 
@@ -81,6 +117,26 @@ public class EntityActionDaoImpTest {
 
     private static final long COMMON_ENTITY_ID = 1;
 
+    /**
+     * Set up before each test.
+     *
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
+     */
+    @Before
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.tpEndpoint());
+            dsl = dbEndpointConfig.tpEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        this.controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
+                IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS,
+                SCALE_SUCCEED_SECONDS, RESIZE_SUCCEED_SECONDS);
+    }
+    
     @Test
     public void testInsertQueuedControllable() {
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
@@ -95,7 +151,7 @@ public class EntityActionDaoImpTest {
     }
 
     /**
-     * Tests that a call to the {@link EntityActionDaoImp#deleteMoveActions(long)} method removes
+     * Tests that a call to the {@link EntityActionDaoImp#deleteMoveActions(List)} method removes
      * move entries pertaining to the supplied entity from the database, but doesn't effect other
      * action types nor other entities.
      */
@@ -387,4 +443,7 @@ public class EntityActionDaoImpTest {
         controllableDaoImp.insertAction(SCALE_ACTION_ID, ActionType.SCALE, Sets.newHashSet(SCALE_ENTITY_ID));
     }
 
+    @Configuration
+    public static class TestTopologyProcessorDbEndpointConfig
+            extends TopologyProcessorDbEndpointConfig {}
 }

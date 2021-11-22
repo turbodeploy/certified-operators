@@ -19,6 +19,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
+import com.vmturbo.topology.processor.DbAccessConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 
 /**
@@ -87,6 +88,11 @@ public class ControllableConfigTest {
         @Bean
         public ControllableConfig controllableConfig() {
             return new ControllableConfig();
+        }
+
+        @Bean
+        public DbAccessConfig dbAccessConfig() {
+            return new DbAccessConfig();
         }
     }
 }

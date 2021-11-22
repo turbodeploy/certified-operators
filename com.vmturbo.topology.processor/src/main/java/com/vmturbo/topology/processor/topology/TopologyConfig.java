@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.sql.SQLException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +18,9 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.DbAccessConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
@@ -72,7 +76,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     MatrixConfig.class,
     HistoryAggregationConfig.class,
     LicenseCheckClientConfig.class,
-    TopologyProcessorDBConfig.class,
+    DbAccessConfig.class,
     ConsistentScalingConfig.class,
     ActionsConfig.class
 })
@@ -130,7 +134,7 @@ public class TopologyConfig {
     private PlanDestinationConfig planDestinationConfig;
 
     @Autowired
-    private TopologyProcessorDBConfig topologyProcessorDBConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private MatrixConfig matrixConfig;
@@ -368,7 +372,14 @@ public class TopologyConfig {
 
     @Bean
     public HistoricalUtilizationDatabase historicalUtilizationDatabase() {
-        return new HistoricalUtilizationDatabase(topologyProcessorDBConfig.dsl());
+        try {
+            return new HistoricalUtilizationDatabase(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create HistoricalUtilizationDatabase", e);
+        }
     }
 
     @Bean

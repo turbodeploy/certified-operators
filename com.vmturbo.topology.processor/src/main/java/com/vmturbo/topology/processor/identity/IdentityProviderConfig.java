@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.identity;
 
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -7,22 +8,24 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.common.protobuf.topology.IdentityREST.IdentityServiceController;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.DbAccessConfig;
 import com.vmturbo.topology.processor.KVConfig;
-import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 
@@ -34,7 +37,7 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
  * of the heavy lifting of OID assignment.
  */
 @Configuration
-@Import({KVConfig.class, TopologyProcessorDBConfig.class})
+@Import({KVConfig.class, DbAccessConfig.class})
 public class IdentityProviderConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -46,7 +49,7 @@ public class IdentityProviderConfig {
     private ProbeConfig probeConfig;
 
     @Autowired
-    private TopologyProcessorDBConfig topologyProcessorDBConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private ClockConfig clockConfig;
@@ -83,7 +86,14 @@ public class IdentityProviderConfig {
 
     @Bean
     public IdentityDatabaseStore identityDatabaseStore() {
-        return new IdentityDatabaseStore(topologyProcessorDBConfig.dsl());
+        try {
+            return new IdentityDatabaseStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create IdentityDatabaseStore", e);
+        }
     }
 
     @Bean
@@ -141,10 +151,17 @@ public class IdentityProviderConfig {
                         + "settings will be ignored");
             }
         }
-        return new StaleOidManagerImpl(
-                Math.max(TimeUnit.DAYS.toMillis(1), TimeUnit.DAYS.toMillis(entityExpirationTimeDays)),
-                Math.max(TimeUnit.HOURS.toMillis(1), TimeUnit.HOURS.toMillis(entityValidationFrequencyHours)),
-                Math.max(0, TimeUnit.MINUTES.toMillis(initialExpirationDelayMin)), topologyProcessorDBConfig.dsl(),
-                clockConfig.clock(), expireOids, oidsExpirationScheduledExecutor(), expirationDaysMap);
+        try {
+            return new StaleOidManagerImpl(
+                    Math.max(TimeUnit.DAYS.toMillis(1), TimeUnit.DAYS.toMillis(entityExpirationTimeDays)),
+                    Math.max(TimeUnit.HOURS.toMillis(1), TimeUnit.HOURS.toMillis(entityValidationFrequencyHours)),
+                    Math.max(0, TimeUnit.MINUTES.toMillis(initialExpirationDelayMin)), dbAccessConfig.dsl(),
+                    clockConfig.clock(), expireOids, oidsExpirationScheduledExecutor(), expirationDaysMap);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create staleOidManager", e);
+        }
     }
 }

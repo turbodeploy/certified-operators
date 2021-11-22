@@ -14,7 +14,7 @@ import com.vmturbo.sql.utils.DbEndpointsConfig;
  */
 @Configuration
 @Conditional(DbEndpointCondition.class)
-public class ClustermgrDBConfig2 extends DbEndpointsConfig {
+public class ClustermgrDbEndpointConfig extends DbEndpointsConfig {
 
     /**
      * Endpoint for accessing clustermgr database.

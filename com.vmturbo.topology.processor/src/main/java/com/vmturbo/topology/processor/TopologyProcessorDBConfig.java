@@ -7,14 +7,17 @@ import javax.sql.DataSource;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.sql.utils.ConditionalDbConfig.SQLDatabaseConfigCondition;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Configuration for topology-processor component interaction with a schema.
  */
 @Configuration
+@Conditional(SQLDatabaseConfigCondition.class)
 public class TopologyProcessorDBConfig extends SQLDatabaseConfig {
 
     /**
@@ -40,14 +43,6 @@ public class TopologyProcessorDBConfig extends SQLDatabaseConfig {
     public DataSource dataSource() {
         return getDataSource(dbSchemaName, topologyProcessorDbUsername, Optional.ofNullable(
                 !Strings.isEmpty(topologyProcessorDbPassword) ? topologyProcessorDbPassword : null));
-    }
-
-    /** Whether DbMonitor reports should be produced at all. */
-    @Value("${dbMonitorEnabled:true}")
-    private boolean dbMonitorEnabled;
-
-    public boolean isDbMonitorEnabled() {
-        return dbMonitorEnabled;
     }
 
     @Override

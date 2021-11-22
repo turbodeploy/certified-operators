@@ -1,12 +1,16 @@
 package com.vmturbo.topology.processor.migration;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.topology.processor.DbAccessConfig;
 import com.vmturbo.topology.processor.KVConfig;
-import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -18,7 +22,7 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
         IdentityProviderConfig.class,
         ProbeConfig.class,
         StitchingConfig.class,
-        TopologyProcessorDBConfig.class,
+        DbAccessConfig.class,
         KVConfig.class, GroupConfig.class})
 public class MigrationsConfig {
 
@@ -29,7 +33,7 @@ public class MigrationsConfig {
     ProbeConfig probeConfig;
 
     @Autowired
-    TopologyProcessorDBConfig topologyProcessorDBConfig;
+    DbAccessConfig dbAccessConfig;
 
     @Autowired
     StitchingConfig stitchingConfig;
@@ -45,10 +49,17 @@ public class MigrationsConfig {
 
     @Bean
     public MigrationsLibrary migrationsList() {
-        return new MigrationsLibrary(topologyProcessorDBConfig.dsl(),
-                probeConfig.probeStore(), stitchingConfig.historyClient(),
-                identityProviderConfig.identityProvider(),
-                kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.targetDao(),
-                targetConfig.identityStore(), groupConfig.groupScopeResolver());
+        try {
+            return new MigrationsLibrary(dbAccessConfig.dsl(),
+                    probeConfig.probeStore(), stitchingConfig.historyClient(),
+                    identityProviderConfig.identityProvider(),
+                    kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.targetDao(),
+                    targetConfig.identityStore(), groupConfig.groupScopeResolver());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create MigrationsLibrary", e);
+        }
     }
 }

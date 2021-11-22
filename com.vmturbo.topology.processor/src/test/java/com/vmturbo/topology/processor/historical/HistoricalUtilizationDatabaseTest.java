@@ -5,27 +5,49 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
+import java.sql.SQLException;
 import java.util.List;
 
-import org.jooq.DSLContext;
+import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.jooq.DSLContext;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import com.google.protobuf.InvalidProtocolBufferException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImpTest.TestTopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.tables.HistoricalUtilization;
 import com.vmturbo.topology.processor.db.tables.records.HistoricalUtilizationRecord;
 
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestTopologyProcessorDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class HistoricalUtilizationDatabaseTest {
+
+    @Autowired(required = false)
+    private TestTopologyProcessorDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -38,6 +60,19 @@ public class HistoricalUtilizationDatabaseTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("tp");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
     private static final CommodityType SOLD_COMMODITY_TYPE = CommodityType.newBuilder()
         .setType(1234)
         .setKey("2333")
@@ -48,7 +83,7 @@ public class HistoricalUtilizationDatabaseTest {
         .setKey("666")
         .build();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private DSLContext dsl;
 
     private HistoricalCommodityInfo soldCommInfo = new HistoricalCommodityInfo();
     private HistoricalCommodityInfo boughtCommInfo = new HistoricalCommodityInfo();
@@ -76,6 +111,23 @@ public class HistoricalUtilizationDatabaseTest {
         seInfo.getHistoricalCommoditySold().add(soldCommInfo);
         seInfo.getHistoricalCommodityBought().add(boughtCommInfo);
         return seInfo;
+    }
+
+    /**
+     * Set up before each test.
+     *
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
+     */
+    @Before
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.tpEndpoint());
+            dsl = dbEndpointConfig.tpEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
     }
 
     // test save and read when the max allowed size for query is smaller than the protobuf to be saved

@@ -130,6 +130,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     /**
      * Initialize the store.
      */
+    @Override
     public void initialize() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(
