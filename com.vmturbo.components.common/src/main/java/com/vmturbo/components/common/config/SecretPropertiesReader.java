@@ -60,28 +60,17 @@ public class SecretPropertiesReader extends YamlProcessor {
     @VisibleForTesting
     static final Map<String, Map<String, String>> componentSecretKeyMap = ImmutableMap.<String, Map<String, String>>builder()
             .put("api", ImmutableMap.of(USERNAME, "apiDbUsername", PASSWORD, "apiDbPassword"))
-            .put("action-orchestrator",
-                    ImmutableMap.of(USERNAME, "actionDbUsername", PASSWORD, "actionDbPassword"))
+            .put("action-orchestrator", ImmutableMap.of(USERNAME, "actionDbUsername", PASSWORD, "actionDbPassword"))
             .put("auth", ImmutableMap.of(USERNAME, "authDbUsername", PASSWORD, "authDbPassword"))
             .put("cost", ImmutableMap.of(USERNAME, "costDbUsername", PASSWORD, "costDbPassword"))
-            .put("group", ImmutableMap.of(USERNAME, "groupComponentDbUsername", PASSWORD,
-                    "groupComponentDbPassword"))
-            .put("history",
-                    ImmutableMap.of(USERNAME, "historyDbUsername", PASSWORD, "historyDbPassword"))
-            .put("clustermgr", ImmutableMap.of(USERNAME, "clustermgrDbUsername", PASSWORD,
-                    "clustermgrDbPassword"))
-            .put("plan-orchestrator",
-                    ImmutableMap.of(USERNAME, "planDbUsername", PASSWORD, "planDbPassword"))
-            .put("market",
-                    ImmutableMap.of(USERNAME, "marketDbUsername", PASSWORD, "marketDbPassword"))
-            .put("topology-processor",
-                    ImmutableMap.of(USERNAME, "topologyProcessorDbUsername", PASSWORD,
-                            "topologyProcessorDbPassword"))
-            .put("repository", ImmutableMap.of(USERNAME, "repositoryDbUsername", PASSWORD,
-                    "repositoryDbPassword"))
-            .put("intersight-integration",
-                    ImmutableMap.of(CLIENT_ID, "intersightClientId", CLIENT_SECRET,
-                            "intersightClientSecret"))
+            .put("group", ImmutableMap.of(USERNAME, "groupComponentDbUsername", PASSWORD, "groupComponentDbPassword"))
+            .put("history", ImmutableMap.of(USERNAME, "historyDbUsername", PASSWORD, "historyDbPassword"))
+            .put("clustermgr", ImmutableMap.of(USERNAME, "clustermgrDbUsername", PASSWORD, "clustermgrDbPassword"))
+            .put("plan-orchestrator", ImmutableMap.of(USERNAME, "planDbUsername", PASSWORD, "planDbPassword"))
+            .put("market", ImmutableMap.of(USERNAME, "marketDbUsername", PASSWORD, "marketDbPassword"))
+            .put("topology-processor", ImmutableMap.of(USERNAME, "topologyProcessorDbUsername", PASSWORD, "topologyProcessorDbPassword"))
+            .put("repository", ImmutableMap.of(USERNAME, "repositoryDbUsername", PASSWORD, "repositoryDbPassword"))
+            .put("intersight-integration", ImmutableMap.of(CLIENT_ID, "intersightClientId", CLIENT_SECRET, "intersightClientSecret"))
             .build();
 
     /**
