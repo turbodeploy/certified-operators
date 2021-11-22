@@ -7,8 +7,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -67,6 +67,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
+import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -2098,5 +2099,22 @@ public class GroupsService implements IGroupsService {
             throw new IllegalArgumentException(String.format(ILLEGAL_GROUP_UUID_MESSAGE, uuid));
         }
         return apiId.oid();
+    }
+
+    /**
+     * Get list of cloud cost statistics for given group.
+     * POST /groups/{group_Uuid}/cost
+     *
+     * @param groupUuid uuid of the group.  Groups cloud entities will be considered.
+     * @param costInputApiDTO Filters and groupings applied to cost statistic
+     * @return List of {@link StatSnapshotApiDTO} containing cloud cost data
+     * @throws Exception //TODO add further description with Jira OM-76838
+     */
+    @Override
+    public List<StatSnapshotApiDTO> getGroupCloudCostStats(@Nonnull String groupUuid,
+                                               @Nullable CostInputApiDTO costInputApiDTO)
+                    throws Exception {
+        //TODO: Planned implementation Jira OM-76838
+        return Collections.emptyList();
     }
 }

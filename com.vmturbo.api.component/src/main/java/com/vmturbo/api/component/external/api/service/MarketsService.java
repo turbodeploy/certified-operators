@@ -22,7 +22,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -62,6 +61,7 @@ import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExe
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
+import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -106,7 +106,6 @@ import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -171,8 +170,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -2245,5 +2242,22 @@ public class MarketsService implements IMarketsService {
             this.topologyEntity = Objects.requireNonNull(topologyEntity);
             this.apiEntity = Objects.requireNonNull(apiEntity);
         }
+    }
+
+    /**
+     * Get list of cloud cost statistics for given market. Market's cloud entities will be considered.
+     * POST /markets/{market_Uuid}/cost
+     *
+     * @param marketUuid uuid of a market who's cloud entities will be considered
+     * @param costInputApiDTO Filters and groupings applied to cost statistic
+     * @return List of {@link StatSnapshotApiDTO} containing cloud cost data
+     * @throws Exception //TODO add futher description with Jira OM-76838
+     */
+    @Override
+    public List<StatSnapshotApiDTO> getMarketCloudCostStats(@Nonnull String marketUuid,
+                                                       @Nullable CostInputApiDTO costInputApiDTO)
+                    throws Exception {
+        //TODO: Planned implementation Jira OM-76838
+        return Collections.emptyList();
     }
 }
