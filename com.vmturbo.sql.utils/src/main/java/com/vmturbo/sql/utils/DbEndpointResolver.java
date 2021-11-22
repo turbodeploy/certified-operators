@@ -25,6 +25,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
@@ -427,9 +428,9 @@ public class DbEndpointResolver {
      */
     public void resolveMigrationLocations() throws UnsupportedDialectException {
         String fromTemplate = getFromTemplate(DbEndpointConfig::getMigrationLocations);
+        String defaultMigrationLocations = getDefaultMigrationLocations();
         config.setMigrationLocations(firstNonNull(configuredPropValue(MIGRATION_LOCATIONS_PROPERTY),
-                config.getMigrationLocations(), fromTemplate,
-                DEFAULT_MIGRATION_LOCATION_PREFIX + getComponentName()));
+                config.getMigrationLocations(), fromTemplate, defaultMigrationLocations));
     }
 
     /**
@@ -629,6 +630,24 @@ public class DbEndpointResolver {
                 return Collections.emptyMap();
             default:
                 throw new UnsupportedDialectException(dialect);
+        }
+    }
+
+    /**
+     * Get the default migation locations string for this endpoint.
+     *
+     * <p>If the POSTGRES_PRIMARY_DB feature flag is enabled, this will take the form
+     * "db.migrations.&lt;component-name&gt;.&lt;dialect&gt;". Otherwise, the prior default,
+     * "db.migration.&lt;component-name&gt;", is used.</p>
+     *
+     * @return default migration locations string
+     */
+    public String getDefaultMigrationLocations() {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            String dialect = config.getDialect().name().toLowerCase();
+            return String.join(".", "db", "migrations", getComponentName(), dialect);
+        } else {
+            return DEFAULT_MIGRATION_LOCATION_PREFIX + getComponentName();
         }
     }
 }

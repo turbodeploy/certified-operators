@@ -17,13 +17,18 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 
 /**
- * Common configuration that should be subclassed by config classes that want to create {@link DbEndpoint}s.
+ * Common configuration that should be subclassed by config classes that want to create {@link
+ * DbEndpoint}s.
  *
  * <p>This is intended to (eventually) replace {@link SQLDatabaseConfig}.</p>
  */
 @Primary
 @Configuration
-public class DbEndpointsConfig {
+public class DbEndpointsConfig
+        // we extend a compat class temporarily until we can make adjustments in operator to provide
+        // needed backward compatibility with config properties that do not easily accommodate
+        // multiple DB dialects
+        extends DbEndpointCompatConfig {
     private static final Logger logger = LogManager.getLogger();
 
     @Value("${authHost:auth}")

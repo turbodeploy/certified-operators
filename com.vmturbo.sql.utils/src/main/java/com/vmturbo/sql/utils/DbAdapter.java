@@ -294,6 +294,8 @@ public abstract class DbAdapter {
      */
     private void performMigrations() throws UnsupportedDialectException, SQLException {
         if (!config.getMigrationLocations().isEmpty()) {
+            logger.info("Executing migrations at {} for endpoint {}",
+                    config.getMigrationLocations(), config);
             new FlywayMigrator(Duration.ofMinutes(1),
                     Duration.ofSeconds(5),
                     config.getSchemaName(),
@@ -301,7 +303,6 @@ public abstract class DbAdapter {
                     getDataSourceForFlyway(),
                     config.getFlywayCallbacks()
             ).migrate();
-            logger.info("Completed migrations for endpoint {}", config);
         }
     }
 
@@ -314,6 +315,8 @@ public abstract class DbAdapter {
      */
     private void validateMigrations() throws UnsupportedDialectException, SQLException {
         if (!config.getMigrationLocations().isEmpty()) {
+            logger.info("Validating migrations at {} for endpoint {}",
+                    config.getMigrationLocations(), config);
             new FlywayMigrator(Duration.ofMinutes(1),
                     Duration.ofSeconds(5),
                     config.getSchemaName(),
@@ -321,7 +324,6 @@ public abstract class DbAdapter {
                     getDataSourceForFlyway(),
                     config.getFlywayCallbacks()
             ).validate();
-            logger.info("Validated migrations for endpoint {}", config);
         }
     }
 
