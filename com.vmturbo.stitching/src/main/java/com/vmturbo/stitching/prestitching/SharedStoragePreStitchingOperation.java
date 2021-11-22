@@ -271,9 +271,22 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
      */
     @Nonnull
     private PowerState calculatePowerState(@Nonnull final List<StitchingEntity> storageInstances) {
-        return storageInstances.stream().map(StitchingEntity::getEntityBuilder)
+        List<EntityDTO.Builder> discoveredStorageInstances = storageInstances.stream()
+                .map(StitchingEntity::getEntityBuilder)
                 .filter(entity -> entity.getOrigin() == EntityOrigin.DISCOVERED)
-                .filter(EntityDTO.Builder::hasPowerState).map(EntityDTO.Builder::getPowerState)
+                .collect(Collectors.toList());
+        if (discoveredStorageInstances.isEmpty()) {
+            return PowerState.POWERSTATE_UNKNOWN;
+        }
+
+        // If none of the storages have power state set, then take the default power state.
+        if (discoveredStorageInstances.stream().noneMatch(e -> e.hasPowerState())) {
+            return discoveredStorageInstances.get(0).getPowerState();
+        }
+        // Otherwise, take the storages which have the power state set, and find the best power state among them
+        return discoveredStorageInstances.stream()
+                .filter(EntityDTO.Builder::hasPowerState)
+                .map(EntityDTO.Builder::getPowerState)
                 .reduce(PowerState.POWERSTATE_UNKNOWN, (state1, state2) ->
                         //POWERED_ON < POWERED_OFF < SUSPENDED < POWERSTATE_UNKNOWN
                         state1.getNumber() < state2.getNumber() ? state1 : state2);
