@@ -32,6 +32,7 @@ import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -153,6 +154,31 @@ public class SharedStorageTest {
                 .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
 
         assertEquals(PowerState.POWERED_ON, newStorage.getEntityBuilder().getPowerState());
+    }
+
+    @Test
+    public void testNoStorageHasPowerState() {
+        final EntityDTO.Builder oldStorageDto = storage("old")
+                .displayName("old")
+                .selling(storageAmount().capacity(100.0).used(50.0))
+                .build()
+                .toBuilder();
+
+        final EntityDTO.Builder newStorageDto = storage("new")
+                .displayName("new")
+                .selling(storageAmount().capacity(100.0).used(25.0))
+                .build()
+                .toBuilder();
+
+        setupEntities(oldStorageDto, newStorageDto);
+
+        TopologyStitchingEntity noPowerStateOldStorage = stitchingContext.getEntity(oldStorageDto).get();
+        TopologyStitchingEntity noPowerStateNewStorage = stitchingContext.getEntity(newStorageDto).get();
+
+        operation.performOperation(Stream.of(noPowerStateOldStorage, noPowerStateNewStorage), resultBuilder)
+                .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
+
+        assertEquals(PowerState.POWERED_ON, noPowerStateNewStorage.getEntityBuilder().getPowerState());
     }
 
     private void setupEntities(@Nonnull final EntityDTO.Builder... entities) {
