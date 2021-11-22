@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.topology.UIMapping.getUserFacingCatego
 import static com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter.entityState;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1049,14 +1050,7 @@ public class EntityStore {
                 new LinkedHashMap<>();
             for (TreeMap<Integer, EntityDTO> messageIdToEntity : orderedIncrementalEntities.values()) {
                 for (Integer messageId : messageIdToEntity.keySet()) {
-                    if (messageIdToEntityDtos.containsKey(messageId)) {
-                        Collection<EntityDTO> currentEntityDTOs = messageIdToEntityDtos.get(messageId);
-                        currentEntityDTOs.add(messageIdToEntity.get(messageId));
-                        messageIdToEntityDtos.put(messageId,currentEntityDTOs);
-                    } else {
-                        messageIdToEntityDtos.put(messageId,
-                            Collections.singletonList(messageIdToEntity.get(messageId)));
-                    }
+                    messageIdToEntityDtos.computeIfAbsent(messageId, ArrayList::new).add(messageIdToEntity.get(messageId));
                 }
             }
             return messageIdToEntityDtos;
