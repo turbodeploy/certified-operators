@@ -214,7 +214,7 @@ public class DeleteContextTest {
     @Nonnull
     private Entity mockEntity(long entityId, EntityType entityType, long targetId)
         throws EntityRetrievalException {
-        final Entity entity = new Entity(entityId, entityType);
+        final Entity entity = new Entity(entityId, entityType, false);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
             .setEntityType(entityType)
             .setId(Long.toString(entityId))

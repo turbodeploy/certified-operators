@@ -160,7 +160,7 @@ public class ActionAuditServiceTest {
         Mockito.when(entityRetriever.retrieveTopologyEntities(Collections.singletonList(ENTITY_ID)))
                 .thenReturn(Collections.singletonList(vmTopology));
         Mockito.when(entityRetriever.fetchAndConvertToEntityDTO(ENTITY_ID)).thenReturn(vm);
-        final Entity vmEntity = new Entity(ENTITY_ID, EntityType.VIRTUAL_MACHINE);
+        final Entity vmEntity = new Entity(ENTITY_ID, EntityType.VIRTUAL_MACHINE, false);
         vmEntity.addTargetInfo(ACTION_TARGET, vm);
         final TopologyToSdkEntityConverter topologyToSdkEntityConverter = Mockito.mock(
                 TopologyToSdkEntityConverter.class);

@@ -1,12 +1,18 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import static junitparams.JUnitParamsRunner.$;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 import com.vmturbo.auth.api.securestorage.SecureStorageClient;
@@ -41,6 +47,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * {@link ResizeContext} convert action info into the expected {@link ActionExecutionDTO} and
  *  {@link ActionItemDTO}.
  */
+@RunWith(JUnitParamsRunner.class)
 public class ActionExecutionContextTest {
 
     private final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
@@ -59,6 +66,9 @@ public class ActionExecutionContextTest {
 
     // Builds the class under test
     private ActionExecutionContextFactory actionExecutionContextFactory;
+
+    Object[] generateTestData() {
+        return $($(false), $(true)); }
 
     /**
      * Set up all of the mocks so they return reasonable values for unit testing.
@@ -83,10 +93,12 @@ public class ActionExecutionContextTest {
     /**
      * Test converting activate action info in ActionItemDTO.
      *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws Exception should not be thrown.
      */
     @Test
-    public void testActivateContext() throws Exception {
+    @Parameters(method = "generateTestData")
+    public void testActivateContext(boolean useSerializedEntities) throws Exception {
         // Construct an activate action request
         final long entityId = 6;
         final ActionDTO.ActionInfo activate = ActionInfo.newBuilder()
@@ -115,7 +127,7 @@ public class ActionExecutionContextTest {
 
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
-        final Entity entity = new Entity(entityId, entityType);
+        final Entity entity = new Entity(entityId, entityType, useSerializedEntities);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
@@ -169,11 +181,12 @@ public class ActionExecutionContextTest {
 
     /**
      * Test converting deactivate action info in ActionItemDTO.
-     *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws Exception should not be thrown.
      */
     @Test
-    public void testDeactivateContext() throws Exception {
+    @Parameters(method = "generateTestData")
+    public void testDeactivateContext(boolean useSerializedEntities) throws Exception {
         // Construct an deactivate action request
         final long entityId = 26;
         final ActionDTO.ActionInfo deactivate = ActionInfo.newBuilder()
@@ -200,7 +213,7 @@ public class ActionExecutionContextTest {
 
         // We need entity info for just the primary entity -- physical machines don't have hosts
         final EntityType entityType = EntityType.PHYSICAL_MACHINE;
-        final Entity entity = new Entity(entityId, entityType);
+        final Entity entity = new Entity(entityId, entityType, useSerializedEntities);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
@@ -241,11 +254,12 @@ public class ActionExecutionContextTest {
 
     /**
      * Test converting resize action info in ActionItemDTO.
-     *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws Exception should not be thrown.
      */
     @Test
-    public void testResizeContext() throws Exception {
+    @Parameters(method = "generateTestData")
+    public void testResizeContext(boolean useSerializedEntities) throws Exception {
         // Construct an resize action request
         final long entityId = 35;
         final float oldCapacity = 2000;
@@ -283,7 +297,7 @@ public class ActionExecutionContextTest {
 
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
-        final Entity entity = new Entity(entityId, entityType);
+        final Entity entity = new Entity(entityId, entityType, useSerializedEntities);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
@@ -293,7 +307,7 @@ public class ActionExecutionContextTest {
         entity.setHostedBy(targetId, hostEntityId);
 
         final EntityType hostEntityType = EntityType.PHYSICAL_MACHINE;
-        final Entity hostEntity = new Entity(hostEntityId, hostEntityType);
+        final Entity hostEntity = new Entity(hostEntityId, hostEntityType, false);
         final EntityDTO hostEntityDTO = EntityDTO.newBuilder()
                 .setEntityType(hostEntityType)
                 .setId(Long.toString(hostEntityId))
@@ -356,11 +370,12 @@ public class ActionExecutionContextTest {
 
     /**
      * Test converting provision action info in ActionItemDTO.
-     *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws Exception should not be thrown.
      */
     @Test
-    public void testProvisionContext() throws Exception {
+    @Parameters(method = "generateTestData")
+    public void testProvisionContext(boolean useSerializedEntities) throws Exception {
         // Construct a provision action request
         final long entityId = 22;
         final ActionDTO.ActionInfo provision = ActionInfo.newBuilder()
@@ -394,7 +409,7 @@ public class ActionExecutionContextTest {
                 .build();
 
         // We need entity info for just the primary entity -- physical machines don't have hosts
-        final Entity entity = new Entity(entityId, entityType);
+        final Entity entity = new Entity(entityId, entityType, useSerializedEntities);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
@@ -441,11 +456,12 @@ public class ActionExecutionContextTest {
     /**
      * {@link AbstractActionExecutionContext} should populate
      * {@link ActionExecutionDTO#getActionState()}.
-     *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws Exception should not be thrown.
      */
     @Test
-    public void testActionStates() throws Exception {
+    @Parameters(method = "generateTestData")
+    public void testActionStates(boolean useSerializedEntities) throws Exception {
         // Construct an resize action request
         final long entityId = 35;
         final float oldCapacity = 2000;
@@ -470,7 +486,7 @@ public class ActionExecutionContextTest {
 
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
-        final Entity entity = new Entity(entityId, entityType);
+        final Entity entity = new Entity(entityId, entityType, useSerializedEntities);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
             .setEntityType(entityType)
             .setId(Long.toString(entityId))
@@ -480,7 +496,7 @@ public class ActionExecutionContextTest {
         entity.setHostedBy(targetId, hostEntityId);
 
         final EntityType hostEntityType = EntityType.PHYSICAL_MACHINE;
-        final Entity hostEntity = new Entity(hostEntityId, hostEntityType);
+        final Entity hostEntity = new Entity(hostEntityId, hostEntityType, useSerializedEntities);
         final EntityDTO hostEntityDTO = EntityDTO.newBuilder()
             .setEntityType(hostEntityType)
             .setId(Long.toString(hostEntityId))

@@ -7,6 +7,11 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
@@ -27,6 +32,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
  */
 public class DCMappingStage extends Stage<EntityStore, EntityStore> {
     private final DiscoveredGroupUploader discoveredGroupUploader;
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Constructor for the stage.
@@ -56,8 +63,12 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
             .forEach(entity -> {
                 if (entity.getEntityType() == EntityType.DATACENTER) {
                     for (PerTargetInfo dcInfo : entity.allTargetInfo()) {
-                        datacenterIDsToNames.put(dcInfo.getEntityInfo().getId(),
-                                                 dcInfo.getEntityInfo().getDisplayName());
+                        try {
+                            EntityDTO entityDTO = dcInfo.getEntityInfo();
+                            datacenterIDsToNames.put(entityDTO.getId(), entityDTO.getDisplayName());
+                        } catch (InvalidProtocolBufferException e) {
+                            logger.error(entity.getConversionError());
+                        }
                     }
                 } else {
                     hosts.add(entity);
@@ -86,14 +97,18 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
                                Map<String, String> datacenterIDsToDisplayNames) {
         Map<Long, String> host2datacenterNames = new HashMap<>();
         for (Entity host : hosts)   {
-            for (PerTargetInfo entityInfo : host.allTargetInfo())    {
-                EntityDTO entityDTO = entityInfo.getEntityInfo();
-                for (CommodityBought bought : entityDTO.getCommoditiesBoughtList()) {
-                    if (bought.getProviderType() == EntityType.DATACENTER)  {
-                        final String datacenterName = datacenterIDsToDisplayNames.get(bought.getProviderId());
-                        host2datacenterNames.put(host.getId(), datacenterName);
-                        break;
+            for (PerTargetInfo entityInfo : host.allTargetInfo()) {
+                try {
+                    EntityDTO entityDTO = entityInfo.getEntityInfo();
+                    for (CommodityBought bought : entityDTO.getCommoditiesBoughtList()) {
+                        if (bought.getProviderType() == EntityType.DATACENTER)  {
+                            final String datacenterName = datacenterIDsToDisplayNames.get(bought.getProviderId());
+                            host2datacenterNames.put(host.getId(), datacenterName);
+                            break;
+                        }
                     }
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error(host.getConversionError(), e);
                 }
             }
         }

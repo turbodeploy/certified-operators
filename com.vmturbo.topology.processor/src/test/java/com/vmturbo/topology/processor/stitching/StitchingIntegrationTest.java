@@ -76,7 +76,7 @@ public abstract class StitchingIntegrationTest {
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
     protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-            Clock.systemUTC(), false);
+            Clock.systemUTC(), false, true);
     protected final DiskCapacityCalculator diskCapacityCalculator =
             mock(DiskCapacityCalculator.class);
 

@@ -980,7 +980,7 @@ public class ActionExecutionRpcServiceTest {
     private Map<Long, Entity> initializeTopology(final long targetId, NewEntityRequest... entities)
             throws Exception {
         return Arrays.stream(entities).map(entityRequest -> {
-            final Entity entity = new Entity(entityRequest.id, entityRequest.entityType);
+            final Entity entity = new Entity(entityRequest.id, entityRequest.entityType, false);
             final EntityDTO entityDTO = EntityDTO.newBuilder().setEntityType(
                     entityRequest.entityType).setId(Long.toString(entityRequest.id)).build();
             entity.addTargetInfo(targetId, entityDTO);

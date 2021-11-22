@@ -954,7 +954,7 @@ public class ChangeProviderContextTest {
 
     private Entity mockEntity(long entityId, EntityType entityType, Set<Long> targetIds)
                 throws EntityRetrievalException {
-        final Entity entity = new Entity(entityId, entityType);
+        final Entity entity = new Entity(entityId, entityType, false);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
             .setEntityType(entityType)
             .setId(Long.toString(entityId))

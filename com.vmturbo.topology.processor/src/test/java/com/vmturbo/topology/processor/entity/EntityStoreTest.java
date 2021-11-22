@@ -5,6 +5,7 @@ import static com.vmturbo.platform.common.builders.CommodityBuilders.vCpuMHz;
 import static com.vmturbo.platform.common.builders.EntityBuilders.physicalMachine;
 import static com.vmturbo.platform.common.builders.EntityBuilders.storage;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
+import static junitparams.JUnitParamsRunner.$;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -40,11 +41,15 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -81,6 +86,7 @@ import common.HealthCheck.HealthState;
 /**
  * Test the {@link EntityStore} methods.
  */
+@RunWith(JUnitParamsRunner.class)
 public class EntityStoreTest {
     private final long targetId = 1234;
 
@@ -129,13 +135,17 @@ public class EntityStoreTest {
             .build();
 
     private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                    Collections.singletonList(sender), Clock.systemUTC(), false));
+                    Collections.singletonList(sender), Clock.systemUTC(), false, true));
 
     /**
      * Expected exception rule.
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    Object[] generateTestData() {
+        return $($(false), $(true));
+    }
 
     /**
      * Setup the targets.
@@ -567,12 +577,14 @@ public class EntityStoreTest {
     /**
      * Tests construct stitching graph for single target.
      *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws IdentityServiceException on service exceptions
      * @throws TargetNotFoundException if target not found
      * @throws DuplicateTargetException if target is a duplicate of existing target
      */
     @Test
-    public void testConstructStitchingGraphSingleTarget()
+    @Parameters(method = "generateTestData")
+    public void testConstructStitchingGraphSingleTarget(boolean useSerializedEntities)
             throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final Map<Long, EntityDTO> entities = ImmutableMap.of(
             1L, virtualMachine("foo")
@@ -585,7 +597,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, false);
+                mockClock, false, useSerializedEntities);
 
         addEntities(entities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
@@ -663,17 +675,19 @@ public class EntityStoreTest {
     /**
      * Tests construct stitching graph for single target.
      *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws IdentityServiceException on service exceptions
      * @throws TargetNotFoundException if target not found
      * @throws DuplicateTargetException if target is a duplicate of existing target
      */
     @Test
-    public void testApplyIncrementalEntities()
+    @Parameters(method = "generateTestData")
+    public void testApplyIncrementalEntities(boolean useSerializedEntities)
             throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, false);
+                mockClock, false, useSerializedEntities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
@@ -747,12 +761,14 @@ public class EntityStoreTest {
     /**
      * Test that incremental discovery response for different targets are cached.
      *
+     * @param useSerializedEntities whether to use serialized dtos or not.
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testSendEntitiesWithNewState() throws Exception {
+    @Parameters(method = "generateTestData")
+    public void testSendEntitiesWithNewState(boolean useSerializedEntities) throws Exception {
         entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                        Collections.singletonList(sender), Clock.systemUTC(), true));
+                    Collections.singletonList(sender), Clock.systemUTC(), true, true));
 
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         final long targetId1 = 2001;
@@ -778,7 +794,7 @@ public class EntityStoreTest {
             .setPhysicalMachineData(PhysicalMachineData.newBuilder().setAutomationLevel(AutomationLevel.FULLY_AUTOMATED))
             .setMaintenance(true)
             .build();
-        final Entity entity2 = new Entity(oid2, EntityType.PHYSICAL_MACHINE);
+        final Entity entity2 = new Entity(oid2, EntityType.PHYSICAL_MACHINE, useSerializedEntities);
         entity2.addTargetInfo(targetId1, entityDTO2);
         when(entityStore.getEntity(oid2)).thenReturn(Optional.of(entity2));
         addEntities(ImmutableMap.of(oid2, entityDTO2), targetId1, 0, DiscoveryType.INCREMENTAL, 2);
@@ -796,7 +812,7 @@ public class EntityStoreTest {
 
         // Disable maintenance mode feature. Automation level is not sent.
         entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                        Collections.singletonList(sender), Clock.systemUTC(), false));
+                        Collections.singletonList(sender), Clock.systemUTC(), false, true));
         addEntities(ImmutableMap.of(oid2, entityDTO2), targetId1, 0, DiscoveryType.INCREMENTAL, 2);
         verify(sender, times(1)).onEntitiesWithNewState(
             EntitiesWithNewState.newBuilder()
@@ -995,7 +1011,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true,
-                        Collections.singletonList(sender), mockClock, false);
+                        Collections.singletonList(sender), mockClock, false, true);
         addEntities(entities);
 
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))

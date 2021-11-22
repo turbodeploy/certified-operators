@@ -48,9 +48,9 @@ public class DiscoveredClusterConstraintCacheTest {
     private final Map<String, Long> targetEntityIdMap = ImmutableMap.of("VM-A", 11L,
             "PM-A", 22L);
 
-    private final Entity vmEntity = new Entity(11L, EntityType.VIRTUAL_MACHINE);
+    private final Entity vmEntity = new Entity(11L, EntityType.VIRTUAL_MACHINE, false);
 
-    private final Entity pmEntity = new Entity(22L, EntityType.PHYSICAL_MACHINE);
+    private final Entity pmEntity = new Entity(22L, EntityType.PHYSICAL_MACHINE, false);
 
     final long targetId = 123L;
 
