@@ -21,12 +21,15 @@ import com.google.common.collect.ImmutableMap;
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests of {@link DbEndpointResolver} class.
@@ -37,6 +40,13 @@ public class DbEndpointResolverTest {
     private final UnaryOperator<String> resolver = configMap::get;
     private final DBPasswordUtil dbPasswordUtil = mock(DBPasswordUtil.class);
     private final DbEndpointCompleter completer = mock(DbEndpointCompleter.class);
+
+    /**
+     * Manage feature flags.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
+            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     /**
      * Set up our mock behaviors and establish a fake component name.
@@ -69,7 +79,9 @@ public class DbEndpointResolverTest {
         assertThat(config.getEndpointEnabled(), is(true));
         assertThat(config.getFlywayCallbacks(), emptyArray());
         assertThat(config.getHost(), is("localhost"));
-        assertThat(config.getMigrationLocations(), is("db.migration.xyzzy"));
+        assertThat(config.getMigrationLocations(), is(FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                                                      ? "db.migrations.xyzzy.postgres"
+                                                      : "db.migration.xyzzy"));
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("pw"));
         assertThat(config.getPort(), is(5432));
@@ -103,7 +115,9 @@ public class DbEndpointResolverTest {
         assertThat(config.getEndpointEnabled(), is(true));
         assertThat(config.getFlywayCallbacks(), emptyArray());
         assertThat(config.getHost(), is("localhost"));
-        assertThat(config.getMigrationLocations(), is("db.migration.xyzzy"));
+        assertThat(config.getMigrationLocations(), is(FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                                                      ? "db.migrations.xyzzy.mariadb"
+                                                      : "db.migration.xyzzy"));
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("pw"));
         assertThat(config.getPort(), is(3306));
@@ -137,7 +151,9 @@ public class DbEndpointResolverTest {
         assertThat(config.getEndpointEnabled(), is(true));
         assertThat(config.getFlywayCallbacks(), emptyArray());
         assertThat(config.getHost(), is("localhost"));
-        assertThat(config.getMigrationLocations(), is("db.migration.xyzzy"));
+        assertThat(config.getMigrationLocations(), is(FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                                                      ? "db.migrations.xyzzy.mysql"
+                                                      : "db.migration.xyzzy"));
         assertThat(config.getName(), is("test"));
         assertThat(config.getPassword(), is("pw"));
         assertThat(config.getPort(), is(3306));
