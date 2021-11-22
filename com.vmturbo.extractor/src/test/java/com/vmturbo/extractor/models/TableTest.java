@@ -63,9 +63,11 @@ public class TableTest {
     /**
      * Test that when a record sink is attached to a table, it correctly forwards records to the
      * sink as expected.
+     *
+     * @throws SQLException should not happen
      */
     @Test
-    public void testThatTableForwardsRecordsToSink() {
+    public void testThatTableForwardsRecordsToSink() throws SQLException {
         TestRecordSink sink = new TestRecordSink();
         // create a record for this table through the record constructor,
         // since the table doesn't yet have a record sink
