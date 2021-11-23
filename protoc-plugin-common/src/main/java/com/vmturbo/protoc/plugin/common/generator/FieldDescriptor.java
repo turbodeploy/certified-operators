@@ -4,13 +4,12 @@ import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.CaseFormat;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
 
 /**
  * A wrapper around {@link FieldDescriptorProto}, which describes a single field in a message.

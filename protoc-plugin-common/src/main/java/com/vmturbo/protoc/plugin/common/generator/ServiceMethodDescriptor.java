@@ -3,13 +3,12 @@ package com.vmturbo.protoc.plugin.common.generator;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.api.AnnotationsProto;
 import com.google.api.HttpRule;
 import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.DescriptorProtos.MethodDescriptorProto;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
 
 /**
  * A wrapper around {@link MethodDescriptorProto}, which describes a single rpc method in

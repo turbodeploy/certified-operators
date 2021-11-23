@@ -3,8 +3,7 @@ package com.vmturbo.identity.attributes;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
+import javax.annotation.concurrent.Immutable;
 
 /**
  * One attribute to match on, defined by an 'attributeId' and an 'attributeValue'.
