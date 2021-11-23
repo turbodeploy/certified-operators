@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
@@ -450,7 +451,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits(timeFrame.getUnits());
         final double multiplier = timeFrame.getMultiplier();
-        statRecordBuilder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+        statRecordBuilder.setValues(StatValue.newBuilder()
                 .setAvg((float)(avg * multiplier))
                 .setMax((float)(max * multiplier))
                 .setMin((float)(min * multiplier))

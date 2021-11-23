@@ -73,6 +73,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
@@ -698,7 +699,7 @@ public class CostRpcServiceTest {
                         .setAssociatedEntityType(1)
                         .setCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .setCostSource(CostSource.ON_DEMAND_RATE)
-                        .setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                        .setValues(StatValue.newBuilder()
                                 .setAvg((float)ACCOUNT_EXPENSE1)
                                 .setTotal((float)ACCOUNT_EXPENSE1)
                                 .setMax((float)ACCOUNT_EXPENSE1)
@@ -1123,7 +1124,7 @@ public class CostRpcServiceTest {
                 .setAssociatedEntityId(4L)
                 .setAssociatedEntityType(1)
                 .setCategory(costCategory)
-                .setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                .setValues(StatValue.newBuilder()
                         .setAvg((float)ACCOUNT_EXPENSE1)
                         .setTotal((float)ACCOUNT_EXPENSE1)
                         .setMax((float)ACCOUNT_EXPENSE1)
@@ -1335,8 +1336,8 @@ public class CostRpcServiceTest {
         statRecordBuilder.setUnits("$/h");
         statRecordBuilder.setAssociatedEntityId(expectedEntityTypeId);
         statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder =
-            CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+        StatValue.Builder statValueBuilder =
+            StatValue.newBuilder();
 
         final float expectedTotal = (float)(ACCOUNT_EXPENSE1 + ACCOUNT_EXPENSE2);
         statValueBuilder.setAvg(expectedTotal / 2)
@@ -1406,7 +1407,7 @@ public class CostRpcServiceTest {
                 .setAssociatedEntityId(entityCost.getAssociatedEntityId())
                 .setAssociatedEntityType(entityCost.getAssociatedEntityType())
                 .setCategory(componentCost.getCategory())
-                .setValues(StatRecord.StatValue.newBuilder()
+                .setValues(StatValue.newBuilder()
                         .setAvg(amount)
                         .setTotal(amount)
                         .setMax(amount)

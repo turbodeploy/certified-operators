@@ -66,6 +66,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -1089,13 +1090,13 @@ public class PaginatedStatsExecutorTest {
     }
 
     /**
-     * Returns a {@link CloudCostStatRecord.StatRecord.StatValue} using value on all fields.
+     * Returns a {@link StatValue} using value on all fields.
      *
-     * @param value the number set to all fields in {@link CloudCostStatRecord.StatRecord.StatValue}
-     * @return {@link CloudCostStatRecord.StatRecord.StatValue} configured with value passed
+     * @param value the number set to all fields in {@link StatValue}
+     * @return {@link StatValue} configured with value passed
      */
-    public CloudCostStatRecord.StatRecord.StatValue getCostStatValue(float value) {
-        return CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+    public StatValue getCostStatValue(float value) {
+        return StatValue.newBuilder()
                 .setTotal(value)
                 .setAvg(value)
                 .setMax(value)
