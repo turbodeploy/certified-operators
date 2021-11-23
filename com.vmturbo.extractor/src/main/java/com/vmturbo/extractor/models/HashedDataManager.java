@@ -132,16 +132,30 @@ public class HashedDataManager {
     }
 
     private long finish() {
+        // track the results of the write operation
+        boolean errorOccurred = false;
+        long recordsWritten = 0;
         try {
             writer.close();
-            final long recordsWritten = writer.getRecordsWritten();
-            return recordsWritten;
+            recordsWritten = writer.getRecordsWritten();
+        } catch (SQLException e) {
+            logger.error("Encountered error while closing the hash values writer.", e);
+            errorOccurred = true;
         } finally {
-            this.priorHashes = currentHashes;
-            this.currentHashes = new LongOpenHashSet();
             this.sink = null;
             this.writer = null;
         }
+
+        // If the operation was successful, advance our in memory cache to point to the new model.
+        // When an error occurs, we skip this step. That way, when the next cycle occurs, we will
+        // continue using the prior set of hashes to make sure we don't miss updating any records.
+        if (!errorOccurred) {
+            this.priorHashes = currentHashes;
+        }
+        // Always clear the current hashes set to get ready for next time
+        this.currentHashes = new LongOpenHashSet();
+
+        return recordsWritten;
     }
 
     private LongSet loadHashesFromDatabase(DSLContext dsl) {
