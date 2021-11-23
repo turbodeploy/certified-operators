@@ -82,6 +82,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -1215,7 +1216,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                                          @Nonnull Optional<Integer> relatedEntityType,
                                                          final boolean isRiCost) {
             final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-            final CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+            final StatValue.Builder statValueBuilder = StatValue.newBuilder();
             statValueBuilder.setAvg((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
                 .mapToDouble(v -> v).average().orElse(0));
             statValueBuilder.setMax((float) statRecordsList.stream().map(record -> record.getValues().getAvg())

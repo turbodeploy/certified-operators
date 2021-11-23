@@ -1096,15 +1096,15 @@ message CloudCostStatRecord {
 
         // Cost source
         optional CostSource cost_source = 8;
-
-        // Contains the detail value of stats record, such as, max, min, avg, total value.
-        message StatValue {
-            optional float max = 1;
-            optional float min = 2;
-            optional float avg = 3;
-            optional float total = 4;
-        }
     }
+}
+
+// Contains the detail value of stats record, such as, max, min, avg, total value.
+message StatValue {
+    optional float max = 1;
+    optional float min = 2;
+    optional float avg = 3;
+    optional float total = 4;
 }
 
 // A request to set a new interval for buy RI scheduler.
@@ -1420,6 +1420,9 @@ service CostService {
 
     // Get entity savings stats.
     rpc GetEntitySavingsStats(GetEntitySavingsStatsRequest) returns (stream EntitySavingsStatsRecord);
+
+    // Get cloud billed cost stats
+    rpc GetCloudBilledStats(GetCloudBilledStatsRequest) returns (GetCloudBilledStatsResponse);
 }
 
 // A service responsible for running a cloud commitment analysis against a migrated workload topology
@@ -1603,4 +1606,91 @@ message EntitySavingsStatsRecord {
 
     // For raw stats records, the entity id.
     optional int64 entity_oid = 3;
+}
+
+// Request for cloud billed cost stats
+message GetCloudBilledStatsRequest {
+
+    // Start date. This value is inclusive.
+    // E.g requesting data for 10:00:00 to 14:00:00 time range will return all records starting and
+    // including 10 AM, 11 AM, 12 PM, 1PM, but not for record for 2PM.
+    optional uint64 start_date = 1;
+
+    // End date. This value is exclusive. See example above.
+    optional uint64 end_date = 2;
+
+    oneof scope {
+        // Entity ids filter.
+        cloud_common.EntityFilter entity_filter = 3;
+
+        // get entity cost filtered by region ids.
+        cloud_common.RegionFilter region_filter = 4;
+
+        // get entity cost filtered by account ids.
+        cloud_common.AccountFilter account_filter = 5;
+
+        // filter by service provider
+        cloud_common.ServiceProviderFilter service_provider = 6;
+
+        // cost for all entities in the market.
+        Market market = 7;
+    }
+
+    // Tag filter to further refine scope. Multiple filters will be ANDed together. For example, if
+    // a location filter and an owner filter is provided, stats will be limited to entities that
+    // match one of the location values AND one of the owner values.
+    repeated TagFilter tag_filter = 8;
+
+    // List of property names to aggregate stats over, as in an SQL 'group by' clause.
+    // If "TAG" is selected, there must be a tag filter specified.
+    repeated GroupByType group_by = 9;
+
+    // Message to indicate scope is the whole market.
+    message Market {
+    }
+
+    // Tag key and list of values to filter by.
+    message TagFilter {
+        optional string tag_key = 1;
+        repeated string tag_value = 2;
+    }
+
+    // Types of GroupBy supported. Currently only Tag is supported, but others, such as Region,
+    // may be added in the future.
+    enum GroupByType {
+        TAG = 1;
+    }
+}
+
+// Response containing cloud billed stats
+message GetCloudBilledStatsResponse {
+    repeated CostStatsSnapshot billed_stat_record = 1;
+}
+
+// Gives the date of the snapshot and a list of stat records for that date
+message CostStatsSnapshot {
+    // the actual snapshot_date for this response
+    optional uint64 snapshot_date = 1;
+
+    // the individual stat_records collected
+    repeated StatRecord stat_records = 2;
+
+    // an individual stats value giving the cost
+    message StatRecord {
+
+        // name of the particular stat, in this case billedCost
+        optional string name = 1;
+
+        // Tag key/value associated with the stat.
+        repeated TagKeyValuePair tag = 2;
+
+        // Value for the stat
+        optional StatValue value = 3;
+
+        // Key/Value pair for a tag.
+        message TagKeyValuePair {
+            optional string key = 1;
+            optional string value = 2;
+        }
+    }
 }

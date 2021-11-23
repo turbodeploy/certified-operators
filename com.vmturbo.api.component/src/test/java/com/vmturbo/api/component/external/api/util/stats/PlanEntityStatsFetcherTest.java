@@ -34,8 +34,8 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsRequest;

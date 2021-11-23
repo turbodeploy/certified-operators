@@ -19,6 +19,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.schema.enums.CostCategory;
@@ -196,7 +197,7 @@ public class BottomUpCostFetcherFactory {
                     (float)records.stream()
                             .filter(statRecordFilter)
                             .map(StatRecord::getValues)
-                            .mapToDouble(StatRecord.StatValue::getTotal)
+                            .mapToDouble(StatValue::getTotal)
                             .sum());
         }
 
@@ -219,7 +220,7 @@ public class BottomUpCostFetcherFactory {
                             .filter(record -> record.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE
                                     || record.getCategory() == Cost.CostCategory.ON_DEMAND_LICENSE)
                             .map(StatRecord::getValues)
-                            .mapToDouble(StatRecord.StatValue::getTotal)
+                            .mapToDouble(StatValue::getTotal)
                             .sum());
         }
 

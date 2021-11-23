@@ -134,6 +134,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
@@ -2206,7 +2207,7 @@ public class ActionSpecMapper {
                     onDemandCostBefore = currentRecords.stream()
                             .filter(rec -> rec.getAssociatedEntityId() == id)
                             .map(StatRecord::getValues)
-                            .mapToDouble(StatRecord.StatValue::getTotal)
+                            .mapToDouble(StatValue::getTotal)
                             .sum();
                 }
                 // get projected
@@ -2214,7 +2215,7 @@ public class ActionSpecMapper {
                         .stream()
                         .filter(rec -> rec.getAssociatedEntityId() == id)
                         .map(StatRecord::getValues)
-                        .mapToDouble(StatRecord.StatValue::getTotal)
+                        .mapToDouble(StatValue::getTotal)
                         .sum();
                 dto.setOnDemandCostBefore(onDemandCostBefore.floatValue());
                 dto.setOnDemandCostAfter(onDemandCostAfter.floatValue());
@@ -2269,14 +2270,14 @@ public class ActionSpecMapper {
                         .stream()
                         .filter(rec -> rec.getAssociatedEntityId() == id)
                         .map(StatRecord::getValues)
-                        .mapToDouble(StatRecord.StatValue::getTotal)
+                        .mapToDouble(StatValue::getTotal)
                         .sum();
                 // get projected
                 Double onDemandCostAfter = projectedRecords
                         .stream()
                         .filter(rec -> rec.getAssociatedEntityId() == id)
                         .map(StatRecord::getValues)
-                        .mapToDouble(StatRecord.StatValue::getTotal)
+                        .mapToDouble(StatValue::getTotal)
                         .sum();
                 dto.setOnDemandCostBefore(onDemandCostBefore.floatValue());
                 dto.setOnDemandRateBefore(onDemandCostBefore.floatValue());

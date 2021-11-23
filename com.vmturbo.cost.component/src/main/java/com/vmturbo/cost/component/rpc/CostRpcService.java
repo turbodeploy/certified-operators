@@ -66,6 +66,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntitySavingsStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
+import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
@@ -598,7 +599,7 @@ public class CostRpcService extends CostServiceImplBase {
             statRecordBuilder.setAssociatedEntityId(id);
             statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
             statRecordBuilder.setUnits(costUnits);
-            statRecordBuilder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+            statRecordBuilder.setValues(StatValue.newBuilder()
                     .setAvg((float)getAmountsStream(stats, costMultiplier).average().orElse(0f))
                     .setMax((float)getAmountsStream(stats, costMultiplier).max().orElse(0f))
                     .setMin((float)getAmountsStream(stats, costMultiplier).min().orElse(0f))
