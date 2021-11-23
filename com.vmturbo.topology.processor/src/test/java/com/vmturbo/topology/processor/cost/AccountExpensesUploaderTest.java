@@ -655,6 +655,9 @@ public class AccountExpensesUploaderTest {
         Assert.assertEquals(CLOUD_SERVICE_NAME_1, sanitizedAwsId);
         Assert.assertEquals(CLOUD_SERVICE_NAME_3, sanitizedAzureId);
         Assert.assertEquals(BAD_CS_ID, sanitizedBadCsId);
+
+        // test that account agnostic Cloud Service ids are returned unchanged
+        Assert.assertEquals(CLOUD_SERVICE_NAME_3, accountExpensesUploader.sanitizeCloudServiceId(CLOUD_SERVICE_NAME_3));
     }
 
     public static class TestCostService extends RIAndExpenseUploadServiceImplBase {

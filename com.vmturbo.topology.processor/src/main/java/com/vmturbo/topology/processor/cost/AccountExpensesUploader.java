@@ -44,7 +44,8 @@ public class AccountExpensesUploader {
     private static final int CSP_NAME_INDEX = 0;
     private static final int AZURE_CS_NAME_INDEX = 2;
     private static final int AWS_CS_NAME_INDEX = 3;
-    private static final int NUMBER_OF_CS_SPECS = 4;
+    private static final int NUMBER_OF_CS_SPECS_OLD_FORMAT = 4;
+    private static final int NUMBER_OF_CS_SPECS_NEW_FORMAT = 3;
 
     private final RIAndExpenseUploadServiceBlockingStub costServiceClient;
 
@@ -367,13 +368,12 @@ public class AccountExpensesUploader {
      * agnostic cloud service local id.
      * If the input cloud service id does not formatted properly,
      * the output will remain the same and appropriate log message will be printed.
-     * currently, the Input Id format for AWS and Azure is not consistent e.g.:
+     * currently, the Input Id format for AWS is the one that requires sanitization as follows:
      *
      * Input: "aws::192821421245::CS::AmazonS3" (account id 192821421245)
      * Output: "aws::CS::AmazonS3".
-     * Input: "azure::CS::Storage::26080bd2-d98f-4420-a737-9de8"
-     * (subscription id 26080bd2-d98f-4420-a737-9de8).
-     * Output: "azure::CS::Storage"
+     *
+     * Azure and Gcp use cloud service ids that don't have embedded account ids and do not need sanitization.
      *
      * @param accountSpecificCloudServiceId account specified CS id.
      * contains account id which might got hashed.
@@ -381,17 +381,20 @@ public class AccountExpensesUploader {
      */
     public String sanitizeCloudServiceId(String accountSpecificCloudServiceId) {
         String[] csIdSpecs = accountSpecificCloudServiceId.split("::");
-        if (csIdSpecs.length != NUMBER_OF_CS_SPECS) {
-            logger.warn(
-                "Cloud Service: '{}' did not sanitize correctly - "
-                        + "has wrong id format in its costData", accountSpecificCloudServiceId);
+        if (csIdSpecs.length == NUMBER_OF_CS_SPECS_OLD_FORMAT) {
+            // old format is still used by AWS. This case is also needed for loading pre-8.4.1 Azure topologies with the
+            // old format: azure::CS::<cloud service name>::<subscription id>.
+            final String cspName = csIdSpecs[CSP_NAME_INDEX];
+            return cspName.equals("azure")
+                ? String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AZURE_CS_NAME_INDEX])
+                : String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AWS_CS_NAME_INDEX]);
+        } else if (csIdSpecs.length == NUMBER_OF_CS_SPECS_NEW_FORMAT) {
+            // new format used by Azure and GCP that do not have embedded account id.
+            return accountSpecificCloudServiceId;
+        } else {
+            logger.warn("Cloud Service: '{}' did not sanitize correctly - "
+                + "has wrong id format in its costData", accountSpecificCloudServiceId);
             return accountSpecificCloudServiceId;
         }
-        final String cspName = csIdSpecs[CSP_NAME_INDEX];
-        return cspName.equals("azure")
-            ? String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AZURE_CS_NAME_INDEX])
-            : String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AWS_CS_NAME_INDEX]);
     }
 }
-
-
