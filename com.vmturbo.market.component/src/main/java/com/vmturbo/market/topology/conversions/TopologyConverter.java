@@ -5314,10 +5314,10 @@ public class TopologyConverter {
                             && provider.getCommoditySoldListList().stream()
                             .anyMatch(commSold -> {
                                 return commSold.getCommodityType().getType() == commBought.getCommodityType().getType()
-                                && commBought.hasHistoricalUsed()
+                                        && (commBought.hasHistoricalUsed()
                                     ? commBought.getHistoricalUsed().getHistUtilization()
                                         / commSold.getCapacity() >= customUtilizationThreshold
-                                    : commBought.getUsed() / commSold.getCapacity() >= customUtilizationThreshold;
+                                    : commBought.getUsed() / commSold.getCapacity() >= customUtilizationThreshold);
                             });
                     })) {
                 logger.info("Setting high cost of move for " + entityForSL.getDisplayName());
