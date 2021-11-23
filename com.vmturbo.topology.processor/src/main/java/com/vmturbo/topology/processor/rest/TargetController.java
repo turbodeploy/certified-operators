@@ -390,8 +390,7 @@ public class TargetController {
         final Long lastEditTime = target.getNoSecretDto().getSpec().hasLastEditTime() ? target.getNoSecretDto().getSpec().getLastEditTime() : null;
         boolean isProbeConnected = probeStore.isAnyTransportConnectedForTarget(target);
         final TargetHealth targetHealth = targetHealthRetriever.getTargetHealth(Collections.singleton(target.getId()), true).get(target.getId());
-        final String status = getStatus(latestFinished, currentValidation, currentDiscovery,
-                isProbeConnected, targetHealth == null ? "" : targetHealth.getMessageText());
+        final String status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected, targetHealth);
         return success(target, isProbeConnected, status, lastValidated, lastEditingUser,
                 lastEditTime, targetHealth == null ? HealthState.NORMAL : targetHealth.getHealthState());
     }
@@ -404,7 +403,7 @@ public class TargetController {
      * @param inProgressValidation current validation task
      * @param inProgressDiscovery current discovery task
      * @param isProbeConnected Status of the connection to the probe
-     * @param targetHealthMessageText Target health message text
+     * @param targetHealth Target health
      * @return the target status
      */
     @Nonnull
@@ -412,7 +411,7 @@ public class TargetController {
             @Nonnull Optional<? extends Operation> latestFinished,
             @Nonnull Optional<Validation> inProgressValidation,
             @Nonnull Optional<Discovery> inProgressDiscovery, boolean isProbeConnected,
-            final String targetHealthMessageText) {
+            @Nullable final TargetHealth targetHealth) {
         if (inProgressValidation.isPresent() && inProgressValidation.get().getUserInitiated()) {
             return StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS;
         }
@@ -425,8 +424,9 @@ public class TargetController {
             // If there is no on-going operation which was initiated by the user - show the
             // status of the last operation.
             if (latestFinished.get().getStatus() == OperationStatus.Status.SUCCESS) {
-                if (!Strings.isNullOrEmpty(targetHealthMessageText)) {
-                    return targetHealthMessageText;
+                if (targetHealth != null && targetHealth.getHealthState() != HealthState.NORMAL
+                        && !Strings.isNullOrEmpty(targetHealth.getMessageText())) {
+                    return targetHealth.getMessageText();
                 }
                 return StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS;
             }
