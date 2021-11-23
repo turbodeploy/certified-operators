@@ -547,7 +547,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             writeClusterStats(dataProvider);
             writeFileRecords(dataProvider);
         } finally {
-            // We are done with metric record writer, so close it.
+            // We are done with metric records writer, so close it.
             metricInserter.close();
         }
         return n;

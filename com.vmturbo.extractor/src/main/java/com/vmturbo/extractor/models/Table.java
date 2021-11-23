@@ -290,15 +290,12 @@ public class Table {
          * <p>This completes the operation of sending a stream of records to the database.</p>
          */
         @Override
-        public void close() throws SQLException {
+        public void close() {
             if (!closed) {
                 try {
                     sink.accept(null);
                 } catch (SQLException e) {
-                    String errMsg = "Failed to close the " + TableWriter.class.getSimpleName() + " "
-                            + name + "due to: " + e.getMessage();
-                    logger.warn(errMsg, e);
-                    throw new SQLException(errMsg, e);
+                    logger.warn("Failed to close the " + TableWriter.class.getSimpleName() + " " + name, e);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -307,7 +304,6 @@ public class Table {
                 recordErrorCounts.forEach((eClass, count) ->
                         logger.warn("Writer {} failed {} record insertions due to {}",
                                 name, count, eClass.getName()));
-
                 logger.info("Writer {} wrote {} records", name, recordsWritten);
             }
         }

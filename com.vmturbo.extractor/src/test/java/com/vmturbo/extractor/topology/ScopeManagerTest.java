@@ -94,9 +94,7 @@ public class ScopeManagerTest {
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
         final DbEndpoint endpoint = dbConfig.ingesterEndpoint();
         endpointRule.addEndpoints(endpoint);
-        // Thread pool needs more than one thread or else the RecordWriter in DslRecordSink will
-        // time out and throw an exception.
-        final ExecutorService pool = Executors.newFixedThreadPool(3);
+        final ExecutorService pool = Executors.newSingleThreadExecutor();
         final WriterConfig config = mock(WriterConfig.class);
         doReturn(10).when(config).insertTimeoutSeconds();
         this.scopeManager = new ScopeManager(oidPack, endpoint, config, pool,

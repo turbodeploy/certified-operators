@@ -224,14 +224,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
                         writer.accept(record);
                     }
                 } finally {
-                    for (TableWriter tableWriter : tableWriters.values()) {
-                        try {
-                            tableWriter.close();
-                        } catch (SQLException e) {
-                            logger.error("Table writer {} close operation failed with {}",
-                                    tableWriter, e.getMessage());
-                        }
-                    }
+                    tableWriters.values().forEach(TableWriter::close);
                 }
             });
         }
