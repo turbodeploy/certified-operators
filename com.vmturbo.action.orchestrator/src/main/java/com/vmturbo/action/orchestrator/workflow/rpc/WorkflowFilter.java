@@ -4,8 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
+import javax.annotation.concurrent.Immutable;
 
 /**
  * A filter to restrict the {@link com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow}

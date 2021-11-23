@@ -4,10 +4,9 @@ import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableMap;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
 
 /**
  * Returned by IdentityStore after fetchOrAssignItemOids(). This includes two maps from

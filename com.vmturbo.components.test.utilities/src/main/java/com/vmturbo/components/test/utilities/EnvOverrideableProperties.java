@@ -3,10 +3,10 @@ package com.vmturbo.components.test.utilities;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableMap;
 
-import jdk.nashorn.internal.ir.annotations.Immutable;
 
 /**
  * Utility to provide default values for OS-level environment variables.

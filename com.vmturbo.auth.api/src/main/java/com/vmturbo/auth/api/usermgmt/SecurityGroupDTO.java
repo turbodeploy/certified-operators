@@ -4,8 +4,7 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
+import javax.annotation.concurrent.Immutable;
 
 /**
  * An SecurityGroupDTO represents a SSO group and associated roles, and potentially entity scope.
