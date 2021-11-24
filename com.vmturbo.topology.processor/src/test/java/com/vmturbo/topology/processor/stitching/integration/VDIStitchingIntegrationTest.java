@@ -11,9 +11,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -52,6 +54,12 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
     private StitchingContext stitchingContext;
     private IStitchingJournal<StitchingEntity> journal;
     private StringBuilder journalStringBuilder;
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Common pre-test setup. Runs after {@link StitchingIntegrationTest#integrationSetup()}.

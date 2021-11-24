@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,16 +34,25 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -62,6 +72,8 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.stitching.storage.StorageStitchingOperation;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -76,6 +88,10 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
 
 public class StitchingManagerTest {
 
+    private static final long PROBE_ID = 1234L;
+    private static final long FIRST_TARGET_ID = 5678L;
+    private static final long SECOND_TARGET_ID = 9012L;
+
     private final TargetStore targetStore = mock(TargetStore.class);
     private final EntityStore entityStore = mock(EntityStore.class);
     private final CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
@@ -85,9 +101,6 @@ public class StitchingManagerTest {
     private final PostStitchingOperationLibrary postStitchingOperationLibrary = mock(PostStitchingOperationLibrary.class);
     private final Target target = mock(Target.class);
 
-    private final long probeId = 1234L;
-    private final long firstTargetId = 5678L;
-    private final long secondTargetId = 9012L;
 
     // Entities on the first target are internal
     private final EntityDTO.Builder vmFoo = virtualMachine("foo")
@@ -122,29 +135,36 @@ public class StitchingManagerTest {
 
     private final Map<String, StitchingEntityData> entityData =
         ImmutableMap.<String, StitchingEntityData>builder()
-            .put(vmFoo.getId(), nextEntity(vmFoo, firstTargetId))
-            .put(vmBar.getId(), nextEntity(vmBar, firstTargetId))
-            .put(otherFoo.getId(), nextEntity(otherFoo, secondTargetId))
-            .put(otherBar.getId(), nextEntity(otherBar, secondTargetId))
-            .put(unstitchedProxy2Remove.getId(), nextEntity(unstitchedProxy2Remove, secondTargetId))
-            .put(unstitchedProxy2Keep.getId(), nextEntity(unstitchedProxy2Keep, secondTargetId))
-            .put(pm.getId(), nextEntity(pm, firstTargetId))
+            .put(vmFoo.getId(), nextEntity(vmFoo, FIRST_TARGET_ID))
+            .put(vmBar.getId(), nextEntity(vmBar, FIRST_TARGET_ID))
+            .put(otherFoo.getId(), nextEntity(otherFoo, SECOND_TARGET_ID))
+            .put(otherBar.getId(), nextEntity(otherBar, SECOND_TARGET_ID))
+            .put(unstitchedProxy2Remove.getId(), nextEntity(unstitchedProxy2Remove,
+                    SECOND_TARGET_ID))
+            .put(unstitchedProxy2Keep.getId(), nextEntity(unstitchedProxy2Keep, SECOND_TARGET_ID))
+            .put(pm.getId(), nextEntity(pm, FIRST_TARGET_ID))
             .build();
 
     @Captor
     private ArgumentCaptor<TopologyStitchingEntity> stitchingEntityCaptor;
 
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
+
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
 
-        when(target.getId()).thenReturn(firstTargetId);
+        when(target.getId()).thenReturn(FIRST_TARGET_ID);
         when(target.getDisplayName()).thenReturn("target");
-        when(targetStore.getProbeTargets(eq(probeId)))
+        when(targetStore.getProbeTargets(eq(PROBE_ID)))
             .thenReturn(Collections.singletonList(target));
         when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
-        when(probeStore.getProbe(probeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+        when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
@@ -165,7 +185,7 @@ public class StitchingManagerTest {
 
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(target));
         when(stitchingOperationStore.getAllOperations())
-            .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
+            .thenReturn(Collections.singletonList(new ProbeStitchingOperation(PROBE_ID, stitchingOperation)));
         final StitchingManager stitchingManager =
                 new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
                     postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
@@ -187,7 +207,7 @@ public class StitchingManagerTest {
     public void testStitchWithExternalEntities() {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestName();
         when(stitchingOperationStore.getAllOperations())
-            .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
+            .thenReturn(Collections.singletonList(new ProbeStitchingOperation(PROBE_ID, stitchingOperation)));
         final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));
         entityData.values()
@@ -225,9 +245,9 @@ public class StitchingManagerTest {
         final Target target3 = mock(Target.class);
         final Map<String, StitchingEntityData> entityDataLocal =
                 ImmutableMap.<String, StitchingEntityData>builder()
-                        .put(vmFoo.getId(), nextEntity(vmFoo, firstTargetId))
-                        .put(vmBar.getId(), nextEntity(vmBar, firstTargetId))
-                        .put(otherFoo.getId(), nextEntity(otherFoo, secondTargetId))
+                        .put(vmFoo.getId(), nextEntity(vmFoo, FIRST_TARGET_ID))
+                        .put(vmBar.getId(), nextEntity(vmBar, FIRST_TARGET_ID))
+                        .put(otherFoo.getId(), nextEntity(otherFoo, SECOND_TARGET_ID))
                         .put(otherBar.getId(), nextEntity(otherBar, thirdTargetId))
                 .build();
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestNameWithScope();
@@ -241,12 +261,12 @@ public class StitchingManagerTest {
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
-        when(targetStore.getTarget(firstTargetId)).thenReturn(Optional.of(target));
-        when(targetStore.getTarget(secondTargetId)).thenReturn(Optional.of(target2));
+        when(targetStore.getTarget(FIRST_TARGET_ID)).thenReturn(Optional.of(target));
+        when(targetStore.getTarget(SECOND_TARGET_ID)).thenReturn(Optional.of(target2));
         when(targetStore.getTarget(thirdTargetId)).thenReturn(Optional.of(target3));
         when(targetStore.getProbeTargets(stitchingProbeId)).thenReturn(Lists.newArrayList(target2,
                 target3));
-        when(target2.getId()).thenReturn(secondTargetId);
+        when(target2.getId()).thenReturn(SECOND_TARGET_ID);
         when(target3.getId()).thenReturn(thirdTargetId);
         when(probeStore.getProbe(stitchingProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
                 .setProbeCategory(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE.getCategory())
@@ -254,7 +274,7 @@ public class StitchingManagerTest {
                 .setProbeType(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType())
                 .build()));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
-                .thenReturn(Collections.singletonList(probeId));
+                .thenReturn(Collections.singletonList(PROBE_ID));
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
                 preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore,
@@ -340,6 +360,242 @@ public class StitchingManagerTest {
         stitchingManager.stitch(stitchingContext, journal);
 
         verify(journal).recordTargets(any(Supplier.class));
+    }
+    @RunWith(Parameterized.class)
+    public static class DelayedDataHandlingFunctionalityTest {
+
+        private static final String PROVIDER_ID = "123";
+        private final TargetStore targetStore = mock(TargetStore.class);
+        private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
+        private final Target target = mock(Target.class);
+
+        public DelayedDataHandlingFunctionalityTest(
+                ParameterStructure data) {
+            this.data = data;
+        }
+
+        @Parameterized.Parameters
+        public static Collection<Object[]> data() {
+            return Stream.of(
+                    //case 1:
+                    //      base: onto - nonStale,
+                    //      base2: fromEntities - nonStale
+                    //expected controllable true
+                    new ParameterStructure(true, false, EntityOrigin.DISCOVERED, false,
+                            EntityOrigin.DISCOVERED),
+                    //case 2:
+                    //      base: onto - nonStale,
+                    //      base2: fromEntities - stale
+                    //expected controllable true
+                    new ParameterStructure(true, false, EntityOrigin.DISCOVERED, true,
+                            EntityOrigin.DISCOVERED),
+                    //case 3:
+                    //      base: onto - stale,
+                    //      base2: fromEntities - nonstale
+                    //expected controllable true
+                    new ParameterStructure(true, true, EntityOrigin.DISCOVERED, false,
+                            EntityOrigin.DISCOVERED),
+                    //case 4:
+                    //      base: onto - stale,
+                    //      base2: fromEntities - stale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.DISCOVERED, true,
+                            EntityOrigin.DISCOVERED),
+                    //case 5:
+                    //      proxy: onto - nonStale,
+                    //      base: fromEntities - nonStale
+                    //expected controllable true
+                    new ParameterStructure(true, false, EntityOrigin.PROXY, false,
+                            EntityOrigin.DISCOVERED),
+                    //case 6:
+                    //      proxy: onto - nonStale,
+                    //      base: fromEntities - stale
+                    //expected controllable false
+                    new ParameterStructure(false, false, EntityOrigin.PROXY, true,
+                            EntityOrigin.DISCOVERED),
+                    //case 7:
+                    //      proxy: onto - stale,
+                    //      base: fromEntities - nonstale
+                    //expected controllable true
+                    new ParameterStructure(true, true, EntityOrigin.PROXY, false,
+                            EntityOrigin.DISCOVERED),
+                    //case 8:
+                    //      proxy: onto - stale,
+                    //      base: fromEntities - stale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.PROXY, true,
+                            EntityOrigin.DISCOVERED),
+                    //case 9:
+                    //      base: onto - nonStale,
+                    //      proxy: fromEntities - nonStale
+                    //expected controllable true
+                    new ParameterStructure(true, false, EntityOrigin.DISCOVERED, false,
+                            EntityOrigin.PROXY),
+                    //case 10:
+                    //      base: onto - nonStale,
+                    //      proxy: fromEntities - stale
+                    //expected controllable true
+                    new ParameterStructure(true, false, EntityOrigin.DISCOVERED, true,
+                            EntityOrigin.PROXY),
+                    //case 11:
+                    //      base: onto - stale,
+                    //      proxy: fromEntities - nonstale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.DISCOVERED, false,
+                            EntityOrigin.PROXY),
+                    //case 12:
+                    //      base: onto - stale,
+                    //      proxy: fromEntities - stale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.DISCOVERED, true,
+                            EntityOrigin.PROXY),
+                    //case 13:
+                    //      proxy: onto - nonStale,
+                    //      proxy: fromEntities - nonStale
+                    //expected controllable false
+                    new ParameterStructure(false, false, EntityOrigin.PROXY, false,
+                            EntityOrigin.PROXY),
+                    //case 14:
+                    //      proxy: onto - nonStale,
+                    //      proxy: fromEntities - stale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.PROXY, true,
+                            EntityOrigin.PROXY),
+                    //case 15:
+                    //      proxy: onto - stale,
+                    //      proxy: fromEntities - nonstale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.PROXY, false,
+                            EntityOrigin.PROXY),
+                    //case 16:
+                    //      proxy: onto - stale,
+                    //      proxy: fromEntities - stale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.PROXY, true,
+                            EntityOrigin.PROXY),
+                    //case 17:
+                    //      base: onto - nonstale,
+                    //expected controllable true
+                    new ParameterStructure(true, false, EntityOrigin.DISCOVERED, null, null),
+                    //case 18:
+                    //      base: onto - stale,
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.DISCOVERED, null, null)).map(
+                    e -> new Object[]{e}).collect(
+                    Collectors.toList());
+        }
+
+        private final ParameterStructure data;
+
+        @Before
+        public void setUp() throws Exception {
+            MockitoAnnotations.initMocks(this);
+        }
+
+        /**
+         * Rule to manage enablements via a mutable store.
+         */
+        @Rule
+        public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
+
+        @Captor
+        private ArgumentCaptor<Collection<StitchingPoint>> stitchingPointsCapture;
+
+        /**
+         * Test merging of entities with the {@link FeatureFlags#DELAYED_DATA_HANDLING} flag
+         * enabled.
+         */
+        @Test
+        public void testDelayedDataHandlingFunctionality() {
+            featureFlagTestRule.enable(FeatureFlags.DELAYED_DATA_HANDLING);
+            Mockito.when(target.getId()).thenReturn(FIRST_TARGET_ID);
+            final StitchingOperation<?, ?> stitchingOperation = Mockito.spy(
+                    new StorageStitchingOperation());
+            Mockito.when(stitchingOperationStore.getAllOperations()).thenReturn(
+                    Collections.singletonList(
+                            new ProbeStitchingOperation(PROBE_ID, stitchingOperation)));
+            final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5,
+                    targetStore).setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
+
+            final StitchingEntityData internalEntity = getTopologyStitchingEntity("1",
+                    data.staleInternalEntity, data.originInternalEntity, FIRST_TARGET_ID);
+            final StitchingEntityData externalEntity = getTopologyStitchingEntity("2",
+                    data.staleExternalEntity, data.originExternalEntity, SECOND_TARGET_ID);
+            final StitchingEntityData provider = StitchingEntityData.newBuilder(
+                            EntityDTO.newBuilder().setId(PROVIDER_ID).setEntityType(EntityType.DISK_ARRAY))
+                    .build();
+            final Map<String, StitchingEntityData> entityData = new HashMap<>();
+            if (internalEntity != null) {
+                entityData.put(internalEntity.getLocalId(), internalEntity);
+            }
+            entityData.put(externalEntity.getLocalId(), externalEntity);
+            entityData.put(provider.getLocalId(), provider);
+            entityData.values().forEach(entity -> contextBuilder.addEntity(entity, entityData));
+
+            final StitchingContext stitchingContext = Mockito.spy(contextBuilder.build());
+            Mockito.when(Mockito.mock(EntityStore.class).constructStitchingContext()).thenReturn(
+                    stitchingContext);
+            Mockito.when(targetStore.getTarget(Mockito.anyLong())).thenReturn(Optional.of(target));
+            final ProbeStore probeStore =  Mockito.mock(ProbeStore.class);
+            when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
+            when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                    .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+                    .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+                    .setProbeType(SDKProbeType.VCENTER.getProbeType())
+                    .build()));
+            final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+                    Mockito.mock(PreStitchingOperationLibrary.class), Mockito.mock(PostStitchingOperationLibrary.class),
+                    probeStore,
+                    targetStore, Mockito.mock(CpuCapacityStore.class));
+            Mockito.when(targetStore.getProbeTargets(Mockito.eq(PROBE_ID))).thenReturn(
+                    Collections.singletonList(target));
+            stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
+            Assert.assertEquals(data.expectedControllable, externalEntity.getEntityDtoBuilder()
+                    .getConsumerPolicyBuilder()
+                    .getControllable());
+            Mockito.verify(stitchingOperation, Mockito.times(1)).stitch(stitchingPointsCapture.capture(),
+                    Mockito.any());
+            if (internalEntity != null) {
+                Assert.assertFalse(stitchingPointsCapture.getValue().isEmpty());
+            } else {
+                Assert.assertTrue(stitchingPointsCapture.getValue().isEmpty());
+            }
+        }
+
+        private StitchingEntityData getTopologyStitchingEntity(String id, Boolean stale,
+                EntityOrigin origin, long targetId) {
+            if (stale == null || origin == null) {
+                return null;
+            }
+            final EntityDTO.Builder firstBuilder = EntityDTO.newBuilder().setId(id).setEntityType(
+                    EntityType.STORAGE).addCommoditiesBought(CommodityBought.newBuilder()
+                    .addBought(CommodityDTO.newBuilder()
+                            .setCommodityType(CommodityType.ACCESS)
+                            .build())
+                    .setProviderId(PROVIDER_ID)
+                    .setProviderType(EntityType.DISK_ARRAY)
+                    .build()).setOrigin(origin).setStorageData(
+                    StorageData.newBuilder().addExternalName("external name ").build());
+            return StitchingEntityData.newBuilder(firstBuilder).oid(Long.parseLong(id)).setStale(
+                    stale).targetId(targetId).build();
+        }
+    }
+
+    private static class ParameterStructure {
+        private final Boolean staleExternalEntity;
+        private final Boolean staleInternalEntity;
+        private final EntityOrigin originExternalEntity;
+        private final EntityOrigin originInternalEntity;
+        private final boolean expectedControllable;
+
+        public ParameterStructure(boolean expectedControllable, Boolean staleExternalEntity,
+                EntityOrigin originExternalEntity, Boolean staleInternalEntity, EntityOrigin originInternalEntity) {
+            this.staleExternalEntity = staleExternalEntity;
+            this.originExternalEntity = originExternalEntity;
+            this.staleInternalEntity = staleInternalEntity;
+            this.originInternalEntity = originInternalEntity;
+            this.expectedControllable = expectedControllable;
+        }
     }
 
     private long curOid = 1L;

@@ -19,6 +19,7 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -34,6 +35,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.billing.AwsBillingBusinessAccountStitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -52,6 +54,12 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
     private static final long BILLING_TARGET_ID = 1235L;
 
     private StitchingManager stitchingManager;
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Pre-test setup. This will run after {@link StitchingIntegrationTest#integrationSetup()}.

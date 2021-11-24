@@ -17,6 +17,8 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -56,6 +58,12 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
     private final long vcTargetId = 2222L;
     private final long apmProbeId = 2333L;
     private final long apmTargetId = 6666L;
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Test
     public void testGuestLoadStitchingWithGenericOperations() throws Exception {

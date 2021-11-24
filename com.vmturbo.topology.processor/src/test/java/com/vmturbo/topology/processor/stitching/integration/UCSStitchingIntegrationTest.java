@@ -27,8 +27,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -85,6 +87,12 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
     private final long vcTargetId = 2222L;
     private final long ucsProbeId = 2468L;
     private final long ucsTargetId = 2121L;
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Test
     public void testUCSStitchingWithStandardOperations() throws Exception {

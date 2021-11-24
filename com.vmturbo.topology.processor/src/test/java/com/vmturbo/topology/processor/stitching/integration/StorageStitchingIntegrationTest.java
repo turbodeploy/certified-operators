@@ -28,6 +28,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Matchers;
 
@@ -108,6 +110,12 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
                         storageMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR),
                 ProbeCategory.STORAGE);
     }
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Test
     public void testNetappStitchingWithDataDrivenStitchingOperation() throws Exception {
