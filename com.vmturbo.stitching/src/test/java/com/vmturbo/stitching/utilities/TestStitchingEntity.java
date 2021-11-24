@@ -13,7 +13,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang.StringUtils;
-import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -204,5 +203,10 @@ public class TestStitchingEntity implements StitchingEntity {
                         .map(EntityProperty::getValue)
                         .filter(StringUtils::isNotBlank)
                         .collect(Collectors.toSet());
+    }
+
+    @Override
+    public boolean isStale() {
+        return false;
     }
 }

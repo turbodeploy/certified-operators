@@ -39,7 +39,6 @@ import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
-import com.vmturbo.topology.processor.staledata.StaleDataConfig;
 import com.vmturbo.topology.processor.stitching.journal.JournalFilterFactory;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
@@ -59,7 +58,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     ClockConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
     HistoryAggregationConfig.class,
-    StaleDataConfig.class,
     TopologyProcessorRpcConfig.class
 })
 public class RESTConfig extends WebMvcConfigurerAdapter {
@@ -95,9 +93,6 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
 
     @Autowired
     private HistoryAggregationConfig historyAggregationConfig;
-
-    @Autowired
-    public StaleDataConfig staleDataConfig;
 
     @Autowired
     public TopologyProcessorRpcConfig topologyProcessorRpcConfig;
@@ -147,7 +142,7 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public StaleDataController staleDataController() {
-        return new StaleDataController(staleDataConfig.staleDataManager());
+        return new StaleDataController(topologyConfig.staleDataManager());
     }
 
     @Bean

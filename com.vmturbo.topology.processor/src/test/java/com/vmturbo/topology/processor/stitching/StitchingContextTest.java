@@ -203,7 +203,7 @@ public class StitchingContextTest {
 
         stitchingContextBuilder.addEntity(e1_1, target1Graph);
         final StitchingEntityData e1_2DuplicateOid = new StitchingEntityData(e3_2.getEntityDtoBuilder(),
-            e1_1.getTargetId() + 1, e1_1.getOid(), 0, false);
+            e1_1.getTargetId() + 1, e1_1.getOid(), 0, false, false);
 
         stitchingContextBuilder.addEntity(e1_1, target1Graph);
         stitchingContextBuilder.addEntity(e1_2DuplicateOid, topologyMapOf(e1_2DuplicateOid));

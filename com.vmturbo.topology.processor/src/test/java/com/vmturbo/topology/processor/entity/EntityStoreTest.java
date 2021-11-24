@@ -66,13 +66,17 @@ import com.vmturbo.proactivesupport.DataMetricGauge.GaugeData;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.targets.TargetStoreException;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Test the {@link EntityStore} methods.
@@ -124,7 +128,8 @@ public class EntityStoreTest {
             .setProbeType("foo")
             .build();
 
-    private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
+    private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
+                    Collections.singletonList(sender), Clock.systemUTC(), false));
 
     /**
      * Expected exception rule.
@@ -746,8 +751,8 @@ public class EntityStoreTest {
      */
     @Test
     public void testSendEntitiesWithNewState() throws Exception {
-        entityStore = spy(new EntityStore(targetStore, identityProvider,
-            0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), true));
+        entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
+                        Collections.singletonList(sender), Clock.systemUTC(), true));
 
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         final long targetId1 = 2001;
@@ -790,8 +795,8 @@ public class EntityStoreTest {
                 .build());
 
         // Disable maintenance mode feature. Automation level is not sent.
-        entityStore = spy(new EntityStore(targetStore, identityProvider,
-            0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
+        entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
+                        Collections.singletonList(sender), Clock.systemUTC(), false));
         addEntities(ImmutableMap.of(oid2, entityDTO2), targetId1, 0, DiscoveryType.INCREMENTAL, 2);
         verify(sender, times(1)).onEntitiesWithNewState(
             EntitiesWithNewState.newBuilder()
@@ -971,5 +976,37 @@ public class EntityStoreTest {
             }
         }
 
+    }
+
+    /**
+     * Test that when target has health problems all store entities are marked stale.
+     *
+     * @throws IdentityServiceException when oid cannot be constructed
+     * @throws TargetStoreException when target operation fails
+     */
+    @Test
+    public void testStaleTargetMakesStaleEntities() throws TargetStoreException, IdentityServiceException {
+        final Map<Long, EntityDTO> entities = ImmutableMap.of(
+                        1L, virtualMachine("foo").buying(vCpuMHz().from("bar").used(100.0))
+                                        .buying(storageAmount().from("baz").used(200.0)).build(),
+                        2L, physicalMachine("bar").build(),
+                        3L, storage("baz").build());
+
+        final Clock mockClock = Mockito.mock(Clock.class);
+        Mockito.when(mockClock.millis()).thenReturn(12345L);
+        entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true,
+                        Collections.singletonList(sender), mockClock, false);
+        addEntities(entities);
+
+        Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
+                        .thenReturn(Optional.of(SDKProbeType.HYPERV));
+        final TopologyStitchingGraph graph =
+                        entityStore.constructStitchingContext(new StalenessInformationProvider() {
+                            @Override
+                            public HealthState getLastKnownTargetHealth(long targetOid) {
+                                return HealthState.CRITICAL;
+                            }
+                        }).getStitchingGraph();
+        Assert.assertTrue(graph.entities().allMatch(StitchingEntity::isStale));
     }
 }
