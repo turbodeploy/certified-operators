@@ -816,10 +816,9 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull TopologyEntityDTO.Builder application,
                           @Nonnull Map<EntitySettingSpecs, Setting> settings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
-            if (!EntitySettingSpecs.hasMinMaxReplicasSetting(application.getEntityType())) {
+            if (application.getEntityType() != EntityType.APPLICATION_COMPONENT_VALUE) {
                 return;
             }
-
             final double minReplicasMin = EntitySettingSpecs.MinReplicas.getNumericMin();
             final double minReplicasMax = EntitySettingSpecs.MinReplicas.getNumericMax();
             final double minReplicasDefault = EntitySettingSpecs.MinReplicas.getNumericDefault();

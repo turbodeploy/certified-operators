@@ -1815,23 +1815,6 @@ public class EntitySettingsApplicatorTest {
                                               .setIsResizeable(true));
     }
 
-    /**
-     * Service with two commodities, one resizeable and one not.
-     *
-     * @return service
-     */
-    private TopologyEntityDTO.Builder createServiceWithTwoCommodities() {
-        return TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.SERVICE_VALUE)
-                .setOid(1)
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                .setType(CommodityType.RESPONSE_TIME_VALUE)))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                .setType(CommodityType.TRANSACTION_VALUE)));
-    }
-
     private void testUtilizationSettings(EntityType entityType, CommodityType commodityType,
             EntitySettingSpecs setting) {
         final TopologyEntityDTO.Builder builder =
@@ -2412,11 +2395,11 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Test setting min/max replicas for service.
+     * Test setting min/max replicas for application component.
      */
     @Test
-    public void testMinMaxReplicasForService() {
-        final TopologyEntityDTO.Builder builder = createServiceWithTwoCommodities();
+    public void testMinMaxReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         applySettings(TOPOLOGY_INFO, builder,
                 MIN_POLICY_SETTING_BUILDER
                         .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(2).build())
@@ -2429,11 +2412,11 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Test setting invalid min replicas for service.
+     * Test setting invalid min replicas for application component.
      */
     @Test
-    public void testInvalidMinReplicasForService() {
-        final TopologyEntityDTO.Builder builder = createServiceWithTwoCommodities();
+    public void testInvalidMinReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         applySettings(TOPOLOGY_INFO, builder,
                 MIN_POLICY_SETTING_BUILDER
                         .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(-1).build())
@@ -2445,11 +2428,11 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Test setting invalid max replicas for service.
+     * Test setting invalid max replicas for application component.
      */
     @Test
-    public void testInvalidMaxReplicasForService() {
-        final TopologyEntityDTO.Builder builder = createServiceWithTwoCommodities();
+    public void testInvalidMaxReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         applySettings(TOPOLOGY_INFO, builder,
                 MAX_POLICY_SETTING_BUILDER
                         .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(200000).build())
@@ -2464,8 +2447,8 @@ public class EntitySettingsApplicatorTest {
      * Test setting min replicas > max replicas.
      */
     @Test
-    public void testMinReplicasLargerThanMaxReplicasForService() {
-        final TopologyEntityDTO.Builder builder = createServiceWithTwoCommodities();
+    public void testMinReplicasLargerThanMaxReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         applySettings(TOPOLOGY_INFO, builder,
                 MIN_POLICY_SETTING_BUILDER
                         .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5).build())
