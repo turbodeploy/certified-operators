@@ -3503,10 +3503,20 @@ public class TopologyConverter {
 
         // We want the input into M2 to be consistent across cycles. So, we sort the commBoughtGroupings.
         for (TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider commBoughtGrouping : sortedCommBoughtGrouping) {
-            // skip converting shoppinglist that buys from VDC
+            /*
+              skip converting shoppinglist that buys from VDC
+              skip converting shoppinglist that buys VDC commodities only
+              (e.g. VM buys VDC only commodity from DesktopPool)
+             */
             // TODO: we also skip the sl that consumes AZ which contains Zone commodity because zonal RI is not yet supported
+            final boolean hasNonVdcCommodities =
+                            commBoughtGrouping.getCommodityBoughtList().stream()
+                                            .map(CommodityBoughtDTO::getCommodityType)
+                                            .map(CommodityType::getType)
+                                            .noneMatch(MarketAnalysisUtils.VDC_COMMODITY_TYPES::contains);
             if (includeByType(commBoughtGrouping.getProviderEntityType())
-                    && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE) {
+                    && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE
+                    && hasNonVdcCommodities) {
                 TopologyEntityDTO entityForSL = topologyEntity;
                 CommoditiesBoughtFromProvider commBoughtGroupingForSL = commBoughtGrouping;
                 final Set<Integer> providerTypeAfterCollapsing = CollapsedTraderHelper

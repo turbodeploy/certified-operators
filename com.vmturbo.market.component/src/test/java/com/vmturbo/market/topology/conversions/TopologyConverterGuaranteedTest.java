@@ -16,6 +16,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
+
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -48,6 +52,7 @@ public class TopologyConverterGuaranteedTest {
 
     private static final long VDC1_OID = 50001;
     private static final long VDC2_OID = 50002;
+    private static final long DP1_OID = 60001;
     private static final long DPOD_OID = 50003;
     private static final long HOST_OID = 50004;
     private static final long VM1_OID = 70001;
@@ -89,6 +94,15 @@ public class TopologyConverterGuaranteedTest {
                             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                 .setCommodityType(MEM_ALLOC)))
                         .build();
+        final TopologyEntityDTO dp1 = TopologyEntityDTO.newBuilder()
+                        .setOid(DP1_OID)
+                        .setEntityType(EntityType.VIRTUAL_DATACENTER_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                        .setProviderEntityType(EntityType.VIRTUAL_DATACENTER_VALUE)
+                                        .setProviderId(VDC2_OID)
+                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                        .setCommodityType(MEM_ALLOC)))
+                        .build();
         // Guaranteed buyer because it is a DPod
         TopologyEntityDTO dpod = TopologyEntityDTO.newBuilder()
                         .setOid(DPOD_OID)
@@ -112,7 +126,7 @@ public class TopologyConverterGuaranteedTest {
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEntityState(EntityState.MAINTENANCE)
                         .build();
-        entities = Stream.of(vdc1, vdc2, dpod, pm, vm1, vm2)
+        entities = Stream.of(vdc1, vdc2, dp1, dpod, pm, vm1, vm2)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList());
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
@@ -134,7 +148,10 @@ public class TopologyConverterGuaranteedTest {
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                     reversibilitySettingFetcher);
         Collection<TraderTO> traders = converter.convertToMarket(entities);
-        // VDCs are skipped, VMs in maintenance and unknown state are not skipped for trader creation
+        /*
+         VDCs and DPs are skipped, VMs in maintenance and unknown state are not skipped
+         for trader creation
+         */
         assertEquals(3, traders.size());
         List<Long> traderOids = traders.stream().map(TraderTO::getOid).collect(Collectors.toList());
         assertFalse(traderOids.contains(DPOD_OID));
@@ -158,12 +175,12 @@ public class TopologyConverterGuaranteedTest {
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
                 false);
         Collection<TraderTO> traders = converter.convertToMarket(entities);
-        assertEquals(6, traders.size());
-        List<Long> guaranteedBuyers = traders.stream()
+        assertEquals(7, traders.size());
+        final Collection<Long> guaranteedBuyers = traders.stream()
             .filter(trader ->  trader.getSettings().getGuaranteedBuyer())
-            .map(TraderTO::getOid).collect(Collectors.toList());
+            .map(TraderTO::getOid).collect(Collectors.toSet());
         assertEquals(2, guaranteedBuyers.size());
-        assertTrue(guaranteedBuyers.contains(DPOD_OID));
-        assertTrue(guaranteedBuyers.contains(VDC2_OID));
+        Assert.assertThat(guaranteedBuyers,
+                        CoreMatchers.is(ImmutableSet.of(VDC2_OID, DPOD_OID)));
     }
 }
