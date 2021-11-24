@@ -12,6 +12,8 @@ import com.vmturbo.api.dto.cloudcommitment.CloudFamilyReferenceApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudCommitmentAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.CloudCommitmentScopeType;
+import com.vmturbo.api.enums.CloudCommitmentStatus;
+import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.ProviderType;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -52,7 +54,28 @@ public class CloudCommitmentAspectMapper extends AbstractAspectMapper {
         if (providerType != null) {
             cloudCommitmentAspectApiDTO.setProviderSpecificType(providerType);
         }
+        cloudCommitmentAspectApiDTO.setCommitmentStatus(convertStatusToAPiDTO(cloudCommitmentData.getCommitmentStatus()));
         return cloudCommitmentAspectApiDTO;
+    }
+
+    private CloudCommitmentStatus convertStatusToAPiDTO(
+            @Nonnull CloudCommitmentData.CloudCommitmentStatus commitmentStatus) {
+        switch (commitmentStatus) {
+            case CLOUD_COMMITMENT_STATUS_ACTIVE:
+                return CloudCommitmentStatus.Active;
+            case CLOUD_COMMITMENT_STATUS_CANCELED:
+                return CloudCommitmentStatus.Canceled;
+            case CLOUD_COMMITMENT_STATUS_EXPIRED:
+                return CloudCommitmentStatus.Expired;
+            case CLOUD_COMMITMENT_STATUS_PENDING:
+                return CloudCommitmentStatus.Pending;
+            case CLOUD_COMMITMENT_STATUS_UNKNOWN:
+                return CloudCommitmentStatus.Unknown;
+            default:
+                logger.error("Can not find matched payment commitment status: " + commitmentStatus);
+                return null;
+        }
+
     }
 
     @Nonnull
@@ -108,6 +131,12 @@ public class CloudCommitmentAspectMapper extends AbstractAspectMapper {
         }
         if (cloudCommitmentData.hasSpend()) {
             cloudCommitmentCapacityApiDTO.setSpendCapacity(cloudCommitmentData.getSpend().getAmount());
+        }
+        if (cloudCommitmentData.hasCommoditiesBought()) {
+
+            cloudCommitmentData.getCommoditiesBought().getCommodityList().stream().forEach(commodity -> {
+                cloudCommitmentCapacityApiDTO.getCommoditiesBought().put(CommodityType.valueOf(commodity.getCommodityType().name()), commodity.getCapacity());
+            });
         }
         return cloudCommitmentCapacityApiDTO;
     }
