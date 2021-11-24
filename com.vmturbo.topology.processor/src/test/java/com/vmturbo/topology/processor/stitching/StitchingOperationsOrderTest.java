@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -34,6 +35,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
@@ -91,6 +93,12 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
             .property("IP", "10.2.1.31")
             .proxy()
             .build();
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Test that stitching both consumer and provider proxy entities with real entities will not be

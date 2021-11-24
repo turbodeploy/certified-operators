@@ -28,6 +28,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -38,6 +40,7 @@ import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.TopologicalChangelog;
@@ -102,6 +105,8 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  */
 public class StitchingManager {
     private static final Logger logger = LogManager.getLogger();
+
+    private static final String STITCHING_JOURNAL_FORMAT = "--------------- %s: %s ---------------";
 
     /**
      * A metric that tracks duration of execution for stitching.
@@ -213,8 +218,8 @@ public class StitchingManager {
     private void cleanupUnstitchedProxyEntities(
         final StitchingOperationScopeFactory scopeFactory,
         final IStitchingJournal<StitchingEntity> stitchingJournal) {
-        stitchingJournal.recordMessage(
-            "--------------- START: Cleanup of unstitched proxy entities ---------------");
+        stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "START",
+                "Cleanup of unstitched proxy entities"));
         final StitchingResultBuilder resultBuilder =
             new StitchingResultBuilder(scopeFactory.getStitchingContext());
         scopeFactory.globalScope().entities()
@@ -222,8 +227,8 @@ public class StitchingManager {
             .forEach(stitchingEntity -> resultBuilder.queueEntityRemoval(stitchingEntity));
         TopologicalChangelog<StitchingEntity> results = resultBuilder.build();
         results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
-        stitchingJournal.recordMessage(
-            "--------------- END: Cleanup of unstitched proxy entities ---------------");
+        stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "END",
+                "Cleanup of unstitched proxy entities"));
     }
 
     private boolean checkForEmptyDC(@Nonnull StitchingEntity stitchingEntity)   {
@@ -309,7 +314,8 @@ public class StitchingManager {
         stitchingJournal.markPhase(StitchingPhase.MAIN_STITCHING);
         final DataMetricTimer executionTimer = STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
         final StitchingOperationTracer tracer = new StitchingOperationTracer();
-
+        final Map<Pair<Long, Long>, StitchingEntity> beforeStitchingEntityMap = scopeFactory.globalScope().entities().collect(
+                Collectors.toMap(e -> Pair.create(e.getOid(), e.getTargetId()), e -> e));
         // Because Kubernetes abuses probe types by creating different probe types with different
         // probe IDs, we may have the same stitching operation shared among several Kubernetes
         // "probe types". In that case, we don't want to call intializeOperationsBeforeStitching
@@ -338,7 +344,56 @@ public class StitchingManager {
                 });
         tracer.close();
         cleanupUnstitchedProxyEntities(scopeFactory, stitchingJournal);
+        setControllableFlagForStaleEntities(beforeStitchingEntityMap, scopeFactory, stitchingJournal);
         executionTimer.observe();
+    }
+
+    private void setControllableFlagForStaleEntities(
+            @Nonnull final Map<Pair<Long, Long>, StitchingEntity> beforeStitchingEntityMap,
+            @Nonnull final StitchingOperationScopeFactory scopeFactory,
+            @Nonnull IStitchingJournal<StitchingEntity> stitchingJournal) {
+        if (FeatureFlags.DELAYED_DATA_HANDLING.isEnabled()) {
+            stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "START",
+                    "Set the controllable flag to false for stale entities"));
+            final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(
+                    scopeFactory.getStitchingContext());
+            scopeFactory.globalScope().entities().forEach(e -> {
+                if (e.hasMergeInformation()) {
+                    if (e.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED
+                            && !e.isStale()) {
+                        return;
+                    }
+                    boolean allDiscoveredStale = true;
+                    for (StitchingMergeInformation entityMergeInfo : e.getMergeInformation()) {
+                        if (entityMergeInfo.getOrigin() != EntityOrigin.DISCOVERED) {
+                            continue;
+                        }
+                        final StitchingEntity entity = beforeStitchingEntityMap.get(Pair.create(
+                                entityMergeInfo.getOid(), entityMergeInfo.getTargetId()));
+                        if (entity != null && !entity.isStale()) {
+                            allDiscoveredStale = false;
+                            break;
+                        }
+                    }
+                    if (allDiscoveredStale) {
+                        resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
+                                .getConsumerPolicyBuilder()
+                                .setControllable(false));
+                    }
+                } else {
+                    if (e.isStale()) {
+                        resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
+                                .getConsumerPolicyBuilder()
+                                .setControllable(false));
+                    }
+                }
+            });
+            TopologicalChangelog<StitchingEntity> results = resultBuilder.build();
+            results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
+            stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "END",
+                    "Set the controllable flag to false for " + results.getChanges().size()
+                            + "stale entities"));
+        }
     }
 
     /**

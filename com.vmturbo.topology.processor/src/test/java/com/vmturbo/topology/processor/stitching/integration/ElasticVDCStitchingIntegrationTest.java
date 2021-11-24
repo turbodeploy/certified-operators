@@ -16,6 +16,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -45,6 +47,12 @@ public class ElasticVDCStitchingIntegrationTest extends StitchingIntegrationTest
     private final long vcProbeId = 1111L;
     private final long vcTargetId = 2222L;
     private final long vcdTargetId = 7777L;
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Test
     public void testElasticVDCStitching() throws Exception {

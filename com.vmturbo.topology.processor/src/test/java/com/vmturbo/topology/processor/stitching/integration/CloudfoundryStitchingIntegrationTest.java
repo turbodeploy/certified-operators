@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -46,6 +48,12 @@ public class CloudfoundryStitchingIntegrationTest extends StitchingIntegrationTe
     private final long vcTargetId = 2222L;
     private final long cloudFoundryProbeId = 3333L;
     private final long cloudFoundryTargetId = 4444L;
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Test
     public void testCloudfoundryStitching() throws Exception {

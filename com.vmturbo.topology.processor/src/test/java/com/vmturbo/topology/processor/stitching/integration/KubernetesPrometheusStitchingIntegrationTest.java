@@ -15,6 +15,8 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
@@ -123,6 +125,12 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         .property("IP", "10.2.1.32")
         .proxy()
         .build();
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Test the stitching between Kubernetes and Prometheus. Currently Prometheus returns proxy
