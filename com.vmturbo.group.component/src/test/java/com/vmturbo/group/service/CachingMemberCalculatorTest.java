@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
@@ -21,10 +22,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
@@ -526,11 +529,13 @@ public class CachingMemberCalculatorTest {
         // this semaphore is used to block regroup operation for a period of time
         // so we can simulate operations during regroup
         final Semaphore semaphore = new Semaphore(1);
+        final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean returnNewValues = new AtomicBoolean(false);
 
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
                 internalCalculator, Type.SET, true, threadFactory,
                 () -> {
+                    latch.countDown();
                     try {
                         semaphore.acquire();
                     } catch (InterruptedException ex) {
@@ -585,6 +590,16 @@ public class CachingMemberCalculatorTest {
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         final Future<CachingMemberCalculator.RegroupingResult> regroupFuture =
                 executorService.submit(() -> memberCalculator.regroup());
+
+        // We need to wait until the cache is running regroup. Otherwise, the changes
+        // will get lost. In reality that will not happen as we will see the changes
+        // that took place when we read groups from database. However, we are using
+        // mock data. Therefore, we need to make sure that the regroup operation
+        // started before proceeding.
+        if (!latch.await(5, TimeUnit.MINUTES))  {
+            fail("The regroup operation failed to start in the timeout period.");
+        }
+
         final GroupDefinition group5 = GroupDefinition.newBuilder()
                 .setType(CommonDTO.GroupDTO.GroupType.REGULAR)
                 .setDisplayName("group5").build();
