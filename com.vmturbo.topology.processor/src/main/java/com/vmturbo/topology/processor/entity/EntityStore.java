@@ -75,6 +75,7 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -84,6 +85,8 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Stores discovered entities.
@@ -373,6 +376,26 @@ public class EntityStore {
      */
     @Nonnull
     public StitchingContext constructStitchingContext() {
+        return constructStitchingContext(new StalenessInformationProvider() {
+            @Override
+            public HealthState getLastKnownTargetHealth(long targetOid) {
+                return HealthState.NORMAL;
+            }
+        });
+    }
+
+    /**
+     * Construct a graph suitable for stitching composed of a forest of disconnected graphs consisting
+     * of the entities discovered by each individual target. See {@link TopologyStitchingGraph} for
+     * further details.
+     * Graph is constructed on the basis of previously supplied through {@link #entitiesDiscovered} entities.
+     *
+     * @param stalenessProvider provides information about entities that are not up to date
+     * @return A {@link TopologyStitchingGraph} suitable for stitching together the graphs in the discovered
+     *         individual-targets into a unified topology.
+     */
+    @Nonnull
+    public StitchingContext constructStitchingContext(StalenessInformationProvider stalenessProvider) {
         final StitchingContext.Builder builder = StitchingContext
             .newBuilder(entityMap.size(), targetStore)
             .setIdentityProvider(identityProvider);
@@ -396,11 +419,14 @@ public class EntityStore {
                                 entityBuilder, oid, targetId,
                                 incrementalEntities))
                             .orElse(entityBuilder);
+                        final boolean isStale = stalenessProvider.getLastKnownTargetHealth(targetId) != HealthState.NORMAL;
                         return StitchingEntityData.newBuilder(entityDTO)
                             .oid(oid)
                             .targetId(targetId)
                             .lastUpdatedTime(cacheEntry.lastUpdatedTime)
                             .supportsConnectedTo(cacheEntry.supportsConnectedTo)
+                            // for now, staleness is defined at target level but exposed to stitching at entity level
+                            .setStale(isStale)
                             .build();
                     }).forEach(stitchingDataMap::put));
         }

@@ -23,6 +23,7 @@ public class StitchingEntityData {
     private final long oid;
     private final long lastUpdatedTime;
     private final boolean supportsConnectedTo;
+    private final boolean isStale;
 
     /**
      * Create a new {@link StitchingEntityData} object for constructing a {@link TopologyStitchingEntity}.
@@ -34,17 +35,20 @@ public class StitchingEntityData {
      * @param supportsConnectedTo Indicates if this entity supports the connectedTo relationship.
      *                            If this is true layeredOver and consistsOf will be converted
      *                            to NORMAL and OWNS connectedTo relationships, respectively.
+     * @param isStale whether the entity is stale - to be taken into account when stitching
      */
     protected StitchingEntityData(@Nonnull final EntityDTO.Builder entityDtoBuilder,
             final long targetId,
             final long oid,
             final long lastUpdatedTime,
-            final boolean supportsConnectedTo) {
+            final boolean supportsConnectedTo,
+            boolean isStale) {
         this.entityDtoBuilder = entityDtoBuilder;
         this.targetId = targetId;
         this.oid = oid;
         this.lastUpdatedTime = lastUpdatedTime;
         this.supportsConnectedTo = supportsConnectedTo;
+        this.isStale = isStale;
     }
 
     public EntityDTO.Builder getEntityDtoBuilder() {
@@ -69,6 +73,10 @@ public class StitchingEntityData {
 
     public boolean supportsDeprecatedConnectedTo() {
         return supportsConnectedTo;
+    }
+
+    public boolean isStale() {
+        return isStale;
     }
 
     @Override
@@ -117,6 +125,7 @@ public class StitchingEntityData {
         private long oid;
         private long lastUpdatedTime;
         private boolean supportsConnectedTo;
+        private boolean isStale;
 
         private Builder(@Nonnull final EntityDTO.Builder builder) {
             this.entityDtoBuilder = Objects.requireNonNull(builder);
@@ -168,9 +177,19 @@ public class StitchingEntityData {
             return this;
         }
 
+        /**
+         * Whether the entity has stale data (not discovered for too long).
+         *
+         * @return true if entity is stale and may be (partially - depends on context) disregarded when stitching.
+         */
+        public Builder setStale(boolean isStale) {
+            this.isStale = isStale;
+            return this;
+        }
+
         public StitchingEntityData build() {
             return new StitchingEntityData(entityDtoBuilder, targetId, oid, lastUpdatedTime,
-                    supportsConnectedTo);
+                    supportsConnectedTo, isStale);
         }
     }
 

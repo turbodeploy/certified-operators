@@ -36,6 +36,7 @@ import com.google.common.collect.Table;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
@@ -97,6 +98,7 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -136,6 +138,8 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadPlanDestina
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
+
+import common.HealthCheck.HealthState;
 
 public class StagesTest {
 
@@ -339,17 +343,20 @@ public class StagesTest {
         final StitchingJournalContainer container = new StitchingJournalContainer();
         final IStitchingJournal<StitchingEntity> journal = spy(new EmptyStitchingJournal<>());
         final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
+        final StalenessInformationProvider stalenessProvider = Mockito.mock(StalenessInformationProvider.class);
 
         when(journalFactory.stitchingJournal(eq(stitchingContext))).thenReturn(journal);
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
+        when(entityStore.constructStitchingContext(Mockito.any())).thenReturn(stitchingContext);
         when(stitchingManager.stitch(eq(stitchingContext), eq(journal))).thenReturn(stitchingContext);
         when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
         when(stitchingContext.entityTypeCounts()).thenReturn(Collections.emptyMap());
         when(journal.shouldDumpTopologyBeforePreStitching()).thenReturn(true);
         when(stitchingContext.getStitchingGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
+        when(stalenessProvider.getLastKnownTargetHealth(Mockito.anyLong())).thenReturn(HealthState.NORMAL);
 
-        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory, container);
+        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory,
+                        container, stalenessProvider);
         final TopologyPipelineContext context = createStageContext(stitchingStage, TEST_TOPOLOGY_INFO);
         assertThat(stitchingStage.execute(entityStore).getResult().constructTopology(), is(Collections.emptyMap()));
         assertTrue(container.getMainStitchingJournal().isPresent());
