@@ -270,6 +270,7 @@ public class TopologyEntityDtoConverterTest {
         assertEquals(expectedType, seRepoDTO.getEntityType());
         assertEquals(String.valueOf(seTopoDTO.getOid()), seRepoDTO.getUuid());
         assertEquals(expectedState, seRepoDTO.getState());
+        assertEquals(seTopoDTO.getStale(), seRepoDTO.isStale());
 
         // compare tags
         assertEquals(seRepoDTO.getTags().size(), seTopoDTO.getTags().getTagsMap().size());

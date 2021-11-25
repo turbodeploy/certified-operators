@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class StaleDataConfig {
-    @Value("${staleDataCheckFrequencyMinutes:10}")
+    @Value("${staleDataCheckFrequencyMinutes:5}")
     private int staleDataCheckFrequencyMinutes;
 
     /**

@@ -51,6 +51,7 @@ public class ResultsConverter {
         serviceEntityApiDTO.setClassName(repoDTO.getEntityType());
         serviceEntityApiDTO.setState(repoDTO.getState());
         serviceEntityApiDTO.setTags(repoDTO.getTags());
+        // TODO Roman set stale
 
         // TODO: ServiceEntityDTO should not contain an API DTO
         if (repoDTO.getEnvironmentType() != null) {

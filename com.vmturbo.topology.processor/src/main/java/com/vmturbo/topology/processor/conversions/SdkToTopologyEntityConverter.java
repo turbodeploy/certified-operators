@@ -325,6 +325,8 @@ public class SdkToTopologyEntityConverter {
             dedupeSet.clear();
         });
 
+        result.setStale(entity.isStale());
+
         injectEntityProperties(entity, result.getMutableEntityPropertyMap());
 
         if (entityDetailsEnabled) {

@@ -55,6 +55,7 @@ public class ServiceEntityRepoDTOConverter {
             topologyEntityBuilder.setEntityState(
                 UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState());
         }
+        topologyEntityBuilder.setStale(serviceEntityRepoDTO.isStale());
 
         final Map<String, List<String>> tags = serviceEntityRepoDTO.getTags();
         if (tags != null) {

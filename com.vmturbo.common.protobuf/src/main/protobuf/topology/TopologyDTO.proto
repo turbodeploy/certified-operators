@@ -1243,6 +1243,10 @@ message TopologyEntityDTO {
     }
 
     repeated .common_dto.EntityDTO.EntityDetail details = 17;
+
+    // whether the entity is 'outdated' i.e. successfully discovered too long ago
+    // defined at entity level although different parts of entity may have different 'staleness'
+    optional bool stale = 18 [default = false];
 }
 
 // related information for the target that discovers the entity
