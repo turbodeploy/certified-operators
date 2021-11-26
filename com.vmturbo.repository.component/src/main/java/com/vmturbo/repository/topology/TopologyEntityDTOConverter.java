@@ -86,6 +86,7 @@ class TopologyEntityDTOConverter {
         se.setUuid(String.valueOf(t.getOid()));
         se.setState(UIEntityState.fromEntityState(t.getEntityState()).apiStr());
         se.setTags(new HashMap<>());
+        se.setStale(t.getStale());
         t.getTags().getTagsMap().forEach((key, value) -> se.getTags().put(key, value.getValuesList()));
 
         // Commodities bought list

@@ -48,6 +48,8 @@ public class ServiceEntityRepoDTO {
 
     private EntityPipelineErrorsRepoDTO entityPipelineErrorsRepoDTO;
 
+    private boolean stale;
+
     // TODO: consider having only one of these with a supertype - any entity will have at most one
     private ApplicationInfoRepoDTO applicationInfoRepoDTO;
     private DatabaseInfoRepoDTO databaseInfoRepoDTO;
@@ -321,6 +323,14 @@ public class ServiceEntityRepoDTO {
     public void setCloudCommitmentInfoRepoDTO(
             final CloudCommitmentInfoRepoDTO cloudCommitmentInfoRepoDTO) {
         this.cloudCommitmentInfoRepoDTO = cloudCommitmentInfoRepoDTO;
+    }
+
+    public boolean isStale() {
+        return stale;
+    }
+
+    public void setStale(boolean stale) {
+        this.stale = stale;
     }
 
     @Override
