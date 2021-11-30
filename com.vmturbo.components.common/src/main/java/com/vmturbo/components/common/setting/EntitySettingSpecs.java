@@ -862,7 +862,7 @@ public enum EntitySettingSpecs {
      */
     MinReplicas("minReplicas", "Minimum Replicas",
             Collections.emptyList(),
-            SettingTiebreaker.BIGGER, SettingConstants.MIN_MAX_REPLICAS_ENTITY_TYPES,
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.SERVICE),
             numeric(1, 10000, 1), true),
 
     /**
@@ -870,7 +870,7 @@ public enum EntitySettingSpecs {
      */
     MaxReplicas("maxReplicas", "Maximum Replicas",
             Collections.emptyList(),
-            SettingTiebreaker.SMALLER, SettingConstants.MIN_MAX_REPLICAS_ENTITY_TYPES,
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.SERVICE),
             numeric(1, 10000, 10000), true),
 
     /**
@@ -1515,23 +1515,10 @@ public enum EntitySettingSpecs {
     }
 
     /**
-     * Return if the input entity type has min/max replicas setting or not.
-     *
-     * @param entityType the input entity type value
-     * @return true if input entity type has min/max replicas setting
-     */
-    public static boolean hasMinMaxReplicasSetting(final int entityType) {
-        return SettingConstants.MIN_MAX_REPLICAS_ENTITY_TYPES
-                .contains(EntityType.forNumber(entityType));
-    }
-
-    /**
      * Class for storing setting constants.
      */
     private static class SettingConstants {
         private static final String AGGRESSIVENESS = "Aggressiveness";
         private static final String MAX_OBSERVATION_PERIOD = "Max Observation Period";
-        private static final Set<EntityType> MIN_MAX_REPLICAS_ENTITY_TYPES =
-                ImmutableSet.of(EntityType.SERVICE);
     }
 }
