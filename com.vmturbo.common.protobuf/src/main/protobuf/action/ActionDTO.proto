@@ -459,14 +459,7 @@ message CloudSavingsDetails {
         //on demand cost of the tier.
         optional common_dto.CurrencyAmount on_demand_cost  = 2;
         //the cloud commitment info of the tier.
-        optional CloudCommitmentCoverage cloud_commitment_coverage = 3;
-    }
-
-    message CloudCommitmentCoverage {
-        //the coupons needed for the tier.
-        optional cloud_commitment_dto.CloudCommitmentAmount capacity = 1;
-        // the coupons covered for the tier
-        optional cloud_commitment_dto.CloudCommitmentAmount used = 2;
+        optional cloud_commitment_dto.CloudCommitmentCoverage cloud_commitment_coverage = 3;
     }
 
     //the entity uptime.
