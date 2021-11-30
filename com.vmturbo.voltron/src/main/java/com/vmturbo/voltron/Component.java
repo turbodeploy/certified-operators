@@ -51,14 +51,22 @@ import com.vmturbo.voltron.Voltron.VoltronContext;
  * Enum to capture all the possible components that can be part of voltron.
  */
 public enum Component {
+
     /**
      * The cluster manager.
      */
     CLUSTERMGR("clustermgr", "com.vmturbo.clustermgr",
             ClusterMgrMain.class,
             Optional.of(Clustermgr.CLUSTERMGR),
-            ImmutableMap.of("clustermgr.consul.host", "localhost", "clustermgr.consul.port",
-                    8500)),
+            ImmutableMap.of(
+                    "clustermgr.consul.host", "localhost",
+                    "clustermgr.consul.port", 8500,
+                    // TODO: Once postgres DB feature flag is enabled, this will need to be fixed
+                    "migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
+                        "com.vmturbo.clustermgr/src/main/resources/db/migration"
+                    )
+            )
+    ),
 
     /**
      * The auth component.
