@@ -342,8 +342,9 @@ public class EntitySettingsApplicator {
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
-                new ScalingPolicyApplicator(),
-                new HorizontalScalePolicyApplicator(),
+                FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()
+                                        ? new HorizontalScalePolicyApplicator()
+                                        : new ScalingPolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
                         CommodityType.DB_MEM),
                 new EnableScaleApplicator(),
@@ -1710,9 +1711,6 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                           @Nullable final Map<EntitySettingSpecs, Setting> entitySettings,
                           @Nullable final Map<ConfigurableActionSettings, Setting> actionModeSettings) {
-            if (!FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()) {
-                return;
-            }
             if (entity.getEntityType() != EntityType.APPLICATION_COMPONENT_VALUE) {
                 return;
             }
@@ -1765,9 +1763,6 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
-            if (FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()) {
-                return;
-            }
             if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
                 final String settingValue = setting.getEnumSettingValue().getValue();
                 boolean resizeScaling = ScalingPolicyEnum.RESIZE.name().equals(settingValue);
