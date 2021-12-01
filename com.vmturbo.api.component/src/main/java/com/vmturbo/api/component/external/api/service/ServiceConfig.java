@@ -30,6 +30,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.cost.CostStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PaginatedStatsExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
@@ -423,7 +424,8 @@ public class ServiceConfig {
                 businessAccountRetriever(),
                 communicationConfig.serviceProviderExpander(),
                 mapperConfig.paginationMapper(),
-                userSessionConfig.userSessionContext());
+                userSessionConfig.userSessionContext(),
+                costStatsQueryExecutor());
     }
 
     @Bean
@@ -469,7 +471,8 @@ public class ServiceConfig {
                 entitySettingQueryExecutor(),
                 licenseCheckClientConfig.licenseCheckClient(),
                 mapperConfig.entityAspectMapper(),
-                communicationConfig.getRealtimeTopologyContextId());
+                communicationConfig.getRealtimeTopologyContextId(),
+                costStatsQueryExecutor());
     }
 
     @Bean
@@ -1108,4 +1111,9 @@ public class ServiceConfig {
     public TargetDetailsMapper targetDetailsMapper() {
         return new TargetDetailsMapper();
     };
+
+    @Bean
+    public CostStatsQueryExecutor costStatsQueryExecutor() {
+        return new CostStatsQueryExecutor(communicationConfig.costServiceBlockingStub());
+    }
 }

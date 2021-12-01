@@ -81,6 +81,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.cost.CostStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -253,6 +254,9 @@ public class GroupsServiceTest {
     @Mock
     private UserSessionContext userSessionContextMock;
 
+    @Mock
+    private CostStatsQueryExecutor costStatsQueryExecutor;
+
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
 
@@ -315,7 +319,8 @@ public class GroupsServiceTest {
                 businessAccountRetriever,
                 serviceProviderExpander,
                 paginationMapperMock,
-                userSessionContextMock) {
+                userSessionContextMock,
+                costStatsQueryExecutor) {
             @Override
             protected String getUsername() {
                 return "testUser";

@@ -57,6 +57,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionInputUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.cost.CostStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -266,6 +267,8 @@ public class MarketsService implements IMarketsService {
 
     private final EntityAspectMapper entityAspectMapper;
 
+    private final CostStatsQueryExecutor costStatsQueryExecutor;
+
     /**
      * Entity types which support being shown as unplaced in plan result.
      */
@@ -305,7 +308,8 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                           @Nonnull final LicenseCheckClient licenseCheckClient,
                           @Nonnull final EntityAspectMapper entityAspectMapper,
-                          final long realtimeTopologyContextId) {
+                          final long realtimeTopologyContextId,
+                          @Nonnull final CostStatsQueryExecutor costStatsQueryExecutor) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.policiesService = Objects.requireNonNull(policiesService);
@@ -339,6 +343,7 @@ public class MarketsService implements IMarketsService {
         this.entitySettingQueryExecutor = Objects.requireNonNull(entitySettingQueryExecutor);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
+        this.costStatsQueryExecutor = Objects.requireNonNull(costStatsQueryExecutor);
     }
 
     /**
@@ -2257,7 +2262,10 @@ public class MarketsService implements IMarketsService {
     public List<StatSnapshotApiDTO> getMarketCloudCostStats(@Nonnull String marketUuid,
                                                        @Nullable CostInputApiDTO costInputApiDTO)
                     throws Exception {
-        //TODO: Planned implementation Jira OM-76838
-        return Collections.emptyList();
+        final ApiId marketId = uuidMapper.fromUuid(marketUuid);
+        if (!marketId.isRealtimeMarket()) {
+            throw new UnsupportedOperationException(String.format("Not supported - %s is not a real-time market.", marketUuid));
+        }
+        return costStatsQueryExecutor.getGlobalCostStats(costInputApiDTO);
     }
 }
