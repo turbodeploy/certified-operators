@@ -66,6 +66,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionInputUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.cost.CostStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -273,6 +274,8 @@ public class GroupsService implements IGroupsService {
 
     private final UserSessionContext userSessionContext;
 
+    private final CostStatsQueryExecutor costStatsQueryExecutor;
+
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -294,7 +297,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final BusinessAccountRetriever businessAccountRetriever,
                   @Nonnull final ServiceProviderExpander serviceProviderExpander,
                   @Nonnull final PaginationMapper paginationMapper,
-                  @Nonnull final UserSessionContext userSessionContext) {
+                  @Nonnull final UserSessionContext userSessionContext,
+                  @Nonnull final CostStatsQueryExecutor costStatsQueryExecutor) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -317,6 +321,7 @@ public class GroupsService implements IGroupsService {
         this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.userSessionContext = userSessionContext;
+        this.costStatsQueryExecutor = Objects.requireNonNull(costStatsQueryExecutor);
     }
 
     /**
@@ -2108,13 +2113,19 @@ public class GroupsService implements IGroupsService {
      * @param groupUuid uuid of the group.  Groups cloud entities will be considered.
      * @param costInputApiDTO Filters and groupings applied to cost statistic
      * @return List of {@link StatSnapshotApiDTO} containing cloud cost data
-     * @throws Exception //TODO add further description with Jira OM-76838
+     * @throws Exception
      */
     @Override
     public List<StatSnapshotApiDTO> getGroupCloudCostStats(@Nonnull String groupUuid,
-                                               @Nullable CostInputApiDTO costInputApiDTO)
-                    throws Exception {
-        //TODO: Planned implementation Jira OM-76838
-        return Collections.emptyList();
+            @Nullable CostInputApiDTO costInputApiDTO) throws Exception {
+        final Optional<Grouping> group = groupExpander.getGroup(groupUuid);
+        if (!group.isPresent()) {
+            throw new IllegalArgumentException(String.format(ILLEGAL_GROUP_UUID_MESSAGE, groupUuid));
+        }
+        GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(group.get());
+        if (groupAndMembers == null) {
+            throw new UnknownObjectException("Group not found " + groupUuid);
+        }
+        return costStatsQueryExecutor.getGroupCostStats(groupUuid, groupAndMembers, costInputApiDTO);
     }
 }

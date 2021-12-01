@@ -69,6 +69,7 @@ import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.cost.CostStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -279,6 +280,7 @@ public class MarketsServiceTest {
     private SenderReceiverPair<LicenseSummary> licenseSummaryReceiver = new SenderReceiverPair<>();
     private ExecutorService executorService = mock(ExecutorService.class);
     private LicenseCheckClient licenseCheckClient = new LicenseCheckClient(licenseSummaryReceiver, executorService, null, 0L);
+    private final CostStatsQueryExecutor costStatsQueryExecutor = mock(CostStatsQueryExecutor.class);
 
     /**
      * Test gRPC server to mock out gRPC dependencies.
@@ -332,7 +334,8 @@ public class MarketsServiceTest {
             entitySettingQueryExecutor,
             licenseCheckClient,
             entityAspectMapper,
-            REALTIME_CONTEXT_ID
+            REALTIME_CONTEXT_ID,
+            costStatsQueryExecutor
         );
 
     }
