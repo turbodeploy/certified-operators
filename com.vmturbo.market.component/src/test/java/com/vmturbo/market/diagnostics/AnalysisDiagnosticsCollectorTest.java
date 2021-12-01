@@ -40,6 +40,7 @@ import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -123,6 +124,14 @@ public class AnalysisDiagnosticsCollectorTest {
      */
     @Rule
     public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
+
+    /**
+     * Initializes traderTOs to empty list.
+     */
+    @Before
+    public void setUp() {
+        traderTOs = new ArrayList<>();
+    }
 
     /**
      * run the InitialPlacement from diags.
@@ -606,28 +615,30 @@ public class AnalysisDiagnosticsCollectorTest {
     private void restoreAnalysisMembers(String unzippedAnalysisDiagsLocation) {
         try {
             Iterator<Path> paths = Files.walk(Paths.get(unzippedAnalysisDiagsLocation), 1)
-                .filter(Files::isRegularFile).iterator();
+                .filter(Files::isRegularFile).sorted().iterator();
             while (paths.hasNext()) {
                 Path path = paths.next();
                 String fileName = path.getFileName().toString();
-                switch (fileName) {
-                    case AnalysisDiagnosticsCollector.TRADER_DIAGS_FILE_NAME:
-                        try (FileInputStream fi = new FileInputStream(new File(path.toString()))) {
-                            traderTOs = TraderDiagsTO.parseFrom(fi).getTraderTOsList();
-                        }
-                        break;
-                    case AnalysisDiagnosticsCollector.ANALYSIS_CONFIG_DIAGS_FILE_NAME:
-                        analysisConfig = extractSingleInstanceOfType(path, AnalysisConfig.class);
-                        break;
-                    case AnalysisDiagnosticsCollector.TOPOLOGY_INFO_DIAGS_FILE_NAME:
-                        topologyInfo = extractSingleInstanceOfType(path, TopologyInfo.class);
-                        break;
-                    case AnalysisDiagnosticsCollector.ADJUST_OVERHEAD_DIAGS_FILE_NAME:
-                        commSpecsToAdjustOverhead = extractMultipleInstancesOfType(path, CommoditySpecification.class);
-                        break;
-                    default:
-                        logger.error("Unknown file {} in Analysis diags. Skipping this file.", fileName);
-                        break;
+                if (fileName.startsWith(AnalysisDiagnosticsCollector.TRADER_DIAGS_FILE_NAME)) {
+                    try (FileInputStream fi = new FileInputStream(new File(path.toString()))) {
+                        traderTOs.addAll(TraderDiagsTO.parseFrom(fi).getTraderTOsList());
+                    }
+                    logger.info("Successfully extracted {}", fileName);
+                } else {
+                    switch (fileName) {
+                        case AnalysisDiagnosticsCollector.ANALYSIS_CONFIG_DIAGS_FILE_NAME:
+                            analysisConfig = extractSingleInstanceOfType(path, AnalysisConfig.class);
+                            break;
+                        case AnalysisDiagnosticsCollector.TOPOLOGY_INFO_DIAGS_FILE_NAME:
+                            topologyInfo = extractSingleInstanceOfType(path, TopologyInfo.class);
+                            break;
+                        case AnalysisDiagnosticsCollector.ADJUST_OVERHEAD_DIAGS_FILE_NAME:
+                            commSpecsToAdjustOverhead = extractMultipleInstancesOfType(path, CommoditySpecification.class);
+                            break;
+                        default:
+                            logger.error("Unknown file {} in Analysis diags. Skipping this file.", fileName);
+                            break;
+                    }
                 }
             }
         } catch (Exception e) {
