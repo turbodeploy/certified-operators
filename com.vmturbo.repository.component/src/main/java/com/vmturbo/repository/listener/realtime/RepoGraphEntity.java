@@ -55,6 +55,8 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
 
     private final CompressedProtobuf<TopologyEntityDTO, TopologyEntityDTO.Builder> entity;
 
+    private final boolean stale;
+
     private RepoGraphEntity(@Nonnull final TopologyEntityDTO src,
             @Nonnull final DefaultTagIndex tags,
             @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
@@ -86,6 +88,7 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
                                         .forEach(type -> builder.add(new BoughtCommodity(
                                                         cbfp.getProviderEntityType(), type))));
         boughtCommodityTypes = builder.build();
+        stale = src.getStale();
     }
 
     /**
@@ -241,6 +244,10 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
                                             .setDisplayName(e.getDisplayName())
                                             .build()));
         return result;
+    }
+
+    public boolean isStale() {
+        return stale;
     }
 
     /**
