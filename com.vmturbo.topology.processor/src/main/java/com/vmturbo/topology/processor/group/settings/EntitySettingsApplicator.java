@@ -35,7 +35,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -1588,10 +1587,40 @@ public class EntitySettingsApplicator {
     @ThreadSafe
     private static class ResizeTargetUtilizationCommodityBoughtApplicator extends
             ResizeTargetUtilizationApplicator {
+        /**
+         * The Gcp IO Throughput commodities.
+         */
+        private static Set<Integer> IOThroughPutCommodities = ImmutableSet.of(CommodityType.IO_THROUGHPUT_READ_VALUE,
+                CommodityType.IO_THROUGHPUT_WRITE_VALUE);
+        /**
+         * The Gcp IOPS commodities.
+         */
+        private static Set<Integer> IOPSCommodities = ImmutableSet.of(CommodityType.STORAGE_ACCESS_SSD_READ_VALUE,
+                CommodityType.STORAGE_ACCESS_SSD_WRITE_VALUE, CommodityType.STORAGE_ACCESS_STANDARD_READ_VALUE,
+                CommodityType.STORAGE_ACCESS_STANDARD_WRITE_VALUE);
+
 
         private ResizeTargetUtilizationCommodityBoughtApplicator(
                 @Nonnull EntitySettingSpecs setting, @Nonnull final CommodityType commodityType) {
             super(setting, commodityType);
+        }
+
+        /**
+         * When a Gcp IOPS or IO throughput commodity bought is given, convert the type to
+         * IO_THROUGHPUT_VALUE or STORAGE_ACCESS_VALUE so that the resize target utilization
+         * can be propagated down.
+         *
+         * @param origType the original commodity type.
+         * @return converted commodity type.
+         */
+        private int convertRelevantResizableCommodityBought(int origType) {
+            if (IOThroughPutCommodities.contains(origType)) {
+                return CommodityType.IO_THROUGHPUT_VALUE;
+            }
+            if (IOPSCommodities.contains(origType)) {
+                return CommodityType.STORAGE_ACCESS_VALUE;
+            }
+            return origType;
         }
 
         @Override
@@ -1601,8 +1630,8 @@ public class EntitySettingsApplicator {
                     .stream()
                     .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
                     .flatMap(Collection::stream)
-                    .filter(commodity -> commodity.getCommodityType().getType() ==
-                            getCommodityType().getNumber())
+                    .filter(commodity -> convertRelevantResizableCommodityBought(commodity.getCommodityType().getType())
+                            == getCommodityType().getNumber())
                     .forEach(commodityBuilder -> {
                         commodityBuilder.setResizeTargetUtilization(resizeTargetUtilization);
                         logger.debug(APPLY_RESIZE_TARGET_UTILIZATION_MESSAGE,

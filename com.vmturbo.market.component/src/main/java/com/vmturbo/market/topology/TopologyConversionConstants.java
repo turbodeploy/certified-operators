@@ -114,5 +114,10 @@ public class TopologyConversionConstants {
      * Commodity types whose category need to be stored if the SE is cloud SE.
      */
     public static final Set<Integer> CLOUD_BOUGHT_COMMODITIES_RESIZED =
-            ImmutableSet.of(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, CommodityType.STORAGE_ACCESS_VALUE);
+            ImmutableSet.of(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE,
+                    // NOTE: NET_THROUGHPUT does not store percentile value in the percentileEditor.
+                    CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, CommodityType.STORAGE_ACCESS_VALUE,
+                    CommodityType.IO_THROUGHPUT_READ_VALUE, CommodityType.IO_THROUGHPUT_WRITE_VALUE,
+                    CommodityType.STORAGE_ACCESS_SSD_READ_VALUE, CommodityType.STORAGE_ACCESS_SSD_WRITE_VALUE,
+                    CommodityType.STORAGE_ACCESS_STANDARD_READ_VALUE, CommodityType.STORAGE_ACCESS_STANDARD_WRITE_VALUE);
 }

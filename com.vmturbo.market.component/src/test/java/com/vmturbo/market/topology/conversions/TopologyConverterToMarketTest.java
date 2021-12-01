@@ -1555,6 +1555,66 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
+     * Test resize capacity for GCP IOPS commodities and historical used has not been set.
+     */
+    @Test
+    public void testGetResizedCapacityForCloudResizeIOPS() {
+        // pass negative values for boughtHistUsed and boughtUsedPeak to prevent hist utilization
+        // from being set.
+        final double[] ssdWriteQuantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.STORAGE_ACCESS_SSD_WRITE_VALUE, /*commodityBoughtUsed*/
+                70, /*commodityBoughtPeak*/80, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.7, /*commoditySoldCapacity*/200,
+                -1, -1);
+        Assert.assertEquals(70 / 0.7, ssdWriteQuantities[0], 0.01f);
+        Assert.assertEquals(80 / 0.7, ssdWriteQuantities[1], 0.01f);
+        final double[] ssdReadQuantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.STORAGE_ACCESS_SSD_READ_VALUE, /*commodityBoughtUsed*/
+                100, /*commodityBoughtPeak*/100, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.7, /*commoditySoldCapacity*/200,
+                -1, -1);
+        Assert.assertEquals(100 / 0.7, ssdReadQuantities[0], 0.01f);
+        Assert.assertEquals(100 / 0.7, ssdReadQuantities[1], 0.01f);
+        final double[] stWriteQuantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.STORAGE_ACCESS_STANDARD_WRITE_VALUE, /*commodityBoughtUsed*/
+                70, /*commodityBoughtPeak*/80, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.75, /*commoditySoldCapacity*/200,
+                -1, -1);
+        Assert.assertEquals(70 / 0.75, stWriteQuantities[0], 0.01f);
+        Assert.assertEquals(80 / 0.75, stWriteQuantities[1], 0.01f);
+        final double[] stReadQuantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.STORAGE_ACCESS_STANDARD_READ_VALUE, /*commodityBoughtUsed*/
+                80, /*commodityBoughtPeak*/90, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.75, /*commoditySoldCapacity*/200,
+                -1, -1);
+        Assert.assertEquals(80 / 0.75, stReadQuantities[0], 0.01f);
+        Assert.assertEquals(90 / 0.75, stReadQuantities[1], 0.01f);
+    }
+
+    /**
+     * Test resize capacity for GCP IO Throughput commodities and historical used has not been set.
+     */
+    @Test
+    public void testGetResizedCapacityForCloudResizeIOThroughput() {
+        // pass negative values for boughtHistUsed and boughtUsedPeak to prevent hist utilization
+        // from being set.
+        final double[] ssdWriteQuantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                IO_THROUGHPUT_READ_VALUE, /*commodityBoughtUsed*/
+                70, /*commodityBoughtPeak*/80, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.7, /*commoditySoldCapacity*/200,
+                -1, -1);
+        Assert.assertEquals(70 / 0.7, ssdWriteQuantities[0], 0.01f);
+        Assert.assertEquals(80 / 0.7, ssdWriteQuantities[1], 0.01f);
+        final double[] ssdReadQuantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                IO_THROUGHPUT_WRITE_VALUE, /*commodityBoughtUsed*/
+                100, /*commodityBoughtPeak*/100, /*commodityBoughtMax*/
+                90, /*commodityBoughtResizeTargetUtilization*/0.7, /*commoditySoldCapacity*/200,
+                -1, -1);
+        Assert.assertEquals(100 / 0.7, ssdReadQuantities[0], 0.01f);
+        Assert.assertEquals(100 / 0.7, ssdReadQuantities[1], 0.01f);
+    }
+
+    /**
      * Test resize capacity down for cloud throughput commodities and historical used has not been set.
      */
     @Test
