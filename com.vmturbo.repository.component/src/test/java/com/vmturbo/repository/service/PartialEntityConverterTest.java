@@ -14,8 +14,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import org.hamcrest.Matchers;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -209,7 +207,6 @@ public class PartialEntityConverterTest {
         assertThat(apiEntity.getEntityState(), is(ENTITY.getEntityState()));
         assertThat(apiEntity.getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
         assertThat(apiEntity.getTags(), is(ENTITY.getTags()));
-        Assert.assertThat(apiEntity.getStale(), Matchers.is(ENTITY.getStale()));
         assertThat(apiEntity.getProvidersList(), contains(RelatedEntity.newBuilder()
             .setEntityType(PROVIDER.getEntityType())
             .setOid(PROVIDER.getOid())
@@ -271,7 +268,6 @@ public class PartialEntityConverterTest {
         assertThat(apiEntity.getEntityState(), is(ENTITY.getEntityState()));
         assertThat(apiEntity.getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
         assertThat(apiEntity.getTags(), is(ENTITY.getTags()));
-        Assert.assertThat(apiEntity.getStale(), Matchers.is(ENTITY.getStale()));
         assertThat(apiEntity.getProvidersList(), contains(RelatedEntity.newBuilder()
             .setEntityType(PROVIDER.getEntityType())
             .setOid(PROVIDER.getOid())
@@ -314,7 +310,6 @@ public class PartialEntityConverterTest {
         when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.of(mockTopology));
 
         final ApiPartialEntity apiEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.API, userSessionContext).findFirst().get().getApi();
-        Assert.assertEquals(apiEntity.getStale(), graphEntity.isStale());
         assertEquals(apiEntity.getProvidersCount(), 0);
         assertEquals(apiEntity.getConsumersCount(), 0);
         assertEquals(apiEntity.getConnectedToCount(), 0);

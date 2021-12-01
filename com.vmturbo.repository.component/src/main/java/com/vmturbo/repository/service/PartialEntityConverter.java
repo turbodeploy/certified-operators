@@ -141,7 +141,7 @@ public class PartialEntityConverter {
                 final ApiPartialEntity.Builder apiBldr = ApiPartialEntity.newBuilder().setOid(
                         graphEntity.getOid()).setDisplayName(graphEntity.getDisplayName()).setEntityState(
                         graphEntity.getEntityState()).setEntityType(graphEntity.getEntityType()).setEnvironmentType(
-                        graphEntity.getEnvironmentType()).setStale(graphEntity.isStale());
+                        graphEntity.getEnvironmentType());
                 graphEntity.getDiscoveringTargetIds().forEach(id -> {
                     String vendorId = graphEntity.getVendorId(id);
                     PerTargetEntityInformation.Builder info = PerTargetEntityInformation.newBuilder();

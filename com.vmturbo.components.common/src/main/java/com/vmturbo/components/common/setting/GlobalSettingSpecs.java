@@ -329,7 +329,7 @@ public enum GlobalSettingSpecs {
      */
     DelayedDataThresholdMultiplier("delayedDataThresholdMultiplier", "A multiplier applied to a target's rediscovery"
                     + " interval. The resulting interval is used as a threshold for considering data to be delayed.",
-                    numeric(1, 100, 5), Collections.emptyList()),
+                    numeric(1, 100, 10), Collections.emptyList()),
 
     /**
      * Cloud savings action execution retention durations

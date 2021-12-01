@@ -750,10 +750,6 @@ message PartialEntity {
             // TODO: when this field is populated for plans, changes in ArangoDB will be required as well
             optional string display_name = 3;
         }
-
-        // whether the entity is 'outdated' i.e. successfully discovered too long ago
-        // defined at entity level although different parts of entity may have different 'staleness'
-        optional bool stale = 18 [default = false];
     }
 
     // Contains the fields required by cluster headroom plan.

@@ -17,7 +17,6 @@ import com.google.common.collect.Multimap;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.Staleness;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -52,7 +51,7 @@ public class ResultsConverter {
         serviceEntityApiDTO.setClassName(repoDTO.getEntityType());
         serviceEntityApiDTO.setState(repoDTO.getState());
         serviceEntityApiDTO.setTags(repoDTO.getTags());
-        serviceEntityApiDTO.setStaleness(repoDTO.isStale() ? Staleness.STALE : Staleness.CURRENT);
+        // TODO Roman set stale
 
         // TODO: ServiceEntityDTO should not contain an API DTO
         if (repoDTO.getEnvironmentType() != null) {
