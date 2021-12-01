@@ -105,7 +105,7 @@ public class StitchingConfig {
     @Value("${stitchingMergeKubernetesProbeTypes:true}")
     private boolean stitchingMergeKubernetesProbeTypes;
 
-    @Value("${keepDCsAfterFabricStitching:true}")
+    @Value("${keepDCsAfterFabricStitching:false}")
     private boolean keepDCsAfterFabricStitching;
 
     @Autowired
