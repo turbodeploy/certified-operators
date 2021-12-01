@@ -171,7 +171,7 @@ public class IntersightLicenseCountUpdaterTest {
                 IntersightLicenseTestUtils.createIwoLicense("1", LicenseTypeEnum.IWO_ESSENTIAL,
                         LicenseStateEnum.COMPLIANCE);
         licenseCountUpdater.uploadWorkloadCount(validLicense, 0);
-        verify(intersightLicenseClient).updateLicenseLicenseInfo(any(), any());
+        verify(intersightLicenseClient).updateIwoLicenseCount(any());
     }
 
     /**
@@ -188,7 +188,7 @@ public class IntersightLicenseCountUpdaterTest {
                 IntersightLicenseTestUtils.createIwoLicense("1", LicenseTypeEnum.STANDARD,
                         LicenseStateEnum.COMPLIANCE);
         licenseCountUpdater.uploadWorkloadCount(validLicense, 0);
-        verify(intersightLicenseClient, never()).updateLicenseLicenseInfo(any(), any());
+        verify(intersightLicenseClient, never()).updateIwoLicenseCount(any());
     }
 
     /**
@@ -207,7 +207,7 @@ public class IntersightLicenseCountUpdaterTest {
                 .build();
         licenseCountUpdater.onLicenseSummaryUpdated(licenseSummary);
         licenseCountUpdater.syncLicenseCounts(false);
-        verify(intersightLicenseClient, times(1)).updateLicenseLicenseInfo(any(), any());
+        verify(intersightLicenseClient, times(1)).updateIwoLicenseCount(any());
     }
 
     /**
