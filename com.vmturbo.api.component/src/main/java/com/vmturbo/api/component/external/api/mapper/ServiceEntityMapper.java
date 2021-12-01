@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.Descriptors.EnumValueDescriptor;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -43,6 +44,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.Staleness;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -224,7 +226,9 @@ public class ServiceEntityMapper {
                         .map(ServiceEntityMapper::toBaseApiDTO)
                         .collect(Collectors.toList()));
             }
-
+            if (FeatureFlags.DELAYED_DATA_HANDLING.isEnabled()) {
+                result.setStaleness(apiEntity.getStale() ? Staleness.STALE : Staleness.CURRENT);
+            }
             convertedEntityConsumer.accept(apiEntity.getOid(), result);
         });
     }
