@@ -1,9 +1,11 @@
 package com.vmturbo.common.protobuf.memory;
 
+import static com.vmturbo.common.protobuf.memory.HistogramHelpers.histResults;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
@@ -17,19 +19,25 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.memory.HistogramHelpers.HistogramRow;
+import com.vmturbo.common.protobuf.memory.MemoryVisitor.ClassHistogramSizeVisitor;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryGraphVisitor;
+import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryGraphVisitorWithHistogram;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemorySubgraph;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.NamedObject;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.TotalSizesAndCountsVisitor;
@@ -362,6 +370,69 @@ public class MemoryGraphVisitorTest {
             currentPathIndex++;
         }
         assertEquals(expectedPaths.length, currentPathIndex);
+    }
+
+    /**
+     * test histogram.
+     */
+    @Test
+    public void testHistogram() {
+        final Object[] objList = new Object[2000];
+        MemoryGraphVisitorWithHistogram visitor = new MemoryGraphVisitorWithHistogram(Collections.emptySet(), 100, 100, 100, false);
+        new RelationshipMemoryWalker(visitor).traverseNamed(
+            Arrays.asList(new NamedObject("small", new Object()), new NamedObject("objList", objList)));
+        final Set<String> expectedClasses = Stream.of(Object[].class.getName(), Object.class.getName())
+            .collect(Collectors.toSet());
+
+        for (HistogramRow hr : histResults(visitor.histogram())) {
+            if (hr.index.isPresent()) {
+                assertEquals(1, hr.instanceCount);
+                Assert.assertThat(hr.klassName, in(expectedClasses));
+            } else {
+                // Total row
+                assertEquals("TOTAL", hr.klassName);
+                assertEquals(visitor.totalCount(), hr.instanceCount);
+            }
+        }
+    }
+
+    /**
+     * Test computing the difference of histograms.
+     */
+    @Test
+    public void testHistogramDifference() {
+        final Object[] objList = new Object[2000];
+
+        MemoryGraphVisitorWithHistogram visitor1 = new MemoryGraphVisitorWithHistogram(Collections.emptySet(), 100, 100, 100, false);
+        new RelationshipMemoryWalker(visitor1).traverseNamed(
+            Arrays.asList(new NamedObject("small", new Object()), new NamedObject("objList", objList)));
+
+        objList[0] = "foo";
+        objList[1] = 1234;
+
+        MemoryGraphVisitorWithHistogram visitor2 = new MemoryGraphVisitorWithHistogram(Collections.emptySet(), 100, 100, 100, false);
+        new RelationshipMemoryWalker(visitor2).traverseNamed(
+            Collections.singletonList(new NamedObject("objList", objList)));
+        final String histogram = ClassHistogramSizeVisitor.subtract(visitor1.getClassCounts(), visitor2.getClassCounts());
+        final Set<String> expectedClasses = Stream.of(String.class.getName(), Integer.class.getName(),
+                Object.class.getName(), char[].class.getName())
+            .collect(Collectors.toSet());
+
+        for (HistogramRow hr : histResults(histogram)) {
+            if (hr.index.isPresent()) {
+                Assert.assertThat(hr.klassName, in(expectedClasses));
+                if (hr.klassName.equals(Object.class.getName())) {
+                    assertEquals(1, hr.instanceCount);
+                } else {
+                    assertEquals(-1, hr.instanceCount);
+                }
+            } else {
+                // Total row
+                assertEquals("TOTAL", hr.klassName);
+                assertEquals(-2, hr.instanceCount);
+            }
+        }
+
     }
 
     private int headerCount(@Nonnull final String results) {

@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.memory.FastMemoryWalker;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.ClassHistogramSizeVisitor;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryGraphVisitor;
+import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryGraphVisitorWithHistogram;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryPathVisitor;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.NamedObject;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.TotalSizesAndCountsVisitor;
@@ -448,6 +449,31 @@ public class MemoryMetricsManager {
                                                   final boolean retainDescendants,
                                                   @Nonnull final Collection<NamedObject> roots) {
             final MemoryGraphVisitor visitor = new MemoryGraphVisitor(
+                exclusions, exclusionDepth, maxDepth, logDepth, retainDescendants);
+            new RelationshipMemoryWalker(visitor).traverseNamed(roots);
+            return visitor;
+        }
+
+        /**
+         * Create a visitor that allows the tabular results of a {@link MemoryGraphVisitor} and the
+         * class histogram of a {@link ClassHistogramSizeVisitor}.
+         *
+         * @param logDepth The maximum depth to log.
+         * @param retainDescendants Whether to retain descendants beyond the log depth. retained descendants can
+         *                          be used to perform analysis on walked objects that are not logged. Set to
+         *                          false to reduce the memory overhead of the walk if you only want to generate
+         *                          the tabular breakdown of object sizes and do not need to do any further
+         *                          in-code analysis.
+         * @param roots The roots to walk.
+         * @return A {@link MemoryGraphVisitorWithHistogram} that has collected information about the objects
+         *         reachable from the root set.
+         */
+        @Nonnull
+        public MemoryGraphVisitorWithHistogram
+        walkMemoryGraphWithHistogram(final int logDepth,
+                                     final boolean retainDescendants,
+                                     @Nonnull final Collection<NamedObject> roots) {
+            final MemoryGraphVisitorWithHistogram visitor = new MemoryGraphVisitorWithHistogram(
                 exclusions, exclusionDepth, maxDepth, logDepth, retainDescendants);
             new RelationshipMemoryWalker(visitor).traverseNamed(roots);
             return visitor;

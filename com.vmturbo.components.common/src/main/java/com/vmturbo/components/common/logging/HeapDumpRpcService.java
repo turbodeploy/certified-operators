@@ -13,12 +13,15 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLogEntry;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.logging.HeapDumpServiceGrpc.HeapDumpServiceImplBase;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.EnableHeapDumpRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.GetHeapDumpEnabledRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.HeapDumpEnabledResponse;
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.TriggerFullGcRequest;
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.TriggerFullGcResponse;
 import com.vmturbo.common.protobuf.memory.HeapDumper;
 
 /**
@@ -121,6 +124,43 @@ public class HeapDumpRpcService extends HeapDumpServiceImplBase {
                                    StreamObserver<HeapDumpEnabledResponse> responseObserver) {
         logger.info("getHeapDumpEnabled: enabled={}", enableHeapDumping);
         responseObserver.onNext(HeapDumpEnabledResponse.newBuilder().setEnabled(enableHeapDumping).build());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Example request.
+     * curl -X POST "http://$topo_ip_address:8080/HeapDumpService/triggerFullGarbageCollection" -H "accept: application/json;charset=UTF-8" -H "Content-Type: application/json;charset=UTF-8" -d "{}"
+     *
+     * @param request the request
+     * @param responseObserver observer for the response.
+     */
+    @Override
+    public void triggerFullGarbageCollection(TriggerFullGcRequest request,
+                                             StreamObserver<TriggerFullGcResponse> responseObserver) {
+        final long beforeGcTotal = Runtime.getRuntime().totalMemory();
+        final long beforeGcFree = Runtime.getRuntime().freeMemory();
+
+        logger.info("Triggering full garbage collection");
+        System.gc();
+
+        final long afterGcTotal = Runtime.getRuntime().totalMemory();
+        final long afterGcFree = Runtime.getRuntime().freeMemory();
+        final long maxHeap = Runtime.getRuntime().maxMemory();
+
+        final TriggerFullGcResponse response = TriggerFullGcResponse.newBuilder()
+            .setBeforeGcHeapFreeBytes(beforeGcFree)
+            .setBeforeGcHeapTotalBytes(beforeGcTotal)
+            .setBeforeGcHeapUsedBytes(beforeGcTotal - beforeGcFree)
+            .setAfterGcHeapFreeBytes(afterGcFree)
+            .setAfterGcHeapTotalBytes(afterGcTotal)
+            .setAfterGcHeapUsedBytes(afterGcTotal - afterGcFree)
+            .setMaxHeapBytes(maxHeap)
+            .build();
+        logger.info("Completed full garbage collection. Results: {}", response);
+        logger.info("Full GC freed {} of memory", StringUtil.getHumanReadableSize(
+            response.getBeforeGcHeapUsedBytes() - response.getAfterGcHeapUsedBytes()));
+
+        responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
 

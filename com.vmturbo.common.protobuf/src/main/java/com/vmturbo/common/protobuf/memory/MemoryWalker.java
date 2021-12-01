@@ -8,6 +8,10 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.github.jamm.MemoryLayoutSpecification;
+
 /**
  * Abstract class for traversing reachable objects from a root set. {@link MemoryWalker}
  * objects are designed to be used in conjunction with {@link MemoryVisitor} instances.
@@ -29,10 +33,26 @@ public abstract class MemoryWalker {
     protected Map<Class<?>, Field[]> fieldsCache;
 
     /**
+     * Tracks whether this is the first MemoryWalker that we have created.
+     * On first use we log some properties of the JVM (ie whether we are using compressedrefs or not)
+     * because this affects the measurements.
+     */
+    private static volatile boolean firstUse = true;
+
+    private static final Logger logger = LogManager.getLogger();
+
+    /**
      * Create a new {@link MemoryWalker}.
      */
     protected MemoryWalker() {
         fieldsCache = new HashMap<>();
+
+        if (firstUse) {
+            firstUse = false;
+            logger.info(MemoryLayoutSpecification.class.getName()
+                + ": assuming reference size of "
+                + MemoryLayoutSpecification.SPEC.getReferenceSize() + " bytes.");
+        }
     }
 
     /**

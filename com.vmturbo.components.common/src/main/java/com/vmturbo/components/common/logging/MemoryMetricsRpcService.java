@@ -30,10 +30,12 @@ import com.vmturbo.common.protobuf.logging.MemoryMetrics.ListWalkableRootsRespon
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.ListWalkableRootsResponse.RootObject;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.MemoryMetricsConfiguration;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.MemoryMetricsConfiguration.MemoryGraph;
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.MemoryMetricsConfiguration.MemoryGraphAndHistogram;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkAllRootObjectsRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectsRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetricsServiceGrpc.MemoryMetricsServiceImplBase;
+import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryGraphVisitorWithHistogram;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryPathVisitor;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.NamedObject;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager;
@@ -221,6 +223,14 @@ public class MemoryMetricsRpcService extends MemoryMetricsServiceImplBase {
                 final MemoryGraph mgConfig = walkConfiguration.getMemoryGraph();
                 return walkBuilder.walkMemoryGraph(mgConfig.getLogDepth(), false, roots)
                     .tabularResults(mgConfig.getMinimumLogSizeBytes());
+            case MEMORY_GRAPH_AND_HISTOGRAM:
+                final MemoryGraphAndHistogram mghConfig = walkConfiguration.getMemoryGraphAndHistogram();
+                final MemoryGraphVisitorWithHistogram visitor = walkBuilder
+                    .walkMemoryGraphWithHistogram(mghConfig.getLogDepth(), false, roots);
+                return visitor.tabularResults(mghConfig.getMinimumLogSizeBytes())
+                    + "\n\n--------------------------------------------\n\n"
+                    + visitor.histogram();
+
         }
 
         throw new IllegalArgumentException("WalkType " + walkConfiguration.getWalkTypeCase() + " not supported.");
