@@ -25,6 +25,7 @@ message MemoryMetricsConfiguration {
         SizeAndCount size_and_count = 11;
         ClassHistogram class_histogram = 12;
         MemoryGraph memory_graph = 13;
+        MemoryGraphAndHistogram memory_graph_and_histogram = 14;
     }
 
     // Compute and log the total size and number of objects reached
@@ -107,6 +108,23 @@ message MemoryMetricsConfiguration {
 
         // If provided, only log entries with a calculated size meeting or exceeding this threshold
         // size in bytes.
+        optional uint64 minimum_log_size_bytes = 2 [default = 2048]; // Default 2kB
+    }
+
+    // Combines the functionality of the memory graph and class histogram options.
+    message MemoryGraphAndHistogram {
+        // How deep into the object hierarchy to log. For legibility and performance, it's often
+        // not advisable to log too deep into the graph unless you really need deep details.
+        // We log the computed size of obects at or above the log_depth (ie if log_depth is 1,
+        // we log all objects at depths 0 and 1).
+        //
+        // Applies to the MemoryGraph portion of the report.
+        optional uint32 log_depth = 1 [default = 4];
+
+        // If provided, only log entries with a calculated size meeting or exceeding this threshold
+        // size in bytes.
+        //
+        // Applies to the MemoryGraph portion of the report.
         optional uint64 minimum_log_size_bytes = 2 [default = 2048]; // Default 2kB
     }
 }
@@ -343,6 +361,24 @@ message FindMemoryPathResponse {
     optional string request_duration = 4;
 }
 
+// Request to trigger a full garbage collection.
+message TriggerFullGcRequest {
+
+}
+
+// Response for triggering a full garbage collection.
+message TriggerFullGcResponse {
+    optional uint64 before_gc_heap_used_bytes = 1;
+    optional uint64 before_gc_heap_free_bytes = 2;
+    optional uint64 before_gc_heap_total_bytes = 3;
+
+    optional uint64 after_gc_heap_used_bytes = 4;
+    optional uint64 after_gc_heap_free_bytes = 5;
+    optional uint64 after_gc_heap_total_bytes = 6;
+
+    optional uint64 max_heap_bytes = 7;
+}
+
 // Service to collect metrics concerning memory usage
 service MemoryMetricsService {
     // Perform a memory walk from a root set of objects, collecting information about
@@ -391,4 +427,7 @@ service HeapDumpService {
 
     // Check whether heap dump is enabled or disabled.
     rpc GetHeapDumpEnabled(GetHeapDumpEnabledRequest) returns (HeapDumpEnabledResponse);
+
+    // Trigger a full garbage collection.
+    rpc TriggerFullGarbageCollection(TriggerFullGcRequest) returns (TriggerFullGcResponse);
 }

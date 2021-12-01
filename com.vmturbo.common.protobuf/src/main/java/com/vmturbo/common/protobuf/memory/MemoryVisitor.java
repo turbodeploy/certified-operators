@@ -344,11 +344,24 @@ public abstract class MemoryVisitor<T> {
          *         the other histogram and this histogram.
          */
         public String subtract(@Nonnull ClassHistogramSizeVisitor other) {
-            final Map<Class<?>, SizeAndCount> diff = new IdentityHashMap<>(classCounts.size());
+            return subtract(classCounts, other.classCounts);
+        }
+
+        /**
+         * Subtract b from a (a - b) to produce a stringified tabular results
+         * of the difference.
+         *
+         * @param a The minuend
+         * @param b The subtrahend
+         * @return The stringified histogram of differences (a - b).
+         */
+        public static String subtract(@Nonnull final Map<Class<?>, SizeAndCount> a,
+                                      @Nonnull final Map<Class<?>, SizeAndCount> b) {
+            final Map<Class<?>, SizeAndCount> diff = new IdentityHashMap<>(a.size());
 
             // Iterate keys in this object's classCounts
-            classCounts.forEach((klass, sizeAndCount) -> {
-                final SizeAndCount otherSizeAndCount = other.classCounts.get(klass);
+            a.forEach((klass, sizeAndCount) -> {
+                final SizeAndCount otherSizeAndCount = b.get(klass);
                 if (otherSizeAndCount == null) {
                     diff.put(klass, sizeAndCount);
                 } else {
@@ -362,10 +375,10 @@ public abstract class MemoryVisitor<T> {
             });
 
             // Iterate keys in the other's classCounts
-            other.classCounts.forEach((klass, sizeAndCount) -> {
+            b.forEach((klass, sizeAndCount) -> {
                 // We already accounted for keys in common. Now we just need to account for keys
                 // in the other but not in ours.
-                if (!classCounts.containsKey(klass)) {
+                if (!a.containsKey(klass)) {
                     diff.put(klass, new SizeAndCount(-sizeAndCount.totalSize, -sizeAndCount.count));
                 }
             });
@@ -742,6 +755,58 @@ public abstract class MemoryVisitor<T> {
     }
 
     /**
+     * Combines functionality of {@link MemoryGraphVisitor} and {@link ClassHistogramSizeVisitor}.
+     */
+    public static class MemoryGraphVisitorWithHistogram extends MemoryGraphVisitor {
+        private final Map<Class<?>, SizeAndCount> classCounts = new IdentityHashMap<>();
+
+        /**
+         * Construct a new {@link MemoryGraphVisitor}.
+         *
+         * @param exclusions        The objects to exclude during the walk.
+         * @param exclusionDepth    The depth at which to begin applying exclusions.
+         * @param maxDepth          The maximum depth to traverse to.
+         * @param logDepth          The maximum depth at which we will log any objects visited.
+         * @param retainDescendents Whether to retain descendants of objects deeper than the log
+         *                          depth. Useful for running additional analysis on visited objects
+         *                          beyond what is provided out of the backs through the
+         *                          {@link #tabularResults()} methods.
+         */
+        public MemoryGraphVisitorWithHistogram(@Nonnull Set<Object> exclusions,
+                                               int exclusionDepth,
+                                               int maxDepth,
+                                               int logDepth,
+                                               boolean retainDescendents) {
+            super(exclusions, exclusionDepth, maxDepth, logDepth, retainDescendents);
+        }
+
+        @Override
+        protected boolean handleVisit(@Nonnull Class<?> klass, long size, int depth,
+                                      boolean isExcluded, @Nullable MemoryReferenceNode data) {
+            super.handleVisit(klass, size, depth, isExcluded, data);
+
+            final long includedSize = isExcluded ? 0L : size;
+            classCounts.compute(klass, (k, v) -> v == null
+                ? new SizeAndCount(includedSize)
+                : v.increment(includedSize));
+            return true;
+        }
+
+        public Map<Class<?>, SizeAndCount> getClassCounts() {
+            return classCounts;
+        }
+
+        /**
+         * Get the histogram string for the visitor.
+         *
+         * @return the histogram string for the visitor.
+         */
+        public String histogram() {
+            return ClassHistogramSizeVisitor.stringify(classCounts, totalSize(), totalCount());
+        }
+    }
+
+    /**
      * A {@link MemoryVisitor} for finding the shortest path to instances of classes reachable from
      * a root set. Retains information about individual objects so has more significant overhead.
      * Use with {@link RelationshipMemoryWalker}.
@@ -951,7 +1016,7 @@ public abstract class MemoryVisitor<T> {
          * Construct a new {@link MemorySubgraph}.
          *
          * @param subgraphRoot            The object at the root of the subgraph.
-         * @param subgraphRootShallowSize The shallow size of the object at the root of the
+         * @param subgraphRootShallowSize The shallow size of the object at the root of the subgraph.
          * @param rootIsExcluded          True if the subgraph root is an excluded object
          */
         public MemorySubgraph(@Nonnull final MemoryReferenceNode subgraphRoot,
@@ -970,7 +1035,7 @@ public abstract class MemoryVisitor<T> {
          * @param descendant        The {@link MemoryReferenceNode} of the descendant object.
          * @param shallowSize       The shallow size of the descendant object.
          * @param isExcluded        true if the descendent is an excluded object
-         * @param retainDescendants Whether or not to retain the full descendant object or just
+         * @param retainDescendants Whether to retain the full descendant object or just
          *                          track its size as part of this subgraph.
          */
         public void addDescendant(@Nonnull final MemoryReferenceNode descendant,

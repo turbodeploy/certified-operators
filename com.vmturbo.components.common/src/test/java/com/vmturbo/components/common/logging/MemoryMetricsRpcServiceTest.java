@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.logging.MemoryMetrics.ListWalkableRootsRespon
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.ListWalkableRootsResponse.RootObject;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.MemoryMetricsConfiguration;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.MemoryMetricsConfiguration.ClassHistogram;
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.MemoryMetricsConfiguration.MemoryGraphAndHistogram;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.MemoryMetricsConfiguration.SizeAndCount;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectsRequest;
@@ -204,6 +205,33 @@ public class MemoryMetricsRpcServiceTest {
         assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
             containsString("MemoryMetricsRpcServiceTest$TestObject"));
         assertEquals(resp.getTotalResponseLines(), resp.getWalkResultsList().size());
+        assertTrue(resp.hasRequestDuration());
+    }
+
+    /**
+     * testWalkMemoryGraphAndHistogram.
+     */
+    @Test
+    public void testWalkMemoryGraphAndHistogram() {
+        final WalkRootObjectsRequest req = WalkRootObjectsRequest.newBuilder()
+            .setWalkConfiguration(MemoryMetricsConfiguration.newBuilder().setMemoryGraphAndHistogram(
+                MemoryGraphAndHistogram.newBuilder()
+                    .setLogDepth(2)
+                    .setMinimumLogSizeBytes(0)))
+            .addRootSetNames("foo")
+            .build();
+        final WalkRootObjectResponse resp = memoryMetricsService.walkRootObjects(req);
+
+        assertThat(resp.getWalkedRootNamesList(), contains("foo"));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
+            containsString("TOTAL"));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
+            containsString("MemoryMetricsRpcServiceTest$TestObject"));
+        assertEquals(resp.getTotalResponseLines(), resp.getWalkResultsList().size());
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
+            containsString("CHILD_COUNT"));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
+            containsString("foo.other.name"));
         assertTrue(resp.hasRequestDuration());
     }
 

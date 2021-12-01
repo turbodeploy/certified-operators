@@ -1,7 +1,9 @@
 package com.vmturbo.components.common.logging;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -24,6 +26,8 @@ import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.EnableHeapDumpRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.GetHeapDumpEnabledRequest;
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.TriggerFullGcRequest;
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.TriggerFullGcResponse;
 import com.vmturbo.common.protobuf.memory.HeapDumper;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -133,5 +137,23 @@ public class HeapDumpRpcServiceTest {
         assertEquals("foo", response.getResponseMessage());
         verify(heapDumper).dumpHeap(argument.capture());
         assertEquals(HeapDumpRpcService.DEFAULT_HEAP_DUMP_FILENAME, argument.getValue());
+    }
+
+    /**
+     * Test that calling will trigger a full garbage collection.
+     */
+    @Test
+    public void testTriggerFullGarbageCollection() {
+        heapDumpService = HeapDumpServiceGrpc.newBlockingStub(grpcServerDisabled.getChannel());
+        final TriggerFullGcResponse triggerFullGcResponse =
+            heapDumpService.triggerFullGarbageCollection(TriggerFullGcRequest.getDefaultInstance());
+
+        // Create an object and then release it to be garbage-collected.
+        Object obj = new Object();
+        obj = null;
+
+        // We should have been using more memory before Full GC tan after.
+        assertThat(triggerFullGcResponse.getBeforeGcHeapUsedBytes(),
+            greaterThan(triggerFullGcResponse.getAfterGcHeapUsedBytes()));
     }
 }

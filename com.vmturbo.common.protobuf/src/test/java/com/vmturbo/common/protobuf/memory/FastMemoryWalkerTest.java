@@ -1,7 +1,7 @@
 package com.vmturbo.common.protobuf.memory;
 
+import static com.vmturbo.common.protobuf.memory.HistogramHelpers.histResults;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertEquals;
@@ -9,17 +9,10 @@ import static org.junit.Assert.assertThat;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -29,6 +22,7 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.memory.HistogramHelpers.HistogramRow;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.ClassHistogramSizeVisitor;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.TotalSizesAndCountsVisitor;
 
@@ -66,17 +60,6 @@ public class FastMemoryWalkerTest {
             this.name = name;
         }
     }
-
-    /**
-     * histPattern.
-     *          SIZE        COUNT TYPE
-     *    368 Bytes           12 TOTAL
-     * 1  176 Bytes            4 [C
-     * 2   96 Bytes            4 java.lang.String
-     * 3   96 Bytes            4 com.vmturbo.common.protobuf.memory.FastMemoryWalkerTest$TestObject
-     */
-    private final Pattern histPattern = Pattern.compile(
-        "\\s+(?<index>\\d+)?\\s+(?<size>[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)\\s+(?<units>\\S+)\\s+(?<instanceCount>\\S+)\\s+(?<klassName>\\S+)");
 
     // Foo --> Baz--> Quux
     //                /
@@ -142,7 +125,7 @@ public class FastMemoryWalkerTest {
             .map(Class::getName)
             .collect(Collectors.toSet());
 
-        for (HistogramRow hr : histResults(histPattern.matcher(hist.toString()))) {
+        for (HistogramRow hr : histResults(hist.toString())) {
             if (hr.index.isPresent()) {
                 assertEquals(4, hr.instanceCount);
                 assertThat(hr.klassName, isIn(expectedClasses));
@@ -168,7 +151,7 @@ public class FastMemoryWalkerTest {
 
         final AtomicInteger index = new AtomicInteger();
         double size = hist.totalSize();
-        for (HistogramRow hr : histResults(histPattern.matcher(hist.toString()))) {
+        for (HistogramRow hr : histResults(hist.toString())) {
             hr.index.ifPresent(ndx -> assertEquals(index.get(), (int)ndx));
             assertThat(hr.size, lessThanOrEqualTo(size));
 
@@ -195,7 +178,7 @@ public class FastMemoryWalkerTest {
             char[].class.getName(), 1,
             String.class.getName(), 1
         );
-        for (HistogramRow hr : histResults(histPattern.matcher(hist.toString()))) {
+        for (HistogramRow hr : histResults(hist.toString())) {
             assertEquals((int)expectedCounts.get(hr.klassName), hr.instanceCount);
         }
     }
@@ -218,7 +201,7 @@ public class FastMemoryWalkerTest {
             char[].class.getName(), 3,
             String.class.getName(), 3
         );
-        for (HistogramRow hr : histResults(histPattern.matcher(hist.toString()))) {
+        for (HistogramRow hr : histResults(hist.toString())) {
             assertEquals((int)expectedCounts.get(hr.klassName), hr.instanceCount);
         }
     }
@@ -241,14 +224,9 @@ public class FastMemoryWalkerTest {
             char[].class.getName(), 0,
             String.class.getName(), 1
         );
-        for (HistogramRow hr : histResults(histPattern.matcher(hist.toString()))) {
+        for (HistogramRow hr : histResults(hist.toString())) {
             assertEquals((int)expectedCounts.get(hr.klassName), hr.instanceCount);
         }
-    }
-
-    private static Iterable<HistogramRow> histResults(@Nonnull final Matcher matcher) {
-        final Iterator<HistogramRow> it = new HistIterator(matcher);
-        return () -> it;
     }
 
     /**
@@ -303,46 +281,5 @@ public class FastMemoryWalkerTest {
         final String difference = histB.subtract(histA);
         // We should have 3 extra objects in the histB histogram (a TestObject, a String, and a char[])
         assertThat(difference, containsString("-3 TOTAL"));
-    }
-
-    /**
-     * HistIterator.
-     */
-    private static class HistIterator implements Iterator<HistogramRow> {
-        private final Matcher matcher;
-
-        private HistIterator(@Nonnull final Matcher matcher) {
-            this.matcher = Objects.requireNonNull(matcher);
-        }
-
-        @Override
-        public boolean hasNext() {
-            return matcher.find();
-        }
-
-        @Override
-        public HistogramRow next() {
-            return new HistogramRow(matcher);
-        }
-    }
-
-    /**
-     * HistogramRow.
-     */
-    private static class HistogramRow {
-        final Optional<Integer> index;
-        final double size;
-        final String units;
-        final int instanceCount;
-        final String klassName;
-
-        private HistogramRow(@Nonnull final Matcher matcher) {
-            assertThat(matcher.groupCount(), greaterThanOrEqualTo(5)); // 4 or 5 fields, and match 0 is the entire string that matched
-            index = Optional.ofNullable(matcher.group("index")).map(Integer::parseInt);
-            size = Double.parseDouble(matcher.group("size"));
-            units = matcher.group("units");
-            instanceCount = Integer.parseInt(matcher.group("instanceCount").replace(",", ""));
-            klassName = matcher.group("klassName");
-        }
     }
 }
