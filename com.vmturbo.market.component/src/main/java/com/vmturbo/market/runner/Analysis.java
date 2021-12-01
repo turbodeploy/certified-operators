@@ -1006,7 +1006,7 @@ public class Analysis {
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
         factory.newDiagsCollector(topologyInfo.getTopologyContextId()
                 + "-" + topologyInfo.getTopologyId(), AnalysisMode.M2).ifPresent(diagsCollector -> {
-            diagsCollector.saveAnalysis(traderTOs, topologyInfo, config, commSpecsToAdjustOverhead);
+            diagsCollector.saveAnalysis(traderTOs.stream().collect(Collectors.toList()), topologyInfo, config, commSpecsToAdjustOverhead);
         });
     }
 
