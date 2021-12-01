@@ -223,19 +223,19 @@ public class IntersightLicenseCountUpdater {
                     // all of the others will be zeroed out.
                     // Discussed with Intersight license team, we will only update the "primary"license to avoid count overwritten
                     // the primary license will receive the actual workload count.
-                        LicenseLicenseInfo license = targetLicenses.get(0);
-                        try {
-                            uploadWorkloadCount(license, workloadCountInfo.getWorkloadCount());
-                        } catch (ApiException ae) {
-                            // log some additional info specific to the Intersight API errors that may help
-                            // debugging.
-                            logger.error("API error while {} uploading workload count.",
-                                    IntersightLicenseUtils.describeApiError(ae), ae);
-                        } catch (Exception e) {
-                            logger.error("Error while uploading workload count.", e);
-                        }
+                    LicenseLicenseInfo license = targetLicenses.get(0);
+                    try {
+                        uploadWorkloadCount(license, workloadCountInfo.getWorkloadCount());
+                    } catch (ApiException ae) {
+                        // log some additional info specific to the Intersight API errors that may help
+                        // debugging.
+                        logger.error("API error while {} uploading workload count.",
+                                IntersightLicenseUtils.describeApiError(ae), ae);
+                    } catch (Exception e) {
+                        logger.error("Error while uploading workload count.", e);
+                    }
                     // update the consul workload tracking values.
-                    updateLastPublishedWorkloadCountInfo(workloadCountInfo, targetLicenses.get(0));
+                    updateLastPublishedWorkloadCountInfo(workloadCountInfo, license);
                 }
             } catch (RuntimeException rte) {
                 logger.error("Error running license count updates.", rte);
@@ -290,24 +290,7 @@ public class IntersightLicenseCountUpdater {
         }
 
         logger.info("Updating license {} licenseCount to {}", licenseToUpdate.getMoid(), newCount);
-
-        // publish the new count
-        // we'll need to create and edited version of the LicenseInfo object with the new LicenseCount
-        // assigned. Since this field is not directly editable, we will make our edit through json.
-        // TODO: We *should* be allowed to use licenseInfo.setLicenseCount(x) method directly if/when
-        // the IWO back end model is updated to mark this field as read-write instead of read-only.
-
-        ObjectMapper jsonMapper = intersightLicenseClient.getApiClient().getJSON().getMapper();
-        // The flow will be: LicenseLicenseInfo -> json -> json w/license count -> LicenseLicenseInfo w/license count
-        JSONObject editableJson = new JSONObject();
-        editableJson.put("ClassId", "license.LicenseInfo");
-        editableJson.put("LicenseType", licenseToUpdate.getLicenseType().getValue());
-        editableJson.put("LicenseState", licenseToUpdate.getLicenseState().getValue());
-        editableJson.put("LicenseCount", newCount);
-        String editedJson = editableJson.toString();
-        LicenseLicenseInfo editedLicenseInfo = jsonMapper.readValue(editedJson, LicenseLicenseInfo.class);
-
-        LicenseLicenseInfo responseInfo = intersightLicenseClient.updateLicenseLicenseInfo(licenseToUpdate.getMoid(), editedLicenseInfo);
+        intersightLicenseClient.updateIwoLicenseCount(newCount);
     }
 
     /**
