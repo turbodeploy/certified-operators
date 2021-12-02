@@ -19,6 +19,13 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -39,16 +46,24 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test to cover {@link GroupDAO} search functionality. This is pretty large a set of tests
  * so they are just extracted to this file of the sake of organization.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class GroupDaoSearchTest {
 
     /**
@@ -68,6 +83,22 @@ public class GroupDaoSearchTest {
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    /**
+     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    @Autowired(required = false)
+    private TestGroupDBEndpointConfig dbEndpointConfig;
 
     private GroupDAO groupStore;
     private static final long OWNER_ID = 4566L;
@@ -89,8 +120,14 @@ public class GroupDaoSearchTest {
      */
     @Before
     public void setup() throws Exception {
-        final DSLContext dslContext = dbConfig.getDslContext();
-        groupStore = new GroupDAO(dslContext, new GroupPaginationParams(100, 500));
+        final DSLContext dsl;
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
+            dsl = dbEndpointConfig.groupEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        groupStore = new GroupDAO(dsl, new GroupPaginationParams(100, 500));
 
         final Origin userOrigin = createUserOrigin();
         final Origin systemOrigin = createSystemOrigin();

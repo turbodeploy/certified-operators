@@ -1,9 +1,12 @@
 package com.vmturbo.group.diagnostics;
 
+import java.sql.SQLException;
+
 import com.google.common.collect.Lists;
 
 import io.prometheus.client.CollectorRegistry;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,7 +17,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.group.GroupDaoDiagnostics;
 import com.vmturbo.group.group.pagination.GroupPaginationConfig;
@@ -23,6 +26,7 @@ import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Configuration for group component diagnostics.
@@ -59,7 +63,7 @@ public class GroupDiagnosticsConfig {
     private RpcConfig rpcConfig;
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Bean
     public DiagsZipReaderFactory recursiveZipReaderFactory() {
@@ -73,14 +77,21 @@ public class GroupDiagnosticsConfig {
 
     @Bean
     public DiagnosticsHandlerImportable diagsHandler() {
-        return new TransactionalDiagnosticsHandlerImportable(recursiveZipReaderFactory(),
-                Lists.newArrayList(groupStoreDiagnostics(), scheduleConfig.scheduleStore(),
-                        policyConfig.policyStore(),
-                        settingConfig.settingStore(),
-                        topologyDataDefConfig.topologyDataDefinitionStore(),
-                        topologyDataDefConfig.persistentTopologyDataDefinitionIdentityStore(),
-                        prometheusDiagnisticsProvider()),
-                databaseConfig.dsl());
+        try {
+            return new TransactionalDiagnosticsHandlerImportable(recursiveZipReaderFactory(),
+                    Lists.newArrayList(groupStoreDiagnostics(), scheduleConfig.scheduleStore(),
+                            policyConfig.policyStore(),
+                            settingConfig.settingStore(),
+                            topologyDataDefConfig.topologyDataDefinitionStore(),
+                            topologyDataDefConfig.persistentTopologyDataDefinitionIdentityStore(),
+                            prometheusDiagnisticsProvider()),
+                    databaseConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create DiagnosticsHandlerImportable", e);
+        }
     }
 
     @Bean

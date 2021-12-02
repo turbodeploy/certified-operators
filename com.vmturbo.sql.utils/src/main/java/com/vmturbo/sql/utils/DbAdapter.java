@@ -553,18 +553,10 @@ public abstract class DbAdapter {
      * <p>This is intended primarily for use in tests, to reset a test database to an initial
      * state prior to each test execution.</p>
      *
-     * @throws UnsupportedDialectException If the endpoint is mis-configured
-     * @throws SQLException                if a DB operation fails
+     * @param conn the connection to use
+     * @throws SQLException if a DB operation fails
      */
-    public void truncateAllTables() throws UnsupportedDialectException, SQLException {
-        try (Connection conn = getNonRootConnection()) {
-            for (final String table : getAllTableNames(conn)) {
-                try (Statement statement = conn.createStatement()) {
-                    statement.execute(String.format("TRUNCATE TABLE %s", quote(table)));
-                }
-            }
-        }
-    }
+    public abstract void truncateAllTables(Connection conn) throws SQLException;
 
     protected abstract Collection<String> getAllTableNames(Connection conn) throws SQLException;
 

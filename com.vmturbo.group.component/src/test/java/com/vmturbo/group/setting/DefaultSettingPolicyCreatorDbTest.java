@@ -11,10 +11,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import org.jooq.DSLContext;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
@@ -32,9 +41,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
@@ -45,10 +56,16 @@ import com.vmturbo.group.service.TransactionProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests {@link DefaultSettingPolicyCreator} class with actual db interactions.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class DefaultSettingPolicyCreatorDbTest {
 
     private static final String WORKFLOW_SETTING = "resizeVmemUpInBetweenThresholdsActionWorkflow";
@@ -67,6 +84,7 @@ public class DefaultSettingPolicyCreatorDbTest {
      */
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
+
     /**
      * Rule to automatically cleanup DB data before each test.
      */
@@ -78,6 +96,38 @@ public class DefaultSettingPolicyCreatorDbTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    /**
+     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    @Autowired(required = false)
+    private TestGroupDBEndpointConfig dbEndpointConfig;
+
+    DSLContext dsl;
+
+    /**
+     * Initialize local variables.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Before
+    public void setup() throws Exception {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
+            dsl = dbEndpointConfig.groupEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+    }
 
     /**
      * Tests a case where defaults settings get created in db for the first time. Then, it
@@ -96,15 +146,14 @@ public class DefaultSettingPolicyCreatorDbTest {
         when(specStore.getAllSettingSpecs()).thenReturn(specList);
         IdentityProvider identityProvider = new IdentityProvider(0);
 
-        final SettingStore settingStore = new SettingStore(specStore,
-            dbConfig.getDslContext(),
+        final SettingStore settingStore = new SettingStore(specStore, dsl,
             mock(SettingPolicyValidator.class), mock(SettingsUpdatesSender.class));
 
-        final ScheduleStore scheduleStore = new ScheduleStore(dbConfig.getDslContext(),
+        final ScheduleStore scheduleStore = new ScheduleStore(dsl,
             mock(ScheduleValidator.class), identityProvider);
 
         final TransactionProvider transactionProvider = new TransactionProviderImpl(settingStore,
-            dbConfig.getDslContext(), identityProvider, new GroupPaginationParams(100, 500));
+                dsl, identityProvider, new GroupPaginationParams(100, 500));
 
         // ACT
 

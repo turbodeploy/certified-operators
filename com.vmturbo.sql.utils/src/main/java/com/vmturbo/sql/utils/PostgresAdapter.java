@@ -355,6 +355,15 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     @Override
+    public void truncateAllTables(Connection conn) throws SQLException {
+        for (final String table : getAllTableNames(conn)) {
+            try (Statement statement = conn.createStatement()) {
+                statement.execute(String.format("TRUNCATE TABLE %s CASCADE", quote(table)));
+            }
+        }
+    }
+
+    @Override
     protected Collection<String> getAllTableNames(Connection conn) throws SQLException {
         try (Statement statement = conn.createStatement();
              ResultSet results = statement.executeQuery(String.format(

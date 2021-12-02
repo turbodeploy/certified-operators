@@ -143,6 +143,18 @@ class MySqlFamilyAdapter extends DbAdapter {
     }
 
     @Override
+    public void truncateAllTables(Connection conn) throws SQLException {
+        for (final String table : getAllTableNames(conn)) {
+            try (Statement statement = conn.createStatement()) {
+                // Workaround to be able to truncate tables.
+                statement.execute("SET FOREIGN_KEY_CHECKS = 0;");
+                statement.execute(String.format("TRUNCATE TABLE %s", quote(table)));
+                statement.execute("SET FOREIGN_KEY_CHECKS = 1;");
+            }
+        }
+    }
+
+    @Override
     protected Collection<String> getAllTableNames(final Connection conn) throws SQLException {
         try (Statement statement = conn.createStatement();
              ResultSet results = statement.executeQuery(String.format(

@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -16,19 +17,37 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTags;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.group.GroupDBEndpointConfig;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test the user defined entity tags store.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class EntityCustomTagsStoreTest {
 
     /**
@@ -37,11 +56,27 @@ public class EntityCustomTagsStoreTest {
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
 
+    @Autowired(required = false)
+    private TestGroupDBEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to automatically cleanup DB data before each test.
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
 
     private EntityCustomTagsStore entityCustomTagsStore;
 
@@ -65,11 +100,20 @@ public class EntityCustomTagsStoreTest {
 
     /**
      * Initialize the context and the store.
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
      */
     @Before
-    public void setup() {
-        final DSLContext dslContext = dbConfig.getDslContext();
-        entityCustomTagsStore = new EntityCustomTagsStore(dslContext);
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
+        DSLContext dsl;
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
+            dsl = dbEndpointConfig.groupEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        entityCustomTagsStore = new EntityCustomTagsStore(dsl);
     }
 
     /**
@@ -257,4 +301,11 @@ public class EntityCustomTagsStoreTest {
                 Arrays.asList(tagName1)
         );
     }
+
+    /**
+     * Test Endpoint.
+     */
+    @Configuration
+    public static class TestGroupDBEndpointConfig
+            extends GroupDBEndpointConfig {}
 }

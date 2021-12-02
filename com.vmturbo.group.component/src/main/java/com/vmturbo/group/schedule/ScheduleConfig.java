@@ -1,22 +1,26 @@
 package com.vmturbo.group.schedule;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.IdentityProviderConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration of Schedule backend.
  */
 @Configuration
-@Import({GroupComponentDBConfig.class,  IdentityProviderConfig.class})
+@Import({DbAccessConfig.class,  IdentityProviderConfig.class})
 public class ScheduleConfig {
     /** Database config. */
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     /** Identity provider config. */
     @Autowired
@@ -36,11 +40,18 @@ public class ScheduleConfig {
      * @return An instance of {@link ScheduleStore}
      */
     public ScheduleStore scheduleStore() {
-        return new ScheduleStore(
-            databaseConfig.dsl(),
-            scheduleValidator(),
-            identityProviderConfig.identityProvider()
-        );
+        try {
+            return new ScheduleStore(
+                databaseConfig.dsl(),
+                scheduleValidator(),
+                identityProviderConfig.identityProvider()
+            );
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ScheduleStore", e);
+        }
     }
 
 }
