@@ -32,6 +32,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.EntityUptimeApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -72,6 +73,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 /**
  * Unit tests for {@link CloudAspectMapper}.
@@ -145,7 +147,8 @@ public class CloudAspectMapperTest {
                                 .setDriverInfo(DriverInfo.newBuilder()
                                         .setHasEnaDriver(true)
                                         .setHasNvmeDriver(true))
-                                .setBillingType(VMBillingType.RESERVED)))
+                                .setBillingType(VMBillingType.RESERVED)
+                                .setTenancy(CloudCostDTO.Tenancy.HOST)))
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
                         .setProviderId(COMPUTE_TIER_OID));
@@ -275,6 +278,7 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(TOTAL_ANALYZED_DURATION, entityUptime.getTotalDurationInMilliseconds());
         Assert.assertEquals(UPTIME_PERCENTAGE, entityUptime.getUptimePercentage(), DELTA);
         Assert.assertEquals(CREATION_TIMESTAMP, entityUptime.getCreationTimestamp());
+        Assert.assertEquals(Tenancy.getByName(CloudCostDTO.Tenancy.HOST.name()).get(), aspect.getTenancy());
     }
 
     /**
