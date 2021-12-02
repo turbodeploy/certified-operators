@@ -1,7 +1,9 @@
 package com.vmturbo.group.service;
 
+import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -22,7 +24,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyService
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.entitytags.EntityCustomTagsConfig;
 import com.vmturbo.group.group.GroupConfig;
@@ -37,11 +39,12 @@ import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
-        GroupComponentDBConfig.class,
+        DbAccessConfig.class,
         GroupConfig.class,
         GroupPaginationConfig.class,
         IdentityProviderConfig.class,
@@ -62,7 +65,7 @@ public class RpcConfig {
     private long groupLoadTimeoutSec;
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private GroupConfig groupConfig;
@@ -132,9 +135,16 @@ public class RpcConfig {
 
     @Bean
     public TransactionProvider transactionProvider() {
-        return new TransactionProviderImpl(settingConfig.settingStore(), databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(),
-                groupPaginationConfig.groupPaginationParams());
+        try {
+            return new TransactionProviderImpl(settingConfig.settingStore(), databaseConfig.dsl(),
+                    identityProviderConfig.identityProvider(),
+                    groupPaginationConfig.groupPaginationParams());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create TransactionProvider", e);
+        }
     }
 
     /**

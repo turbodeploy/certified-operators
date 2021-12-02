@@ -27,6 +27,7 @@ import net.jpountz.xxhash.XXHashFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -217,7 +218,9 @@ public class DbEndpointTestRule implements TestRule {
                 endpoint.awaitCompletion(30L, TimeUnit.SECONDS);
             } else {
                 if (endpoint.getConfig().getAccess().isWriteAccess()) {
-                    endpoint.getAdapter().truncateAllTables();
+                    try (DSLContext dslContext = endpoint.dslContext()) {
+                        dslContext.connection(conn -> endpoint.getAdapter().truncateAllTables(conn));
+                    }
                 }
             }
             this.endpoints.add(endpoint);

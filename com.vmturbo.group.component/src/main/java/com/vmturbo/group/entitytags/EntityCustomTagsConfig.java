@@ -1,21 +1,25 @@
 package com.vmturbo.group.entitytags;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Configuration for EntityCustomTags RPC Service.
  */
 @Configuration
-@Import({GroupComponentDBConfig.class})
+@Import({DbAccessConfig.class})
 public class EntityCustomTagsConfig {
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     /**
      * Create a EntityCustomTagsStore from the db context.
@@ -24,6 +28,13 @@ public class EntityCustomTagsConfig {
      */
     @Bean
     public EntityCustomTagsStore entityCustomTagsStore() {
-        return new EntityCustomTagsStore(databaseConfig.dsl());
+        try {
+            return new EntityCustomTagsStore(databaseConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntityCustomTagsStore", e);
+        }
     }
 }

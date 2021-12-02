@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,13 +34,21 @@ import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
+import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.BadSqlGrammarException;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
@@ -74,9 +83,11 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
+import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
@@ -85,10 +96,17 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test to cover {@link GroupDAO} functionality.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class GroupDaoTest {
     /**
      * Rule to create the DB schema and migrate it.
@@ -118,16 +136,42 @@ public class GroupDaoTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    /**
+     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    @Autowired(required = false)
+    private TestGroupDBEndpointConfig dbEndpointConfig;
+
+    DSLContext dsl;
     private GroupDAO groupStore;
     private TestGroupGenerator groupGenerator;
 
     /**
      * Initialize local variables.
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
      */
     @Before
-    public void setup() {
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
+            dsl = dbEndpointConfig.groupEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
         this.groupGenerator = new TestGroupGenerator();
-        groupStore = new GroupDAO(dbConfig.getDslContext(), new GroupPaginationParams(100, 500));
+        groupStore = new GroupDAO(dsl, new GroupPaginationParams(100, 500));
     }
 
     /**
@@ -2737,28 +2781,25 @@ public class GroupDaoTest {
                 mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         // THEN
-        Assert.assertEquals(Integer.valueOf(1), dbConfig.getDslContext().selectCount()
+        Assert.assertEquals(Integer.valueOf(1), dsl.selectCount()
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetchOne().value1());
-        Assert.assertEquals(Long.valueOf(groupOid), dbConfig.getDslContext()
+        Assert.assertEquals(Long.valueOf(groupOid), dsl
                 .select(GROUP_SUPPLEMENTARY_INFO.GROUP_ID)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1());
         Assert.assertEquals(EnvironmentType.ON_PREM, EnvironmentType.forNumber(
-                dbConfig.getDslContext()
-                        .select(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE)
+                dsl.select(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE)
                         .from(GROUP_SUPPLEMENTARY_INFO)
                         .fetch().get(0).value1()));
         Assert.assertEquals(CloudType.UNKNOWN_CLOUD, CloudType.forNumber(
-                dbConfig.getDslContext()
-                        .select(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE)
+                dsl.select(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE)
                         .from(GROUP_SUPPLEMENTARY_INFO)
                         .fetch().get(0).value1()));
-        Assert.assertEquals(false, dbConfig.getDslContext()
-                .select(GROUP_SUPPLEMENTARY_INFO.EMPTY)
+        Assert.assertEquals(false, dsl.select(GROUP_SUPPLEMENTARY_INFO.EMPTY)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1());
-        Assert.assertEquals(Severity.NORMAL, Severity.forNumber(dbConfig.getDslContext()
+        Assert.assertEquals(Severity.NORMAL, Severity.forNumber(dsl
                 .select(GROUP_SUPPLEMENTARY_INFO.SEVERITY)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1()));
@@ -2803,28 +2844,25 @@ public class GroupDaoTest {
                 mockEnvironment(EnvironmentType.CLOUD, CloudType.AZURE),
                 Severity.MAJOR);
         // THEN
-        Assert.assertEquals(Integer.valueOf(1), dbConfig.getDslContext().selectCount()
+        Assert.assertEquals(Integer.valueOf(1), dsl.selectCount()
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetchOne().value1());
-        Assert.assertEquals(Long.valueOf(groupOid), dbConfig.getDslContext()
+        Assert.assertEquals(Long.valueOf(groupOid), dsl
                 .select(GROUP_SUPPLEMENTARY_INFO.GROUP_ID)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1());
         Assert.assertEquals(EnvironmentType.CLOUD, EnvironmentType.forNumber(
-                dbConfig.getDslContext()
-                        .select(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE)
+                dsl.select(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE)
                         .from(GROUP_SUPPLEMENTARY_INFO)
                         .fetch().get(0).value1()));
         Assert.assertEquals(CloudType.AZURE, CloudType.forNumber(
-                dbConfig.getDslContext()
-                        .select(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE)
+                dsl.select(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE)
                         .from(GROUP_SUPPLEMENTARY_INFO)
                         .fetch().get(0).value1()));
-        Assert.assertEquals(true, dbConfig.getDslContext()
-                .select(GROUP_SUPPLEMENTARY_INFO.EMPTY)
+        Assert.assertEquals(true, dsl.select(GROUP_SUPPLEMENTARY_INFO.EMPTY)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1());
-        Assert.assertEquals(Severity.MAJOR, Severity.forNumber(dbConfig.getDslContext()
+        Assert.assertEquals(Severity.MAJOR, Severity.forNumber(dsl
                 .select(GROUP_SUPPLEMENTARY_INFO.SEVERITY)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1()));
@@ -2872,8 +2910,7 @@ public class GroupDaoTest {
         groupStore.updateBulkGroupSupplementaryInfo(groupsToUpdate);
 
         // THEN
-        Map<Long, GroupSupplementaryInfo> retrievedGroups = dbConfig.getDslContext()
-                .select()
+        Map<Long, GroupSupplementaryInfo> retrievedGroups = dsl.select()
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetchInto(GroupSupplementaryInfo.class)
                 .stream()
@@ -2947,8 +2984,7 @@ public class GroupDaoTest {
         groupStore.updateBulkGroupsSeverity(groupsToUpdate);
 
         // THEN
-        Map<Long, GroupSupplementaryInfo> retrievedGroups = dbConfig.getDslContext()
-                .select()
+        Map<Long, GroupSupplementaryInfo> retrievedGroups = dsl.select()
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetchInto(GroupSupplementaryInfo.class)
                 .stream()

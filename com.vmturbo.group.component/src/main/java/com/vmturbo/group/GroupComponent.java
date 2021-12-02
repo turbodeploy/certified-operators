@@ -1,5 +1,6 @@
 package com.vmturbo.group;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -14,6 +15,7 @@ import io.grpc.ServerInterceptor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +24,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.group.diagnostics.GroupDiagnosticsConfig;
 import com.vmturbo.group.pipeline.PipelineConfig;
@@ -30,6 +32,7 @@ import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Main component configuration for the Group Component. Manages groups and policies.
@@ -39,7 +42,7 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
         RpcConfig.class,
         SettingConfig.class,
         ScheduleConfig.class,
-        GroupComponentDBConfig.class,
+        DbAccessConfig.class,
         GroupApiSecurityConfig.class,
         GroupDiagnosticsConfig.class,
         PlanOrchestratorClientConfig.class,
@@ -54,7 +57,7 @@ public class GroupComponent extends BaseVmtComponent {
     private RpcConfig rpcConfig;
 
     @Autowired
-    private GroupComponentDBConfig dbConfig;
+    private DbAccessConfig dbConfig;
 
     @Autowired
     private SettingConfig settingConfig;
@@ -77,17 +80,21 @@ public class GroupComponent extends BaseVmtComponent {
     private int arangoHealthCheckIntervalSeconds;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
-    private int mariaHealthCheckIntervalSeconds;
+    private int mariadbHealthCheckIntervalSeconds;
 
     @PostConstruct
     private void setup() {
-        logger.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-            dbConfig.dataSource()::getConnection));
-
-        if (dbConfig.isDbMonitorEnabled()) {
-            dbConfig.startDbMonitor();
+        try {
+            logger.info("Adding {} health check to the component health monitor.", dbConfig.dsl().dialect().getName());
+            getHealthMonitor().addHealthCheck(
+                    new SQLDBHealthMonitor(dbConfig.dsl().dialect().getName(), mariadbHealthCheckIntervalSeconds, dbConfig.dataSource()::getConnection));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create SQLDBHealthMonitor", e);
         }
+        dbConfig.startDbMonitor();
     }
 
     @Override

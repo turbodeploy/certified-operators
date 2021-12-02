@@ -22,14 +22,23 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinitionEntry;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.identity.store.CachingIdentityStore;
@@ -37,10 +46,16 @@ import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests for TopologyDataDefinitionStore.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class TopologyDataDefinitionStoreTest {
 
     private IdentityStore<TopologyDataDefinition> topologyDataDefinitionIdentityStore;
@@ -94,6 +109,24 @@ public class TopologyDataDefinitionStoreTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     /**
+     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    @Autowired(required = false)
+    private TestGroupDBEndpointConfig dbEndpointConfig;
+
+    private DSLContext dsl;
+
+    /**
      * Create a new identity store and a new topologyDataDefinitionStore.
      *
      * @throws Exception if there is a problem creating the entities we are trying to create in the
@@ -101,12 +134,18 @@ public class TopologyDataDefinitionStoreTest {
      */
     @Before
     public void setup() throws Exception {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
+            dsl = dbEndpointConfig.groupEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
         topologyDataDefinitionIdentityStore =
             new CachingIdentityStore<>(
                 new TopologyDataDefinitionAttributeExtractor(),
-                new PersistentTopologyDataDefinitionIdentityStore(dbConfig.getDslContext()),
+                new PersistentTopologyDataDefinitionIdentityStore(dsl),
                 new IdentityInitializer(IDENTITY_INITIALIZER_PREFIX));
-        topologyDataDefinitionStore = new TopologyDataDefinitionStore(dbConfig.getDslContext(),
+        topologyDataDefinitionStore = new TopologyDataDefinitionStore(dsl,
             topologyDataDefinitionIdentityStore, groupStore);
         when(groupStore.getExpectedMemberTypes(any(DSLContext.class), anyCollection())).thenReturn(
                 HashBasedTable.create());
@@ -284,7 +323,7 @@ public class TopologyDataDefinitionStoreTest {
         // confirm that we now have 3 topology data definitions
         Assert.assertEquals(3,
                 topologyDataDefinitionStore.getAllTopologyDataDefinitions().size());
-        topologyDataDefinitionStore.restoreDiags(diags.getAllValues(), dbConfig.getDslContext());
+        topologyDataDefinitionStore.restoreDiags(diags.getAllValues(), dsl);
         // we should only have the orginal two definitions - not the third definition created after
         // the capture but before the restore.
         Assert.assertEquals(2,
