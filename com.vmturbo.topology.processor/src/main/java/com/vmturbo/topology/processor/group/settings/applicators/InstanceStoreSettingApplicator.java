@@ -15,11 +15,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTOREST.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -98,23 +100,28 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
     }
 
     /**
-     * Checks whether specified setting is applicable for the entity.
+     * Checks whether specified setting is applicable for the entity (VM).
      *
      * @param entity for which we want to try to apply the setting.
      * @param setting that we want to apply for the entity.
      * @return {@code true} in case setting is applicable for entity, otherwise returns
      *                 {@code false}.
      */
-    private static boolean isApplicable(@Nonnull Builder entity, @Nonnull Setting setting) {
-        // Check that setting is active and enabled
-        if (!setting.hasBooleanSettingValue()) {
+    @VisibleForTesting
+    public static boolean isApplicable(@Nonnull Builder entity, @Nonnull Setting setting) {
+        // Check whether entity has the proper type (supported for VMs only).
+        if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE.getNumber()) {
             return false;
         }
-        if (!setting.getBooleanSettingValue().getValue()) {
-            return false;
+        // If local SSD based execution constraints are marked (only for GCP VMs with local SSDs),
+        // then perform instance store aware based scaling, irrespective of the policy flag.
+        final String executionConstraint = entity.getEntityPropertyMapMap()
+                .get(TopologyDTOUtil.EXECUTION_CONSTRAINT_PROPERTY);
+        if (PrerequisiteType.LOCAL_SSD_ATTACHED.name().equals(executionConstraint)) {
+            return true;
         }
-        // Check whether entity has the proper type
-        return entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber();
+        // Otherwise, (e.g for AWS VMs) check that policy setting is active and enabled.
+        return setting.hasBooleanSettingValue() && setting.getBooleanSettingValue().getValue();
     }
 
     private void populateInstanceStoreCommodities(@Nonnull Builder entity) {
@@ -150,10 +157,12 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
      * @param computeTierInfo If not available from VM, gets it from Compute Tier's info.
      * @return Ephemeral storage used count, or 0.
      */
-    private static int getUsedEphemeralDisks(@Nonnull final TopologyEntityDTO.Builder vmBuilder,
+    @VisibleForTesting
+    public static int getUsedEphemeralDisks(@Nonnull final TopologyEntityDTO.Builder vmBuilder,
             @Nonnull final ComputeTierInfo computeTierInfo) {
         final Integer vmEphemeralDisks = vmBuilder.hasTypeSpecificInfo()
                 && vmBuilder.getTypeSpecificInfo().hasVirtualMachine()
+                && vmBuilder.getTypeSpecificInfo().getVirtualMachine().hasNumEphemeralStorages()
                 ? vmBuilder.getTypeSpecificInfo().getVirtualMachine().getNumEphemeralStorages()
                 : null;
         if (vmEphemeralDisks != null) {

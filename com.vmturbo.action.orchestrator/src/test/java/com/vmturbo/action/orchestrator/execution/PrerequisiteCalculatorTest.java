@@ -2,6 +2,8 @@ package com.vmturbo.action.orchestrator.execution;
 
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.IgnoreNvmePreRequisite;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
@@ -570,5 +572,45 @@ public class PrerequisiteCalculatorTest {
             .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
                 .setComputeTier(ActionComputeTierInfo.newBuilder()
                     .setNumCores(numCores).setQuotaFamily(quotaFamily))).build();
+    }
+
+    /**
+     * Checks to make sure the GCP Local SSD prerequisite is created correctly based on fields
+     * being set correctly in ActionVirtualMachineInfo.
+     */
+    @Test
+    public void calculateGcpLocalSsdPrerequisite() {
+        final ActionComputeTierInfo computeTierInfo = ActionComputeTierInfo.newBuilder().build();
+        final Map<String, Setting> settingsMap = Collections.emptyMap();
+        final ActionVirtualMachineInfo.Builder actionVmInfoBuilder = ActionVirtualMachineInfo.newBuilder();
+
+        // No ephemeral disks and no execution constraint set.
+        Optional<Prerequisite> noPrerequisite1 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
+                actionVmInfoBuilder.build(), computeTierInfo, settingsMap);
+        assertFalse(noPrerequisite1.isPresent());
+
+        // Non-0 ephemeral disks, but no execution constraint set.
+        int ephemeralDiskCount = 4;
+        Optional<Prerequisite> noPrerequisite2 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
+                actionVmInfoBuilder.setAttachedEphemeralVolumes(ephemeralDiskCount)
+                        .build(), computeTierInfo, settingsMap);
+        assertFalse(noPrerequisite2.isPresent());
+
+        // Non-0 ephemeral disks, but constraint set to something else, other than local SSD.
+        Optional<Prerequisite> noPrerequisite3 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
+                actionVmInfoBuilder.setAttachedEphemeralVolumes(ephemeralDiskCount)
+                        .setExecutionConstraint("something else")
+                        .build(), computeTierInfo, settingsMap);
+        assertFalse(noPrerequisite3.isPresent());
+
+        // Both ephemeral disk counts and execution constraint set correctly.
+        Optional<Prerequisite> yesPrerequisite4 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
+                actionVmInfoBuilder.setAttachedEphemeralVolumes(ephemeralDiskCount)
+                        .setExecutionConstraint(PrerequisiteType.LOCAL_SSD_ATTACHED.name())
+                        .build(), computeTierInfo, settingsMap);
+        assertTrue(yesPrerequisite4.isPresent());
+        final Prerequisite prerequisite = yesPrerequisite4.get();
+        assertEquals(ephemeralDiskCount, prerequisite.getAttachedEphemeralVolumes());
+        assertEquals(PrerequisiteType.LOCAL_SSD_ATTACHED, prerequisite.getPrerequisiteType());
     }
 }
