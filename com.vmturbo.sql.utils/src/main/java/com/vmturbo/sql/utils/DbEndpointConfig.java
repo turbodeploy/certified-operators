@@ -1,5 +1,6 @@
 package com.vmturbo.sql.utils;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -45,6 +46,7 @@ public class DbEndpointConfig {
     private Function<String, String> identifierMangler;
     private Boolean shouldProvisionDatabase;
     private Boolean shouldProvisionUser;
+    private List<DbPlugin> plugins;
     private boolean isAbstract;
 
     DbEndpointConfig(final String name) {
@@ -323,6 +325,14 @@ public class DbEndpointConfig {
      */
     public void setKeepAliveIntervalMinutes(int keepAliveIntervalMinutes) {
         this.keepAliveIntervalMinutes = keepAliveIntervalMinutes;
+    }
+
+    public List<DbPlugin> getPlugins() {
+        return plugins;
+    }
+
+    public void setPlugins(List<DbPlugin> plugins) {
+        this.plugins = plugins;
     }
 
     @Override
