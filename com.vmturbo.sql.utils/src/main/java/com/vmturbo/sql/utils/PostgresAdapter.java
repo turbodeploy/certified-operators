@@ -225,6 +225,7 @@ public class PostgresAdapter extends DbAdapter {
             // and that prevents it being installed in the endpoint schema, where we want it.
             execute(conn, "DROP SCHEMA IF EXISTS public CASCADE");
             execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"", config.getSchemaName()));
+            setupTimescaleDb();
         }
     }
 
@@ -286,12 +287,21 @@ public class PostgresAdapter extends DbAdapter {
         }
     }
 
-    @Override
-    protected void createPlugins() throws SQLException, UnsupportedDialectException {
-        for (DbPlugin plugin : config.getPlugins()) {
-            try (Connection conn = getRootConnection()) {
-                execute(conn, plugin.getInstallSQL(config.getSchemaName()));
-            }
+    /**
+     * Ensure that the currently connected database can make use of the TimescaleDB extension.
+     *
+     * <p>TODO: This should not be done for every POSTGRES endpoint, but for the moment it's
+     * relatively harmless. The jOOQ {@link org.jooq.SQLDialect} enum does not make a distinction,
+     * so we'll need a way to introduce that in our basic endpoint definitions. Perhaps something
+     * like a list of required features?</p>
+     *
+     * @throws SQLException                if there's a problem adding the extension
+     * @throws UnsupportedDialectException on unsupported dialect
+     */
+    protected void setupTimescaleDb() throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("CREATE EXTENSION IF NOT EXISTS timescaledb SCHEMA \"%s\"",
+                    config.getSchemaName()));
         }
     }
 

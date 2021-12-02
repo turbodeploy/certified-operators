@@ -120,7 +120,6 @@ public abstract class DbAdapter {
             // perform provisioning where this endpoint has responsibility
             if (config.getShouldProvisionDatabase()) {
                 createSchema();
-                createPlugins();
                 createReadersGroup();
                 createWritersGroup();
             }
@@ -380,19 +379,6 @@ public abstract class DbAdapter {
      * @throws UnsupportedDialectException for an unsupported dialect
      */
     protected abstract void createSchema() throws SQLException, UnsupportedDialectException;
-
-    /**
-     * Install any plugins required for this endpoint.
-     *
-     * @throws SQLException if there's a problem performing the installations
-     * @throws UnsupportedDialectException if this endpoint is misconfigured
-     */
-    protected void createPlugins() throws SQLException, UnsupportedDialectException {
-        if (!config.getPlugins().isEmpty()) {
-            throw new UnsupportedOperationException(
-                    String.format("Plugins not supported for %s dialect", config.getDialect()));
-        }
-    }
 
     /**
      * Log and execute the given SQL statement.
