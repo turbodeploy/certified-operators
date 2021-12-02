@@ -1,16 +1,18 @@
 package com.vmturbo.cost.component;
 
-import io.prometheus.client.CollectorRegistry;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+
+import com.google.common.collect.Lists;
+
+import io.prometheus.client.CollectorRegistry;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
@@ -19,10 +21,15 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
+import com.vmturbo.cost.component.cloud.commitment.coverage.CoverageInfo;
+import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
+import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.cost.component.stores.DiagnosableSingleFieldDataStore;
 
 /**
  * Class for handling cost diagnostics export and import.
@@ -32,7 +39,8 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
         ReservedInstanceConfig.class,
         ComputeTierDemandStatsConfig.class,
         CostDBConfig.class,
-        ReservedInstanceSpecConfig.class})
+        ReservedInstanceSpecConfig.class,
+        CloudCommitmentStatsConfig.class})
 @Configuration
 public class CostDiagnosticsConfig {
 
@@ -49,10 +57,27 @@ public class CostDiagnosticsConfig {
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
-    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+    private DiagnosableSingleFieldDataStore<CoverageInfo> sourceTopologyCommitmentCoverageStore;
+
+    @Autowired
+    private DiagnosableSingleFieldDataStore<CoverageInfo> projectedTopologyCommitmentCoverageStore;
+
+    @Autowired
+    private DiagnosableSingleFieldDataStore<UtilizationInfo>
+            sourceTopologyCommitmentUtilizationStore;
+
+    @Autowired
+    private DiagnosableSingleFieldDataStore<UtilizationInfo>
+            projectedTopologyCommitmentUtilizationStore;
+
+    @Autowired
+    private DiagnosableSingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore;
+
+    @Autowired
+    private DiagnosableSingleFieldDataStore<MappingInfo> projectedTopologyCommitmentMappingStore;
 
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveAllocationDemandDiags;
@@ -125,6 +150,12 @@ public class CostDiagnosticsConfig {
                 storesToSave.add(cloudCommitmentAnalysisStoreConfig.cloudScopeStore());
                 storesToSave.add(computeTierDemandStatsConfig.riDemandStatsStore());
             }
+
+            storesToSave.addAll(Arrays.asList(sourceTopologyCommitmentCoverageStore,
+                    projectedTopologyCommitmentCoverageStore,
+                    sourceTopologyCommitmentUtilizationStore,
+                    projectedTopologyCommitmentUtilizationStore,
+                    sourceTopologyCommitmentMappingStore, projectedTopologyCommitmentMappingStore));
         }
         return storesToSave;
     }

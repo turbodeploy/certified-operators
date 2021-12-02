@@ -51,3 +51,31 @@ message CloudCommitmentAmount {
         double coupons = 2;
     }
 }
+
+message CloudCommitmentCoverage {
+    //the coupons needed for the tier.
+    optional CloudCommitmentAmount capacity = 1;
+    // the coupons covered for the tier
+    optional CloudCommitmentAmount used = 2;
+}
+
+message CloudCommitmentUtilization {
+
+    // Used within scope of the current analysis (e.g. RT or by entities within the plan scope).
+    optional CloudCommitmentAmount used = 1;
+
+    // Used by undiscovered accounts or accounts/entities outside of a plan scope.
+    optional CloudCommitmentAmount overhead = 2;
+
+    optional CloudCommitmentAmount capacity = 3;
+}
+
+message CloudCommitmentMapping {
+    optional int64 cloud_commitment_oid = 1;
+
+    optional int64 entity_oid = 2;
+
+    optional int32 entity_type = 3;
+
+    optional CloudCommitmentAmount commitment_amount = 4;
+}
