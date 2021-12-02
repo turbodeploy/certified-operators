@@ -118,6 +118,19 @@ message TypeSpecificInfo {
         // Count of how many ephemeral disks (instance stores for AWS, or local SSDs for GCP) are
         // currently attached to the VM. Required because GCP supports multiple disk count options.
         optional int32 numEphemeralStorages = 16;
+
+        // contains settings required for proper CPU scaling action adjustments
+        optional CpuScalingPolicy cpu_scaling_policy = 17;
+
+        // Policy settings that describes required CPU scaling adjustments
+        message CpuScalingPolicy {
+            // target cores per socket value has to be populated in case cores per socket
+            // has to be adjusted
+            optional int32 cores_per_socket = 1 [default = 1];
+            // target sockets value has to be populated in case sockets configuration has
+            // to be changed according to policy requirements
+            optional int32 sockets = 2 [default = 1];
+        }
     }
 
     // Properties unique to a PhysicalMachine in the model
