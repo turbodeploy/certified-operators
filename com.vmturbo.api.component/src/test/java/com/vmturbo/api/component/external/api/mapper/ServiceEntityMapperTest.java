@@ -16,6 +16,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -112,6 +114,13 @@ public class ServiceEntityMapperTest {
     public GrpcTestServer grpcServer =
             GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole,
                     supplyChainMole);
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.DELAYED_DATA_HANDLING);
 
     private ServiceEntityMapper mapper;
 
