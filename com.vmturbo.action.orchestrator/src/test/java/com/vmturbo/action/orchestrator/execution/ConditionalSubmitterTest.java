@@ -1,19 +1,15 @@
 package com.vmturbo.action.orchestrator.execution;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,77 +36,121 @@ public class ConditionalSubmitterTest {
     public ExpectedException exceptionRule = ExpectedException.none();
 
     /**
-     * Test that the tasks with the same condition are executed in the same
-     * order as submitted.
+     * Test that the tasks with the same condition are executed in the same order as submitted and
+     * that there is a delay between executing the tasks from one group (tasks/actions with the same
+     * condition).
+     * In the test configuration we have 9 different tasks divided into 3 groups (3 task with the same condition per group).
+     * Tasks from the one group shouldn't be executed simultaneously.
      */
     @Test
-    public void testExecutionOrder() {
-        int tasksCount = 100;
+    public void testExecutionOrderAndDelay() {
+        // ARRANGE
+        final AtomicInteger taskIdGenerator = new AtomicInteger(1);
+        int tasksCount = 3;
         int conditionsCount = 3;
-        CountDownLatch countDownLatch = new CountDownLatch(tasksCount * conditionsCount);
-        try (ConditionalSubmitter executor = new CountDownSubmitter(4, countDownLatch)) {
-            List<ConditionalFuture> futures = new ArrayList<>();
+        final MockScheduledExecutorService executorService = new MockScheduledExecutorService();
+        final ConditionalSubmitter executor = new ConditionalSubmitter(executorService, 300);
+        final Map<Integer, ConditionalFuture> futureTasks = new HashMap<>();
 
-            for (int i = 0; i < tasksCount; i++) {
-                for (int conditionId = 1; conditionId <= conditionsCount; conditionId++) {
-                    ConditionalFuture future = new ConditionalFuture(
-                            new TimingTask(conditionId * 100 + i, conditionId));
-                    executor.execute(future);
-                    futures.add(future);
-                }
+        // ACT 0 - submit 9 tasks/actions from 3 groups for execution
+        for (int i = 0; i < tasksCount; i++) {
+            for (int conditionId = 1; conditionId <= conditionsCount; conditionId++) {
+                final int taskId = taskIdGenerator.getAndIncrement();
+                final ConditionalFuture future = new ConditionalFuture(
+                        new BaseTestTask(taskId, conditionId));
+                executor.execute(future);
+                futureTasks.put(taskId, future);
             }
+        }
 
-            // Wait for all tasks to be executed
-            countDownLatch.await();
+        // ASSERT 0
+        // First 3 tasks(one from each group) were sent for execution and
+        // other tasks were added to the queue for the later/subsequent execution
+        Assert.assertEquals(3, executor.getRunningFuturesCount());
+        Assert.assertEquals(6, executor.getQueuedFuturesCount());
 
-            for (ConditionalFuture future1 : futures) {
-                for (ConditionalFuture future2 : futures) {
-                    TimingTask task1 = ((TimingTask)future1.getOriginalTask());
-                    TimingTask task2 = ((TimingTask)future2.getOriginalTask());
+        // ACT 1 - execute first patch of task (one task from each group)
+        int executedTasks = executorService.executeSubmittedTasks();
 
-                    if (task1.getConditionId() != task2.getConditionId()) {
-                        continue;
-                    }
+        // ASSERT 1
+        Assert.assertEquals(3, executedTasks);
+        verifyCompletedAndNotCompletedTasks(futureTasks, Arrays.asList(1, 2, 3),
+                Arrays.asList(4, 5, 6, 7, 8, 9));
+        Assert.assertEquals(3, executor.getRunningFuturesCount());
+        Assert.assertEquals(3, executor.getQueuedFuturesCount());
 
-                    if (task1.getTaskId() == task2.getTaskId()) {
-                        continue;
-                    }
+        // ACT 2 - execute second patch of task (one task from each group) with delay
+        executedTasks = executorService.executeScheduledTasks();
 
-                    if (task1.getTaskId() > task2.getTaskId()) {
-                        Assert.assertTrue(task1.getStartTime().compareTo(task2.getEndTime()) >= 0);
-                    }
+        // ASSERT 2
+        Assert.assertEquals(3, executedTasks);
+        verifyCompletedAndNotCompletedTasks(futureTasks, Arrays.asList(4, 5, 6),
+                Arrays.asList(7, 8, 9));
+        Assert.assertEquals(3, executor.getRunningFuturesCount());
+        Assert.assertEquals(0, executor.getQueuedFuturesCount());
 
-                    if (task2.getTaskId() > task1.getTaskId()) {
-                        Assert.assertTrue(task2.getStartTime().compareTo(task1.getEndTime()) >= 0);
-                    }
-                }
-            }
-        } catch (IOException | InterruptedException e) {
-            logger.error("Failed test", e);
+        // ACT 3 - execute third patch of tasks (one task from each group) with delay
+        executedTasks = executorService.executeScheduledTasks();
+
+        // ASSERT 3
+        Assert.assertEquals(3, executedTasks);
+        verifyCompletedAndNotCompletedTasks(futureTasks, Arrays.asList(7, 8, 9),
+                Collections.emptyList());
+        Assert.assertEquals(0, executor.getRunningFuturesCount());
+        Assert.assertEquals(0, executor.getQueuedFuturesCount());
+    }
+
+    private void verifyCompletedAndNotCompletedTasks(@Nonnull Map<Integer, ConditionalFuture> tasks,
+            @Nonnull Collection<Integer> completedTasks,
+            @Nonnull Collection<Integer> notCompletedTasks) {
+        for (Integer completedTaskId : completedTasks) {
+            Assert.assertTrue(tasks.get(completedTaskId).isDone());
+        }
+
+        for (Integer notCompletedTaskId : notCompletedTasks) {
+            Assert.assertFalse(tasks.get(notCompletedTaskId).isDone());
         }
     }
 
     /**
-     * Test exceptions in tasks.
+     * Test if one of the actions from the group of related actions (with the same condition that
+     * shouldn't be executed simultaneously) failed to execute, then continue execution of other
+     * actions.
      *
      * @throws ExecutionException expected exception
+     * @throws InterruptedException if the thread was interrupted
      */
     @Test
-    public void testExceptions() throws ExecutionException {
-        CountDownLatch countDownLatch = new CountDownLatch(1);
-        try (ConditionalSubmitter executor = new CountDownSubmitter(2, countDownLatch)) {
-            ConditionalFuture future = new ConditionalFuture(new ExceptionTask(1, 1));
-            executor.execute(future);
-            countDownLatch.await();
+    public void testExceptions() throws ExecutionException, InterruptedException {
+        // ARRANGE
+        final MockScheduledExecutorService executorService = new MockScheduledExecutorService();
+        final ConditionalSubmitter executor = new ConditionalSubmitter(executorService, 300);
+        // ACT 0 - submit 2 tasks for execution
+        final ConditionalFuture future1 = new ConditionalFuture(new ExceptionTask(1, 1));
+        final ConditionalFuture future2 = new ConditionalFuture(new ExceptionTask(2, 1));
+        executor.execute(future1);
+        executor.execute(future2);
 
-            exceptionRule.expect(ExecutionException.class);
-            future.get();
+        // ASSERT 0 - first task was sent for execution and second was added to the queue for the later/subsequent execution
+        Assert.assertEquals(1, executor.getQueuedFuturesCount());
+        Assert.assertEquals(1, executor.getRunningFuturesCount());
 
-            Assert.assertEquals(0, executor.getRunningFuturesCount());
-            Assert.assertEquals(0, executor.getQueuedFuturesCount());
-        } catch (IOException | InterruptedException e) {
-            logger.error("Failed test", e);
-        }
+        // ACT 1 - executing the first task
+        final int executedTasks = executorService.executeSubmittedTasks();
+
+        // ASSERT 0
+        Assert.assertEquals(1, executedTasks);
+        Assert.assertEquals(0, executor.getQueuedFuturesCount());
+        Assert.assertEquals(1, executor.getRunningFuturesCount());
+        exceptionRule.expect(ExecutionException.class);
+        future1.get();
+
+        // ACT 2 - executing the second task with a delay
+        final int executedTasksWithDelay = executorService.executeScheduledTasks();
+        // ASSERT 2
+        Assert.assertEquals(1, executedTasksWithDelay);
+        Assert.assertEquals(0, executor.getQueuedFuturesCount());
+        Assert.assertEquals(0, executor.getRunningFuturesCount());
     }
 
     /**
@@ -139,140 +179,9 @@ public class ConditionalSubmitterTest {
     }
 
     /**
-     * Execute multiple tasks with multiple conditions.
-     */
-    @Test
-    public void testConditionalExecutorService() {
-        Set<TimingTask> tasks = new HashSet<>();
-
-        int conditionsCount = 10;
-        int tasksCount = 10;
-        int totalTaskCount = tasksCount * conditionsCount;
-        CountDownLatch countDownLatch = new CountDownLatch(totalTaskCount);
-
-        for (int conditionId = 1; conditionId <= conditionsCount; conditionId++) {
-            for (int i = 0; i < tasksCount; i++) {
-                tasks.add(new TimingTask(conditionId * 100 + i, conditionId));
-            }
-        }
-
-        try (ConditionalSubmitter executor = new CountDownSubmitter(5, countDownLatch)) {
-            List<ConditionalFuture> futures = new ArrayList<>();
-
-            for (TimingTask task : tasks) {
-                ConditionalFuture future = new ConditionalFuture(task);
-                executor.execute(future);
-                futures.add(future);
-            }
-
-            Assert.assertEquals(totalTaskCount, futures.size());
-
-            // Wait for all tasks to be executed
-            countDownLatch.await();
-
-            Assert.assertEquals(0, executor.getRunningFuturesCount());
-            Assert.assertEquals(0, executor.getQueuedFuturesCount());
-
-            // Check that the tasks with the same condition were executed one
-            // at a time
-            for (TimingTask task1 : tasks) {
-                Assert.assertEquals(1, task1.getCallCount());
-
-                for (TimingTask task2 : tasks) {
-                    if (task1.getTaskId() == task2.getTaskId()) {
-                        continue;
-                    }
-
-                    if (task1.getConditionId() != task2.getConditionId()) {
-                        continue;
-                    }
-
-                    Assert.assertTrue("Task 1: " + task1 + ", Task 2: " + task2,
-                            task1.getStartTime().compareTo(task2.getEndTime()) >= 0
-                                    || task2.getStartTime().compareTo(task1.getEndTime()) >= 0);
-                }
-            }
-        } catch (IOException | InterruptedException e) {
-            logger.error("Failed test", e);
-        }
-    }
-
-    /**
      * Test task with an integer condition.
      */
-    private static class TimingTask extends BaseTestTask implements ConditionalTask {
-
-        private Instant startTime;
-        private Instant endTime;
-        private int callCount = 0;
-
-        TimingTask(int taskId, int conditionId) {
-            super(taskId, conditionId);
-        }
-
-        /**
-         * Task execution logic.
-         */
-        @Override
-        public TimingTask call() throws Exception {
-            startTime = Instant.now();
-            try {
-                Thread.sleep(5);
-            } catch (InterruptedException e) {
-                logger.error("Interrupted " + this, e);
-                throw new InterruptedException();
-            }
-
-            callCount++;
-            endTime = Instant.now();
-            logger.info("Executed: {}", this);
-            return this;
-        }
-
-        @Override
-        public int compareTo(ConditionalTask o) {
-            return this.getConditionId() - ((TimingTask)o).getConditionId();
-        }
-
-        /**
-         * Task start time.
-         *
-         * @return start time
-         */
-        public Instant getStartTime() {
-            return startTime;
-        }
-
-        /**
-         * Task end time.
-         *
-         * @return end time
-         */
-        public Instant getEndTime() {
-            return endTime;
-        }
-
-        public int getCallCount() {
-            return callCount;
-        }
-
-        @Override
-        public String toString() {
-            return "Task [taskId=" + getTaskId() + ", conditionId=" + getConditionId()
-                    + ", startTime=" + startTime + ", endTime=" + endTime + ", callCount="
-                    + callCount + "]";
-        }
-
-        @Override
-        public List<Action> getActionList() {
-            return Collections.emptyList();
-        }
-    }
-
-    /**
-     * Test task with an integer condition.
-     */
-    private static class BaseTestTask {
+    private static class BaseTestTask implements ConditionalTask {
 
         private final int taskId;
         private final int conditionId;
@@ -289,15 +198,6 @@ public class ConditionalSubmitterTest {
         }
 
         /**
-         * Task ID.
-         *
-         * @return task ID
-         */
-        public int getTaskId() {
-            return taskId;
-        }
-
-        /**
          * Condition ID.
          *
          * @return condition ID
@@ -310,25 +210,21 @@ public class ConditionalSubmitterTest {
         public String toString() {
             return "Task [taskId=" + taskId + ", conditionId=" + conditionId + "]";
         }
-    }
 
-    /**
-     * ConditionalSubmitter that tracks the number of executed calls.
-     */
-    public static class CountDownSubmitter extends ConditionalSubmitter {
-
-        private final CountDownLatch countDownLatch;
-
-        CountDownSubmitter(int poolSize, CountDownLatch countDownLatch) {
-            super(poolSize, new ThreadFactoryBuilder().setNameFormat("auto-act-exec-%d").build(),
-                    0);
-            this.countDownLatch = countDownLatch;
+        @Override
+        public List<Action> getActionList() {
+            return Collections.emptyList();
         }
 
         @Override
-        protected void onFutureCompletion(@Nonnull Runnable r, @Nullable Throwable t) {
-            super.onFutureCompletion(r, t);
-            countDownLatch.countDown();
+        public int compareTo(ConditionalTask o) {
+            return this.getConditionId() - ((BaseTestTask)o).getConditionId();
+        }
+
+        @Override
+        public ConditionalTask call() throws Exception {
+            logger.info("Executed: {}", this);
+            return this;
         }
     }
 }

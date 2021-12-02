@@ -12,20 +12,16 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.commons.Units;
 
 /**
  * Submit futures based on the condition for execution. If a future with the
@@ -38,7 +34,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
 
     private static final int MAX_QUEUE_SIZE = 1000;
 
-    private final ThreadPoolExecutor executor;
+    private final ScheduledExecutorService executor;
     private final int conditionalSubmitterDelaySecs;
 
     /**
@@ -54,20 +50,13 @@ public class ConditionalSubmitter implements Executor, Closeable {
     /**
      * Conditional submitter.
      *
-     * @param poolSize thread tool size
-     * @param threadFactory thread factory
+     * @param executor scheduled executor service
      * @param conditionalSubmitterDelaySecs delay between the conditional
-     *            actions
+     *         actions
      */
-    public ConditionalSubmitter(int poolSize, @Nonnull ThreadFactory threadFactory,
+    public ConditionalSubmitter(ScheduledExecutorService executor,
             int conditionalSubmitterDelaySecs) {
-        this.executor = new ThreadPoolExecutor(poolSize, poolSize, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(), threadFactory) {
-            @Override
-            protected void afterExecute(@Nonnull Runnable r, @Nullable Throwable t) {
-                onFutureCompletion(r, t);
-            }
-        };
+        this.executor = executor;
         this.conditionalSubmitterDelaySecs = conditionalSubmitterDelaySecs;
     }
 
@@ -82,6 +71,15 @@ public class ConditionalSubmitter implements Executor, Closeable {
         runningFutures.add(future);
     }
 
+    private void submitInternalWithDelay(@Nonnull ConditionalFuture future)
+            throws RejectedExecutionException {
+        logger.info("Delaying submitting from queue {} for {} secs", future.getOriginalTask(),
+                conditionalSubmitterDelaySecs);
+        executor.schedule(future, conditionalSubmitterDelaySecs, TimeUnit.SECONDS);
+        queuedFutures.remove(future);
+        runningFutures.add(future);
+    }
+
     /**
      * Try to submit the future for the conditional task. Queue this future, if
      * a future with the same condition is already running.
@@ -91,7 +89,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
      * @throws RejectedExecutionException when executor rejected the future
      */
     @Override
-    public synchronized void execute(Runnable command)
+    public synchronized void execute(@Nonnull Runnable command)
             throws RejectedExecutionException {
         if (!(command instanceof ConditionalFuture)) {
             logger.error("Cannot execute. Runnable is not a future. {}", command);
@@ -99,6 +97,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
         }
 
         ConditionalFuture future = (ConditionalFuture)command;
+        future.injectCallback(() -> onFutureCompletion(future));
 
         if (!findFuture(runningFutures, future).isPresent()) {
             logger.info("Submitting without queuing {}", future.getOriginalTask());
@@ -119,23 +118,18 @@ public class ConditionalSubmitter implements Executor, Closeable {
     /**
      * This callback method is executed upon the future completion.
      *
-     * @param r completed runnable
-     * @param t if not null, exception that caused the task termination
-     *
+     * @param runnable completed runnable
      * @throws RejectedExecutionException when executor rejected the future
      */
-    protected synchronized void onFutureCompletion(@Nonnull Runnable r, @Nullable Throwable t)
+    protected synchronized void onFutureCompletion(@Nonnull Runnable runnable)
             throws RejectedExecutionException {
-        if (t != null) {
-            logger.error("Error executing runnable " + r, t);
-        }
 
-        if (!(r instanceof ConditionalFuture)) {
-            logger.error("Runnable is not a future. {}", r);
+        if (!(runnable instanceof ConditionalFuture)) {
+            logger.error("Runnable is not a future. {}", runnable);
             return;
         }
 
-        ConditionalFuture future = (ConditionalFuture)r;
+        ConditionalFuture future = (ConditionalFuture)runnable;
         logger.info("Done executing {}", future.getOriginalTask());
         runningFutures.remove(future);
 
@@ -143,7 +137,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
     }
 
     /**
-     * Submit from the queue a new future with with the same condition as the
+     * Submit from the queue a new future with the same condition as the
      * given future.
      *
      * @param futureToCompare the future with the condition to compare
@@ -168,19 +162,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
             return;
         }
 
-        logger.info("Delaying submitting from queue {} for {} secs", future.getOriginalTask(),
-                conditionalSubmitterDelaySecs);
-        try {
-            Thread.sleep((long)(conditionalSubmitterDelaySecs / Units.MILLI));
-        } catch (InterruptedException e) {
-            logger.error("Delay for " + future.getOriginalTask() + " was interrupted ", e);
-            Thread.currentThread().interrupt();
-            return;
-        }
-
-        logger.info("Submitting from queue {}", future.getOriginalTask());
-        queuedFutures.remove(future);
-        submitInternal(future);
+        submitInternalWithDelay(future);
     }
 
     private Optional<ConditionalFuture> findFuture(
@@ -218,6 +200,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
         private final ConditionalTask originalTask;
 
         private volatile boolean started = false;
+        private ConditionalTaskCallback callback;
 
         /**
          * Create conditional future.
@@ -233,12 +216,23 @@ public class ConditionalSubmitter implements Executor, Closeable {
         public void run() {
             started = true;
             super.run();
+            if (callback != null) {
+                callback.onTaskCompleted();
+            }
         }
 
         public boolean isStarted() {
             return started;
         }
 
+        /**
+         * Injects callback which will be called after completing the future.
+         *
+         * @param callback afterExecution callback
+         */
+        public void injectCallback(@Nonnull ConditionalTaskCallback callback) {
+            this.callback = callback;
+        }
 
         /**
          * Get original task.
@@ -268,5 +262,15 @@ public class ConditionalSubmitter implements Executor, Closeable {
          * @return action list.
          */
         List<Action> getActionList();
+    }
+
+    /**
+     * The callback to execute after conditional task completed.
+     */
+    public interface ConditionalTaskCallback {
+        /**
+         * Executed when futureTask completed.
+         */
+        void onTaskCompleted();
     }
 }
