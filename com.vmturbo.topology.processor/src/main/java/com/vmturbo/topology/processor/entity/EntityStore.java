@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.StringJoiner;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -41,6 +42,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import it.unimi.dsi.fastutil.longs.Long2IntArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
@@ -53,12 +55,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
+import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
+import com.vmturbo.common.protobuf.memory.MemoryMeasurer.MemoryMeasurement;
+import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
@@ -126,6 +132,8 @@ public class EntityStore {
      * The clock used to generate timestamps for when target information is updated.
      */
     private final Clock clock;
+
+    private final boolean useSerializedEntities;
 
     /**
      * The target store which contains target specific information for the entity.
@@ -216,13 +224,10 @@ public class EntityStore {
             .build()
             .register();
 
-    public EntityStore(@Nonnull final TargetStore targetStore,
-                       @Nonnull final IdentityProvider identityProvider,
-                       final float duplicateTargetOverlapRatio,
-                       final boolean mergeKubernetesTypesForDuplicateDetection,
-                       @Nonnull final List<EntitiesWithNewStateListener> entitiesWithNewStateListeners,
-                       @Nonnull final Clock clock,
-                       final boolean accountForVendorAutomation) {
+    public EntityStore(@Nonnull final TargetStore targetStore, @Nonnull final IdentityProvider identityProvider,
+            final float duplicateTargetOverlapRatio, final boolean mergeKubernetesTypesForDuplicateDetection,
+            @Nonnull final List<EntitiesWithNewStateListener> entitiesWithNewStateListeners, @Nonnull final Clock clock,
+            final boolean accountForVendorAutomation, boolean useSerializedEntities) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.duplicateTargetDetector = new InternalDuplicateTargetDetector(entityMap, targetStore,
@@ -230,6 +235,7 @@ public class EntityStore {
         this.entitiesWithNewStateListeners = Objects.requireNonNull(entitiesWithNewStateListeners);
         this.clock = Objects.requireNonNull(clock);
         this.accountForVendorAutomation = accountForVendorAutomation;
+        this.useSerializedEntities = useSerializedEntities;
         targetStore.addListener(new TargetStoreListener() {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
@@ -310,8 +316,7 @@ public class EntityStore {
      */
     private Optional<EntityDTO> findEntityDTObyOrigin(final Entity entity,
                                                       final EntityOrigin entityOrigin) {
-        return entity.allTargetInfo().stream()
-            .map(PerTargetInfo::getEntityInfo)
+        return getEntityDTOs(entity.getId())
             // Find the first EntityDTO whose origin matches the provided EntityOrigin
             .filter(entityDTO -> entityOrigin.equals(entityDTO.getOrigin()))
             .findFirst();
@@ -404,33 +409,33 @@ public class EntityStore {
         synchronized (topologyUpdateLock) {
             stitchingDataMap = new TargetStitchingDataMap(targetEntities);
             final Long2ObjectOpenHashMap<TargetCacheEntry> cache = new Long2ObjectOpenHashMap<>();
-
             // This will populate the stitching data map.
-            entityMap.forEach((oid, entity) ->
-                entity.getPerTargetInfo().stream()
-                    .map(targetInfoEntry -> {
-                        final long targetId = targetInfoEntry.getKey();
-                        final EntityDTO.Builder entityBuilder = targetInfoEntry.getValue().getEntityInfo().toBuilder();
-                        final TargetCacheEntry cacheEntry = cache.computeIfAbsent(targetId,
+            Map<Long, List<Pair<Long, EntityDTO.Builder>>> deserializedEntityMap = desirializeEntities(this.entityMap);
+            for (Entry<Long, List<Pair<Long, EntityDTO.Builder>>> entry : deserializedEntityMap.entrySet()) {
+                final long entityOid = entry.getKey();
+                entry.getValue().stream().map(targetInfoEntry -> {
+                    final long targetId = targetInfoEntry.first;
+                    final EntityDTO.Builder entityBuilder = targetInfoEntry.second;
+                    final TargetCacheEntry cacheEntry = cache.computeIfAbsent(targetId,
                             id -> new TargetCacheEntry(targetId));
-                        // apply changes of cached entities from incremental discovery
-                        final EntityDTO.Builder entityDTO = cacheEntry.incrementalEntities.map(
+                    // apply changes of cached entities from incremental discovery
+                    final EntityDTO.Builder entityDTO = cacheEntry.incrementalEntities.map(
                             incrementalEntities -> applyIncrementalChanges(
-                                entityBuilder, oid, targetId,
-                                incrementalEntities))
+                                    entityBuilder, entityOid, targetId,
+                                    incrementalEntities))
                             .orElse(entityBuilder);
-                        final boolean isStale = stalenessProvider.getLastKnownTargetHealth(targetId) != HealthState.NORMAL;
-                        return StitchingEntityData.newBuilder(entityDTO)
-                            .oid(oid)
+                    final boolean isStale = stalenessProvider.getLastKnownTargetHealth(targetId) != HealthState.NORMAL;
+                    return StitchingEntityData.newBuilder(entityDTO)
+                            .oid(entityOid)
                             .targetId(targetId)
                             .lastUpdatedTime(cacheEntry.lastUpdatedTime)
                             .supportsConnectedTo(cacheEntry.supportsConnectedTo)
                             // for now, staleness is defined at target level but exposed to stitching at entity level
                             .setStale(isStale)
                             .build();
-                    }).forEach(stitchingDataMap::put));
+                }).forEach(stitchingDataMap::put);
+            }
         }
-
         stitchingDataMap.allStitchingData()
             .forEach(stitchingEntityData -> {
                 try {
@@ -506,6 +511,30 @@ public class EntityStore {
             });
 
         return entityDTO;
+    }
+
+    private Map<Long, List<Pair<Long, EntityDTO.Builder>>> desirializeEntities(Map<Long, Entity> entityMap) {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        Map<Long, List<Pair<Long, EntityDTO.Builder>>> deserializedEntityMap = new ConcurrentHashMap<>();
+        entityMap.values().parallelStream().forEach(entity -> {
+            entity.getTargets().forEach(target -> {
+                if (entity.getEntityInfo(target).isPresent()) {
+                    try {
+                        List<Pair<Long, EntityDTO.Builder>> entities = deserializedEntityMap.computeIfAbsent(entity.getId(), k -> new ArrayList<>());
+                        //We need to protect against concurrent insertions to the inner List datastructures
+                        // in the  deserializedEntityMap otherwise we may in rare circumstances wind up
+                        // with a ConcurrentModificationException.
+                        synchronized (entities) {
+                            entities.add(new Pair<>(target, entity.getEntityInfo(target).get().getEntityInfoBuilder()));
+                        }
+                    } catch (InvalidProtocolBufferException e) {
+                        logger.error(entity.getConversionError());
+                    }
+                }
+            });
+        });
+        logger.info("Decompressed {} entities in {} ", deserializedEntityMap.size(), stopwatch);
+        return deserializedEntityMap;
     }
 
     /**
@@ -699,7 +728,7 @@ public class EntityStore {
             entitiesById.entrySet().forEach(entry -> {
                 Entity entity = entityMap.get(entry.getKey());
                 if (entity == null) {
-                    entity = new Entity(entry.getKey(), entry.getValue().getEntityType());
+                    entity = new Entity(entry.getKey(), entry.getValue().getEntityType(), useSerializedEntities);
                     addedEntities.computeIfAbsent(entity.getEntityType(), t -> new HashSet<>()).add(
                             entity);
                     entityMap.put(entry.getKey(), entity);
@@ -774,21 +803,29 @@ public class EntityStore {
     private void entitiesLogging(long targetId, Map<EntityType, Collection<Entity>> entities,
             String logPrefix) {
         if (logger.isDebugEnabled()) {
-            entities.forEach((t, e) -> {
+            for (Entry<EntityType, Collection<Entity>> entry : entities.entrySet()) {
+                Collection<Entity> entitiesList = entry.getValue();
                 if (logger.isTraceEnabled()) {
-                    logger.trace("{} {} {} entities from target {} : {}", logPrefix, e.size(), t,
-                            targetId, e.stream()
-                                    .map(en -> String.format("%s | %s | %s", en.getEntityType(),
-                                            en.getId(), en.getEntityInfo(targetId)
-                                                    .map(PerTargetInfo::getEntityInfo)
-                                                    .map(EntityDTO::getDisplayName)
-                                                    .orElse("missing display name")))
-                                    .collect(Collectors.joining(System.lineSeparator())));
+                    StringJoiner joiner = new StringJoiner(System.lineSeparator());
+                    for (Entity entity : entitiesList) {
+                        Optional<PerTargetInfo> entityInfo = entity.getEntityInfo(targetId);
+                        if (entityInfo.isPresent()) {
+                            String displayName = "missing display name";
+                            try {
+                                displayName = entityInfo.get().getEntityInfo().getDisplayName();
+                            } catch (InvalidProtocolBufferException e) {
+                                logger.error("Could not get dto from entity with id {}", entity.getId(), e);
+                            }
+                            joiner.add(displayName);
+                        }
+                    }
+                    logger.trace("{} {} {} entities from target {} : {}", logPrefix, entities.size(), entry.getKey(),
+                            targetId, joiner.toString());
                 } else {
-                    logger.debug("{} {} {} entities from target {}", logPrefix, e.size(), t,
+                    logger.debug("{} {} {} entities from target {}", logPrefix, entities.size(), entry.getKey(),
                             targetId);
                 }
-            });
+            }
         }
     }
 
@@ -851,14 +888,12 @@ public class EntityStore {
 
                 if (accountForVendorAutomation) {
                     // Send automation level
-                    getEntity(entityOid).ifPresent(entity -> entity
-                        .allTargetInfo().stream()
-                        .map(PerTargetInfo::getEntityInfo)
+                    getEntityDTOs(entityOid)
                         .filter(EntityDTO::hasPhysicalMachineData).map(EntityDTO::getPhysicalMachineData)
                         .filter(PhysicalMachineData::hasAutomationLevel).map(PhysicalMachineData::getAutomationLevel)
                         .findFirst().ifPresent(automationLevel ->
                             topologyEntityDTO.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
-                                PhysicalMachineInfo.newBuilder().setAutomationLevel(automationLevel)))));
+                                PhysicalMachineInfo.newBuilder().setAutomationLevel(automationLevel))));
                 }
 
                 entitiesWithNewStateBuilder.addTopologyEntity(topologyEntityDTO);
@@ -878,6 +913,20 @@ public class EntityStore {
         }
     }
 
+    private Stream<EntityDTO> getEntityDTOs(long oid) {
+        Optional<Entity> entity = getEntity(oid);
+        Collection<EntityDTO> dtos = new ArrayList<>();
+        if (entity.isPresent()) {
+            for (PerTargetInfo targetInfo : entity.get().allTargetInfo()) {
+                try {
+                    dtos.add(targetInfo.getEntityInfo());
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error(entity.get().getConversionError());
+                }
+            }
+        }
+        return dtos.stream();
+    }
     /**
      * Add the entities discovered from incremental discovery to the cache.
      *
@@ -1096,9 +1145,15 @@ public class EntityStore {
             for (long entityOid : targetEntityIdMap.get().values()) {
                 Optional<Entity> entity = getEntity(entityOid);
                 if (entity.isPresent()) {
-                    Optional<PerTargetInfo> perTargetInfo = entity.get().getTargetInfo(targetId);
-                    perTargetInfo.ifPresent(targetInfo ->
-                        map.put(entityOid, targetInfo.getEntityInfo()));
+                    Optional<PerTargetInfo> perTargetInfoOptional = entity.get().getTargetInfo(targetId);
+                    if (perTargetInfoOptional.isPresent()) {
+                        PerTargetInfo perTargetInfo = perTargetInfoOptional.get();
+                        try {
+                            map.put(entityOid, perTargetInfo.getEntityInfo());
+                        } catch (InvalidProtocolBufferException e) {
+                            logger.error(entity.get().getConversionError());
+                        }
+                    }
                 }
             }
         }

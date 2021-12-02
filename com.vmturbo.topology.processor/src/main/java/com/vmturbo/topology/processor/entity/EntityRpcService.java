@@ -1,16 +1,24 @@
 package com.vmturbo.topology.processor.entity;
 
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoResponse;
 import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PhysicalMachineData;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -19,6 +27,8 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  */
 public class EntityRpcService extends EntityServiceGrpc.EntityServiceImplBase {
     private final EntityStore entityStore;
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final TargetStore targetStore;
 
@@ -61,16 +71,24 @@ public class EntityRpcService extends EntityServiceGrpc.EntityServiceImplBase {
      * @return The HostInfo for the host.
      */
     private Optional<HostInfo> getHostInfo(final long hostOid) {
-        return entityStore.getEntity(hostOid)
-            .flatMap(host -> host.allTargetInfo().stream().findFirst())
-            .map(hostTargetInfo -> hostTargetInfo.getEntityInfo().getPhysicalMachineData())
-            .map(pmData -> HostInfo.newBuilder()
-                .setHostId(hostOid)
-                .setCpuCoreMhz(pmData.getCpuCoreMhz())
-                .setNumCpuCores(pmData.getNumCpuCores())
-                .setNumCpuSockets(pmData.getNumCpuSockets())
-                .setNumCpuThreads(pmData.getNumCpuThreads())
-                .build()
-            );
+        Optional<Entity> entity = entityStore.getEntity(hostOid);
+        if (entity.isPresent()) {
+            for (PerTargetInfo targetInfo : entity.get().allTargetInfo()) {
+                try {
+                    PhysicalMachineData pmData = targetInfo.getEntityInfo().getPhysicalMachineData();
+                    HostInfo hostInfo = HostInfo.newBuilder()
+                            .setHostId(hostOid)
+                            .setCpuCoreMhz(pmData.getCpuCoreMhz())
+                            .setNumCpuCores(pmData.getNumCpuCores())
+                            .setNumCpuSockets(pmData.getNumCpuSockets())
+                            .setNumCpuThreads(pmData.getNumCpuThreads())
+                            .build();
+                    return Optional.of(hostInfo);
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error("Could not get host info from entity with id: {}", hostOid);
+                }
+            }
+        }
+        return Optional.empty();
     }
 }

@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -376,11 +378,18 @@ public class TopologyToSdkEntityConverter {
                                                                       Entity entity) {
         return entity.getPerTargetInfo().stream()
                 // Extract the list of entity properties for each target that discovered this entity
-                .map(longPerTargetInfoEntry ->
-                        getTargetSpecificEntityProperties(
+                .map(longPerTargetInfoEntry -> {
+                    try {
+                        return getTargetSpecificEntityProperties(
                                 topologyEntityDTO,
                                 longPerTargetInfoEntry.getKey(),
-                                longPerTargetInfoEntry.getValue()))
+                                longPerTargetInfoEntry.getValue());
+                    } catch (InvalidProtocolBufferException e) {
+                        logger.info("Could not retrieve target entity properties for entity with id {}",
+                                topologyEntityDTO.getOid(), e);
+                    }
+                    return new ArrayList<EntityProperty>();
+                })
                 // Combine all the resulting lists into a single flattened list
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
@@ -441,10 +450,12 @@ public class TopologyToSdkEntityConverter {
      * @param targetId the ID of the target to fetch entity properties for
      * @param perTargetInfo the raw entity info originally discovered by this target
      * @return a list of {@link EntityProperty}s related to the provided target
+     * @throws InvalidProtocolBufferException if the entity dto can't be deserialized
      */
     private List<EntityProperty> getTargetSpecificEntityProperties(TopologyEntityDTO topologyEntityDTO,
                                                                    final Long targetId,
-                                                                   final PerTargetInfo perTargetInfo) {
+                                                                   final PerTargetInfo perTargetInfo)
+            throws InvalidProtocolBufferException {
         // The namespace to use for all the entity properties gathered for this target.
         // Use the target display name (if it is available) and the OID, else use only the target OID.
         // The target OID won't mean anything to the probes, so it is better to have the display name.

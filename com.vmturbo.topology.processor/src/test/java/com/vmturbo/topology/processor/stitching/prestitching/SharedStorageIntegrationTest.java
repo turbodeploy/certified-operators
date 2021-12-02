@@ -95,7 +95,7 @@ public class SharedStorageIntegrationTest {
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
-            0.3F, true, Collections.singletonList(sender), entityClock, false);
+            0.3F, true, Collections.singletonList(sender), entityClock, false, true);
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
 
     private final DiskCapacityCalculator diskCapacityCalculator =

@@ -56,7 +56,7 @@ public class TopologyToSdkEntityConverterTest {
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
     private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider,
-                    0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
+                    0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false, true));
 
     /**
      * The class under test.
@@ -76,7 +76,7 @@ public class TopologyToSdkEntityConverterTest {
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
 
         // Set the mocks
-        Entity matchingEntity = new Entity(oid, entityType);
+        Entity matchingEntity = new Entity(oid, entityType, false);
         final String uuid = "8333-AF322-6DAA3";
         EntityDTO rawDiscoveredEntityDTO = EntityDTO.newBuilder()
                 .setId(uuid)
@@ -121,7 +121,7 @@ public class TopologyToSdkEntityConverterTest {
         final boolean isResizeable = false;
 
         // Set the mocks
-        Entity matchingEntity = new Entity(oid, entityType);
+        Entity matchingEntity = new Entity(oid, entityType, false);
         final String uuid = "8333-AF322-6DAA3";
         EntityDTO rawDiscoveredEntityDTO = EntityDTO.newBuilder()
                 .setId(uuid)
@@ -184,7 +184,7 @@ public class TopologyToSdkEntityConverterTest {
                                            .putDiscoveredTargetData(targetId2, info2)))
                 .build();
 
-        Entity matchingEntity = new Entity(oid, entityType);
+        Entity matchingEntity = new Entity(oid, entityType, false);
         EntityDTO rawDiscoveredEntityDTO = EntityDTO.newBuilder()
                 .setId("qqq")
                 .setEntityType(entityType)
@@ -217,7 +217,7 @@ public class TopologyToSdkEntityConverterTest {
     @Test
     public void checkEnforcedHotChangeSettings() {
         final long oid = 7777777L;
-        final Entity matchingEntity = new Entity(oid, EntityType.VIRTUAL_MACHINE);
+        final Entity matchingEntity = new Entity(oid, EntityType.VIRTUAL_MACHINE, false);
         final EntityDTO rawDiscoveredEntityDTO = EntityDTO.newBuilder().setId("qqq")
             .setEntityType(EntityType.VIRTUAL_MACHINE).setDisplayName("fdgds")
             .setOrigin(EntityOrigin.DISCOVERED).build();

@@ -134,7 +134,7 @@ public class ActionApprovalServiceTest {
         Mockito.when(entityRetriever.retrieveTopologyEntities(Collections.singletonList(ENTITY_ID)))
                 .thenReturn(Collections.singletonList(vmTopology));
         Mockito.when(entityRetriever.fetchAndConvertToEntityDTO(ENTITY_ID)).thenReturn(vm);
-        final Entity vmEntity = new Entity(ENTITY_ID, EntityType.VIRTUAL_MACHINE);
+        final Entity vmEntity = new Entity(ENTITY_ID, EntityType.VIRTUAL_MACHINE, false);
         vmEntity.addTargetInfo(TGT_ID, vm);
         Mockito.when(entityStoreMock.getEntity(ENTITY_ID)).thenReturn(Optional.of(vmEntity));
 
