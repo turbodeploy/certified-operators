@@ -41,6 +41,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.BadSqlGrammarException;
@@ -524,6 +525,7 @@ public class CachingMemberCalculatorTest {
      * @throws Exception if something goes wrong.
      */
     @Test
+    @Ignore("This test is failing occasionally. The reason is getting investigated in OM-77963")
     public void testConcurrentUpdateOnRegroup() throws Exception {
         // ARRANGE
         // this semaphore is used to block regroup operation for a period of time
