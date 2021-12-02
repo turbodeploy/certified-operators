@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpointsConfig;
+import com.vmturbo.sql.utils.PostgresPlugins;
 
 /**
  * Configuration of DB endpoints needed for extractor component.
@@ -37,6 +38,7 @@ public class ExtractorDbBaseConfig extends DbEndpointsConfig {
         return abstractDbEndpoint(null, SQLDialect.POSTGRES)
                 .withDatabaseName(extractorDatabaseName)
                 .withSchemaName(extractorSchemaName)
+                .withPlugins(PostgresPlugins.TIMESCALE_2_0_1)
                 .build();
     }
 

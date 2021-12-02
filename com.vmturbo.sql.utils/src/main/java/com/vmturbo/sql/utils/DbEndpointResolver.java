@@ -183,6 +183,7 @@ public class DbEndpointResolver {
         resolveEndpointEnabled();
         resolveShouldProvisionDatabase();
         resolveShouldProvisionUser();
+        resolvePlugins();
     }
 
     /**
@@ -483,11 +484,19 @@ public class DbEndpointResolver {
      */
     public void resolveShouldProvisionUser() throws UnsupportedDialectException {
         final String currentValue = config.getShouldProvisionUser() != null
-                ? config.getShouldProvisionUser().toString() : null;
+                                    ? config.getShouldProvisionUser().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getShouldProvisionUser);
         config.setShouldProvisionUser(Boolean.parseBoolean(firstNonNull(
                 configuredPropValue(SHOULD_PROVISION_USER_PROPERTY),
                 currentValue, fromTemplate, Boolean.toString(false))));
+    }
+
+    private void resolvePlugins() {
+        if (config.getPlugins() == null) {
+            final List<DbPlugin> fromTemplate =
+                    getFromTemplate(template, DbEndpointConfig::getPlugins);
+            config.setPlugins(fromTemplate != null ? fromTemplate : new ArrayList<>());
+        }
     }
 
     private String configuredPropValue(String propertyName) throws UnsupportedDialectException {
