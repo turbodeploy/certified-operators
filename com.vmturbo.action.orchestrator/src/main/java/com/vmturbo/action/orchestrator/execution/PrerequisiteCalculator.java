@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.StringUtils;
@@ -89,18 +90,7 @@ class PrerequisiteCalculator {
                 calculateAzureAvailabilitySetPrerequisite(target, snapshot,
                         actionConstraintStoreFactory.getAzureAvailabilitySetInfoStore());
 
-        if (generalPrerequisites.isEmpty()
-                && coreQuotaPrerequisites.isEmpty()
-                && azureScaleSetPrerequisites.isEmpty()
-                && azureAvailabilitySetPrerequisites.isEmpty()) {
-            return Collections.emptySet();
-        }
-
-        final Set<Prerequisite> prerequisites =
-            new HashSet<>(generalPrerequisites.size()
-                    + coreQuotaPrerequisites.size()
-                    + azureScaleSetPrerequisites.size()
-                    + azureAvailabilitySetPrerequisites.size());
+        final Set<Prerequisite> prerequisites = new HashSet<>();
         prerequisites.addAll(generalPrerequisites);
         prerequisites.addAll(coreQuotaPrerequisites);
         prerequisites.addAll(azureScaleSetPrerequisites);
@@ -133,7 +123,8 @@ class PrerequisiteCalculator {
                     PrerequisiteCalculator::calculateNVMePrerequisite,
                     PrerequisiteCalculator::calculateArchitecturePrerequisite,
                     PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
-                    PrerequisiteCalculator::calculateLockPrerequisite
+                    PrerequisiteCalculator::calculateLockPrerequisite,
+                    PrerequisiteCalculator::calculateGcpLocalSsdPrerequisite
             );
 
     /**
@@ -557,5 +548,31 @@ class PrerequisiteCalculator {
             }
         }
         return Collections.emptySet();
+    }
+
+    /**
+     * Checks if a prerequisite is needed for GCP VMs with local SSDs attached.
+     *
+     * @param virtualMachineInfo Info about VM.
+     * @param computeTierInfo Not used.
+     * @param settingsForTargetEntity Not used.
+     * @return Prerequisite if applicable, or empty.
+     */
+    @VisibleForTesting
+    static Optional<Prerequisite> calculateGcpLocalSsdPrerequisite(
+            @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+            @Nonnull final ActionComputeTierInfo computeTierInfo,
+            @Nonnull final Map<String, Setting> settingsForTargetEntity) {
+        if (!virtualMachineInfo.hasAttachedEphemeralVolumes()
+                || virtualMachineInfo.getAttachedEphemeralVolumes() == 0
+                || !virtualMachineInfo.hasExecutionConstraint()
+                || !PrerequisiteType.LOCAL_SSD_ATTACHED.name().equals(
+                        virtualMachineInfo.getExecutionConstraint())) {
+            return Optional.empty();
+        }
+        return Optional.of(Prerequisite.newBuilder()
+                .setPrerequisiteType(PrerequisiteType.LOCAL_SSD_ATTACHED)
+                .setAttachedEphemeralVolumes(virtualMachineInfo.getAttachedEphemeralVolumes())
+                .build());
     }
 }

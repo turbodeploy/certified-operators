@@ -54,6 +54,14 @@ public class PrerequisiteDescriptionComposer {
     private static final String AVAILABILITY_SET_PREREQUISITE_FORMAT =
             "Execution temporarily disabled for {0} due to a previous execution error in this availability set";
 
+    /**
+     * Message for GCP VMs with local SSDs attached. These VM actions cannot be executed from
+     * within Turbo. User has to shut down the guest OS and execute resize in GCP portal/CLI.
+     */
+    private static final String LOCAL_SSD_ATTACHED_PREREQUISITE_FORMAT =
+            "This VM {0} has {1} Local SSDs attached. Please shut down the VM from inside guest OS "
+                    + "and resize to new machine type from GCP Console UI or gCloud CLI.";
+
     // A mapping from PrerequisiteType to the display string.
     private static final Map<PrerequisiteType, String> prerequisiteTypeToString = ImmutableMap.of(
             PrerequisiteType.ENA, ENA_PREREQUISITE_FORMAT,
@@ -104,6 +112,11 @@ public class PrerequisiteDescriptionComposer {
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
                                     AVAILABILITY_SET_PREREQUISITE_FORMAT,
                                     buildEntityNameOrType(actionEntity));
+                        case LOCAL_SSD_ATTACHED:
+                            return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
+                                    LOCAL_SSD_ATTACHED_PREREQUISITE_FORMAT,
+                                    buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)),
+                                    prerequisite.getAttachedEphemeralVolumes());
                         default:
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
                             prerequisiteTypeToString.get(prerequisite.getPrerequisiteType()),

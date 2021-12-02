@@ -1,5 +1,10 @@
 package com.vmturbo.common.protobuf.topology;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.EXECUTION_CONSTRAINT_PROPERTY;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -9,12 +14,16 @@ import javax.annotation.Nonnull;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.action.ActionDTOREST.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -32,7 +41,7 @@ public class TopologyDTOUtilTest {
                 // Unplaced commodity - no provider ID.
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder())
                 .build();
-        Assert.assertFalse(TopologyDTOUtil.isPlaced(unplacedEntity));
+        assertFalse(TopologyDTOUtil.isPlaced(unplacedEntity));
     }
 
     /**
@@ -45,7 +54,7 @@ public class TopologyDTOUtilTest {
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(-1))
                 .build();
-        Assert.assertFalse(TopologyDTOUtil.isPlaced(unplacedEntity));
+        assertFalse(TopologyDTOUtil.isPlaced(unplacedEntity));
     }
 
     /**
@@ -57,7 +66,7 @@ public class TopologyDTOUtilTest {
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderId(7L))
                 .build();
-        Assert.assertTrue(TopologyDTOUtil.isPlaced(placedEntity));
+        assertTrue(TopologyDTOUtil.isPlaced(placedEntity));
     }
 
     /**
@@ -65,7 +74,7 @@ public class TopologyDTOUtilTest {
      */
     @Test
     public void testIsPlan() {
-        Assert.assertTrue(TopologyDTOUtil.isPlan(TopologyInfo.newBuilder()
+        assertTrue(TopologyDTOUtil.isPlan(TopologyInfo.newBuilder()
                 .setPlanInfo(PlanTopologyInfo.getDefaultInstance())
                 .build()));
     }
@@ -75,7 +84,7 @@ public class TopologyDTOUtilTest {
      */
     @Test
     public void testIsNotPlan() {
-        Assert.assertFalse(TopologyDTOUtil.isPlan(TopologyInfo.newBuilder()
+        assertFalse(TopologyDTOUtil.isPlan(TopologyInfo.newBuilder()
                 .build()));
     }
 
@@ -85,7 +94,7 @@ public class TopologyDTOUtilTest {
      */
     @Test
     public void testIsOptimizeCloudPlan() {
-        Assert.assertTrue(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
+        assertTrue(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
                 .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                 .build()));
     }
@@ -96,9 +105,9 @@ public class TopologyDTOUtilTest {
      */
     @Test
     public void testIsNotOptimizeCloudPlan() {
-        Assert.assertFalse(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
+        assertFalse(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
                 .build()));
-        Assert.assertFalse(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
+        assertFalse(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
                 .setPlanInfo(PlanTopologyInfo.getDefaultInstance())
                 .build()));
     }
@@ -108,7 +117,7 @@ public class TopologyDTOUtilTest {
      */
     @Test
     public void testIsPlanByType() {
-        Assert.assertTrue(TopologyDTOUtil.isPlanType(
+        assertTrue(TopologyDTOUtil.isPlanType(
                 PlanProjectType.CLUSTER_HEADROOM,
                 TopologyInfo.newBuilder()
                     .setPlanInfo(PlanTopologyInfo.newBuilder()
@@ -121,7 +130,7 @@ public class TopologyDTOUtilTest {
      */
     @Test
     public void testIsNotPlanByType() {
-        Assert.assertFalse(TopologyDTOUtil.isPlanType(
+        assertFalse(TopologyDTOUtil.isPlanType(
                 PlanProjectType.USER,
                 TopologyInfo.newBuilder()
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
@@ -135,22 +144,22 @@ public class TopologyDTOUtilTest {
     @Test
     public void testIsPrimaryTier() {
         // with no consumer provided, always-primary tiers true, all other entity types false
-        Assert.assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.COMPUTE_TIER_VALUE));
-        Assert.assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.STORAGE_TIER_VALUE));
-        Assert.assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.DISK_ARRAY_VALUE));
+        assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.COMPUTE_TIER_VALUE));
+        assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.STORAGE_TIER_VALUE));
+        assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.DISK_ARRAY_VALUE));
 
         // with consumer provided, always-primary tiers true even if consumer entity does not use that tier
-        Assert.assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_VOLUME_VALUE,
+        assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_VOLUME_VALUE,
             EntityType.COMPUTE_TIER_VALUE));
-        Assert.assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_MACHINE_VALUE,
+        assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_MACHINE_VALUE,
             EntityType.COMPUTE_TIER_VALUE));
 
         // with consumer provided, true only when tier is primary for that specific consumer type
-        Assert.assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_VOLUME_VALUE,
+        assertTrue(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_VOLUME_VALUE,
             EntityType.STORAGE_TIER_VALUE));
-        Assert.assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_VOLUME_VALUE,
+        assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_VOLUME_VALUE,
             EntityType.DISK_ARRAY_VALUE));
-        Assert.assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_MACHINE_VALUE,
+        assertFalse(TopologyDTOUtil.isPrimaryTierEntityType(EntityType.VIRTUAL_MACHINE_VALUE,
             EntityType.STORAGE_TIER_VALUE));
     }
 
@@ -163,7 +172,7 @@ public class TopologyDTOUtilTest {
         List<Integer> providerTypes = Arrays.asList(EntityType.WORKLOAD_CONTROLLER_VALUE,
             EntityType.VIRTUAL_MACHINE_VALUE);
         Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(entityType, providerTypes);
-        Assert.assertTrue(primaryProviderIndex.isPresent());
+        assertTrue(primaryProviderIndex.isPresent());
         Assert.assertEquals(1, primaryProviderIndex.get().intValue());
     }
 
@@ -221,5 +230,60 @@ public class TopologyDTOUtilTest {
         return TopologyEntityDTO.newBuilder()
                 .setEntityType(10)
                 .setOid(11L);
+    }
+
+    /**
+     * Checks to make sure the number of ephemeral disks and the execution constraint value is
+     * being set correctly in the ActionVirtualMachineInfo.
+     */
+    @Test
+    public void actionVmInfoEphemeralDiskConstraints() {
+        long vmId = 1001;
+        final TopologyEntityDTO.Builder topologyEntity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(vmId);
+        final VirtualMachineInfo.Builder vmInfoBuilder = VirtualMachineInfo.newBuilder();
+        topologyEntity.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(vmInfoBuilder)
+                .build());
+
+        // Before setting, verify ephemeral volumes and execution constraints are not present.
+        Optional<ActionEntityTypeSpecificInfo.Builder> actionInfo =
+                TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntity);
+        assertTrue(actionInfo.isPresent());
+        assertTrue(actionInfo.get().hasVirtualMachine());
+        ActionVirtualMachineInfo outActionVmInfo = actionInfo.get().getVirtualMachine();
+        assertFalse(outActionVmInfo.hasAttachedEphemeralVolumes());
+        assertFalse(outActionVmInfo.hasExecutionConstraint());
+        assertFalse(topologyEntity.getEntityPropertyMapMap().containsKey(EXECUTION_CONSTRAINT_PROPERTY));
+
+        // Set with 0 value, verify constraint is still not set.
+        vmInfoBuilder.setNumEphemeralStorages(0);
+        topologyEntity.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(vmInfoBuilder)
+                .build());
+        actionInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntity);
+        assertTrue(actionInfo.isPresent());
+        assertTrue(actionInfo.get().hasVirtualMachine());
+        outActionVmInfo = actionInfo.get().getVirtualMachine();
+        assertFalse(outActionVmInfo.hasExecutionConstraint());
+
+        // Set with 2 value, verify constraint is now setup correctly.
+        int ephemeralDiskCount = 2;
+        vmInfoBuilder.setNumEphemeralStorages(ephemeralDiskCount);
+        topologyEntity.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(vmInfoBuilder)
+                .build());
+        topologyEntity.putEntityPropertyMap(EXECUTION_CONSTRAINT_PROPERTY,
+                PrerequisiteType.LOCAL_SSD_ATTACHED.name());
+        actionInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntity);
+        assertTrue(actionInfo.isPresent());
+        assertTrue(actionInfo.get().hasVirtualMachine());
+        outActionVmInfo = actionInfo.get().getVirtualMachine();
+        assertTrue(outActionVmInfo.hasAttachedEphemeralVolumes());
+        assertTrue(outActionVmInfo.hasExecutionConstraint());
+        assertTrue(topologyEntity.getEntityPropertyMapMap().containsKey(EXECUTION_CONSTRAINT_PROPERTY));
+        assertEquals(ephemeralDiskCount, outActionVmInfo.getAttachedEphemeralVolumes());
+        assertEquals(PrerequisiteType.LOCAL_SSD_ATTACHED.name(), outActionVmInfo.getExecutionConstraint());
     }
 }
