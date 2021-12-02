@@ -42,7 +42,8 @@ public class PropertiesLoaderFeatureFlagEnablementStoreTest {
         final FeatureFlag ff = new FeatureFlag("FF", "ff");
         assertThat(ff.isEnabled(), is(false));
         enableFeature(ff);
-        assertThat(ff.isEnabled(), is(true));
+        // Make sure that enablement is calculated and cached only once
+        assertThat(ff.isEnabled(), is(false));
     }
 
     /**
