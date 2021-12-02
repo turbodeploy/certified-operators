@@ -36,7 +36,7 @@ import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.CommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
-import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
+import com.vmturbo.topology.processor.history.exceptions.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCapacityMovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingMovingStatisticsRecord;

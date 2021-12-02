@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.history;
+package com.vmturbo.topology.processor.history.exceptions;
 
 /**
  * Exception for use in historical data calculations.

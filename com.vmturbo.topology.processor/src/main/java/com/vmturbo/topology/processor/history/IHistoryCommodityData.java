@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 
 /**
  * Per-commodity pre-calculated or cached historical data.

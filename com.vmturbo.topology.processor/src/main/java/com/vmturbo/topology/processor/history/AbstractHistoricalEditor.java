@@ -5,6 +5,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 
 /**
  * Base class for history-related commodity value editors.
