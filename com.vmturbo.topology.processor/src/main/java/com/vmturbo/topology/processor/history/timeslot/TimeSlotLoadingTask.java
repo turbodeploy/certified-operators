@@ -30,7 +30,8 @@ import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryPersistenceException;
 
 /**
  * Loader of time slot data from historydb.
@@ -103,7 +104,7 @@ public class TimeSlotLoadingTask extends
             }
         } catch (RuntimeException e) {
             // grpc throws all kinds of things
-            throw new HistoryCalculationException("Failed to get hourly statistics for timeslot analysis", e);
+            throw new HistoryPersistenceException("Failed to get hourly statistics for timeslot analysis", e);
         }
 
         // initialize with empty data commodities that have no db values

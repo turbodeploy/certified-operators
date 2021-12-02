@@ -47,7 +47,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.AbstractBackgroundLoadingHistoricalEditor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 
 /**
  * Calculate and provide time slot historical values for topology commodities.

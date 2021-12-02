@@ -7,6 +7,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 
 /**
  * Load the history commodity data from the persistent store for given commodity fields references.

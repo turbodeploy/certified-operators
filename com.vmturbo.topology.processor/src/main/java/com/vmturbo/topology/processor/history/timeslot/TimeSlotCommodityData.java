@@ -21,9 +21,9 @@ import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.IHistoryCommodityData;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 
 /**
  * Per-commodity cache for storing utilizations for time-slot calculations.

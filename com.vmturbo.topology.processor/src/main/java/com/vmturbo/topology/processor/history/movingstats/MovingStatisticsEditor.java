@@ -42,8 +42,8 @@ import com.vmturbo.topology.processor.history.BlobPersistingCachingHistoricalEdi
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
-import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.Builder;

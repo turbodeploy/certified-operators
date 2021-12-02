@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
 import com.vmturbo.components.common.diagnostics.IDiagnosticsHandlerImportable;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 
 /**

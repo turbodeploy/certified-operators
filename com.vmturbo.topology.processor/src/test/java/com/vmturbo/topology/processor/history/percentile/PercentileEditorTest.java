@@ -79,11 +79,12 @@ import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor.CacheBackup;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryPersistenceException;
 import com.vmturbo.topology.processor.history.BlobPersistingCachingHistoricalEditorTest;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
@@ -1305,6 +1306,46 @@ public class PercentileEditorTest extends PercentileBaseTest {
         }
     }
 
+    /**
+     * Tests the {@link PercentileEditor#initContext} and {@link PercentileEditor#completeBroadcast}
+     * behavior on failure to load from db.
+     *
+     * @throws HistoryCalculationException when failed
+     * @throws InterruptedException when interrupted
+     * @throws IOException should not happen
+     */
+    @Test
+    public void testLoadFailure()
+                    throws HistoryCalculationException, InterruptedException, IOException {
+        Map<Long, TopologyEntity.Builder> topologyMap = createTopologyMap();
+        GraphWithSettings graph = new GraphWithSettings(
+                        TopologyEntityTopologyGraphCreator.newGraph(topologyMap), entitySettings,
+                        Collections.emptyMap());
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graph, false);
+        StatsHistoryServiceStub mockStatsHistoryClient = StatsHistoryServiceGrpc.newStub(grpcServer.getChannel());
+        PercentileEditorCacheAccess failingLoadPercentileEditor = new PercentileEditorCacheAccess(
+                        PERCENTILE_HISTORICAL_EDITOR_CONFIG, mockStatsHistoryClient,
+                        setUpBlockingStub(MAINTENANCE_WINDOW_HOURS), clock,
+                        (service, range) -> new FailingPercentileTask(service, clock, range),
+                        identityProvider);
+        // should not throw yet despite db loading failure
+        failingLoadPercentileEditor.initContext(context,
+                        Collections.singletonList(new EntityCommodityReference(
+                                        VIRTUAL_MACHINE_OID_2,
+                                        TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(CommodityType.VCPU_VALUE).build(),
+                                        null)));
+        failingLoadPercentileEditor.completeBroadcast(context);
+        // sold VCPU (present as set up above) should be not resizable now
+        TopologyEntityDTO.Builder builder = graph.getTopologyGraph()
+                        .getEntity(VIRTUAL_MACHINE_OID_2).get().getTopologyEntityDtoBuilder();
+        Assert.assertFalse(builder.build().getCommoditySoldListList().stream()
+                        .filter(commSold -> commSold.getCommodityType()
+                                        .getType() == CommodityType.VCPU_VALUE)
+                        .findAny().get().getIsResizeable());
+    }
+
     private HashMap<Long, Builder> createTopologyMap() {
         HashMap<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(VIRTUAL_MACHINE_OID_2, TopologyEntity.newBuilder(
@@ -1493,6 +1534,26 @@ public class PercentileEditorTest extends PercentileBaseTest {
         @Override
         public long getLastCheckpointMs() {
             return TIMESTAMP_INIT_START_SEP_1_2019;
+        }
+    }
+
+    /**
+     * Loading task that fails with exception.
+     */
+    private static class FailingPercentileTask extends PercentilePersistenceTask {
+
+        FailingPercentileTask(StatsHistoryServiceStub statsHistoryClient, Clock clock,
+                        Pair<Long, Long> range) {
+            super(statsHistoryClient, clock, range, false);
+        }
+        
+        @Override
+        public Map<EntityCommodityFieldReference, PercentileRecord> load(
+                        @Nonnull Collection<EntityCommodityReference> commodities,
+                        @Nonnull PercentileHistoricalEditorConfig config,
+                        @Nonnull final Set<Long> oidsToUse)
+                        throws HistoryCalculationException, InterruptedException {
+            throw new HistoryPersistenceException("qqq");
         }
     }
 }

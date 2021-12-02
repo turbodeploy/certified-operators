@@ -47,7 +47,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 
