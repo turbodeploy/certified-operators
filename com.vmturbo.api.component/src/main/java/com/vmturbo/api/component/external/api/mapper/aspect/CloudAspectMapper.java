@@ -31,6 +31,7 @@ import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
@@ -460,6 +461,15 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                 }
                 if (virtualMachine.hasBillingType()) {
                     aspect.setBillingType(virtualMachine.getBillingType().name());
+                }
+                if (virtualMachine.hasTenancy()) {
+                    Optional<Tenancy> tenancy =
+                                              Tenancy.getByName(virtualMachine.getTenancy().name());
+                    if (tenancy.isPresent()) {
+                        aspect.setTenancy(tenancy.get());
+                    } else {
+                        logger.error("Invalid Tenancy in VM Info for: " + entity.getOid());
+                    }
                 }
             }
         }
