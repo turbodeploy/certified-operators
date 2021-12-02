@@ -18,10 +18,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
@@ -47,10 +50,8 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
-import com.vmturbo.action.orchestrator.execution.ConditionalSubmitterTest.CountDownSubmitter;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
-import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -731,6 +732,26 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(action).receive(isA(AutomaticAcceptanceEvent.class));
         Mockito.verify(action).receive(isA(QueuedEvent.class));
 
+    }
+
+    /**
+     * ConditionalSubmitter that tracks the number of executed calls.
+     */
+    public static class CountDownSubmitter extends ConditionalSubmitter {
+
+        private final CountDownLatch countDownLatch;
+
+        CountDownSubmitter(int poolSize, CountDownLatch countDownLatch) {
+            super(Executors.newScheduledThreadPool(poolSize,
+                    new ThreadFactoryBuilder().setNameFormat("auto-act-exec-%d").build()), 0);
+            this.countDownLatch = countDownLatch;
+        }
+
+        @Override
+        protected void onFutureCompletion(@Nonnull Runnable runnable) {
+            super.onFutureCompletion(runnable);
+            countDownLatch.countDown();
+        }
     }
 
     private ActionDTO.Action makeActionRec(long actionId, ActionInfo info) {
