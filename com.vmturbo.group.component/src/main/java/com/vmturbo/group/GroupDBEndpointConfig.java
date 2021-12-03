@@ -17,6 +17,13 @@ import com.vmturbo.sql.utils.DbEndpointsConfig;
 public class GroupDBEndpointConfig extends DbEndpointsConfig {
 
     /**
+     * DB user name accessible to given schema. This is needed since the component name
+     * "group" is different from the db username, and group_component is
+     * not provided by operator. If not provided, DbEndpoint will use component name as username.
+     */
+    private static final String groupDbUsername = "group_component";
+
+    /**
      * Endpoint for accessing repository database.
      *
      * @return endpoint instance
@@ -27,6 +34,9 @@ public class GroupDBEndpointConfig extends DbEndpointsConfig {
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true))
+                .withUserName(groupDbUsername)
+                //TODO: remove once we're done with the postgres integration
+                .withMigrationLocations("db.migration")
                 .build();
     }
 }
