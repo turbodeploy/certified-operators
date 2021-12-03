@@ -21,6 +21,7 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
 import com.vmturbo.stitching.journal.IStitchingJournal.IJournalChangeset;
 import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
+import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.journal.SemanticDiffer;
 
@@ -163,6 +164,11 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
         private final int changesetSize;
 
         /**
+         * Metrics to count the changes made as part of the changeset.
+         */
+        private final StitchingMetrics stitchingMetrics;
+
+        /**
          * Create a new MergedChangeset. Mutations in the collection of other changesets
          * are merged in using the order provided by the list of other changesets.
          *
@@ -206,6 +212,12 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
             this.added = Collections.unmodifiableSet(added);
 
             this.verbosity = Objects.requireNonNull(verbosity);
+            // Since changesets all generally refer to the same metrics instance, it is fine
+            // to take the metrics from any instance, so we take from the first.
+            this.stitchingMetrics = otherChangesets.stream()
+                .findFirst()
+                .map(JournalChangeset::getMetrics)
+                .orElse(new StitchingMetrics());
         }
 
         /**
@@ -296,6 +308,11 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
         @Override
         public int getChangesetSize() {
             return changesetSize;
+        }
+
+        @Override
+        public StitchingMetrics getMetrics() {
+            return stitchingMetrics;
         }
     }
 

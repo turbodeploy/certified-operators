@@ -20,6 +20,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
+import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.JournalFilter;
 import com.vmturbo.stitching.journal.JournalFilter.IncludeAllFilter;
 import com.vmturbo.stitching.journal.JournalRecorder;
@@ -30,10 +31,14 @@ import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 
 public class ChangesetMergerTest {
     private final JournalFilter filter = new IncludeAllFilter();
+    private final StitchingMetrics stitchingMetrics = new StitchingMetrics();
 
-    final JournalChangeset<TopologyEntity> changeset1 = new JournalChangeset<>("remove", filter, 1);
-    final JournalChangeset<TopologyEntity> changeset2 = new JournalChangeset<>("change", filter, 2);
-    final JournalChangeset<TopologyEntity> changeset3 = new JournalChangeset<>("merge", filter, 3);
+    final JournalChangeset<TopologyEntity> changeset1 = new JournalChangeset<>("remove", filter,
+        stitchingMetrics,1);
+    final JournalChangeset<TopologyEntity> changeset2 = new JournalChangeset<>("change", filter,
+        stitchingMetrics,2);
+    final JournalChangeset<TopologyEntity> changeset3 = new JournalChangeset<>("merge", filter,
+        stitchingMetrics,3);
 
     final ChangesetUnion<TopologyEntity> union1 = new ChangesetMerger.ChangesetUnion<>(changeset1);
     final ChangesetUnion<TopologyEntity> union2 = new ChangesetMerger.ChangesetUnion<>(changeset2);

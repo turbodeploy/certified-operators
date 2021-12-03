@@ -85,6 +85,7 @@ public class TopologyStitchingChanges {
             final TopologyStitchingEntity removed = (TopologyStitchingEntity)entityToRemove;
             changeset.observeRemoval(removed);
             stitchingContext.removeEntity(removed);
+            changeset.getMetrics().incrementRemovedCount(removed.getJournalableEntityType());
         }
     }
 
@@ -113,7 +114,10 @@ public class TopologyStitchingChanges {
             // add new entities to graph
             List<TopologyStitchingEntity> newEntities = stitchingContext.addEntities(entities);
             // add the new added entities to StitchingJournal
-            newEntities.forEach(changeset::observeAddition);
+            newEntities.forEach(e -> {
+                changeset.observeAddition(e);
+                changeset.getMetrics().incrementAddedCount(e.getJournalableEntityType());
+            });
         }
     }
 
@@ -239,6 +243,7 @@ public class TopologyStitchingChanges {
                                  @Nonnull final JournalChangeset<StitchingEntity> changeset) {
             changeset.beforeChange(from);
             changeset.beforeChange(onto);
+            changeset.getMetrics().incrementMergedCount(from.getJournalableEntityType());
 
             // Run all custom field mergers.
             fieldMergers.forEach(merger -> merger.merge(from, onto));
@@ -402,10 +407,10 @@ public class TopologyStitchingChanges {
         protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
             Preconditions.checkArgument(entityToUpdate instanceof TopologyStitchingEntity);
             changeset.beforeChange(entityToUpdate);
+            changeset.getMetrics().incrementMiscellaneousChangeCount();
 
             // Track providers before and after applying the update.
-            final List<StitchingEntity> providersBeforeChangeCopy = entityToUpdate.getProviders().stream()
-                .collect(Collectors.toList());
+            final List<StitchingEntity> providersBeforeChangeCopy = new ArrayList<>(entityToUpdate.getProviders());
             final Map<ConnectionType, Set<StitchingEntity>> connectedToBeforeChangeCopy =
                 entityToUpdate.getConnectedToByType().entrySet().stream()
                     .collect(Collectors.toMap(e -> e.getKey(), e -> ImmutableSet.copyOf(e.getValue())));
@@ -477,6 +482,7 @@ public class TopologyStitchingChanges {
         protected void applyChangeInternal(@Nonnull final JournalChangeset<ENTITY> changeset) {
             changeset.beforeChange(entityToUpdate);
             updateMethod.accept(entityToUpdate);
+            changeset.getMetrics().incrementMiscellaneousChangeCount();
         }
     }
 }

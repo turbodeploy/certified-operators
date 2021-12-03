@@ -128,7 +128,7 @@ public class StitchingOperationStore {
             if (isCustomStitchingOperationsApplicable(operations, customOperations)) {
                 operations.addAll(customOperations);
             } else {
-                logger.warn("Skipping {} custom stitching operations for {} since there are data" +
+                logger.debug("Skipping {} custom stitching operations for {} since there are data" +
                                 " driven stitch operations for a subset of the custom stitching" +
                                 " operations' entity types.", customOperations, probeInfo);
             }
