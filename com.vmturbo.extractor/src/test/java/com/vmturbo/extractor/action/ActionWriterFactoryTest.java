@@ -48,6 +48,8 @@ public class ActionWriterFactoryTest {
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
             .insertTimeoutSeconds(10)
             .searchBatchSize(10)
+            .scopeInsertBatchSize(10)
+            .scopeUpdateBatchSize(10)
             .build();
 
     private ActionConverter actionConverter = mock(ActionConverter.class);

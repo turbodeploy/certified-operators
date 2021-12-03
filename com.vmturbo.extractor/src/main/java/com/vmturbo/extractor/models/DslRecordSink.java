@@ -101,7 +101,7 @@ public class DslRecordSink extends AbstractRecordSink {
                     if (recordWriter != null) {
                         recordWriter.close();
                     } else {
-                        // make sure pre- and post- hooks are executed, since tney may be
+                        // make sure pre- and post- hooks are executed, since they may be
                         // important (e.g. a post- hook that removes stale records following
                         // an upsert of current records)
                         createRecordWriter().close();
