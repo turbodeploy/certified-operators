@@ -25,10 +25,14 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.mediation.hybrid.cloud.common.PropertyName;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
+import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -66,6 +70,7 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
     protected static final String CLOUD_COST_EXPENSES_SECTION = "expenses";
     protected static final String CLOUD_COST_PRICES_SECTION = "prices";
     protected static final String RI_DATA_SECTION = "ri_data";
+    protected static final String BILLED_COST_SECTION = "billed_cost";
 
     protected static final String UPLOAD_REQUEST_BUILD_STAGE = "build";
     protected static final String UPLOAD_REQUEST_UPLOAD_STAGE = "upload";
@@ -77,8 +82,9 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
 
     private final AccountExpensesUploader accountExpensesUploader;
 
-    private final PriceTableUploader priceTableUploader;
+    private final BilledCostUploader billedCostUploader;
 
+    private final PriceTableUploader priceTableUploader;
 
     private final BusinessAccountPriceTableKeyUploader businessAccountPriceTableKeyUploader;
 
@@ -99,12 +105,14 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
                                        @Nonnull AccountExpensesUploader accountExpensesUploader,
                                        @Nonnull PriceTableUploader priceTableUploader,
                                        @Nonnull final BusinessAccountPriceTableKeyUploader
-                                               businessAccountPriceTableKeyUploader) {
+                                               businessAccountPriceTableKeyUploader,
+                                       @Nonnull BilledCostUploader billedCostUploader) {
         this.riCostDataUploader = riCostDataUploader;
         this.cloudCommitmentCostUploader = cloudCommitmentCostUploader;
         this.accountExpensesUploader = accountExpensesUploader;
         this.priceTableUploader = priceTableUploader;
         this.businessAccountPriceTableKeyUploader = businessAccountPriceTableKeyUploader;
+        this.billedCostUploader = billedCostUploader;
     }
 
 
@@ -162,6 +170,7 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
      * @param nonMarketEntityDTOS non market entity DTOs
      * @param costDataDTOS cost data DTOs
      * @param priceTable price table
+     * @param cloudBillingDataDTOs cloud billing data DTOs
      */
     public void recordTargetCostData(long targetId,
                                      @Nonnull final Optional<SDKProbeType> optionalSDKProbeType,
@@ -169,7 +178,8 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
                                      @Nonnull Discovery discovery,
                                      @Nonnull final List<NonMarketEntityDTO> nonMarketEntityDTOS,
                                      @Nonnull final List<CostDataDTO> costDataDTOS,
-                                     @Nullable final PriceTable priceTable) {
+                                     @Nullable final PriceTable priceTable,
+                                     @Nonnull final List<CloudBillingData> cloudBillingDataDTOs) {
         SDKProbeType probeType = optionalSDKProbeType.orElse(null);
         if (probeType == null) {
             logger.warn("Skipping price tables for unknown probeType for targetId {}.", targetId);
@@ -195,6 +205,7 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
 
         // the price table helper will cache it's own data
         priceTableUploader.recordPriceTable(targetId, probeType, optionalProbeCategory, priceTable);
+        billedCostUploader.recordCloudBillingData(targetId, cloudBillingDataDTOs);
     }
 
     /**
@@ -208,10 +219,16 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
         // if discovery has not completed for the removed target, it won't be in the map yet.
         // If the target is not in the probe type map yet, then no data will have been stored for it.
         final SDKProbeType probeType = probeTypesForTargetId.get(targetId);
+        final ProbeCategory probeCategory = probeCategoryForTarget.orElse(null);
         if (probeType != null) {
-            if (probeCategoryForTarget.isPresent() && probeCategoryForTarget.get() == ProbeCategory.COST) {
+            if (probeCategory == ProbeCategory.COST) {
                 priceTableUploader.targetRemoved(targetId, probeType, probeCategoryForTarget.get());
+            } else if (probeCategory == ProbeCategory.BILLING || probeCategory == ProbeCategory.CLOUD_MANAGEMENT) {
+                // Azure EA - Cloud Management
+                // AWS and GCP Billing - Billing
+                billedCostUploader.targetRemoved(targetId);
             }
+
             probeTypesForTargetId.remove(targetId);
             long stamp = targetCostDataCacheLock.readLock();
             try {
@@ -279,6 +296,12 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
                 priceTableUploader.checkForUpload(probeTypesForTargetId, cloudEntitiesMap);
             } catch (RuntimeException e) {
                 logger.error("Failed to upload price table.", e);
+            }
+
+            try {
+                billedCostUploader.uploadBilledCost(topologyInfo, stitchingContext, cloudEntitiesMap);
+            } catch (RuntimeException e) {
+                logger.error("Failed to upload billed cost data.", e);
             }
 
         } finally {
@@ -356,4 +379,20 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
         public List<CostDataDTO> costDataDTOS;
     }
 
+    /**
+     * Gets the {@link PropertyName#BILLING_ID} from {@link EntityDTO#getEntityPropertiesList()} of
+     * {@code entity}, if this property is available, otherwise returns the {@link EntityDTO#getId()}.
+     * eg: Azure Subscription and Azure EA probe send different id for the same virtual machine.
+     *
+     * @param entity the {@link TopologyStitchingEntity}
+     * @return the billing id of the entity.
+     */
+    public static String getBillingId(final TopologyStitchingEntity entity) {
+        return entity.getEntityBuilder()
+                .getEntityPropertiesList().stream()
+                .filter(property -> PropertyName.BILLING_ID.equals(property.getName()))
+                .map(CommonDTO.EntityDTO.EntityProperty::getValue)
+                .findAny()
+                .orElse(entity.getLocalId());
+    }
 }

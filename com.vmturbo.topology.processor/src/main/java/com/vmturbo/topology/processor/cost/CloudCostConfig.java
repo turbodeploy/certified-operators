@@ -6,8 +6,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentUploadServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BilledCostUploadServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BilledCostUploadServiceGrpc.BilledCostUploadServiceStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
@@ -48,9 +49,17 @@ public class CloudCostConfig {
     @Value("${riSupportInPartialCloudEnvironment:true}")
     private boolean riSupportInPartialCloudEnvironment;
 
+    @Value("${maximumUploadBilledCostRequestSizeMB:4.0}")
+    private float maximumUploadBilledCostRequestSizeMB;
+
     @Bean
     public RIAndExpenseUploadServiceBlockingStub costServiceClient() {
         return RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
+    public BilledCostUploadServiceStub billServiceClient() {
+        return BilledCostUploadServiceGrpc.newStub(costClientConfig.costChannel());
     }
 
     @Bean
@@ -84,7 +93,7 @@ public class CloudCostConfig {
     @Bean
     public DiscoveredCloudCostUploader discoveredCloudCostUploader() {
         return new DiscoveredCloudCostUploader(riDataUploader(),  cloudCommitmentCostUploader(),
-            accountExpensesUploader(), priceTableUploader(), businessAccountPriceTableKeyUploader());
+            accountExpensesUploader(), priceTableUploader(), businessAccountPriceTableKeyUploader(), billedCostUploader());
     }
 
     @Bean
@@ -93,6 +102,11 @@ public class CloudCostConfig {
                 .newBlockingStub(costClientConfig.costChannel());
         return new BusinessAccountPriceTableKeyUploader(pricingServiceBlockingStub,
                 targetConfig.targetStore());
+    }
+
+    @Bean
+    public BilledCostUploader billedCostUploader() {
+        return new BilledCostUploader(billServiceClient(), maximumUploadBilledCostRequestSizeMB);
     }
 
     @Bean

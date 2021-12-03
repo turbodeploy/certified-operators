@@ -43,6 +43,7 @@ public class DiscoveredCloudCostUploaderTest {
     private PriceTableUploader priceTableUploader = mock(PriceTableUploader.class);
     private BusinessAccountPriceTableKeyUploader businessAccountPriceTableKeyUploader =
             mock(BusinessAccountPriceTableKeyUploader.class);
+    private BilledCostUploader billedCostUploader = mock(BilledCostUploader.class);
     private TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(1L)
             .setTopologyId(10L)
@@ -56,7 +57,7 @@ public class DiscoveredCloudCostUploaderTest {
         stitchingContext = utils.setupStitchingContext();
         cloudCostUploader = new DiscoveredCloudCostUploader(riCostDataUploader,
             cloudCommitmentCostUploader, accountExpensesUploader, priceTableUploader,
-            businessAccountPriceTableKeyUploader);
+            businessAccountPriceTableKeyUploader, billedCostUploader);
     }
 
     @Test
@@ -100,7 +101,7 @@ public class DiscoveredCloudCostUploaderTest {
                 .setEntityType(EntityType.CLOUD_SERVICE)
                 .setCost(123)
                 .build()),
-            null);
+            null, Collections.emptyList());
 
         final Map<Long, TargetCostData> originalMap = cloudCostUploader.getCostDataByTargetIdSnapshot();
 
@@ -111,7 +112,7 @@ public class DiscoveredCloudCostUploaderTest {
 
         final DiscoveredCloudCostUploader newUploader =
             new DiscoveredCloudCostUploader(riCostDataUploader, cloudCommitmentCostUploader,
-                accountExpensesUploader, priceTableUploader, businessAccountPriceTableKeyUploader);
+                accountExpensesUploader, priceTableUploader, businessAccountPriceTableKeyUploader, billedCostUploader);
 
         newUploader.restoreDiags(diagsCaptor.getAllValues(), null);
 

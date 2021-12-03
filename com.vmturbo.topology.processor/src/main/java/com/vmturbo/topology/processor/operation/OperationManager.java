@@ -1537,7 +1537,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                         targetStore.getProbeTypeForTarget(targetId), targetStore.getProbeCategoryForTarget(targetId), discovery,
                                         responseUsed.getNonMarketEntityDTOList(),
                                         responseUsed.getCostDTOList(),
-                                        responseUsed.getPriceTable());
+                                        responseUsed.getPriceTable(),
+                                        responseUsed.getCloudBillingDataList());
                                 discoveredPlanDestinationUploader.recordPlanDestinations(targetId,
                                     responseUsed.getNonMarketEntityDTOList());
                                 // Flows
