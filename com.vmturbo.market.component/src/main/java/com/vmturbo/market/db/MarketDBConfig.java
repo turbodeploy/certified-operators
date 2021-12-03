@@ -1,4 +1,4 @@
-package com.vmturbo.market;
+package com.vmturbo.market.db;
 
 import java.util.Optional;
 
@@ -7,14 +7,17 @@ import javax.sql.DataSource;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.sql.utils.ConditionalDbConfig.SQLDatabaseConfigCondition;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Configuration for market component interaction with a schema.
  */
 @Configuration
+@Conditional(SQLDatabaseConfigCondition.class)
 public class MarketDBConfig extends SQLDatabaseConfig {
     /**
      * DB user name accessible to given schema.
@@ -46,7 +49,7 @@ public class MarketDBConfig extends SQLDatabaseConfig {
                 !Strings.isEmpty(marketDbPassword) ? marketDbPassword : null));
     }
 
-    /** Whether DbMonitor reports should be produced at all. */
+    // If DbMonitor reports should be produced at all.
     @Value("${dbMonitorEnabled:true}")
     private boolean dbMonitorEnabled;
 

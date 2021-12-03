@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.market.db.DbAccessConfig;
+
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration;
@@ -70,7 +72,7 @@ public class MarketComponent extends BaseVmtComponent {
     private int defaultTraxCalculationsTrackedPerDay;
 
     @Autowired
-    private MarketDBConfig marketDbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     /**
      * Starts the component.
@@ -94,9 +96,7 @@ public class MarketComponent extends BaseVmtComponent {
             new TraxThrottlingLimit(defaultTraxCalculationsTrackedPerDay, Clock.systemUTC(), new Random()),
             Collections.singletonList(TraxConfiguration.DEFAULT_TOPIC_NAME)));
 
-        if (marketDbConfig.isDbMonitorEnabled()) {
-            marketDbConfig.startDbMonitor();
-        }
+        dbAccessConfig.startDbMonitor();
     }
 
     @Nonnull
