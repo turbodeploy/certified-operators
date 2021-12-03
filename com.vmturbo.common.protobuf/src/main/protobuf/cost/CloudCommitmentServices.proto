@@ -6,6 +6,7 @@ option java_outer_classname = "CloudCommitmentServices";
 
 import "cloud/CloudCommitmentDTO.proto";
 import "cloud/CloudCommon.proto";
+import "topology/TopologyDTO.proto";
 
 message CloudCommitmentData {
     repeated CloudCommitmentDataBucket utilization_data = 1;
@@ -203,4 +204,28 @@ service CloudCommitmentStatsService {
 
     rpc GetTopologyCommitmentUtilization(GetTopologyCommitmentUtilizationStatsRequest)
     returns (stream GetTopologyCommitmentUtilizationStatsResponse);
+}
+
+message GetCloudCommitmentInfoForAnalysisRequest {
+    optional topology.TopologyInfo topology_info = 1;
+}
+
+message GetCloudCommitmentInfoForAnalysisResponse {
+    repeated CommitmentInfoBucket commitment_bucket = 1;
+
+    message CommitmentInfoBucket {
+
+        optional int64 timestamp_millis = 1;
+
+        optional cloud_common.CloudStatGranularity granularity = 2 [default = HOURLY];
+
+        repeated cloud_commitment_dto.CloudCommitmentMapping cloud_commitment_mapping = 3;
+
+        map<int64, cloud_commitment_dto.CloudCommitmentAmount> cloud_commitment_overhead = 4;
+    }
+}
+
+service CloudCommitmentService {
+    rpc GetCloudCommitmentInfoForAnalysis(GetCloudCommitmentInfoForAnalysisRequest)
+    returns (GetCloudCommitmentInfoForAnalysisResponse);
 }

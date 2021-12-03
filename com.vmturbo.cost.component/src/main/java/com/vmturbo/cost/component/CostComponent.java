@@ -30,6 +30,8 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentConfig;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentRpcService;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsRpcService;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentUploadRpcService;
@@ -68,7 +70,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostDiagnosticsConfig.class,
     MigratedWorkloadCloudCommitmentConfig.class,
     EntityUptimeSpringConfig.class,
-    CloudCommitmentStatsConfig.class
+    CloudCommitmentStatsConfig.class,
+    CloudCommitmentConfig.class,
 })
 public class CostComponent extends BaseVmtComponent {
     /**
@@ -105,6 +108,10 @@ public class CostComponent extends BaseVmtComponent {
     @Autowired
     private CloudCommitmentStatsRpcService cloudCommitmentStatsRpcService;
 
+    //Defined in CloudCommitmentConfig
+    @Autowired
+    private CloudCommitmentRpcService cloudCommitmentRpcService;
+
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
@@ -116,9 +123,6 @@ public class CostComponent extends BaseVmtComponent {
      */
     @Autowired
     private SpringSecurityConfig securityConfig;
-
-    @Autowired
-    private CostCleanupConfig costCleanupConfig;
 
     @Autowired
     private CostDebugConfig costDebugConfig;
@@ -196,7 +200,8 @@ public class CostComponent extends BaseVmtComponent {
                 migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService(),
                 entityUptimeSpringConfig.entityUptimeRpcService(),
                 cloudCommitmentUploadRpcService,
-                cloudCommitmentStatsRpcService);
+                cloudCommitmentStatsRpcService,
+                cloudCommitmentRpcService);
     }
 
     @Nonnull
