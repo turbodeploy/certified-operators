@@ -4,6 +4,7 @@ import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -22,7 +23,15 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
@@ -32,9 +41,12 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.market.component.db.Market;
 import com.vmturbo.market.component.db.tables.EconomyCache;
 import com.vmturbo.market.component.db.tables.records.EconomyCacheRecord;
+import com.vmturbo.market.db.MarketDbEndpointConfig;
+import com.vmturbo.market.reservations.EconomyCachePersistenceTest.TestMarketDbEndpointConfig;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO;
@@ -42,11 +54,34 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for EconomyCachePersistence.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestMarketDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class EconomyCachePersistenceTest {
+
+    @Autowired(required = false)
+    private TestMarketDbEndpointConfig dbEndpointConfig;
+
+    /**
+     * Test rule to use {@link com.vmturbo.sql.utils.DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("market");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
 
     /**
      * Rule to create the DB schema and migrate it.
@@ -65,8 +100,8 @@ public class EconomyCachePersistenceTest {
     private static final int CLUSTER1_COMM_SPEC_TYPE = 300;
     private static final int CLUSTER2_COMM_SPEC_TYPE = 400;
     private static final int MEM_TYPE = CommodityType.MEM_VALUE;
-    private DSLContext dsl = dbConfig.getDslContext();
-    private EconomyCachePersistence persistence = new EconomyCachePersistence(dsl);
+    private DSLContext dsl;
+    private EconomyCachePersistence persistence;
     private static final BiMap<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = HashBiMap.create();
     private ReservationServiceBlockingStub reservationServiceBlockingStub;
 
@@ -85,11 +120,24 @@ public class EconomyCachePersistenceTest {
                 CLUSTER2_COMM_SPEC_TYPE);
     }
 
+
     /**
-     * Set up.
-     */
+     * Common code before every test.
+     *
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
+    */
     @Before
-    public void setUpBefore() {
+    public void setUpBefore()
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.marketEndpoint());
+            dsl = dbEndpointConfig.marketEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        persistence = new EconomyCachePersistence(dsl);
         IdentityGenerator.initPrefix(0);
     }
 
@@ -222,4 +270,16 @@ public class EconomyCachePersistenceTest {
         Assert.assertEquals(pm4MemUsed + buyerMemUsed, pm4.getCommoditiesSold()
                 .get(pm4.getBasketSold().indexOf(CommodityType.MEM_VALUE)).getQuantity(), 0.001);
     }
+
+    /**
+     * Workaround for {@link MarketDbEndpointConfig} (remove conditional annotation), since
+     * it's conditionally initialized based on {@link com.vmturbo.components.common.featureflags.FeatureFlags#POSTGRES_PRIMARY_DB}. When we
+     * test all combinations of it using {@link com.vmturbo.test.utils.FeatureFlagTestRule}, first it's false, so
+     * {@link MarketDbEndpointConfig} is not created; then second it's true,
+     * {@link MarketDbEndpointConfig} is created, but the endpoint inside is also eagerly
+     * initialized due to the same FF, which results in several issues like: it doesn't go through
+     * DbEndpointTestRule, making call to auth to get root password, etc.
+     */
+    @Configuration
+    public static class TestMarketDbEndpointConfig extends MarketDbEndpointConfig {}
 }
