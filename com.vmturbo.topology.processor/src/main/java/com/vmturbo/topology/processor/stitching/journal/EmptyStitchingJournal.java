@@ -53,6 +53,8 @@ public class EmptyStitchingJournal<T extends JournalableEntity<T>> implements IS
 
     private int nextChangesetIndex = 0;
 
+    private final StitchingMetrics stitchingMetrics = new StitchingMetrics();
+
     @Override
     public void addRecorder(@Nonnull JournalRecorder recorder) {
         // Do nothing
@@ -105,9 +107,10 @@ public class EmptyStitchingJournal<T extends JournalableEntity<T>> implements IS
     }
 
     @Override
-    public void recordChangeset(@Nonnull String changesetPreamble, @Nonnull Consumer<JournalChangeset<T>> journalChangesetConsumer) {
+    public void recordChangeset(@Nonnull String changesetPreamble,
+                                @Nonnull Consumer<JournalChangeset<T>> journalChangesetConsumer) {
         final JournalChangeset<T> changeset = new JournalChangeset<>(changesetPreamble,
-            filter, nextChangesetIndex);
+            filter, stitchingMetrics, nextChangesetIndex);
         nextChangesetIndex++;
 
         journalChangesetConsumer.accept(changeset);
@@ -162,7 +165,7 @@ public class EmptyStitchingJournal<T extends JournalableEntity<T>> implements IS
     @Nonnull
     @Override
     public StitchingMetrics getMetrics() {
-        return new StitchingMetrics();
+        return stitchingMetrics;
     }
 
     @Override
