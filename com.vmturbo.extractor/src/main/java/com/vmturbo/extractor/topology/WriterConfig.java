@@ -44,4 +44,18 @@ public interface WriterConfig {
      * @return batch size for search persistence
      */
     int searchBatchSize();
+
+    /**
+     * Batch size for persisting scope table updates when using DslBatchExecuteRecordSink.
+     *
+     * @return batch size for scope updates
+     */
+    int scopeUpdateBatchSize();
+
+    /**
+     * Batch size for persisting scope table inserts when using DslBatchExecuteRecordSink.
+     *
+     * @return batch size for scope inserts
+     */
+    int scopeInsertBatchSize();
 }
