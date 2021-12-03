@@ -668,13 +668,12 @@ public class ActionsService implements IActionsService {
             throws OperationFailedException, IllegalArgumentException {
 
         final String inputDtoTopologyContextId = Strings.isNullOrEmpty(inputDto.getMarketId()) ?
-                StringUtils.EMPTY :
+                null :
                 Long.toString(uuidMapper.fromUuid(inputDto.getMarketId()).oid());
 
-        final List<Long> actionIds = Strings.isNullOrEmpty(inputDtoTopologyContextId) ?
-                Collections.emptyList() :
+        final List<Long> actionIds =
                 actionSearchUtil.getInstanceIdForRecommendationIds(inputDto.getUuids(),
-                inputDtoTopologyContextId);
+                    inputDtoTopologyContextId);
 
         if (actionIds.isEmpty()) {
             return Collections.emptyMap();
