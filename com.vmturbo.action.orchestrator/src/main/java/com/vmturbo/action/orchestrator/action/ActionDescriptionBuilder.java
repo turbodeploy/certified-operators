@@ -7,9 +7,12 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTyp
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 
 import java.text.MessageFormat;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -596,34 +599,37 @@ public class ActionDescriptionBuilder {
             @Nonnull final ActionPartialEntity newEntityDTO) {
         if (recommendation.getInfo().hasScale()
                 && !recommendation.getInfo().getScale().getCommodityResizesList().isEmpty()) {
-            ResizeInfo resizeInfo = recommendation.getInfo().getScale().getCommodityResizesList().get(0);
-            return Optional.of(getAdditionalResizeCommodityMessage(resizeInfo, targetEntityDTO, newEntityDTO));
+            Collection<ResizeInfo> resizeInfos = recommendation.getInfo().getScale().getCommodityResizesList();
+            return Optional.of(getAdditionalResizeCommodityMessage(resizeInfos, targetEntityDTO, newEntityDTO));
         }
         return Optional.empty();
     }
 
     @Nonnull
     private static String getAdditionalResizeCommodityMessage(
-            @Nonnull ResizeInfo resizeInfo,
+            @Nonnull Collection<ResizeInfo> resizeInfoList,
             @Nonnull ActionPartialEntity targetEntityDTO,
             @Nonnull ActionPartialEntity newEntityDTO) {
+        final StringBuilder commodityMessageBuilder = new StringBuilder();
         final String messageSeparator = ", ";
-        final CommodityDTO.CommodityType firstResizeInfoCommodityType = CommodityDTO.CommodityType
-                .forNumber(resizeInfo.getCommodityType().getType());
-        final String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
-                .getOrDefault(firstResizeInfoCommodityType, beautifyCommodityType(resizeInfo.getCommodityType()));
-        final String oldVal = formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                targetEntityDTO.getEntityType(), resizeInfo.getOldCapacity(), false);
-        final String newVal = formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                newEntityDTO.getEntityType(), resizeInfo.getNewCapacity(), true);
-        final String verb = resizeInfo.getNewCapacity() > resizeInfo.getOldCapacity() ? UP : DOWN;
-        return messageSeparator.concat(
-                ActionMessageFormat.ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE.format(
-                commodityTypeDisplayName,
-                verb,
-                oldVal,
-                newVal
-        ));
+        resizeInfoList.forEach(resizeInfo -> {
+            final CommodityType resizeInfoCommodityType = CommodityType
+                    .forNumber(resizeInfo.getCommodityType().getType());
+            final String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
+                    .getOrDefault(resizeInfoCommodityType, beautifyCommodityType(resizeInfo.getCommodityType()));
+            final String oldVal = formatResizeActionCommodityValue(resizeInfoCommodityType,
+                    targetEntityDTO.getEntityType(), resizeInfo.getOldCapacity(), false);
+            final String newVal = formatResizeActionCommodityValue(resizeInfoCommodityType,
+                    newEntityDTO.getEntityType(), resizeInfo.getNewCapacity(), true);
+            final String verb = resizeInfo.getNewCapacity() > resizeInfo.getOldCapacity() ? UP : DOWN;
+            commodityMessageBuilder.append(messageSeparator).append(ActionMessageFormat.ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE.format(
+                    commodityTypeDisplayName,
+                    verb,
+                    oldVal,
+                    newVal
+            ));
+        });
+        return commodityMessageBuilder.toString();
     }
 
     private static String getScaleActionWithoutProviderChangeDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
@@ -635,12 +641,12 @@ public class ActionDescriptionBuilder {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getScaleActionDescription", "targetEntityId", targetEntityId);
             return "";
         }
-        List<ResizeInfo> resizeInfos = recommendation.getInfo().getScale().getCommodityResizesList();
+        Queue<ResizeInfo> resizeInfos = new LinkedList<>(recommendation.getInfo().getScale().getCommodityResizesList());
         if (CollectionUtils.isEmpty(resizeInfos)) {
             logger.warn("No commodity change for Scale action without provider change for {}", targetEntityId);
             return "";
         }
-        ResizeInfo firstResizeInfo = resizeInfos.get(0);
+        ResizeInfo firstResizeInfo = resizeInfos.poll();
         final CommodityDTO.CommodityType firstResizeInfoCommodityType = CommodityDTO.CommodityType
                 .forNumber(firstResizeInfo.getCommodityType().getType());
         String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
@@ -676,10 +682,7 @@ public class ActionDescriptionBuilder {
         }
 
         // Scaling more than one commodity
-        for (int i = 1; i < resizeInfos.size(); i++) {
-            ResizeInfo additionalResizeInfo = resizeInfos.get(i);
-            description.append(getAdditionalResizeCommodityMessage(additionalResizeInfo, optTargetEntity, optTargetEntity));
-        }
+        description.append(getAdditionalResizeCommodityMessage(resizeInfos, optTargetEntity, optTargetEntity));
         return description.toString();
     }
 

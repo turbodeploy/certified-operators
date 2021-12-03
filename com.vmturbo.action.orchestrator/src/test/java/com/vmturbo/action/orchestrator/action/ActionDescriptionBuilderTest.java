@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
@@ -333,9 +334,10 @@ public class ActionDescriptionBuilderTest {
         IdentityGenerator.initPrefix(0);
         moveRecommendation = makeRec(makeMoveInfo(VM1_ID, PM_SOURCE_ID, EntityType.PHYSICAL_MACHINE.getNumber(),
                 PM_DESTINATION_ID, EntityType.PHYSICAL_MACHINE.getNumber()), SupportLevel.SUPPORTED).build();
-        cloudDBScaleProviderChangeRecommendation = makeRec(addResizeCommodityToAction(
-                makeScaleInfoWithProviderChangeOnly(DB_ID, DB_SOURCE_ID, EntityType.DATABASE_TIER.getNumber(), DB_DESTINATION_ID,
-                        EntityType.DATABASE_TIER.getNumber())), SupportLevel.SUPPORTED).build();
+        Builder action = makeScaleInfoWithProviderChangeOnly(DB_ID, DB_SOURCE_ID, EntityType.DATABASE_TIER.getNumber(), DB_DESTINATION_ID,
+                EntityType.DATABASE_TIER.getNumber());
+        action = addResizeCommodityToAction(action, CommodityDTO.CommodityType.STORAGE_AMOUNT);
+        cloudDBScaleProviderChangeRecommendation = makeRec(action, SupportLevel.SUPPORTED).build();
         cloudVolumeScaleProviderChangeRecommendation = makeRec(
                 makeScaleInfoWithProviderChangeOnly(VV_ID, ST_SOURCE_ID,
                         EntityType.STORAGE_TIER.getNumber(), ST_DESTINATION_ID,
@@ -868,11 +870,11 @@ public class ActionDescriptionBuilderTest {
     }
 
 
-    private ActionInfo.Builder addResizeCommodityToAction(ActionInfo.Builder action) {
+    private ActionInfo.Builder addResizeCommodityToAction(ActionInfo.Builder action, CommodityDTO.CommodityType commodityType) {
         Scale currenScaleRecommendation = action.getScale();
         final ResizeInfo resizeCommodityChangeBuilder = ResizeInfo.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                        .setType(commodityType.getNumber()))
                 .setOldCapacity(100)
                 .setNewCapacity(200).build();
         return action.setScale(currenScaleRecommendation.toBuilder()
@@ -1095,6 +1097,76 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
         Assert.assertEquals("Scale up IOPS for Volume vm1_test from 100 IOPS to 200 IOPS", description);
+    }
+
+    /**
+     * When there are multiple additional resizing commodity.
+     *
+     * @throws UnsupportedActionException if exception action.
+     */
+    @Test
+    public void testBuildCloudDBSActionWithMultipleAdditionalCommodity() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(DB_ID)))
+                .thenReturn((createEntity(DB_ID,
+                        EntityType.DATABASE.getNumber(),
+                        DB_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(DB_SOURCE_ID)))
+                .thenReturn((createEntity(DB_SOURCE_ID,
+                        EntityType.DATABASE_TIER.getNumber(),
+                        DB_SOURCE_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(DB_DESTINATION_ID)))
+                .thenReturn((createEntity(DB_DESTINATION_ID,
+                        EntityType.DATABASE_TIER.getNumber(),
+                        DB_DESTINATION_DISPLAY_NAME, 0, 0)));
+
+        Builder action = makeScaleInfoWithProviderChangeOnly(DB_ID, DB_SOURCE_ID,
+                EntityType.DATABASE_TIER.getNumber(),
+                DB_DESTINATION_ID,
+                EntityType.DATABASE_TIER.getNumber());
+        action = addResizeCommodityToAction(action, CommodityDTO.CommodityType.STORAGE_AMOUNT);
+        action = addResizeCommodityToAction(action, CommodityDTO.CommodityType.STORAGE_ACCESS);
+        ActionDTO.Action dbScaleAction = makeRec(action, SupportLevel.SUPPORTED).build();
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, dbScaleAction);
+        Assert.assertEquals("Scale Database db_display_name from db_source_test to db_destination_test, "
+                + "Disk size up from 100 MB to 200 MB, IOPS up from 100 IOPS to 200 IOPS", description);
+    }
+
+
+    @Test
+    public void testBuildCloudDBWithoutProviderIdMultipleAdditionalCommodities() throws UnsupportedActionException {
+        ActionPartialEntity volumeOptEntity = ActionPartialEntity.newBuilder()
+                .setOid(DB_ID)
+                .setEntityType(EntityType.DATABASE_SERVER.getNumber())
+                .setDisplayName(DB_SOURCE_DISPLAY_NAME)
+                .build();
+
+        when(entitySettingsCache.getEntityFromOid(eq(DB_ID))).thenReturn(Optional.of(volumeOptEntity));
+        when(entitySettingsCache.getEntityFromOid(eq(DB_SOURCE_ID)))
+                .thenReturn((createEntity(DB_SOURCE_ID, EntityType.DATABASE_SERVER_TIER.getNumber(), DB_SOURCE_DISPLAY_NAME,
+                        0, 0)));
+
+        final ResizeInfo.Builder iopsResize = ResizeInfo.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(200);
+
+        final ResizeInfo.Builder storageResize = ResizeInfo.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(200);
+
+        Builder action = ActionInfo.newBuilder().setScale(Scale.newBuilder()
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(DB_ID))
+                .addCommodityResizes(iopsResize)
+                .addCommodityResizes(storageResize)
+                .build());
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, makeRec(action, SupportLevel.SUPPORTED).build());
+        Assert.assertEquals("Scale up IOPS for Database Server db_source_test from 100 IOPS to 200 IOPS"
+                + ", Disk size up from 100 MB to 200 MB", description);
     }
 
     /**
