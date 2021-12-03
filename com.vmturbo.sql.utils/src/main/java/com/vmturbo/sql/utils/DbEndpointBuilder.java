@@ -1,5 +1,6 @@
 package com.vmturbo.sql.utils;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Future;
@@ -355,6 +356,16 @@ public class DbEndpointBuilder {
      */
     public DbEndpointBuilder withMaxPoolSize(int maxPoolSize) {
         config.setMaxPoolSize(maxPoolSize);
+        return this;
+    }
+
+    /**
+     * Specify DB plugins needed by this endpoint.
+     * @param plugins required plugins
+     * @return this endpoint builder
+     */
+    public DbEndpointBuilder withPlugins(DbPlugin... plugins) {
+        config.setPlugins(Arrays.asList(plugins));
         return this;
     }
 }
