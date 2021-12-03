@@ -184,6 +184,13 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                     // At the very least, the logspam will make it obvious that something is
                     // seriously wrong.
                     LOGGER.error("Unexpected exception when loading saved IDs from the DB.", e);
+                    try {
+                        Thread.sleep(retryMs);
+                    } catch (InterruptedException e1) {
+                        LOGGER.error("Interrupted while loading saved IDs from the DB.", e1);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             }
         }

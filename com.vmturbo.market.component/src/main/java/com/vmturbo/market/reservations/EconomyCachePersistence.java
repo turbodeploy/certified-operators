@@ -18,8 +18,6 @@ import com.google.common.primitives.Bytes;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.Record;
-import org.jooq.Result;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -30,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO.CommTypeEntry;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
+import com.vmturbo.sql.utils.jooq.JooqUtil;
 
 /**
  * The writer and reader of reservation persistence.
@@ -188,9 +187,7 @@ public class EconomyCachePersistence {
      */
     @VisibleForTesting
     protected int queryMaxAllowedPackageSize() {
-        // Query the max_allowed_package size.
-        Result<Record> maxPackageSize = dsl.fetch("SHOW VARIABLES LIKE 'max_allowed_packet';");
-        return maxPackageSize.get(0).getValue("Value", int.class);
+        return JooqUtil.getMaxAllowedPacket(dsl);
     }
 
     /**

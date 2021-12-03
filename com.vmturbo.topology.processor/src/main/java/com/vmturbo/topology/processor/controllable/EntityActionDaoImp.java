@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.controllable;
 
 import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
+import static org.jooq.impl.DSL.inline;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -21,8 +22,8 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
-import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
+import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 
 /**
@@ -108,12 +109,13 @@ public class EntityActionDaoImp implements EntityActionDao {
                     // Insert a new row for this aciton/entity combination.
                     logger.info("Insert new action in entity actions table. actionId: {}, entityId: {}",
                                     actionId, entityId);
+                    // use DSL.inline so it works with both mysql and postgres enum
                     transactionDsl.insertInto(ENTITY_ACTION)
                         .set(ENTITY_ACTION.ACTION_ID, actionId)
                         .set(ENTITY_ACTION.ENTITY_ID, entityId)
-                        .set(ENTITY_ACTION.STATUS, initialEntityStatus)
+                        .set(ENTITY_ACTION.STATUS, inline(initialEntityStatus))
                         .set(ENTITY_ACTION.UPDATE_TIME, now)
-                        .set(ENTITY_ACTION.ACTION_TYPE, getActionType(actionType))
+                        .set(ENTITY_ACTION.ACTION_TYPE, inline(getActionType(actionType)))
                         .execute();
                 }
             }
@@ -157,13 +159,19 @@ public class EntityActionDaoImp implements EntityActionDao {
             dsl.transaction(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
                 final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-                List<EntityActionRecord> records = getInProgressRecordsByActionId(transactionDsl, actionId);
-                // for actionId rows, update their status to new state and time to current.
-                for (EntityActionRecord record : records) {
-                    record.setStatus(getActionState(newState));
-                    record.setUpdateTime(now);
+                final Condition inProgressRecordsCondition = ENTITY_ACTION.ACTION_ID.eq(actionId)
+                        .and(ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.in_progress))
+                                .or(ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.queued))));
+                if (transactionDsl.fetchCount(ENTITY_ACTION, inProgressRecordsCondition) == 0) {
+                    throw new ActionRecordNotFoundException(actionId);
                 }
-                transactionDsl.batchUpdate(records).execute();
+
+                // for actionId rows, update their status to new state and time to current.
+                transactionDsl.update(ENTITY_ACTION)
+                        .set(ENTITY_ACTION.STATUS, inline(getActionState(newState)))
+                        .set(ENTITY_ACTION.UPDATE_TIME, now)
+                        .where(inProgressRecordsCondition)
+                        .execute();
                 logger.info("Update action {} status to {} in entity actions table", actionId, newState.name());
             });
         } catch (DataAccessException e) {
@@ -179,7 +187,7 @@ public class EntityActionDaoImp implements EntityActionDao {
     public void deleteMoveActions(final @NonNull List<@NonNull Long> entityOids) {
         dsl.deleteFrom(ENTITY_ACTION)
             .where(ENTITY_ACTION.ENTITY_ID.in(entityOids)
-                .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
+                .and(ENTITY_ACTION.ACTION_TYPE.eq(inline(EntityActionActionType.move))))
             .execute();
     }
 
@@ -206,20 +214,6 @@ public class EntityActionDaoImp implements EntityActionDao {
         return getRelevantEntityIds(EntityActionActionType.activate,
                 activateSucceedExpiredSeconds,
                 inProgressActionExpiredSeconds);
-    }
-
-    private List<EntityActionRecord> getInProgressRecordsByActionId(final DSLContext transactionDsl,
-                                                                    final long actionId)
-            throws ActionRecordNotFoundException {
-        List<EntityActionRecord> records = transactionDsl.selectFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ACTION_ID.eq(actionId)
-                        .and(ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
-                                .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued))))
-                .fetch();
-        if (records.isEmpty()) {
-            throw new ActionRecordNotFoundException(actionId);
-        }
-        return records;
     }
 
     /**
@@ -309,25 +303,25 @@ public class EntityActionDaoImp implements EntityActionDao {
                     now.minusSeconds(actionSucceedThresholdTime);
 
             final Condition queuedOrInProgressCondition =
-                (ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
-                    .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
+                (ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.in_progress))
+                    .or(ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.queued))))
                     .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredInProgressThresholdTime));
-            final Condition failedCondition = ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed);
-            final Condition succeedCondition = ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)
+            final Condition failedCondition = ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.failed));
+            final Condition succeedCondition = ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.succeed))
                 .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime));
 
             transactionDsl.deleteFrom(ENTITY_ACTION)
                 .where(failedCondition.or(queuedOrInProgressCondition).or(succeedCondition))
-                    .and(ENTITY_ACTION.ACTION_TYPE.eq(actionType))
+                    .and(ENTITY_ACTION.ACTION_TYPE.eq(inline(actionType)))
                 .execute();
 
             // after deleted expired records, the rest of 'succeed' or 'in progress' or 'queued' status
             // records are the entities which are relevant..
             return transactionDsl.selectFrom(ENTITY_ACTION)
-                    .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
-                            .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued))
-                            .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)))
-                            .and(ENTITY_ACTION.ACTION_TYPE.eq(actionType)))
+                    .where((ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.in_progress))
+                            .or(ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.queued)))
+                            .or(ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.succeed))))
+                            .and(ENTITY_ACTION.ACTION_TYPE.eq(inline(actionType))))
                     .fetchSet(ENTITY_ACTION.ENTITY_ID);
         });
     }
