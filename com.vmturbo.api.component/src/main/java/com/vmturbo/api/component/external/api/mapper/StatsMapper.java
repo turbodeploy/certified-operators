@@ -35,7 +35,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
-import com.vmturbo.api.dto.statistic.StatPercentileApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -442,9 +441,7 @@ public class StatsMapper {
                             convertedStatRecord.getHistUtilizationValueList().stream()
                                             .filter(value -> HistoryUtilizationType.Percentile.getApiParameterName().equals(value.getType()))
                                             .findAny();
-            percentileValue.map(StatsMapper::calculatePercentile)
-                            .map(StatsMapper::createPercentileApiDto)
-                            .ifPresent(statApiDTO::setPercentile);
+            percentileValue.map(StatsMapper::calculatePercentile);
             final List<StatHistUtilizationApiDTO> histUtilizationValues =
                             convertedStatRecord.getHistUtilizationValueList().stream()
                                             .map(StatsMapper::createHistUtilizationApiDto)
@@ -456,13 +453,6 @@ public class StatsMapper {
             statApiDTO.setFilters(filters);
         }
         return statApiDTO;
-    }
-
-    @Nonnull
-    private static StatPercentileApiDTO createPercentileApiDto(@Nullable Float percentileUtilization) {
-        final StatPercentileApiDTO result = new StatPercentileApiDTO();
-        result.setPercentileUtilization(percentileUtilization);
-        return result;
     }
 
     @Nonnull
