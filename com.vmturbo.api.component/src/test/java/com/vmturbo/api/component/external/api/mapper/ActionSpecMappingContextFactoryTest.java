@@ -80,6 +80,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -105,6 +107,13 @@ public class ActionSpecMappingContextFactoryTest {
     private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     private final VirtualVolumeAspectMapper virtualVolumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.DELAYED_DATA_HANDLING);
 
     /**
      * Test server for stubbed services.
