@@ -306,7 +306,7 @@ public class EntitySettingsScopeEvaluator {
                 implicitScope -> resolveImplicitScope(settingPolicy, resolvedGroups, implicitScope));
 
             final ScopedSettings scopedSettings = scopes.computeIfAbsent(oidScope,
-                oids -> new ScopedSettings(oidScope, new ArrayList<>()));
+                oids -> new ScopedSettings(oidScope, new ArrayList<>(), true));
             scopedSettings.settingsForScope.add(setting);
         }
 
@@ -384,6 +384,12 @@ public class EntitySettingsScopeEvaluator {
         public final Collection<TopologyProcessorSetting<?>> settingsForScope;
 
         /**
+         * A boolean value indicating that if this scoped settings are being propagated to multiple
+         * entity types.
+         */
+        public boolean propagated;
+
+        /**
          * Create a new {@link ScopedSettings} to bundle a group of settings and a shared resolution
          * scope for those settings.
          *
@@ -394,6 +400,22 @@ public class EntitySettingsScopeEvaluator {
                               @Nonnull final Collection<TopologyProcessorSetting<?>> settingsForScope) {
             this.scope = Objects.requireNonNull(scope);
             this.settingsForScope = Objects.requireNonNull(settingsForScope);
+        }
+
+        /**
+         * Create a new {@link ScopedSettings} to bundle a group of settings and a shared resolution
+         * scope for those settings.
+         *
+         * @param scope The resolution scope shared by all the settings.
+         * @param settingsForScope The settings that all share the resolution scope.
+         * @param propagated A boolean indicating if the scoped settings are being propgated.
+         */
+        public ScopedSettings(@Nonnull final TLongSet scope,
+                              @Nonnull final Collection<TopologyProcessorSetting<?>> settingsForScope,
+                              final boolean propagated) {
+            this.scope = Objects.requireNonNull(scope);
+            this.settingsForScope = Objects.requireNonNull(settingsForScope);
+            this.propagated = propagated;
         }
 
         /**

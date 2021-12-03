@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -169,7 +170,6 @@ public class EntitySettingsResolverTest {
     private static final Set<Long> entities = ImmutableSet.of(entityOid1, entityOid2, entityOid3);
 
     private static final Long groupId = 5001L;
-
     private static final String groupName = "groupName";
     private static final Grouping group = Grouping.newBuilder()
             .setId(groupId)
@@ -203,6 +203,7 @@ public class EntitySettingsResolverTest {
             createSortedSetOfOidSetting(SPEC_VCPU_UP_EXEC_SCHEDULE, Collections.singletonList(1L));
     private static final Setting executionScheduleSetting2 =
             createSortedSetOfOidSetting(SPEC_VCPU_UP_EXEC_SCHEDULE, Arrays.asList(2L, 3L));
+    private static final String RESPONSE_TIME_SLO = EntitySettingSpecs.ResponseTimeSLO.getSettingName();
 
     private static final long SP1_ID = 6001;
     private static final long SP1A_ID = 6002;
@@ -298,6 +299,12 @@ public class EntitySettingsResolverTest {
             .put(SPEC_3, SettingSpec.newBuilder(SPEC_BIGGER_TIEBREAKER).setName(SPEC_3).build())
             .put(SPEC_4, SettingSpec.newBuilder(SPEC_BIGGER_TIEBREAKER).setName(SPEC_4).build())
             .build();
+    private static final Map<String, SettingSpec> serviceSettingSpecMap = ImmutableMap.of(
+            EntitySettingSpecs.ResponseTimeSLO.getSettingName(),
+            EntitySettingSpecs.ResponseTimeSLO.getSettingSpec(),
+            ConfigurableActionSettings.HorizontalScaleUp.getSettingName(),
+            Objects.requireNonNull(ActionSettingSpecs.getSettingSpec(
+                    ConfigurableActionSettings.HorizontalScaleUp.getSettingName())));
     private static final Long APPLIES_NOW_SCHEDULE_ID = 11L;
 
     private static final Schedule APPLIES_NOW =
@@ -1133,6 +1140,235 @@ public class EntitySettingsResolverTest {
         assertTrue(appliedSettings.stream().allMatch(setting ->
             setting.getSettingPolicyIdList().equals(Collections.singleton(SP1_ID))));
         assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
+    }
+
+    /**
+     * Test that the SLO value defined in Service policy with horizontal scale enabled wins over
+     * that defined in Application Component policy, even if the value defined in Service policy is
+     * larger. In other words, the propagatedSettingWinOverNativeSettingResolver is used instead of
+     * the tiebreakerSettingResolver.
+     */
+    @Test
+    public void testResolvePropagatedServiceSettingsWinOverNativeAppComponentSettings() {
+        // Define the topology
+        final TopologyEntity.Builder app1 = TopologyEntityUtils
+                .topologyEntity(1, 0, 0, "ApplicationComponent1", EntityType.APPLICATION_COMPONENT);
+        final TopologyEntity.Builder app2 = TopologyEntityUtils
+                .topologyEntity(2, 0, 0, "ApplicationComponent2", EntityType.APPLICATION_COMPONENT);
+        final TopologyEntity.Builder service = TopologyEntityUtils
+                .topologyEntity(3, 0, 0, "Service", EntityType.SERVICE, 1, 2);
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                TopologyEntityUtils.topologyGraphOf(app1, app2, service);
+        // Define the Service group
+        final long serviceGroupID = 6001L;
+        final Grouping serviceGroup = Grouping.newBuilder()
+                .setId(serviceGroupID)
+                .setDefinition(GroupDefinition.newBuilder().setDisplayName("serviceGroup"))
+                .build();
+        // Define the App group
+        final long appGroupID = 7001L;
+        final Grouping appGroup = Grouping.newBuilder()
+                .setId(appGroupID)
+                .setDefinition(GroupDefinition.newBuilder().setDisplayName("appGroup"))
+                .build();
+        // Create the resolved groups map
+        final Map<Long, ResolvedGroup> resolvedGroups = ImmutableMap.of(
+                serviceGroupID, new ResolvedGroup(serviceGroup, ImmutableMap.of(
+                        ApiEntityType.SERVICE, ImmutableSet.of(service.getOid()))),
+                appGroupID, new ResolvedGroup(appGroup, ImmutableMap.of(
+                        ApiEntityType.APPLICATION_COMPONENT, ImmutableSet.of(app1.getOid(), app2.getOid()))));
+        // Define Service policy and the settings in the policy
+        final Setting responseTimeSLOSettingOnService = createNumericSetting(RESPONSE_TIME_SLO, 300);
+        final Setting horizontalScaleUpSetting = createEnumSetting(SPEC_HORIZONTAL_SCALE_UP, ActionMode.RECOMMEND.name());
+        final List<TopologyProcessorSetting<?>> settingsInServicePolicy = ImmutableList.of(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(responseTimeSLOSettingOnService)),
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(horizontalScaleUpSetting)));
+        final SettingPolicy servicePolicy =
+                createSettingPolicy(SP1_ID, "svcPolicy", SettingPolicy.Type.USER,
+                                    ImmutableList.of(responseTimeSLOSettingOnService, horizontalScaleUpSetting),
+                                    Collections.singletonList(serviceGroupID),
+                                    ApiEntityType.SERVICE.typeNumber());
+        // Define App Policy and the settings in the policy
+        final Setting responseTimeSLOSettingOnApps = createNumericSetting(RESPONSE_TIME_SLO, 200);
+        final List<TopologyProcessorSetting<?>> settingsInAppPolicy = ImmutableList.of(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        Collections.singletonList(responseTimeSLOSettingOnApps)));
+        final SettingPolicy appPolicy =
+                createSettingPolicy(SP2_ID, "appPolicy", SettingPolicy.Type.USER,
+                                    Collections.singletonList(responseTimeSLOSettingOnApps),
+                                    Collections.singletonList(appGroupID),
+                                    ApiEntityType.APPLICATION_COMPONENT.typeNumber());
+        // Create the policy to settings map
+        final Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> policyToSettingsInPolicy =
+                ImmutableMap.of(servicePolicy, settingsInServicePolicy,
+                                appPolicy, settingsInAppPolicy);
+        final Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap = new HashMap<>();
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings = ArrayListMultimap.create();
+        scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
+        // Resolve all settings
+        policyToSettingsInPolicy.forEach(
+                (policy, settings) -> entitySettingsResolver
+                        .resolveAllEntitySettings(policy, settings, resolvedGroups,
+                                                  entitySettingsBySettingNameMap,
+                                                  Collections.emptyMap(),
+                                                  Collections.emptyMap(),
+                                                  entityToPolicySettings,
+                                                  scopeEvaluator));
+        // Settings on Service wins
+        assertEquals(3, entitySettingsBySettingNameMap.size());
+        entitySettingsBySettingNameMap.values()
+                .forEach(appliedSettings -> assertThat(getSettings(new ArrayList<>(appliedSettings.values())),
+                                                       hasItem(responseTimeSLOSettingOnService)));
+    }
+
+    /**
+     * Test that the SLO values defined in two Service policies with horizontal scale enabled will
+     * eventually use the default tiebreakerSettingResolver.
+     */
+    @Test
+    public void testResolveTwoPropagatedServiceSettingsUseTieBreaker() {
+        // Define the topology
+        final TopologyEntity.Builder app1 = TopologyEntityUtils
+                .topologyEntity(1, 0, 0, "ApplicationComponent1", EntityType.APPLICATION_COMPONENT);
+        final TopologyEntity.Builder app2 = TopologyEntityUtils
+                .topologyEntity(2, 0, 0, "ApplicationComponent2", EntityType.APPLICATION_COMPONENT);
+        final TopologyEntity.Builder service = TopologyEntityUtils
+                .topologyEntity(3, 0, 0, "Service", EntityType.SERVICE, 1, 2);
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                TopologyEntityUtils.topologyGraphOf(app1, app2, service);
+        // Define Service group
+        final long serviceGroupID = 6001L;
+        final Grouping serviceGroup = Grouping.newBuilder()
+                .setId(serviceGroupID)
+                .setDefinition(GroupDefinition.newBuilder().setDisplayName("serviceGroup_1"))
+                .build();
+        // Create the resolved groups map
+        final Map<Long, ResolvedGroup> resolvedGroups = ImmutableMap.of(
+                serviceGroupID, new ResolvedGroup(serviceGroup, ImmutableMap.of(
+                        ApiEntityType.SERVICE, ImmutableSet.of(service.getOid()))));
+        // Define two Service policies with horizontal scale enabled, and with conflicting SLO values
+        final Setting responseTimeSLOSetting1 = createNumericSetting(RESPONSE_TIME_SLO, 300);
+        final Setting horizontalScaleUpSetting = createEnumSetting(SPEC_HORIZONTAL_SCALE_UP, ActionMode.RECOMMEND.name());
+        final SettingPolicy servicePolicy1 =
+                createSettingPolicy(SP1_ID, "svcPolicy1", SettingPolicy.Type.USER,
+                                    ImmutableList.of(responseTimeSLOSetting1, horizontalScaleUpSetting),
+                                    Collections.singletonList(serviceGroupID),
+                                    ApiEntityType.SERVICE.typeNumber());
+        final List<TopologyProcessorSetting<?>> settingsInServicePolicy1 = ImmutableList.of(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(responseTimeSLOSetting1)),
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(horizontalScaleUpSetting)));
+        final Setting responseTimeSLOSetting2 = createNumericSetting(RESPONSE_TIME_SLO, 200);
+        final SettingPolicy servicePolicy2 =
+                createSettingPolicy(SP1_ID, "svcPolicy2", SettingPolicy.Type.USER,
+                                    ImmutableList.of(responseTimeSLOSetting2, horizontalScaleUpSetting),
+                                    Collections.singletonList(serviceGroupID),
+                                    ApiEntityType.SERVICE.typeNumber());
+        final List<TopologyProcessorSetting<?>> settingsInServicePolicy2 = ImmutableList.of(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(responseTimeSLOSetting2)),
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(horizontalScaleUpSetting)));
+        // Create the policy to settings map
+        final Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> policyToSettingsInPolicy =
+                ImmutableMap.of(servicePolicy1, settingsInServicePolicy1,
+                                servicePolicy2, settingsInServicePolicy2);
+        final Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap = new HashMap<>();
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings = ArrayListMultimap.create();
+        scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
+        // Resolve all settings
+        policyToSettingsInPolicy.forEach(
+                (policy, settings) -> entitySettingsResolver
+                        .resolveAllEntitySettings(policy, settings, resolvedGroups,
+                                                  entitySettingsBySettingNameMap,
+                                                  serviceSettingSpecMap,
+                                                  Collections.emptyMap(),
+                                                  entityToPolicySettings,
+                                                  scopeEvaluator));
+        // Settings with smaller value wins
+        assertEquals(3, entitySettingsBySettingNameMap.size());
+        entitySettingsBySettingNameMap.values()
+                .forEach(appliedSettings -> assertThat(getSettings(new ArrayList<>(appliedSettings.values())),
+                                                       hasItem(responseTimeSLOSetting2)));
+    }
+
+    /**
+     * Test that the SLO values defined in two Service policies with one having horizontal scale enabled
+     * and the other having horizontal scale disabled will resolve to the one with horizontal scale
+     * enabled.
+     */
+    @Test
+    public void testResolveTwoServiceSettingsOneHavingHorizontalScaleEnabledTheOtherDisabled() {
+        // Define the topology
+        final TopologyEntity.Builder app1 = TopologyEntityUtils
+                .topologyEntity(1, 0, 0, "ApplicationComponent1", EntityType.APPLICATION_COMPONENT);
+        final TopologyEntity.Builder app2 = TopologyEntityUtils
+                .topologyEntity(2, 0, 0, "ApplicationComponent2", EntityType.APPLICATION_COMPONENT);
+        final TopologyEntity.Builder service = TopologyEntityUtils
+                .topologyEntity(3, 0, 0, "Service", EntityType.SERVICE, 1, 2);
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                TopologyEntityUtils.topologyGraphOf(app1, app2, service);
+        // Define Service group
+        final long serviceGroupID = 6001L;
+        final Grouping serviceGroup = Grouping.newBuilder()
+                .setId(serviceGroupID)
+                .setDefinition(GroupDefinition.newBuilder().setDisplayName("serviceGroup_1"))
+                .build();
+        // Create the resolved groups map
+        final Map<Long, ResolvedGroup> resolvedGroups = ImmutableMap.of(
+                serviceGroupID, new ResolvedGroup(serviceGroup, ImmutableMap.of(
+                        ApiEntityType.SERVICE, ImmutableSet.of(service.getOid()))));
+        // Define two Service policies with conflicting SLO values
+        // One policy has horizontal scale enabled
+        final Setting responseTimeSLOSetting1 = createNumericSetting(RESPONSE_TIME_SLO, 300);
+        final Setting horizontalScaleUpSetting = createEnumSetting(SPEC_HORIZONTAL_SCALE_UP, ActionMode.RECOMMEND.name());
+        final SettingPolicy servicePolicy1 =
+                createSettingPolicy(SP1_ID, "svcPolicy1", SettingPolicy.Type.USER,
+                                    ImmutableList.of(responseTimeSLOSetting1, horizontalScaleUpSetting),
+                                    Collections.singletonList(serviceGroupID),
+                                    ApiEntityType.SERVICE.typeNumber());
+        final List<TopologyProcessorSetting<?>> settingsInServicePolicy1 = ImmutableList.of(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(responseTimeSLOSetting1)),
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(horizontalScaleUpSetting)));
+        // The other policy does not have horizontal scale (i.e., disabled)
+        final Setting responseTimeSLOSetting2 = createNumericSetting(RESPONSE_TIME_SLO, 200);
+        final SettingPolicy servicePolicy2 =
+                createSettingPolicy(SP2_ID, "svcPolicy2", SettingPolicy.Type.USER,
+                                    ImmutableList.of(responseTimeSLOSetting2),
+                                    Collections.singletonList(serviceGroupID),
+                                    ApiEntityType.SERVICE.typeNumber());
+        final List<TopologyProcessorSetting<?>> settingsInServicePolicy2 = ImmutableList.of(
+                TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                        ImmutableList.of(responseTimeSLOSetting2)));
+        // Create the policy to settings map
+        final Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> policyToSettingsInPolicy =
+                ImmutableMap.of(servicePolicy1, settingsInServicePolicy1,
+                                servicePolicy2, settingsInServicePolicy2);
+        final Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap = new HashMap<>();
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings = ArrayListMultimap.create();
+        scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
+        // Resolve all settings
+        policyToSettingsInPolicy.forEach(
+                (policy, settings) -> entitySettingsResolver
+                        .resolveAllEntitySettings(policy, settings, resolvedGroups,
+                                                  entitySettingsBySettingNameMap,
+                                                  serviceSettingSpecMap,
+                                                  Collections.emptyMap(),
+                                                  entityToPolicySettings,
+                                                  scopeEvaluator));
+        assertEquals(3, entitySettingsBySettingNameMap.size());
+        entitySettingsBySettingNameMap.values()
+                .forEach(appliedSettings -> {
+                    assertThat(getSettings(new ArrayList<>(appliedSettings.values())),
+                               hasItem(responseTimeSLOSetting1));
+                    assertThat(getSettings(new ArrayList<>(appliedSettings.values())),
+                               hasItem(horizontalScaleUpSetting));
+                });
     }
 
     /**
