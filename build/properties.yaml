@@ -19,6 +19,16 @@ defaultProperties:
         clustermgr_port : 8080
         costHost: cost
         dbHost: db
+        dbs:
+            postgresDefault:
+                host: timescaledb
+                port: 5432
+            mariadbDefault:
+                host: db
+                port: 3306
+            mysqlDefault:
+                host: db
+                port: 3306
         groupHost: group
         historyHost: history
         marketHost: market

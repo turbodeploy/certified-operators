@@ -46,7 +46,7 @@ class MySqlFamilyAdapter extends DbAdapter {
             // TODO: Create a pool monitor here
             return  dataSource;
         } else {
-            logger.debug("Creating a non-pooled datasource for user: %s", user);
+            logger.debug("Creating a non-pooled datasource for user: {}", user);
             final MariaDbDataSource dataSource = new MariaDbDataSource();
             dataSource.setUrl(url);
             dataSource.setUser(user);

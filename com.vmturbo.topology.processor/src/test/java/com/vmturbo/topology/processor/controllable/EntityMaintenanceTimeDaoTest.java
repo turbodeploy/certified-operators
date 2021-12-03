@@ -44,7 +44,7 @@ import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
-import com.vmturbo.topology.processor.controllable.EntityActionDaoImpTest.TestTopologyProcessorDbEndpointConfig;
+import com.vmturbo.topology.processor.TestTopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.tables.records.EntityMaintenanceRecord;
 
@@ -75,8 +75,8 @@ public class EntityMaintenanceTimeDaoTest {
     /**
      * Test rule to use {@link DbEndpoint}s in test.
      */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("tp");
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("topology-processor");
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.

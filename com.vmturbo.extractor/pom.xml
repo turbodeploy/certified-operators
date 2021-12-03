@@ -15,14 +15,6 @@
 
     <properties>
         <swagger.component.name>Extractor</swagger.component.name>
-        <postgresHost>localhost</postgresHost>
-        <!--This doesn't work here since it has to not be set in the case that we launch a
-            postgres container instead of relying on a separate postgres service being available.
-            See the no-run-postgres-container profile below
-        <postgresPort>5432</postgresPort>
-        -->
-        <postgresUserName>postgres</postgresUserName>
-        <postgresPassword>vmturbo</postgresPassword>
         <mysqlUsername>root</mysqlUsername>
         <mysqlPassword>vmturbo</mysqlPassword>
         <jackson.dataformat.version>2.10.5</jackson.dataformat.version>
@@ -163,8 +155,7 @@
                                                 pattern needs to start with "maven-" so jenkins builds
                                                 will properly clean up leaked containers
                                                 -->
-                                                <containerNamePattern>maven-%a-%i
-                                                </containerNamePattern>
+                                                <containerNamePattern>maven-%a-%i</containerNamePattern>
                                                 <ports>
                                                     <port>postgresPort:5432</port>
                                                 </ports>
