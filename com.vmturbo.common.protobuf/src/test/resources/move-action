@@ -1,0 +1,60 @@
+{
+    "id": "144612575831555",
+    "info":
+    {
+        "move":
+        {
+            "target":
+            {
+                "id": "74123406337744",
+                "type": 10,
+                "environmentType": "ON_PREM"
+            },
+            "changes":
+            [
+                {
+                    "source":
+                    {
+                        "id": "74123406329056",
+                        "type": 14,
+                        "environmentType": "ON_PREM"
+                    },
+                    "destination":
+                    {
+                        "id": "74123406328784",
+                        "type": 14,
+                        "environmentType": "ON_PREM"
+                    }
+                }
+            ]
+        }
+    },
+    "DeprecatedImportance": 1.7976931348623157E+308,
+    "explanation":
+    {
+        "move":
+        {
+            "changeProviderExplanation":
+            [
+                {
+                    "compliance":
+                    {
+                        "missingCommodities":
+                        [
+                            {
+                                "commodityType":
+                                {
+                                    "type": 34,
+                                    "key": "285350061265552"
+                                }
+                            }
+                        ]
+                    },
+                    "isPrimaryChangeProviderExplanation": true
+                }
+            ]
+        }
+    },
+    "executable": true,
+    "supportingLevel": "SUPPORTED"
+}

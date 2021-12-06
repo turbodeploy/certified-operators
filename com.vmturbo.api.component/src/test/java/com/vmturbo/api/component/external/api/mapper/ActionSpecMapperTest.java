@@ -147,6 +147,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -273,14 +274,20 @@ public class ActionSpecMapperTest {
     public void setup() throws Exception {
         RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
                 RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final List<PolicyResponse> policyResponses = ImmutableList.of(
-            PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
+        final Policy policy = Policy.newBuilder()
                 .setId(POLICY_ID)
                 .setPolicyInfo(PolicyInfo.newBuilder()
-                    .setName(POLICY_NAME)
-                    .setDisplayName(POLICY_NAME)))
-                .build());
+                        .setName(POLICY_NAME)
+                        .setDisplayName(POLICY_NAME))
+                .build();
+        final List<PolicyResponse> policyResponses = ImmutableList.of(
+            PolicyResponse.newBuilder().setPolicy(policy).build());
         Mockito.when(policyMole.getPolicies(any())).thenReturn(policyResponses);
+        PolicyApiDTO policyApiDTO = new PolicyApiDTO();
+        policyApiDTO.setUuid(Integer.toString(POLICY_ID));
+        policyApiDTO.setDisplayName(POLICY_NAME);
+        when(policiesService.convertPolicyDTOCollection(Collections.singletonList(policy)))
+                .thenReturn(Collections.singletonList(policyApiDTO));
         PolicyServiceGrpc.PolicyServiceBlockingStub policyService =
                 PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         GroupServiceGrpc.GroupServiceBlockingStub groupService =
@@ -945,17 +952,14 @@ public class ActionSpecMapperTest {
         entitiesMap.put(1L, entity);
         long policyOid = 12345L;
         String policyName = "Test";
-        Map<Long, Policy> policyMap = new HashMap();
-        Policy policy = Policy.newBuilder().setId(policyOid).setPolicyInfo(PolicyInfo.newBuilder().setName(policyName)).build();
-        policyMap.put(policyOid, policy);
-        List<PolicyApiDTO> policyApiDto = new ArrayList<>();
+        Map<Long, PolicyApiDTO> policyApiDto = new HashMap<>();
         PolicyApiDTO policyDto = new PolicyApiDTO();
-        policyApiDto.add(policyDto);
-        policyDto.setUuid(String.valueOf(policyOid));
+        policyDto.setUuid(Long.toString(policyOid));
         policyDto.setName(policyName);
         policyDto.setDisplayName(policyName);
+        policyApiDto.put(policyOid, policyDto);
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
-            policyMap, Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap());
 

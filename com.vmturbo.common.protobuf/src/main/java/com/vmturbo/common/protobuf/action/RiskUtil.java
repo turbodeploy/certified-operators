@@ -18,7 +18,10 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -43,34 +46,33 @@ public class RiskUtil {
      * Creates the risk description for an action.
      *
      * @param actionSpec              the object containing the action.
-     * @param policyGetter            the function that gets the policy object with the input oid. The null
-     *                                if the policy cannot be found.
+     * @param policyDisplayNameGetter the function that gets the policy display with the input oid.
+     *                                The null if the policy cannot be found.
      * @param entityDisplayNameGetter the function that gets the display name for an entity with
      *                                input oid. It returns null of such entity does not exists.
      * @return the risk description for the action.
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
     public static String createRiskDescription(@Nonnull final ActionDTO.ActionSpec actionSpec,
-           @Nonnull final Function<Long, PolicyDTO.Policy> policyGetter,
+           @Nonnull final Function<Long, String> policyDisplayNameGetter,
            @Nonnull final Function<Long, String> entityDisplayNameGetter) throws UnsupportedActionException {
-        final Optional<String> policyId = tryExtractPlacementPolicyId(actionSpec.getRecommendation());
+        final Optional<Long> policyId = extractRiskPolicyId(actionSpec.getRecommendation());
         if (policyId.isPresent()) {
             final ActionDTO.ActionEntity entity =
                 ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-            final long policyOid = Long.parseLong(policyId.get());
+            final long policyOid = policyId.get();
 
-            final Optional<PolicyDTO.Policy> policy =
-                Optional.ofNullable(policyGetter.apply(policyOid));
-            if (!policy.isPresent()) {
+            final String policyDisplayName = policyDisplayNameGetter.apply(policyOid);
+            if (policyDisplayName == null) {
                 return actionSpec.getExplanation();
             }
             if (actionSpec.getRecommendation().getExplanation().hasProvision()) {
-                return String.format("%s violation", policy.get().getPolicyInfo().getDisplayName());
+                return String.format("%s violation", policyDisplayName);
             } else {
                 if (actionSpec.getRecommendation().getInfo().getReconfigure().getIsProvider()) {
                     return actionSpec.getRecommendation().getInfo().getReconfigure().getIsAddition()
-                        ? String.format("Policy \"%s\" is Overutilized", policy.get().getPolicyInfo().getName())
-                        : String.format("Policy \"%s\" is Underutilized", policy.get().getPolicyInfo().getName());
+                        ? String.format("Policy \"%s\" is Overutilized", policyDisplayName)
+                        : String.format("Policy \"%s\" is Underutilized", policyDisplayName);
                 }
                 // constructing risk with policyName for move and reconfigure
                 final Optional<String> commNames =
@@ -82,7 +84,7 @@ public class RiskUtil {
                         : String.format("\"%s(%d)\"",
                             CommonDTO.EntityDTO.EntityType.forNumber(entity.getType()),
                               entity.getId()),
-                    policy.get().getPolicyInfo().getDisplayName(),
+                        policyDisplayName,
                     commNames.isPresent() ? ", " + commNames.get() : "");
             }
         }
@@ -127,60 +129,100 @@ public class RiskUtil {
         return Optional.of(commNames);
     }
 
-    private static Optional<String> tryExtractPlacementPolicyId(@Nonnull ActionDTO.Action recommendation) {
-        if (!recommendation.hasExplanation()) {
+    /**
+     * Gets the id of policy that explains the risk.
+     *
+     * @param recommendation the action.
+     * @return the policy id if the action has an associated policy and empty otherwise.
+     */
+    private static Optional<Long> extractRiskPolicyId(@Nonnull ActionDTO.Action recommendation) {
+        if (recommendation.hasExplanation()) {
+            return extractRiskReasonCommodityList(recommendation.getExplanation())
+                .map(ReasonCommodity::getCommodityType)
+                .map(c -> c.getKey())
+                .flatMap(key -> extractPolicyIdFromKey(key, recommendation.getId()));
+        } else {
             return Optional.empty();
         }
-        if (recommendation.getExplanation().hasMove()) {
+    }
 
-            if (recommendation.getExplanation().getMove().getChangeProviderExplanationCount() < 1) {
-                return Optional.empty();
-            }
+    @Nonnull
+    private static Optional<ReasonCommodity> extractRiskReasonCommodityList(
+            @Nonnull Explanation explanation) {
+        ReasonCommodity reasonCommodity = null;
+        switch (explanation.getActionExplanationTypeCase()) {
+            case MOVE:
+                final MoveExplanation moveExplanation = explanation.getMove();
+                if (moveExplanation.getChangeProviderExplanationCount() > 0) {
+                    final List<ChangeProviderExplanation> explanations = moveExplanation
+                            .getChangeProviderExplanationList();
+                    // We always go with the primary explanation if available
+                    final ChangeProviderExplanation changeProviderExplanation = explanations
+                        .stream()
+                        .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+                        .findFirst()
+                        .orElse(explanations.get(0));
+                    if (changeProviderExplanation.hasCompliance()
+                        && changeProviderExplanation.getCompliance().getMissingCommoditiesCount() > 0
+                        && changeProviderExplanation.getCompliance().getMissingCommodities(0)
+                            .getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE) {
+                        reasonCommodity = changeProviderExplanation.getCompliance()
+                                .getMissingCommodities(0);
+                    }
+                }
+                break;
+            case RECONFIGURE:
+                reasonCommodity = explanation.getReconfigure().getReconfigureCommodityList()
+                        .stream()
+                        .filter(comm -> POLICY_COMMODITY_TYPES
+                            .contains(comm.getCommodityType().getType()))
+                        .findFirst()
+                        .orElse(null);
+                break;
+            case PROVISION:
+                if (explanation.getProvision().hasProvisionBySupplyExplanation()) {
+                    final ReasonCommodity mostExpensiveCommodityInfo = explanation
+                        .getProvision()
+                        .getProvisionBySupplyExplanation()
+                        .getMostExpensiveCommodityInfo();
+                    if (mostExpensiveCommodityInfo.getCommodityType().getType()
+                            == CommodityType.SEGMENTATION_VALUE) {
+                        reasonCommodity = mostExpensiveCommodityInfo;
+                    }
+                }
+                break;
+            default:
+        }
+        return Optional.ofNullable(reasonCommodity);
+    }
 
-            List<ActionDTO.Explanation.ChangeProviderExplanation> explanations = recommendation.getExplanation()
-                .getMove().getChangeProviderExplanationList();
+    /**
+     * Gets the id of policies that caused this action.
+     *
+     * @param action the action for get the list of policies for.
+     * @return the list of policies.
+     */
+    @Nonnull
+    public static Set<Long> extractPolicyIds(@Nonnull final ActionDTO.Action action) {
+        return ActionDTOUtil.getReasonCommodities(action)
+                .filter(c -> RiskUtil.POLICY_COMMODITY_TYPES.contains(c.getCommodityType().getType()))
+                .map(ReasonCommodity::getCommodityType)
+                .filter(c -> c.hasKey())
+                .map(c -> c.getKey())
+                .map(key -> extractPolicyIdFromKey(key, action.getId()))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
+    }
 
-            // We always go with the primary explanation if available
-            Optional<ActionDTO.Explanation.ChangeProviderExplanation> primaryExp = explanations.stream()
-                .filter(ActionDTO.Explanation.ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation).findFirst();
-            final ActionDTO.Explanation.ChangeProviderExplanation explanation = primaryExp.orElse(explanations.get(0));
-
-            if (!explanation.hasCompliance()) {
-                return Optional.empty();
-            }
-            if (explanation.getCompliance().getMissingCommoditiesCount() < 1) {
-                return Optional.empty();
-            }
-            if (explanation.getCompliance().getMissingCommodities(0).getCommodityType()
-                .getType() != CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
-                return Optional.empty();
-            }
-            return Optional.of(explanation.getCompliance().getMissingCommodities(0).getCommodityType()
-                .getKey());
-        } else if (recommendation.getExplanation().hasReconfigure()) {
-            if (recommendation.getExplanation().getReconfigure().getReconfigureCommodityCount() < 1) {
-                return Optional.empty();
-            }
-            Optional<ActionDTO.Explanation.ReasonCommodity> reasonCommodity =
-                recommendation.getExplanation().getReconfigure().getReconfigureCommodityList().stream()
-                    .filter(comm -> POLICY_COMMODITY_TYPES
-                        .contains(comm.getCommodityType().getType())).findFirst();
-            if (!reasonCommodity.isPresent()) {
-                return Optional.empty();
-            }
-            return Optional.of(reasonCommodity.get().getCommodityType().getKey());
-        } else if (recommendation.getExplanation().hasProvision()) {
-            if (!recommendation.getExplanation().getProvision().hasProvisionBySupplyExplanation()) {
-                return Optional.empty();
-            }
-            ActionDTO.Explanation.ReasonCommodity reasonCommodity = recommendation.getExplanation()
-                .getProvision().getProvisionBySupplyExplanation().getMostExpensiveCommodityInfo();
-            if (reasonCommodity.getCommodityType().getType()
-                != CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
-                return Optional.empty();
-            }
-            return Optional.of(reasonCommodity.getCommodityType().getKey());
-        } else {
+    @Nonnull
+    private static Optional<Long> extractPolicyIdFromKey(@Nonnull String key,
+                                                         @Nonnull Long actionId) {
+        try {
+            return Optional.of(Long.valueOf(key));
+        } catch (NumberFormatException ex) {
+            logger.warn("Unexpected value for policy id \"{}\" associated to action {}",
+                    key, actionId);
             return Optional.empty();
         }
     }

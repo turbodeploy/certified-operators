@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -23,6 +24,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -714,8 +716,15 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     @Nullable
     protected String getActionRiskDescription() {
         try {
+            final Function<Long, String> policyNameDisplayNameRetriever = policyId -> {
+                final PolicyDTO.Policy policy = groupAndPolicyRetriever.retrievePolicy(policyId);
+                if (policy != null) {
+                    return policy.getPolicyInfo().getDisplayName();
+                }
+                return null;
+            };
             return RiskUtil.createRiskDescription(actionSpec,
-                groupAndPolicyRetriever::retrievePolicy,
+                policyNameDisplayNameRetriever,
                 oid -> entityRetriever.retrieveTopologyEntity(oid)
                     .map(TopologyDTO.TopologyEntityDTO::getDisplayName)
                     .orElse(null));

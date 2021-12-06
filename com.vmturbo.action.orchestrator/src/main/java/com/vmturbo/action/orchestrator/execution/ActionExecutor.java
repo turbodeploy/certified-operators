@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -192,40 +193,50 @@ public class ActionExecutor implements ActionExecutionListener {
             final long actionId) throws ExecutionInitiationException {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
+        try (Tracing.TracingScope tracingScope =
+                     Tracing.trace("creating_action_request")) {
+            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(action.getRecommendation());
 
-        final ActionType actionType = ActionDTOUtil.getActionInfoActionType(action.getRecommendation());
-
-        final ExecuteActionRequest.Builder executionRequestBuilder = ExecuteActionRequest.newBuilder()
-                .setActionId(actionId)
-                .setActionSpec(action)
-                .setActionType(actionType);
-        if (explanation != null) {
-            executionRequestBuilder.setExplanation(explanation);
-        }
-        if (workflowOpt.isPresent()) {
-            // if there is a Workflow for this action, then the target to execute the action
-            // will be the one from which the Workflow was discovered instead of the target
-            // from which the original Target Entity was discovered
-            executionRequestBuilder.setTargetId(workflowOpt.get().getWorkflowInfo().getTargetId());
-
-            final WorkflowDTO.Workflow workflow;
-            try {
-                workflow = actionTemplateApplicator
-                        .addTemplateInformation(action, workflowOpt.get());
-            } catch (ActionTemplateApplicationException ex) {
-                throw new ExecutionInitiationException("Failed to apply template: " + ex.getMessage(),
-                        ex, Status.Code.INTERNAL);
+            final ExecuteActionRequest.Builder executionRequestBuilder = ExecuteActionRequest.newBuilder()
+                    .setActionId(actionId)
+                    .setActionSpec(action)
+                    .setActionType(actionType);
+            if (explanation != null) {
+                executionRequestBuilder.setExplanation(explanation);
             }
+            if (workflowOpt.isPresent()) {
+                // if there is a Workflow for this action, then the target to execute the action
+                // will be the one from which the Workflow was discovered instead of the target
+                // from which the original Target Entity was discovered
+                logger.debug("Workflow with ID {} is set for the action. "
+                        + "Sending action with ID {} to target with ID {}",
+                        () -> workflowOpt.get().getId(),
+                        () -> actionId,
+                        () -> workflowOpt.get().getWorkflowInfo().getTargetId());
+                executionRequestBuilder.setTargetId(workflowOpt.get().getWorkflowInfo().getTargetId());
 
-            executionRequestBuilder.setWorkflow(workflow);
-        } else {
-            // Typically, the target to execute the action is the target from which the
-            // Target Entity was discovered
-            executionRequestBuilder.setTargetId(targetId);
+                final WorkflowDTO.Workflow workflow;
+                try {
+                    workflow = actionTemplateApplicator
+                            .addTemplateInformation(action, workflowOpt.get());
+                } catch (ActionTemplateApplicationException ex) {
+                    throw new ExecutionInitiationException("Failed to apply template: " + ex.getMessage(),
+                            ex, Status.Code.INTERNAL);
+                }
+
+                executionRequestBuilder.setWorkflow(workflow);
+            } else {
+                // Typically, the target to execute the action is the target from which the
+                // Target Entity was discovered
+                logger.debug("No workflow is set. Sending action with id {} to target with {}",
+                        () -> actionId,
+                        () -> targetId);
+                executionRequestBuilder.setTargetId(targetId);
+            }
+            executionRequestBuilder.setOriginTargetId(targetId);
+
+            return executionRequestBuilder.build();
         }
-        executionRequestBuilder.setOriginTargetId(targetId);
-
-        return executionRequestBuilder.build();
     }
 
     /**
@@ -288,7 +299,7 @@ public class ActionExecutor implements ActionExecutionListener {
             throw new ExecutionStartException("No valid license was detected. Will not execute the action.");
         }
         final String actionIdString = getActionIdsString(actionList);
-        try {
+        try (Tracing.TracingScope tracingScope = getTracer(actionList)) {
             // TODO (roman, July 30 2019): OM-49080 - persist the state of in-progress actions in
             // the database, so that we don't lose the information across restarts.
             logger.info("Starting actions: {}", actionIdString);
@@ -312,6 +323,17 @@ public class ActionExecutor implements ActionExecutionListener {
             throw new ExecutionStartException(
                     "Actions " + actionIdString + " failed to start.", e);
         }
+    }
+
+    private Tracing.TracingScope getTracer(final List<ActionWithWorkflow> actionList) {
+        final Tracing.TracingScope tracer = Tracing.trace("action_execution");
+        if (actionList.size() > 0) {
+            final ActionSpec firstAction = actionList.get(0).getAction();
+            tracer.tag("action_state", firstAction.getActionState().name());
+            tracer.tag("action_oid", firstAction.getRecommendationId());
+            tracer.tag("action_id", firstAction.getRecommendation().getId());
+        }
+        return tracer;
     }
 
     @Override

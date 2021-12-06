@@ -1,0 +1,37 @@
+{
+    "id": "144612588398899",
+    "info":
+    {
+        "provision":
+        {
+            "entityToClone":
+            {
+                "id": "74123406328976",
+                "type": 14,
+                "environmentType": "ON_PREM"
+            },
+            "provisionedSeller": "144612607478807",
+            "provisionIndex": 0
+        }
+    },
+    "DeprecatedImportance": 1.7976931348623157E+308,
+    "explanation":
+    {
+        "provision":
+        {
+            "provisionBySupplyExplanation":
+            {
+                "mostExpensiveCommodityInfo":
+                {
+                    "commodityType":
+                    {
+                        "type": 34,
+                        "key": "285350074503424"
+                    }
+                }
+            }
+        }
+    },
+    "executable": true,
+    "supportingLevel": "SHOW_ONLY"
+}

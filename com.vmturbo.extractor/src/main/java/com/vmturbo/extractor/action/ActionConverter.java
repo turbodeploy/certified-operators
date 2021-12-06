@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -34,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
@@ -439,8 +441,16 @@ public class ActionConverter {
             action.setSeverity(extractSeverity(actionSpec).getLiteral());
 
             // set risk description
+            final Function<Long, String> policyNameDisplayNameRetriever = policyId -> {
+                final PolicyDTO.Policy policy = policyById.get(policyId);
+                if (policy != null) {
+                    return policy.getPolicyInfo().getDisplayName();
+                }
+                return null;
+            };
             try {
-                final String riskDescription = RiskUtil.createRiskDescription(actionSpec, policyById::get,
+                final String riskDescription = RiskUtil.createRiskDescription(actionSpec,
+                        policyNameDisplayNameRetriever,
                         entityId -> topologyGraph.getEntity(entityId)
                                 .map(SupplyChainEntity::getDisplayName)
                                 .orElse(null));

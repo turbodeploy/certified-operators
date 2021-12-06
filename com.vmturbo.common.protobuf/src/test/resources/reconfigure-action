@@ -1,0 +1,41 @@
+{
+    "id": "144612585238464",
+    "info":
+    {
+        "reconfigure":
+        {
+            "target":
+            {
+                "id": "74239116498080",
+                "type": 10,
+                "environmentType": "ON_PREM"
+            },
+            "source":
+            {
+                "id": "74123406328784",
+                "type": 14,
+                "environmentType": "ON_PREM"
+            },
+            "isProvider": false
+        }
+    },
+    "DeprecatedImportance": 1.7976931348623157E+308,
+    "explanation":
+    {
+        "reconfigure":
+        {
+            "reconfigureCommodity":
+            [
+                {
+                    "commodityType":
+                    {
+                        "type": 34,
+                        "key": "285350065523328"
+                    }
+                }
+            ]
+        }
+    },
+    "executable": true,
+    "supportingLevel": "SUPPORTED"
+}
