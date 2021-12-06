@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
-import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.EXPANSION_ALL_ENTITY_TYPES;
-import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.EXPANSION_REQUIRED_ENTITY_TYPES;
+import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.ENTITY_WITH_EXPAND_ENTITY_SET_MAP;
 import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.expansionRequiredEntityType;
 
 import java.util.Collection;
@@ -109,8 +108,8 @@ public class InvolvedEntitiesExpander {
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .map(ActionGraphEntity::getEntityType)
-                // Make sure all entities are ARM.
-                .allMatch(EXPANSION_REQUIRED_ENTITY_TYPES::contains);
+                    // Make sure all entities are ARM.
+                .allMatch(ENTITY_WITH_EXPAND_ENTITY_SET_MAP.keySet()::contains);
     }
 
     /**
@@ -121,7 +120,7 @@ public class InvolvedEntitiesExpander {
         Optional<ActionRealtimeTopology> topology = actionTopologyStore.getSourceTopology();
         if (topology.isPresent()) {
             TopologyGraph<ActionGraphEntity> graph = topology.get().entityGraph();
-            EXPANSION_REQUIRED_ENTITY_TYPES.forEach(armEntityType -> {
+            ENTITY_WITH_EXPAND_ENTITY_SET_MAP.keySet().forEach(armEntityType -> {
                 final Set<Long> entitiesOfType = graph.entitiesOfType(armEntityType)
                         .map(ActionGraphEntity::getOid)
                         .collect(Collectors.toSet());
@@ -149,8 +148,15 @@ public class InvolvedEntitiesExpander {
             return new LongOpenHashSet(involvedEntities);
         }
         supplyChain.forEach((type, node) -> {
-            if (EXPANSION_ALL_ENTITY_TYPES.contains(type)) {
-                retSet.addAll(RepositoryDTOUtil.getAllMemberOids(node));
+            Set<Integer> involvedEntitiesSet = involvedEntities.stream()
+                    .map(graph::getEntity)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .map(ActionGraphEntity::getEntityType).collect(Collectors.toSet());
+            for (Integer involvedEntityType : involvedEntitiesSet) {
+                if (ENTITY_WITH_EXPAND_ENTITY_SET_MAP.get(involvedEntityType).contains(type)) {
+                    retSet.addAll(RepositoryDTOUtil.getAllMemberOids(node));
+                }
             }
         });
         retSet.trim();
