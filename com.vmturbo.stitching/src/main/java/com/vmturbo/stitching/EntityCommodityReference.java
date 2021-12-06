@@ -14,13 +14,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 /**
  * Unique reference to an entity's commodity within a topology to use in collections.
  * Composite key consists of an entity oid, commodity type+key, provider oid for bought.
- * No volumes.
  */
 @Immutable
 public class EntityCommodityReference implements Serializable {
+    private static final long NO_PROVIDER = 0L;
+
     private final long entityOid;
     private final TopologyDTO.CommodityType commodityType;
-    private final Long providerOid;
+    private final long providerOid;
 
     /**
      * Construct the commodity reference.
@@ -33,7 +34,7 @@ public class EntityCommodityReference implements Serializable {
                               @Nullable Long providerOid) {
         this.entityOid = entityOid;
         this.commodityType = commodityType;
-        this.providerOid = providerOid;
+        this.providerOid = providerOid == null ? NO_PROVIDER : providerOid;
     }
 
     public long getEntityOid() {
@@ -47,7 +48,7 @@ public class EntityCommodityReference implements Serializable {
 
     @Nullable
     public Long getProviderOid() {
-        return providerOid;
+        return providerOid == NO_PROVIDER ? null : providerOid;
     }
 
     /**

@@ -24,6 +24,7 @@ import com.google.common.collect.Multimap;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import org.apache.commons.lang.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -113,36 +114,60 @@ public class RemoteProbeStore implements ProbeStore {
 
     @Override
     public void initialize() {
-        logger.debug("initialize");
-        this.probeInfos.clear();
-        // Load ProbeInfo persisted in Consul.
-        Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
-        persistedProbeInfos.values().stream()
-            .map(probeInfoJson -> {
-                try {
-                    final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
-                    JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
-                    return probeInfoBuilder.build();
-                } catch (InvalidProtocolBufferException e){
-                    logger.error("Failed to load probe info from Consul: {}", probeInfoJson, e);
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .forEach(probeInfo -> {
-                final long probeId;
-                try {
-                    probeId = identityProvider_.getProbeId(probeInfo);
-                } catch (IdentityProviderException e) {
-                    logger.error("Failed to assign ID to saved probe info. Error: {}", e.getMessage());
-                    return;
-                }
-                final ProbeInfo existing = this.probeInfos.putIfAbsent(probeId, probeInfo);
-                if (existing != null) {
-                    logger.error("Probe with same id ({}) loaded more than once from KV store!" +
+        final MutableInt probesLoaded = new MutableInt(0);
+        final MutableInt duplicatesLoaded = new MutableInt(0);
+
+        synchronized (dataLock) {
+            this.probeInfos.clear();
+            // Load ProbeInfo persisted in Consul.
+            Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
+            persistedProbeInfos.values().stream()
+                .map(probeInfoJson -> {
+                    try {
+                        final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
+                        JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
+                        return probeInfoBuilder.build();
+                    } catch (InvalidProtocolBufferException e) {
+                        logger.error("Failed to load probe info from Consul: {}", probeInfoJson, e);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .forEach(probeInfo -> {
+                    final long probeId;
+                    try {
+                        probeId = identityProvider_.getProbeId(probeInfo);
+                    } catch (IdentityProviderException e) {
+                        logger.error("Failed to assign ID to saved probe info. Error: {}", e.getMessage());
+                        return;
+                    }
+                    final ProbeInfo existing = this.probeInfos.putIfAbsent(probeId, probeInfo);
+                    if (existing != null) {
+                        logger.error("Probe with same id ({}) loaded more than once from KV store!" +
                             " Keeping first. Dropping: {}", probeId, probeInfo);
+                        duplicatesLoaded.increment();
+                    } else {
+                        probesLoaded.increment();
+                    }
+                });
+
+            // set stitching operations when restoring probes so stitching will happen even if
+            stitchingOperationStore.clearOperations();
+            probeInfos.forEach((probeId, probeInfo) -> {
+                try {
+                    stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
+                } catch (ProbeException e) {
+                    logger.error("Failed to create stitching operations for probe {} due to {}", probeId, e);
                 }
             });
+
+            // Handle action merge data for the restored probes.
+            actionMergeSpecsRepository.clear();
+            probeInfos.forEach(actionMergeSpecsRepository::setPoliciesForProbe);
+        }
+
+        logger.info("Loaded info for {} probes successfully and discarded info for {} duplicates.",
+            probesLoaded.getValue(), duplicatesLoaded.getValue());
     }
 
     @Override

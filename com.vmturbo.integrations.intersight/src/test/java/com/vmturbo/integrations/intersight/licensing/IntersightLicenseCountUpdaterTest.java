@@ -3,7 +3,7 @@ package com.vmturbo.integrations.intersight.licensing;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
-import com.cisco.intersight.client.JSON;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseTypeEnum;
@@ -61,7 +60,6 @@ public class IntersightLicenseCountUpdaterTest {
                 intersightLicenseClient, 60, licenseSyncService);
         ApiClient apiClient = mock(ApiClient.class);
         when(intersightLicenseClient.getApiClient()).thenReturn(apiClient);
-        when(apiClient.getJSON()).thenReturn(new JSON());
         LicenseLicenseInfo validLicense =
                 IntersightLicenseTestUtils.createIwoLicense("1", LicenseTypeEnum.IWO_ESSENTIAL,
                         LicenseStateEnum.COMPLIANCE);
@@ -171,7 +169,7 @@ public class IntersightLicenseCountUpdaterTest {
                 IntersightLicenseTestUtils.createIwoLicense("1", LicenseTypeEnum.IWO_ESSENTIAL,
                         LicenseStateEnum.COMPLIANCE);
         licenseCountUpdater.uploadWorkloadCount(validLicense, 0);
-        verify(intersightLicenseClient).updateLicenseLicenseInfo(any(), any());
+        verify(intersightLicenseClient).updateIwoLicenseCount(anyLong());
     }
 
     /**
@@ -188,7 +186,7 @@ public class IntersightLicenseCountUpdaterTest {
                 IntersightLicenseTestUtils.createIwoLicense("1", LicenseTypeEnum.STANDARD,
                         LicenseStateEnum.COMPLIANCE);
         licenseCountUpdater.uploadWorkloadCount(validLicense, 0);
-        verify(intersightLicenseClient, never()).updateLicenseLicenseInfo(any(), any());
+        verify(intersightLicenseClient, never()).updateIwoLicenseCount(anyLong());
     }
 
     /**
@@ -207,7 +205,7 @@ public class IntersightLicenseCountUpdaterTest {
                 .build();
         licenseCountUpdater.onLicenseSummaryUpdated(licenseSummary);
         licenseCountUpdater.syncLicenseCounts(false);
-        verify(intersightLicenseClient, times(1)).updateLicenseLicenseInfo(any(), any());
+        verify(intersightLicenseClient, times(1)).updateIwoLicenseCount(anyLong());
     }
 
     /**

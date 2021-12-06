@@ -50,7 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Constants;
-import com.vmturbo.extractor.models.DslRecordSink;
+import com.vmturbo.extractor.models.DslBatchExecuteRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.schema.enums.EntityType;
@@ -277,8 +277,8 @@ public class ScopeManager {
     }
 
     private TableWriter getScopeInsertWriter() {
-        return SCOPE_TABLE.open(new DslRecordSink(dsl, SCOPE_TABLE, config, pool),
-                "Scope Inserter", logger);
+        return SCOPE_TABLE.open(new DslBatchExecuteRecordSink(dsl, SCOPE_TABLE, config, pool,
+                        config.scopeInsertBatchSize()), "Scope Inserter", logger);
     }
 
     private TableWriter getScopeUpdateWriter() {
@@ -498,11 +498,11 @@ public class ScopeManager {
      * {@link Constants#MAX_TIMESTAMP} value have their `finish` timestamps set to the prior topology's
      * timestamp.
      */
-    private class ScopeUpdaterSink extends DslRecordSink {
+    private class ScopeUpdaterSink extends DslBatchExecuteRecordSink {
         private TempTable<?> tempTable;
 
         ScopeUpdaterSink() {
-            super(ScopeManager.this.dsl, SCOPE_TABLE, config, pool);
+            super(ScopeManager.this.dsl, SCOPE_TABLE, config, pool, config.scopeUpdateBatchSize());
         }
 
         @Override

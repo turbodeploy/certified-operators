@@ -188,7 +188,7 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
             protoWidgetsetInfo.setScopeType(dbWidgetset.getScopeType());
         }
         if (dbWidgetset.getSharedWithAllUsers() != null) {
-            protoWidgetsetInfo.setSharedWithAllUsers(dbWidgetset.getSharedWithAllUsers() != 0);
+            protoWidgetsetInfo.setSharedWithAllUsers(dbWidgetset.getSharedWithAllUsers());
         }
         if (dbWidgetset.getWidgets() != null) {
             protoWidgetsetInfo.setWidgets(dbWidgetset.getWidgets());

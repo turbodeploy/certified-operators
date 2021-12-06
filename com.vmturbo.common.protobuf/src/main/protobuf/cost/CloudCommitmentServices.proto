@@ -6,6 +6,7 @@ option java_outer_classname = "CloudCommitmentServices";
 
 import "cloud/CloudCommitmentDTO.proto";
 import "cloud/CloudCommon.proto";
+import "topology/TopologyDTO.proto";
 
 message CloudCommitmentData {
     repeated CloudCommitmentDataBucket utilization_data = 1;
@@ -47,11 +48,6 @@ message UploadCloudCommitmentDataRequest {
 
 message UploadCloudCommitmentDataResponse {
     // empty message
-}
-
-service CloudCommitmentUtilizationCoverageService {
-    rpc GetHistoricalCommitmentUtilization(GetHistoricalCloudCommitmentUtilizationRequest)
-    returns (stream GetHistoricalCloudCommitmentUtilizationResponse);
 }
 
 message GetHistoricalCloudCommitmentUtilizationRequest {
@@ -159,10 +155,77 @@ service CloudCommitmentUploadService {
     rpc UploadCloudCommitmentData(UploadCloudCommitmentDataRequest) returns (UploadCloudCommitmentDataResponse);
 }
 
+enum TopologyType {
+    TOPOLOGY_TYPE_UNKNOWN = 0;
+    TOPOLOGY_TYPE_SOURCE = 1;
+    TOPOLOGY_TYPE_PROJECTED = 2;
+}
+
+message GetTopologyCommitmentCoverageStatsRequest {
+
+    // The number of stat records to return per chunk.
+    optional uint32 chunk_size = 1 [default = 100];
+
+    // The topology type field is required; if not specified, the response will be empty.
+    optional TopologyType topology_type = 2 [default = TOPOLOGY_TYPE_UNKNOWN];
+}
+
+message GetTopologyCommitmentCoverageStatsResponse {
+    repeated cloud_commitment_dto.CloudCommitmentCoverage commitment_coverage_stat_chunk = 1;
+}
+
+message GetTopologyCommitmentUtilizationStatsRequest {
+
+    // The number of stat records to return per chunk.
+    optional uint32 chunk_size = 1 [default = 100];
+
+    // The topology type field is required; if not specified, the response will be empty.
+    optional TopologyType topology_type = 2 [default = TOPOLOGY_TYPE_UNKNOWN];
+}
+
+message GetTopologyCommitmentUtilizationStatsResponse {
+    repeated CloudCommitmentUtilizationRecord commitment_utilization_record_chunk = 1;
+
+    message CloudCommitmentUtilizationRecord {
+        optional int64 commitment_oid = 1;
+        optional cloud_commitment_dto.CloudCommitmentUtilization utilization = 2;
+    }
+}
+
 service CloudCommitmentStatsService {
     rpc GetHistoricalCommitmentUtilization(GetHistoricalCloudCommitmentUtilizationRequest)
     returns (stream GetHistoricalCloudCommitmentUtilizationResponse);
 
     rpc GetHistoricalCommitmentCoverageStats(GetHistoricalCommitmentCoverageStatsRequest)
     returns (stream GetHistoricalCommitmentCoverageStatsResponse);
+
+    rpc GetTopologyCommitmentCoverage(GetTopologyCommitmentCoverageStatsRequest)
+    returns (stream GetTopologyCommitmentCoverageStatsResponse);
+
+    rpc GetTopologyCommitmentUtilization(GetTopologyCommitmentUtilizationStatsRequest)
+    returns (stream GetTopologyCommitmentUtilizationStatsResponse);
+}
+
+message GetCloudCommitmentInfoForAnalysisRequest {
+    optional topology.TopologyInfo topology_info = 1;
+}
+
+message GetCloudCommitmentInfoForAnalysisResponse {
+    repeated CommitmentInfoBucket commitment_bucket = 1;
+
+    message CommitmentInfoBucket {
+
+        optional int64 timestamp_millis = 1;
+
+        optional cloud_common.CloudStatGranularity granularity = 2 [default = HOURLY];
+
+        repeated cloud_commitment_dto.CloudCommitmentMapping cloud_commitment_mapping = 3;
+
+        map<int64, cloud_commitment_dto.CloudCommitmentAmount> cloud_commitment_overhead = 4;
+    }
+}
+
+service CloudCommitmentService {
+    rpc GetCloudCommitmentInfoForAnalysis(GetCloudCommitmentInfoForAnalysisRequest)
+    returns (GetCloudCommitmentInfoForAnalysisResponse);
 }

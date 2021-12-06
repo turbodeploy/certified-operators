@@ -698,6 +698,14 @@ message PartialEntity {
                 //units for cpu reservation: mHz
                 //units for mem reservation: MBytes
                 map<int32,double> reservation_info = 7;
+
+                // Count of how many ephemeral (e.g GCP Local SSD) disks are currently attached
+                // to this VM. Set from VirtualMachineInfo.numEphemeralStorages.
+                optional int32 attached_ephemeral_volumes = 8;
+
+                // Whether any execution constraint related info was optionally sent by probe.
+                // Used for GCP to disallow execution of scale actions with local SSDs attached.
+                optional string execution_constraint = 9;
             }
 
             message ActionPhysicalMachineInfo {

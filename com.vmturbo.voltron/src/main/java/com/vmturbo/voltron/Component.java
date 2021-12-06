@@ -72,14 +72,20 @@ public enum Component {
      * The auth component.
      */
     AUTH("auth", "com.vmturbo.auth.component", AuthComponent.class,
-            Optional.of(Auth.AUTH)),
+            Optional.of(Auth.AUTH),
+            ImmutableMap.of(
+                    "migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.auth.component/src/main/resources/db/migration")
+            )),
 
     /**
      * The topology processor.
      */
     TOPOLOGY_PROCESSOR("topology-processor",
             "com.vmturbo.topology.processor", TopologyProcessorComponent.class,
-            Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR)),
+            Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR),
+            ImmutableMap.of(
+                    "migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.topology.processor/src/main/resources/db/migration")
+            )),
 
     /**
      * The market.

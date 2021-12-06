@@ -15,17 +15,8 @@
 
     <properties>
         <swagger.component.name>Extractor</swagger.component.name>
-        <postgresHost>localhost</postgresHost>
-        <!--This doesn't work here since it has to not be set in the case that we launch a
-            postgres container instead of relying on a separate postgres service being available.
-            See the no-run-postgres-container profile below
-        <postgresPort>5432</postgresPort>
-        -->
         <maven.build.timestamp.format>yyyyMMddHHmmssSSS</maven.build.timestamp.format>
-        <dockerHost>unix:///var/run/docker.sock</dockerHost>
 
-        <postgresUserName>postgres</postgresUserName>
-        <postgresPassword>vmturbo</postgresPassword>
         <targetSchemaName>extractor</targetSchemaName>
         <postgresSchemaName>${targetSchemaName}_${maven.build.timestamp}</postgresSchemaName>
         <postgresDriver>org.postgresql.Driver</postgresDriver>
@@ -215,18 +206,6 @@
     </build>
     <profiles>
         <profile>
-            <id>windows-docker-host</id>
-            <activation>
-                <os>
-                    <family>windows</family>
-                </os>
-            </activation>
-            <properties>
-                <!-- On Docker for Windows this will require exposing the Daemon with TLS disabled . -->
-                <dockerHost>tcp://localhost:2375</dockerHost>
-            </properties>
-        </profile>
-        <profile>
             <id>no-run-postgres-container</id>
             <!-- set default for postgres port only if we're not going to spin up a postgres container -->
             <activation>
@@ -276,8 +255,7 @@
                                                 pattern needs to start with "maven-" so jenkins builds
                                                 will properly clean up leaked containers
                                                 -->
-                                                <containerNamePattern>maven-%a-%i
-                                                </containerNamePattern>
+                                                <containerNamePattern>maven-%a-%i</containerNamePattern>
                                                 <ports>
                                                     <port>postgresPort:5432</port>
                                                 </ports>

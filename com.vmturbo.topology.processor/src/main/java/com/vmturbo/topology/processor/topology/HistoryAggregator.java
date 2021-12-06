@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -31,11 +32,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.components.common.utils.TriFunction;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -43,9 +42,8 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.IHistoricalEditor;
-import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
 
 /**
  * A pipeline stage to calculate historical values for commodities.
@@ -128,10 +126,16 @@ public class HistoryAggregator {
                             .isEmpty(changes));
 
             // this may initiate background loading of certain data
-            forEachEditor(editorsToRun,
+            Set<IHistoricalEditor<?>> failedEditors = forEachEditor(editorsToRun,
                           editor -> editor.initContext(context, commsToUpdate.get(editor)),
                           "initialization",
                           "The time spent initializing historical data cache for {}");
+
+            failedEditors.forEach(commsToUpdate::remove);
+            failedEditors.forEach(editorsToRun::remove);
+            if (editorsToRun.isEmpty()) {
+                throw new PipelineStageException("None of the historical editors were able to initialize calculations");
+            }
 
             try {
                 // submit the preparation tasks and wait for completion
@@ -163,6 +167,9 @@ public class HistoryAggregator {
             // double handling - because pipeline runner swallows stack trace for non-mandatory stages
             logger.warn("History aggregation stage failed", e);
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new PipelineStageException("History aggregation interrupted", e);
         }
     }
 
@@ -173,11 +180,15 @@ public class HistoryAggregator {
      * @param task task to run
      * @param description logging description
      * @param metricHelpFormat string format for the metric timer to measure performance
-     * @throws PipelineStageException when failed critically
+     * @return editors for which the task being executed has failed
+     * @throws InterruptedException when interrupted
      */
-    private void forEachEditor(@Nonnull Set<IHistoricalEditor<?>> editorsToRun,
-                               @Nonnull ThrowingConsumer<IHistoricalEditor<?>, HistoryCalculationException> task,
-                               @Nonnull String description, @Nonnull String metricHelpFormat) throws PipelineStageException {
+    @Nonnull
+    private Set<IHistoricalEditor<?>> forEachEditor(@Nonnull Set<IHistoricalEditor<?>> editorsToRun,
+                    @Nonnull ThrowingConsumer<IHistoricalEditor<?>, HistoryCalculationException> task,
+                    @Nonnull String description, @Nonnull String metricHelpFormat)
+                    throws InterruptedException {
+        Set<IHistoricalEditor<?>> failedEditors = new HashSet<>();
         for (IHistoricalEditor<?> editor : editorsToRun) {
             String editorName = editor.getClass().getSimpleName();
             String metricName = String.format("tp_historical_%s_time_%s", description, editorName);
@@ -188,10 +199,11 @@ public class HistoryAggregator {
             try (DataMetricTimer timer = metric.startTimer()) {
                 try {
                     task.accept(editor);
-                } catch (HistoryCalculationException | InterruptedException e) {
-                    throw new PipelineStageException("Historical calculations " + description
-                                                     + " failed for "
-                                                     + editor.getClass().getSimpleName(), e);
+                } catch (HistoryCalculationException e) {
+                    // fatal error of an editor should let the rest run
+                    failedEditors.add(editor);
+                    logger.error("Historical calculations " + description + " failed for "
+                                    + editor.getClass().getSimpleName(), e);
                 } finally {
                     if (logger.isDebugEnabled()) {
                         logger.debug(String.format("%s: %s secs", metricHelpFormat,
@@ -200,6 +212,7 @@ public class HistoryAggregator {
                 }
             }
         }
+        return failedEditors;
     }
 
     @Nonnull

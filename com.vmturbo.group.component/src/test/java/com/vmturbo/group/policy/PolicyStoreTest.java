@@ -11,6 +11,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,8 +35,15 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -44,6 +52,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
@@ -52,11 +61,18 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
+import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
-
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class PolicyStoreTest {
 
     /**
@@ -70,6 +86,24 @@ public class PolicyStoreTest {
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    @Autowired(required = false)
+    private TestGroupDBEndpointConfig dbEndpointConfig;
+
+    DSLContext dsl;
 
     private static final long TARGET_ID = 107L;
 
@@ -110,9 +144,14 @@ public class PolicyStoreTest {
     private DiscoveredPoliciesMapper discoveredPoliciesMapper = mock(DiscoveredPoliciesMapper.class);
 
     @Before
-    public void setup() {
-        final DSLContext dslContext = dbConfig.getDslContext();
-        policyStore = new PolicyStore(dslContext, identityProvider, policyValidator);
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
+            dsl = dbEndpointConfig.groupEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        policyStore = new PolicyStore(dsl, identityProvider, policyValidator);
         injectGroup(CONSUMER_GROUP_ID);
         injectGroup(PRODUCER_GROUP_ID);
     }
@@ -252,7 +291,7 @@ public class PolicyStoreTest {
 
     @Test(expected = ImmutablePolicyUpdateException.class)
     public void testDeleteDiscoveredException() throws ImmutablePolicyUpdateException, PolicyNotFoundException {
-        final PolicyRecord policyRecord = dbConfig.getDslContext().newRecord(Tables.POLICY);
+        final PolicyRecord policyRecord = dsl.newRecord(Tables.POLICY);
         policyRecord.setEnabled(true);
         policyRecord.setName("foo");
         policyRecord.setDisplayName("foo");
@@ -300,13 +339,13 @@ public class PolicyStoreTest {
         policyStore.collectDiags(appender);
         final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
         Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
-        dbConfig.getDslContext().transaction(config -> {
+        dsl.transaction(config -> {
             DSL.using(config).deleteFrom(Tables.POLICY);
         });
 
         final PolicyStore newPolicyStore =
-                new PolicyStore(dbConfig.getDslContext(), identityProvider, policyValidator);
-        newPolicyStore.restoreDiags(diags.getAllValues(), dbConfig.getDslContext());
+                new PolicyStore(dsl, identityProvider, policyValidator);
+        newPolicyStore.restoreDiags(diags.getAllValues(), dsl);
 
         final Policy gotPolicy = policyStore.get(POLICY_ID).get();
         assertThat(gotPolicy, is(policy));
@@ -344,7 +383,7 @@ public class PolicyStoreTest {
             .toJson(Arrays.asList(policyWithGroupPresent, policyWithGroupMissing)));
 
         // ACT
-        policyStore.restoreDiags(serialized, dbConfig.getDslContext());
+        policyStore.restoreDiags(serialized, dsl);
 
         // ASSERT
         Collection<Policy> policies = policyStore.getAll();
@@ -356,7 +395,7 @@ public class PolicyStoreTest {
     }
 
     private void injectGroup(final long id) {
-        final GroupingRecord record = dbConfig.getDslContext().newRecord(Tables.GROUPING);
+        final GroupingRecord record = dsl.newRecord(Tables.GROUPING);
         record.setId(id);
         record.setDisplayName("Fuel Injected " + id);
         record.setGroupType(GroupType.REGULAR);
@@ -368,7 +407,7 @@ public class PolicyStoreTest {
 
     @Nonnull
     private Map<Long, Set<Long>> getPolicyToGroupMapping() {
-        return dbConfig.getDslContext().selectFrom(Tables.POLICY_GROUP)
+        return dsl.selectFrom(Tables.POLICY_GROUP)
                 .fetch()
                 .into(PolicyGroup.class)
                 .stream()

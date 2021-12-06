@@ -91,6 +91,8 @@ public class SearchPendingActionWriterTest {
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
             .insertTimeoutSeconds(10)
             .searchBatchSize(10)
+            .scopeInsertBatchSize(10)
+            .scopeUpdateBatchSize(10)
             .build();
 
     private DataProvider dataProvider = mock(DataProvider.class);

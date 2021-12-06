@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.history;
+package com.vmturbo.topology.processor.history.exceptions;
 
 /**
  * Exception to throw when the loaded data are malformed.

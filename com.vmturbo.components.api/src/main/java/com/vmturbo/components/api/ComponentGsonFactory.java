@@ -122,7 +122,7 @@ public class ComponentGsonFactory {
      * for deserialization via reflection.
      *
      */
-    private static class ProtoAdapter implements JsonSerializer<AbstractMessage>, JsonDeserializer<AbstractMessage> {
+    public static class ProtoAdapter implements JsonSerializer<AbstractMessage>, JsonDeserializer<AbstractMessage> {
 
         private static final ConcurrentMap<String, Map<Class<?>, Method>> mapOfMapOfMethods = new ConcurrentHashMap<>();
 

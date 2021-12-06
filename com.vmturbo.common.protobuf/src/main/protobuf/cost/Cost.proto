@@ -4,6 +4,7 @@ package cost;
 option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "CloudCostDTO.proto";
+import "CostBilling.proto";
 import "common/Pagination.proto";
 import "CommonDTO.proto";
 import "CommonCost.proto";
@@ -1511,6 +1512,60 @@ service RIAndExpenseUploadService {
     rpc GetRIDataChecksum(GetRIDataChecksumRequest) returns (ChecksumResponse);
 
     rpc ClearRIDataChecksum(ClearRIDataChecksumRequest) returns (ChecksumResponse);
+}
+
+service BilledCostUploadService {
+    rpc UploadBilledCost(stream UploadBilledCostRequest) returns (UploadBilledCostResponse);
+}
+
+message UploadBilledCostRequest {
+    // timestamp when request object is created.
+    optional int64 created_time = 1;
+
+    // the topology id this upload is associated with. It will always be a realtime topology.
+    optional int64 topology_id = 2;
+
+    // identifier for the requests coming from the same CloudBillingData.
+    // Billed cost data coming from the same CloudBillingData shares a collection of cost tag
+    // grouping, so billing_identifier is important to group UploadBilledCostRequests coming
+    // from the same CloudBillingData.
+    optional string billing_identifier = 3;
+
+    optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 4;
+
+    repeated BillingDataPoint samples = 5;
+
+    // Flag indicating whether the samples in current request are the full set sharing the same
+    // costTagGroupMap.
+    // When flag is false, there will be at least one more request with samples sharing the same
+    // costTagGroupMap.
+    // When flag is true, server can directly process current request because the costTagGroupMaps
+    // are referenced by samples only in current request.
+    optional bool atomic_request = 6 [default = true];
+
+    repeated CostTagGroupMap cost_tag_group_map = 7;
+
+    message BillingDataPoint {
+        optional int64 timestamp_utc_millis = 1;
+        optional int64 account_oid = 2;
+        optional int64 cloud_service_oid = 3;
+        optional int64 region_oid = 4;
+        optional int32 entity_type = 5;
+        optional int64 entity_oid = 6;
+        optional common_dto.PriceModel price_model = 7;
+        optional common_dto.CloudBillingDataPoint.CostCategory cost_category = 8;
+        optional double usage_amount = 9;
+        optional common_dto.CurrencyAmount cost = 10;
+        optional int64 cost_tag_group_id = 11;
+    }
+
+    message CostTagGroupMap {
+        optional int64 group_id = 1;
+        optional common_dto.CostTagGroup tags = 2;
+    }
+}
+
+message UploadBilledCostResponse {
 }
 
 message riBuyDemandStats {

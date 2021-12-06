@@ -557,14 +557,15 @@ public class EntitySettingsResolver {
                         final boolean hasSchedule = settingPolicy.getInfo().hasScheduleId();
                         if (!settingsByName.containsKey(specName)) {
                             settingsByName.put(specName, new SettingAndPolicyIdRecord(
-                                nextSetting, nextSettingPolicyId, spType, hasSchedule));
+                                nextSetting, nextSettingPolicyId, spType, hasSchedule)
+                                    .isPropagated(scope.propagated));
                         } else {
                             // Use the corresponding resolver to resolve settings.
                             // If no resolver is associated with the specName, use the default resolver.
                             settingSpecNameToSettingResolver
                                 .getOrDefault(specName, SettingResolver.defaultSettingResolver)
                                 .resolve(settingsByName.get(specName), nextSetting, nextSettingPolicyId,
-                                    hasSchedule, spType, settingSpecNameToSettingSpecs);
+                                    hasSchedule, scope.propagated, spType, settingSpecNameToSettingSpecs);
                         }
                     }
                 }
@@ -877,6 +878,7 @@ public class EntitySettingsResolver {
         private Set<Long> settingPolicyIdList;
         private SettingPolicy.Type type;
         private boolean scheduled;
+        private boolean isPropagated;
 
         /**
          * Constructor of {@link SettingAndPolicyIdRecord}.
@@ -899,6 +901,11 @@ public class EntitySettingsResolver {
             this.settingPolicyIdList.addAll(settingPolicyIds);
             this.type = type;
             this.scheduled = scheduled;
+        }
+
+        SettingAndPolicyIdRecord isPropagated(final boolean isPropagated) {
+            this.isPropagated = isPropagated;
+            return this;
         }
 
         TopologyProcessorSetting<?> getSetting() {
@@ -930,6 +937,7 @@ public class EntitySettingsResolver {
          * @param nextSetting next setting
          * @param nextSettingPolicyId the settingPolicyId the next setting belongs to
          * @param nextIsScheduled if the next setting is scheduled
+         * @param nextIsPropagated if the next setting is being propagated
          * @param nextType the type of the next setting
          * @param settingSpecNameToSettingSpecs mapping from settingSpecName to associated SettingSpec
          * @return the resolved {@link SettingAndPolicyIdRecord}
@@ -938,18 +946,19 @@ public class EntitySettingsResolver {
             SettingAndPolicyIdRecord existingRecord,
             TopologyProcessorSetting<?> nextSetting,
             long nextSettingPolicyId, boolean nextIsScheduled,
+            boolean nextIsPropagated,
             SettingPolicy.Type nextType,
             Map<String, SettingSpec> settingSpecNameToSettingSpecs);
 
         default SettingResolver thenResolve(@Nonnull final SettingResolver other) {
             return (existingRecord, nextSetting, nextSettingPolicyId,
-                    nextIsScheduled, nextType, settingSpecNameToSettingSpecs) -> {
+                    nextIsScheduled, nextIsPropagated, nextType, settingSpecNameToSettingSpecs) -> {
                 Optional<SettingAndPolicyIdRecord> result = this.resolve(
                     existingRecord, nextSetting, nextSettingPolicyId,
-                    nextIsScheduled, nextType, settingSpecNameToSettingSpecs);
+                    nextIsScheduled, nextIsPropagated, nextType, settingSpecNameToSettingSpecs);
                 return result.isPresent() ? result : other.resolve(
                     existingRecord, nextSetting, nextSettingPolicyId,
-                    nextIsScheduled, nextType, settingSpecNameToSettingSpecs);
+                    nextIsScheduled, nextIsPropagated, nextType, settingSpecNameToSettingSpecs);
             };
         }
 
@@ -960,7 +969,7 @@ public class EntitySettingsResolver {
          */
         SettingResolver userWinOverDiscoveredSettingResolver =
                 (existingRecord, nextSetting, nextSettingPolicyId,
-                 nextIsScheduled, nextType, settingSpecNameToSettingSpecs) -> {
+                 nextIsScheduled, nextIsPropagated, nextType, settingSpecNameToSettingSpecs) -> {
             final SettingPolicy.Type existingType = existingRecord.getType();
             if (existingType == nextType) {
                 return Optional.empty();
@@ -976,7 +985,7 @@ public class EntitySettingsResolver {
          */
         SettingResolver scheduledWinOverNonScheduledSettingResolver =
                 (existingRecord, nextSetting, nextSettingPolicyId,
-                 nextIsScheduled, nextType, settingSpecNameToSettingSpecs) -> {
+                 nextIsScheduled, nextIsPropagated, nextType, settingSpecNameToSettingSpecs) -> {
             final boolean existingSettingHasSchedule = existingRecord.isScheduled();
             if ((existingSettingHasSchedule && nextIsScheduled) ||
                 (!existingSettingHasSchedule && !nextIsScheduled)) {
@@ -988,11 +997,37 @@ public class EntitySettingsResolver {
         };
 
         /**
+         * Propagated setting wins over native setting.
+         * Certain settings on an entity might not be defined on that type of entity, but rather they
+         * are defined on another type of entity and propagated to this entity. For example, the SLO
+         * values applied on an Application Component may be propagated from a Service policy which
+         * has horizontal scale enabled. If we have another SLO value applied on the same Application
+         * Component from an Application Component policy, we should pick the values propagated from
+         * the Service policy.
+         */
+        SettingResolver propagatedSettingWinOverNativeSettingResolver =
+                (existingRecord, nextSetting, nextSettingPolicyId,
+                 nextIsScheduled, nextIsPropagated, nextType, settingSpecNameToSettingSpecs) -> {
+            final boolean existingIsPropagated = existingRecord.isPropagated;
+            if ((existingIsPropagated && nextIsPropagated)
+                    || (!existingIsPropagated && !nextIsPropagated)) {
+                // Both existing and next setting record have the same propagated setting
+                return Optional.empty();
+            }
+            if (nextIsPropagated) {
+                // Next setting wins. Update the existing record with information from next setting
+                existingRecord.isPropagated(true).set(
+                        nextSetting, Collections.singleton(nextSettingPolicyId), nextType, nextIsScheduled);
+            }
+            return Optional.of(existingRecord);
+        };
+
+        /**
          * Use tie breaker to resolve settings.
          */
         SettingResolver tiebreakerSettingResolver =
                 (existingRecord, nextSetting, nextSettingPolicyId,
-                 nextIsScheduled, nextType, settingSpecNameToSettingSpecs) -> {
+                 nextIsScheduled, nextIsPropagated, nextType, settingSpecNameToSettingSpecs) -> {
             final Pair<TopologyProcessorSetting<?>, Boolean>
                     resolvedPair = applyTiebreaker(nextSetting, existingRecord.getSetting(),
                             settingSpecNameToSettingSpecs);
@@ -1021,6 +1056,7 @@ public class EntitySettingsResolver {
         SettingResolver defaultSettingResolver =
             userWinOverDiscoveredSettingResolver
                 .thenResolve(scheduledWinOverNonScheduledSettingResolver)
+                .thenResolve(propagatedSettingWinOverNativeSettingResolver)
                 .thenResolve(tiebreakerSettingResolver);
 
         /* ---------------- Static utilities -------------- */

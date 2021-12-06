@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -516,6 +517,26 @@ public class RemoteProbeStoreTest {
                 store.getProbeOrdering().getCategoriesForProbeToStitchWith(storageProbe);
         assertEquals(2, storageStitchWith.size());
         assertTrue(storageStitchWith.contains(ProbeCategory.HYPERVISOR));
+    }
+
+    /**
+     * Test that probes are correctly loaded from the kvStore.
+     *
+     * @throws Exception on exception
+     */
+    @Test
+    public void testInitialize() throws Exception {
+        when(keyValueStore.getByPrefix(ProbeStore.PROBE_KV_STORE_PREFIX))
+            .thenReturn(ImmutableMap.of("", JsonFormat.printer().print(probeInfo)));
+        when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
+
+        store.initialize();
+        assertEquals(probeInfo, store.getProbe(1234L).get());
+        verify(stitchingOperationStore).clearOperations();
+        verify(stitchingOperationStore).setOperationsForProbe(eq(1234L), eq(probeInfo),
+            eq(store.getProbeOrdering()));
+        verify(actionMergeSpecsRepository).clear();
+        verify(actionMergeSpecsRepository).setPoliciesForProbe(eq(1234L), eq(probeInfo));
     }
 
     @SuppressWarnings("unchecked")

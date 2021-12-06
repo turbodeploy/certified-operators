@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.4.1-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.191-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.192-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.0</cpu.capacity.version>
@@ -182,6 +182,17 @@
 
         <!-- timescaledb image tag pulled by builds of extractor and extractor-schema -->
         <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
+        <!-- For spinning up a postgres container for testing during maven build-->
+        <postgres-image-tag>13.5</postgres-image-tag>
+        <dockerHost>unix:///var/run/docker.sock</dockerHost>
+        <postgresHost>localhost</postgresHost>
+        <!--This doesn't work here since it has to not be set in the case that we launch a
+            postgres container instead of relying on a separate postgres service being available.
+            See the no-run-postgres-container profile below
+        <postgresPort>5432</postgresPort>
+        -->
+        <postgresUserName>postgres</postgresUserName>
+        <postgresPassword>vmturbo</postgresPassword>
 
         <!-- For modules with python code, this is the most likely relative location of the
              turbo-pipenv script (since we almost never use nested modules).
@@ -1603,6 +1614,18 @@
             </build>
         </profile>
 
+        <profile>
+            <id>windows-docker-host</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <properties>
+                <!-- On Docker for Windows this will require exposing the Daemon with TLS disabled . -->
+                <dockerHost>tcp://localhost:2375</dockerHost>
+            </properties>
+        </profile>
     </profiles>
     <build>
         <extensions>

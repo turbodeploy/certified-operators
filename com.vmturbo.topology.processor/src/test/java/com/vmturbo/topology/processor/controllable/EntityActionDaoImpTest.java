@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.controllable;
 
 import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
+import static org.jooq.impl.DSL.inline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -24,7 +25,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
@@ -41,9 +41,8 @@ import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
-import com.vmturbo.topology.processor.TopologyProcessorDbEndpointConfig;
+import com.vmturbo.topology.processor.TestTopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
-import com.vmturbo.topology.processor.controllable.EntityActionDaoImpTest.TestTopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
@@ -75,8 +74,8 @@ public class EntityActionDaoImpTest {
     /**
      * Test rule to use {@link DbEndpoint}s in test.
      */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("tp");
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("topology-processor");
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
@@ -274,31 +273,31 @@ public class EntityActionDaoImpTest {
         // update entity 1 status to in progress and change its update time to expired time.
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, expiredTimeInProgress)
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.in_progress)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.in_progress))
                 .where(ENTITY_ACTION.ENTITY_ID.eq(1L))
                 .execute();
         // update entity 2 status to succeed and change its update time to expired time.
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, expiredTimeSucceed)
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.succeed))
                 .where(ENTITY_ACTION.ENTITY_ID.eq(2L))
                 .execute();
         // update entity 3 status to succeed and change its update time to current time.
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime)
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.succeed))
                 .where(ENTITY_ACTION.ENTITY_ID.eq(3L))
                 .execute();
         // update entity 4 status to failed and change its update time to current time.
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime)
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.failed)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.failed))
                 .where(ENTITY_ACTION.ENTITY_ID.eq(4L))
                 .execute();
         // update entity 5 status to queued and change its update time to current time.
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime)
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.queued))
                 .where(ENTITY_ACTION.ENTITY_ID.eq(5L))
                 .execute();
         final Set<Long> results = controllableDaoImp.getNonControllableEntityIds();
@@ -319,14 +318,14 @@ public class EntityActionDaoImpTest {
         // the timestamp is within the period of ACTIVATE_SUCCEED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(ACTIVATE_SUCCEED_SECONDS / 2))
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.succeed))
                 .where(ENTITY_ACTION.ACTION_ID.eq(100L))
                 .execute();
         // update the status of the activate action for entity with id 101l to succeed and make sure
         // the timestamp is beyond the period of ACTIVATE_SUCCEED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(ACTIVATE_SUCCEED_SECONDS * 2))
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.succeed))
                 .where(ENTITY_ACTION.ACTION_ID.eq(101L))
                 .execute();
         final Set<Long> results = controllableDaoImp.getNonSuspendableEntityIds();
@@ -351,21 +350,21 @@ public class EntityActionDaoImpTest {
         // the timestamp is beyond the period of IN_PROGRESS_EXPIRED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS * 2))
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.in_progress)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.in_progress))
                 .where(ENTITY_ACTION.ACTION_ID.eq(100L))
                 .execute();
         // update the status of the activate action for entity with id 101l to queued and make sure
         // the timestamp is beyond the period of IN_PROGRESS_EXPIRED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS * 3))
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.queued))
                 .where(ENTITY_ACTION.ACTION_ID.eq(101L))
                 .execute();
         // update the status of the activate action for entity with id 102l to in_progress and make sure
         // the timestamp is within the period of IN_PROGRESS_EXPIRED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS / 2))
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.in_progress)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.in_progress))
                 .where(ENTITY_ACTION.ACTION_ID.eq(102L))
                 .execute();
         final Set<Long> results = controllableDaoImp.getNonSuspendableEntityIds();
@@ -390,7 +389,7 @@ public class EntityActionDaoImpTest {
         // Test InProgress Expired
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS + 1))
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.queued))
                 .where(ENTITY_ACTION.ACTION_ID.eq(SCALE_ACTION_ID))
                 .execute();
 
@@ -399,7 +398,7 @@ public class EntityActionDaoImpTest {
         // Test SUCCEEDED Expired
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(SCALE_SUCCEED_SECONDS + 1))
-                .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
+                .set(ENTITY_ACTION.STATUS, inline(EntityActionStatus.succeed))
                 .where(ENTITY_ACTION.ACTION_ID.eq(RESIZE_ACTION_ID))
                 .execute();
 
@@ -426,14 +425,14 @@ public class EntityActionDaoImpTest {
         assertTrue(controllableDaoImp.ineligibleForScaleEntityIds().isEmpty());
         assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().contains(RESIZE_ENTITY_ID));
         assertEquals(0, dsl.selectFrom(ENTITY_ACTION)
-            .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed))
+            .where(ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.failed)))
             .fetch().size());
 
         // Update state of RESIZE action
         controllableDaoImp.updateActionState(RESIZE_ACTION_ID, ActionState.FAILED);
         assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().isEmpty());
         assertEquals(0, dsl.selectFrom(ENTITY_ACTION)
-            .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed))
+            .where(ENTITY_ACTION.STATUS.eq(inline(EntityActionStatus.failed)))
             .fetch().size());
     }
 
@@ -442,8 +441,4 @@ public class EntityActionDaoImpTest {
         controllableDaoImp.insertAction(RESIZE_ACTION_ID, ActionType.RIGHT_SIZE, Sets.newHashSet(RESIZE_ENTITY_ID));
         controllableDaoImp.insertAction(SCALE_ACTION_ID, ActionType.SCALE, Sets.newHashSet(SCALE_ENTITY_ID));
     }
-
-    @Configuration
-    public static class TestTopologyProcessorDbEndpointConfig
-            extends TopologyProcessorDbEndpointConfig {}
 }

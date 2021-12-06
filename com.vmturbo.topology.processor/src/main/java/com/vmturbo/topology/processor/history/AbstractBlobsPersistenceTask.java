@@ -32,6 +32,9 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryPersistenceException;
+import com.vmturbo.topology.processor.history.exceptions.InvalidHistoryDataException;
 
 /**
  * Persist the blobs data to/from historydb.
@@ -113,7 +116,7 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
                     + " blob for " + startTimestamp, e);
             }
         } catch (IOException e) {
-            throw new HistoryCalculationException(
+            throw new HistoryPersistenceException(
                 "Failed to read " + getClass().getSimpleName() + " blob for " + startTimestamp, e);
         }
     }
@@ -307,11 +310,11 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
          * availability if call observer is specified, but no more than given timeout.
          *
          * @param callObserver call observer, null for reading
-         * @throws HistoryCalculationException when general timeout occurs
+         * @throws HistoryPersistenceException when general timeout occurs
          * @throws InterruptedException when interrupted
          */
         protected void checkIoAvailability(CallStreamObserver<?> callObserver)
-                throws HistoryCalculationException, InterruptedException {
+                throws HistoryPersistenceException, InterruptedException {
             if (callObserver == null) {
                 logger.warn("Call observer is null; skip checking the IO availability. "
                         + "But this shouldn't happen so we should investigate why.");
@@ -430,12 +433,12 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
          *
          * @param statsRelatedClassName the name of the stats class for logging purpose
          * @param startTimestamp the start timestamp for logging purpose
-         * @throws HistoryCalculationException if such an error is encountered
+         * @throws HistoryPersistenceException if such an error is encountered
          */
         protected void checkRemoteError(String statsRelatedClassName, long startTimestamp)
-                throws HistoryCalculationException {
+                throws HistoryPersistenceException {
             if (error != null) {
-                throw new HistoryCalculationException(String.format(FAILED_MESSAGE,
+                throw new HistoryPersistenceException(String.format(FAILED_MESSAGE,
                         getClass().getSimpleName(), statsRelatedClassName, startTimestamp), error);
             }
         }
@@ -443,11 +446,11 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
         /**
          * Checks if we have waited long enough to declare timeout.
          *
-         * @throws HistoryCalculationException if such an error is encountered
+         * @throws HistoryPersistenceException if such an error is encountered
          */
-        protected void checkTimeout() throws HistoryCalculationException {
+        protected void checkTimeout() throws HistoryPersistenceException {
             if (clock.millis() - startMs > TimeUnit.SECONDS.toMillis(timeoutSec)) {
-                throw new HistoryCalculationException("Stream I/O operation from history component timeout exceeded");
+                throw new HistoryPersistenceException("Stream I/O operation from history component timeout exceeded");
             }
         }
     }

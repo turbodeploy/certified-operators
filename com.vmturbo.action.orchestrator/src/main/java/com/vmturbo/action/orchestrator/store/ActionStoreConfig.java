@@ -252,7 +252,7 @@ public class ActionStoreConfig {
                 .setNameFormat("auto-act-exec-%d").build();
 
         return isConditionalSubmitter
-                ? new ConditionalSubmitter(concurrentAutomatedActions, threadFactory,
+                ? new ConditionalSubmitter(Executors.newScheduledThreadPool(concurrentAutomatedActions, threadFactory),
                         conditionalSubmitterDelaySecs)
                 : Executors.newFixedThreadPool(concurrentAutomatedActions, threadFactory);
     }

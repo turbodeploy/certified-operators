@@ -46,7 +46,7 @@ class MySqlFamilyAdapter extends DbAdapter {
             // TODO: Create a pool monitor here
             return  dataSource;
         } else {
-            logger.debug("Creating a non-pooled datasource for user: %s", user);
+            logger.debug("Creating a non-pooled datasource for user: {}", user);
             final MariaDbDataSource dataSource = new MariaDbDataSource();
             dataSource.setUrl(url);
             dataSource.setUser(user);
@@ -140,6 +140,18 @@ class MySqlFamilyAdapter extends DbAdapter {
     @Override
     public String getConnectionUser(final Connection conn) throws SQLException {
         return conn.getClientInfo("ClientUser");
+    }
+
+    @Override
+    public void truncateAllTables(Connection conn) throws SQLException {
+        for (final String table : getAllTableNames(conn)) {
+            try (Statement statement = conn.createStatement()) {
+                // Workaround to be able to truncate tables.
+                statement.execute("SET FOREIGN_KEY_CHECKS = 0;");
+                statement.execute(String.format("TRUNCATE TABLE %s", quote(table)));
+                statement.execute("SET FOREIGN_KEY_CHECKS = 1;");
+            }
+        }
     }
 
     @Override

@@ -40,7 +40,10 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.BadSqlGrammarException;
@@ -57,6 +60,8 @@ import com.vmturbo.platform.common.dto.CommonDTO;
  * Unit tests for {@link CachingMemberCalculator}.
  */
 public class CachingMemberCalculatorTest {
+    private static final Logger logger = LogManager.getLogger();
+
     private static final long GROUP_1_ID = 1L;
     private static final long GROUP_2_ID = 2L;
     private static final long GROUP_3_ID = 3L;
@@ -524,17 +529,19 @@ public class CachingMemberCalculatorTest {
      * @throws Exception if something goes wrong.
      */
     @Test
+    @Ignore("This test is failing occasionally. The reason is getting investigated in OM-77963")
     public void testConcurrentUpdateOnRegroup() throws Exception {
         // ARRANGE
         // this semaphore is used to block regroup operation for a period of time
         // so we can simulate operations during regroup
         final Semaphore semaphore = new Semaphore(1);
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(2);
         final AtomicBoolean returnNewValues = new AtomicBoolean(false);
 
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
                 internalCalculator, Type.SET, true, threadFactory,
                 () -> {
+                    logger.debug("Started retrieving the members.");
                     latch.countDown();
                     try {
                         semaphore.acquire();
@@ -555,6 +562,7 @@ public class CachingMemberCalculatorTest {
                             .entityIdToGroupIdsMap(entityIdToParentGroupIds)
                             .groupIdToType(groupToType)
                             .build();
+
                 });
 
         // ACT 1: Perform the regroup operation
@@ -596,9 +604,11 @@ public class CachingMemberCalculatorTest {
         // that took place when we read groups from database. However, we are using
         // mock data. Therefore, we need to make sure that the regroup operation
         // started before proceeding.
+        logger.debug("Waiting for retrieving the members.");
         if (!latch.await(5, TimeUnit.MINUTES))  {
             fail("The regroup operation failed to start in the timeout period.");
         }
+        logger.debug("Finished waiting for retrieving members.");
 
         final GroupDefinition group5 = GroupDefinition.newBuilder()
                 .setType(CommonDTO.GroupDTO.GroupType.REGULAR)

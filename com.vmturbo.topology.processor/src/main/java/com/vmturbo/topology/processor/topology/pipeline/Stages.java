@@ -318,6 +318,7 @@ public class Stages {
 
             final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
             journal.recordTopologySizes(stitchingContext.entityTypeCounts());
+            journal.getMetrics().setStartingEntityCount(stitchingContext.size());
 
             if (journal.shouldDumpTopologyBeforePreStitching()) {
                 journal.dumpTopology(stitchingContext.getStitchingGraph().entities()
@@ -328,17 +329,20 @@ public class Stages {
             final StitchingContext context = stitchingManager.stitch(stitchingContext, journal);
 
             final StitchingMetrics metrics = journal.getMetrics();
-            final String status = new StringBuilder()
+            final StringBuilder statusBuilder = new StringBuilder();
+            if (journal.hasAnyChanges()) {
+                statusBuilder
                     .append(metrics.getTotalChangesetsGenerated())
-                    .append(" changesets generated\n")
+                    .append(" changesets generated during stitching\n")
                     .append(metrics.getTotalChangesetsIncluded())
-                    .append(" changesets included\n")
+                    .append(" changesets included in journal\n")
                     .append(metrics.getTotalEmptyChangests())
-                    .append(" empty changesets\n")
-                    .toString();
+                    .append(" empty changesets in journal\n");
+            }
+            metrics.summarizeNonJournalChanges(statusBuilder, context.size());
             entityStore.sendMetricsEntityAndTargetData();
             return StageResult.withResult(context)
-                .andStatus(Status.success(status));
+                .andStatus(Status.success(statusBuilder.toString()));
         }
     }
 
@@ -1372,6 +1376,7 @@ public class Stages {
                 .orElse(StitchingJournalFactory.emptyStitchingJournalFactory().stitchingJournal(null));
             final IStitchingJournal<TopologyEntity> postStitchingJournal = mainJournal.childJournal(
                 new TopologyEntitySemanticDiffer(mainJournal.getJournalOptions().getVerbosity()));
+            postStitchingJournal.getMetrics().setStartingEntityCount(input.getTopologyGraph().size());
             stitchingJournalContainer.get().setPostStitchingJournal(postStitchingJournal);
 
             stitchingManager.postStitch(input, postStitchingJournal, operationsToSkip.get());
@@ -1389,16 +1394,19 @@ public class Stages {
                 journal.flushRecorders();
             });
 
-            final String status = new StringBuilder()
-                .append(postStitching.getTotalChangesetsGenerated() - main.getTotalChangesetsGenerated())
-                    .append(" changesets generated\n")
-                .append(postStitching.getTotalChangesetsIncluded() - main.getTotalChangesetsIncluded())
-                    .append(" changesets included\n")
-                .append(postStitching.getTotalEmptyChangests() - main.getTotalEmptyChangests())
-                    .append(" empty changesets\n")
-                .toString();
+            final StringBuilder statusBuilder = new StringBuilder();
+            if (postStitchingJournal.hasAnyChanges()) {
+                statusBuilder
+                    .append(postStitching.getTotalChangesetsGenerated() - main.getTotalChangesetsGenerated())
+                    .append(" changesets generated during stitching\n")
+                    .append(postStitching.getTotalChangesetsIncluded() - main.getTotalChangesetsIncluded())
+                    .append(" changesets included in stitching journal\n")
+                    .append(postStitching.getTotalEmptyChangests() - main.getTotalEmptyChangests())
+                    .append(" empty changesets in stitching journal\n");
+            }
+            postStitching.summarizeNonJournalChanges(statusBuilder, input.getTopologyGraph().size());
 
-            return Status.success(status);
+            return Status.success(statusBuilder.toString());
         }
     }
 

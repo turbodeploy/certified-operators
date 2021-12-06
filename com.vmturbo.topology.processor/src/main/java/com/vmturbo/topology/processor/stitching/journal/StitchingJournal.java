@@ -229,7 +229,7 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
         try {
             // Capture a record of all semantic differences captured to the changeset by the consumer.
             final JournalChangeset<T> changeset = new JournalChangeset<>(changesetPreamble,
-                filter, nextChangesetIndex);
+                filter, stitchingMetrics, nextChangesetIndex);
             nextChangesetIndex++;
             journalChangesetConsumer.accept(changeset);
             ongoingOperation.ifPresent(operation ->

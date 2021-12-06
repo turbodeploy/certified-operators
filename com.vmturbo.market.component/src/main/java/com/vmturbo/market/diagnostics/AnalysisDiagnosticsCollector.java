@@ -6,7 +6,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +18,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.BiMap;
+import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 
 import org.apache.logging.log4j.LogManager;
@@ -83,6 +83,7 @@ public class AnalysisDiagnosticsCollector {
     static final String ACTION_ZIP_LOCATION_PREFIX = "action";
     static final String INITIAL_PLACEMENT_ZIP_LOCATION_PREFIX = "initialPlacement";
     static final String ANALYSIS_DIAGS_SUFFIX = "Diags-";
+    static final int MAX_NUM_TRADERS_PER_PARTITION = 250000;
 
     private static final Logger logger = LogManager.getLogger();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
@@ -326,18 +327,21 @@ public class AnalysisDiagnosticsCollector {
      * @param analysisConfig            analysis config
      * @param commSpecsToAdjustOverhead commSpecsToAdjustOverhead
      */
-    public void saveAnalysis(final Collection<TraderTO> traderTOs,
+    public void saveAnalysis(final List<TraderTO> traderTOs,
                              final TopologyInfo topologyInfo,
                              final AnalysisConfig analysisConfig,
                              final List<CommoditySpecification> commSpecsToAdjustOverhead) {
         try {
+            List<List<TraderTO>> partitonedTraderTOs = Lists.partition(traderTOs, MAX_NUM_TRADERS_PER_PARTITION);
             logger.info("Starting dump of Analysis diagnostics for topology context id {}",
                     topologyInfo.getTopologyContextId());
             final Stopwatch stopwatch = Stopwatch.createStarted();
 
             logger.info("Starting dump of TraderTOs");
-            diagsWriter.writeZipEntry(TRADER_DIAGS_FILE_NAME,
-                TraderDiagsTO.newBuilder().addAllTraderTOs(traderTOs).build());
+            for (int i = 0; i < partitonedTraderTOs.size(); i++) {
+                diagsWriter.writeZipEntry(TRADER_DIAGS_FILE_NAME + String.format( "%03d", i),
+                        TraderDiagsTO.newBuilder().addAllTraderTOs(partitonedTraderTOs.get(i)).build());
+            }
             logger.info("Completed dump of TraderTOs");
 
             writeAnalysisDiagsEntry(diagsWriter, Stream.of(topologyInfo),

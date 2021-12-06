@@ -1,9 +1,11 @@
 package com.vmturbo.market.rpc;
 
+import java.sql.SQLException;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,12 +16,14 @@ import com.vmturbo.common.protobuf.market.InitialPlacementREST.InitialPlacementS
 import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceController;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.market.MarketDBConfig;
+
+import com.vmturbo.market.db.DbAccessConfig;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 @Configuration
-@Import({MarketDBConfig.class, PlanOrchestratorClientConfig.class})
+@Import({DbAccessConfig.class, PlanOrchestratorClientConfig.class})
 public class MarketRpcConfig {
 
     @Value("${realtimeTopologyContextId}")
@@ -41,7 +45,7 @@ public class MarketRpcConfig {
     private PlanOrchestratorClientConfig planClientConfig;
 
     @Autowired
-    private MarketDBConfig dbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Bean
     public Optional<MarketDebugRpcService> marketDebugRpcService() {
@@ -67,8 +71,15 @@ public class MarketRpcConfig {
 
     @Bean
     public InitialPlacementFinder getInitialPlacementFinder() {
-        return new InitialPlacementFinder(dbConfig.dsl(), getReservationService(),
-                prepareReservationCache, maxRetry, maxGroupingRetry);
+        try {
+            return new InitialPlacementFinder(dbAccessConfig.dsl(), getReservationService(),
+                    prepareReservationCache, maxRetry, maxGroupingRetry);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create InitialPlacementFinder", e);
+        }
     }
 
     @Bean

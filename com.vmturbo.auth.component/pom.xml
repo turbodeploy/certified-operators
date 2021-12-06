@@ -145,6 +145,12 @@
                                     <outputSchema>${db.outputSchema}</outputSchema>
                                 </schema>
                             </schemata>
+                            <forcedTypes>
+                                <forcedType>
+                                    <name>BOOLEAN</name>
+                                    <includeTypes>(?i:TINYINT\(1\))</includeTypes>
+                                </forcedType>
+                            </forcedTypes>
                         </database>
                         <generate>
                             <pojos>true</pojos>

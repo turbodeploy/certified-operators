@@ -66,6 +66,9 @@ public class EntityConfig {
     @Value("${accountForVendorAutomation:false}")
     private boolean accountForVendorAutomation;
 
+    @Value("${useSerializedEntities:true}")
+    private boolean useSerializedEntities;
+
     @Bean
     public EntityStore entityStore() {
         EntityStore store = new EntityStore(targetConfig.targetStore(),
@@ -74,7 +77,7 @@ public class EntityConfig {
             targetDeduplicationMergeKubernetesProbeTypes,
             Lists.newArrayList(sender, controllableConfig.entityMaintenanceTimeDao()),
             clockConfig.clock(),
-            accountForVendorAutomation);
+            accountForVendorAutomation, useSerializedEntities);
         store.setEntityDetailsEnabled(entityDetailsEnabled);
         return store;
     }

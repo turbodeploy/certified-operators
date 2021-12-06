@@ -1,5 +1,6 @@
 package com.vmturbo.group.setting;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -8,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +18,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.group.api.SettingsUpdatesReceiver;
@@ -24,18 +26,19 @@ import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
-@Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class,
+@Import({DbAccessConfig.class, IdentityProviderConfig.class, GroupConfig.class,
         BaseKafkaProducerConfig.class, PlanOrchestratorClientConfig.class, ScheduleConfig.class})
 public class SettingConfig {
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -95,10 +98,17 @@ public class SettingConfig {
 
     @Bean
     public SettingStore settingStore() {
-        return new SettingStore(settingSpecsStore(),
-                databaseConfig.dsl(),
-                settingPolicyValidator(),
-                new SettingsUpdatesSender(settingMessageSender()));
+        try {
+            return new SettingStore(settingSpecsStore(),
+                    databaseConfig.dsl(),
+                    settingPolicyValidator(),
+                    new SettingsUpdatesSender(settingMessageSender()));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create SettingStore", e);
+        }
     }
 
     /**

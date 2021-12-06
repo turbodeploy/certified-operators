@@ -7,17 +7,16 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
-import org.jooq.Record;
-import org.jooq.Result;
-import org.jooq.impl.DSL;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Bytes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
+
+import com.vmturbo.sql.utils.jooq.JooqUtil;
 import com.vmturbo.topology.processor.db.tables.HistoricalUtilization;
 import com.vmturbo.topology.processor.db.tables.records.HistoricalUtilizationRecord;
 
@@ -104,9 +103,7 @@ public class HistoricalUtilizationDatabase {
      */
     @VisibleForTesting
     protected int queryMaxAllowedPackageSize() {
-        // Query the max_allowed_package size
-        Result<Record> maxPackageSize = dsl.fetch("SHOW VARIABLES LIKE 'max_allowed_packet';");
-        return maxPackageSize.get(0).getValue("Value", int.class);
+        return JooqUtil.getMaxAllowedPacket(dsl);
     }
 
     /**

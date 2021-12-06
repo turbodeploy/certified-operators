@@ -4,12 +4,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -324,6 +326,15 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
     StitchingMetrics getMetrics();
 
     /**
+     * Return whether the journal has recorded any changes.
+     *
+     * @return whether the journal has recorded any changes.
+     */
+    default boolean hasAnyChanges() {
+        return getMetrics().getTotalChangesetsGenerated() > 0;
+    }
+
+    /**
      * Construct a child journal that operates on the {@link NEXT_ENTITY} enitty type instead of the
      * {@link T} entity type of the current journal.
      *
@@ -357,11 +368,39 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
 
         private Duration timeTaken;
 
+        /**
+         * Miscellaneous changes include those made to update an entity alone or update an entity's
+         * relationships.
+         */
+        private int miscellaneousChangeCount;
+
+        /**
+         * Number of entities in the topology before running stitching.
+         */
+        private int startingEntityCount;
+
+        private EnumMap<EntityType, Integer> addedOfType;
+        private EnumMap<EntityType, Integer> removedOfType;
+
+        /**
+         * A merge operation consists of a FROM and an ONTO entity, where properties of the
+         * FROM entity are copied onto the ONTO entity, and the FROM entity is removed.
+         * In this above scenario, we will increment the value associated with the FROM
+         * entity type in the mergedOfType map, but not the ONTO type (we assume FROM and ONTO
+         * should usually be of the same type), and we do not increment the FROM removedOfType.
+         */
+        private EnumMap<EntityType, Integer> mergedOfType;
+
         public StitchingMetrics() {
             this.totalChangesetsGenerated = 0;
             this.totalChangesetsIncluded = 0;
             this.totalEmptyChangests = 0;
+            this.miscellaneousChangeCount = 0;
             this.timeTaken = Duration.ofSeconds(0);
+
+            addedOfType = new EnumMap<>(EntityType.class);
+            removedOfType = new EnumMap<>(EntityType.class);
+            mergedOfType = new EnumMap<>(EntityType.class);
         }
 
         /**
@@ -374,6 +413,9 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
             this.totalChangesetsIncluded += metrics.totalChangesetsIncluded;
             this.totalEmptyChangests += metrics.totalEmptyChangests;
             this.timeTaken = this.timeTaken.plus(metrics.timeTaken);
+
+            // We purposely DO NOT merge the miscellaneousChangeCount, addedOfType,
+            // removedOfType, and mergedOfType.
         }
 
         /**
@@ -406,8 +448,76 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
             return totalEmptyChangests;
         }
 
+        public void setStartingEntityCount(int startingEntityCount) {
+            this.startingEntityCount = startingEntityCount;
+        }
+
         public Duration getTimeTaken() {
             return timeTaken;
+        }
+
+        public Integer incrementAddedCount(final EntityType entityType) {
+            return addedOfType.compute(entityType, (k, v) -> v == null ? 1 : v + 1);
+        }
+
+        public Integer incrementRemovedCount(final EntityType entityType) {
+            return removedOfType.compute(entityType, (k, v) -> v == null ? 1 : v + 1);
+        }
+
+        public Integer incrementMergedCount(final EntityType entityType) {
+            return mergedOfType.compute(entityType, (k, v) -> v == null ? 1 : v + 1);
+        }
+
+        public int incrementMiscellaneousChangeCount() {
+            return ++miscellaneousChangeCount;
+        }
+
+        public Map<EntityType, Integer> getAddedOfType() {
+            return addedOfType;
+        }
+
+        public Map<EntityType, Integer> getRemovedOfType() {
+            return removedOfType;
+        }
+
+        public Map<EntityType, Integer> getMergedOfType() {
+            return mergedOfType;
+        }
+
+        public void summarizeNonJournalChanges(@Nonnull final StringBuilder builder,
+                                               final int resultingEntityCount) {
+            builder.append("Entity count: ")
+                .append(String.format("%,d", startingEntityCount));
+            if (resultingEntityCount != startingEntityCount) {
+                builder.append(" --> ")
+                    .append(String.format("%,d", resultingEntityCount));
+            }
+
+            builder.append("\n")
+                .append(String.format("%,d", miscellaneousChangeCount))
+                .append(" miscellaneous changes\n");
+            summarizeChanges(builder, addedOfType, "ADDED");
+            summarizeChanges(builder, removedOfType, "REMOVED");
+            summarizeChanges(builder, mergedOfType, "MERGED");
+        }
+
+        private void summarizeChanges(@Nonnull final StringBuilder builder,
+                                      @Nonnull final Map<EntityType, Integer> counts,
+                                      @Nonnull final String changeType) {
+            if (!counts.isEmpty()) {
+                int total = counts.values().stream()
+                    .mapToInt(i -> i)
+                    .sum();
+                builder.append(changeType)
+                    .append(" entities: (")
+                    .append(String.format("%,d", total))
+                    .append(")\n");
+                counts.forEach((type, count) -> builder.append("\t")
+                    .append(String.format("%,d", count))
+                    .append(" ")
+                    .append(type.name())
+                    .append("\n"));
+            }
         }
     }
 
@@ -472,6 +582,13 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
          *         with a higher number.
          */
         int getChangesetIndex();
+
+        /**
+         * Get the metrics that count the changes made as part of the changeset.
+         *
+         * @return the metrics that count the changes made as part of the changeset.
+         */
+        StitchingMetrics getMetrics();
 
         /**
          * Generate a description of the semantic differences for all the entries added to this
@@ -568,19 +685,27 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
         private final List<T> added = new ArrayList<>();
 
         /**
+         * Metrics to count the changes made as part of the changeset.
+         */
+        private final StitchingMetrics stitchingMetrics;
+
+        /**
          * Create a new journal changeset. Marked as private so that it can be created via the journal.
          *
          * @param changesetPreamble A string describing the action of the changeset.
          * @param filter A filter for entries in the journal. Only entries that pass the filter
          *               will be added.
+         * @param stitchingMetrics Metrics to count the changes made as part of the changeset.
          * @param changesetIndex The changesetIndex. A lower number indicates the changeset was created
          *                       before a changeset with a higher number.
          */
         public JournalChangeset(@Nonnull final String changesetPreamble,
                                 @Nonnull final JournalFilter filter,
+                                @Nonnull final StitchingMetrics stitchingMetrics,
                                 final int changesetIndex) {
             this.changesetPreamble = Objects.requireNonNull(changesetPreamble);
             this.filter = Objects.requireNonNull(filter);
+            this.stitchingMetrics = Objects.requireNonNull(stitchingMetrics);
             this.changesetIndex = changesetIndex;
         }
 
@@ -688,6 +813,9 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
         public int getChangesetIndex() {
             return changesetIndex;
         }
+
+        @Override
+        public StitchingMetrics getMetrics() { return stitchingMetrics; }
 
         /**
          * {@inheritDoc}

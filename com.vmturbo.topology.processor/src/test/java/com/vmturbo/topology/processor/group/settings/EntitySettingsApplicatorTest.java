@@ -35,6 +35,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTOREST.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityMoles.CpuCapacityServiceMole;
@@ -63,6 +64,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -77,6 +79,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.settings.applicators.InstanceStoreSettingApplicator;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterTestUtil;
 import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
@@ -2220,9 +2223,21 @@ public class EntitySettingsApplicatorTest {
         Stream.of(new Object[][]{
                 {EntityType.VIRTUAL_MACHINE, CommodityType.IO_THROUGHPUT,
                         VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.IO_THROUGHPUT_READ,
+                        VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.IO_THROUGHPUT_WRITE,
+                        VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
                 {EntityType.VIRTUAL_MACHINE, CommodityType.NET_THROUGHPUT,
                         VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
                 {EntityType.VIRTUAL_MACHINE, CommodityType.STORAGE_ACCESS,
+                        IOPS_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.STORAGE_ACCESS_SSD_READ,
+                        IOPS_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.STORAGE_ACCESS_SSD_WRITE,
+                        IOPS_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.STORAGE_ACCESS_STANDARD_READ,
+                        IOPS_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.STORAGE_ACCESS_STANDARD_WRITE,
                         IOPS_RESIZE_TARGET_UTILIZATION},
                 {EntityType.BUSINESS_USER, CommodityType.IMAGE_CPU,
                         BU_IMAGE_CPU_RESIZE_TARGET_UTILIZATION},
@@ -2605,5 +2620,82 @@ public class EntitySettingsApplicatorTest {
                         Collections.singletonMap(entityId, settingsBuilder.build()),
                         Collections.singletonMap(DEFAULT_SETTING_ID, policy));
         applicator.applySettings(topologyInfo, graphWithSettings);
+    }
+
+    /**
+     * Verify that instance store commodities are being applied correctly.
+     * For AWS VMs - apply if instance store scaling policy setting is enabled.
+     * For GCP VMs (with execution constraint property set) - apply always.
+     */
+    @Test
+    public void instanceStoreSettingsApplicable() {
+        final Setting instanceStoreDisabled = createInstanceStoreAwareScalingSetting(false);
+        final Setting instanceStoreEnabled = createInstanceStoreAwareScalingSetting(true);
+        long vmId = 1001L;
+        long volumeId = 2002L;
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(vmId);
+        final TopologyEntityDTO.Builder volumeEntity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOid(volumeId);
+
+        // Verify it only applies to VMs, if policy flag is true, e.g in case of AWS VMs.
+        assertTrue(InstanceStoreSettingApplicator.isApplicable(vmEntity, instanceStoreEnabled));
+        assertFalse(InstanceStoreSettingApplicator.isApplicable(volumeEntity, instanceStoreEnabled));
+
+        // If policy flag is false, always return false.
+        assertFalse(InstanceStoreSettingApplicator.isApplicable(vmEntity, instanceStoreDisabled));
+        assertFalse(InstanceStoreSettingApplicator.isApplicable(volumeEntity, instanceStoreDisabled));
+
+        // If execution constraint is something else, return false
+        vmEntity.putEntityPropertyMap(TopologyDTOUtil.EXECUTION_CONSTRAINT_PROPERTY, "something else");
+        assertFalse(InstanceStoreSettingApplicator.isApplicable(vmEntity, instanceStoreDisabled));
+
+        // If execution constraint is correct, return true even if policy flag is disabled.
+        vmEntity.putEntityPropertyMap(TopologyDTOUtil.EXECUTION_CONSTRAINT_PROPERTY,
+                PrerequisiteType.LOCAL_SSD_ATTACHED.name());
+        assertTrue(InstanceStoreSettingApplicator.isApplicable(vmEntity, instanceStoreDisabled));
+
+        // But still only for VMs.
+        volumeEntity.putEntityPropertyMap(TopologyDTOUtil.EXECUTION_CONSTRAINT_PROPERTY,
+                PrerequisiteType.LOCAL_SSD_ATTACHED.name());
+        assertFalse(InstanceStoreSettingApplicator.isApplicable(volumeEntity, instanceStoreEnabled));
+    }
+
+    /**
+     * Verify that used ephemeral disk count is being correctly picked up.
+     */
+    @Test
+    public void instanceStoreSettingsUsedEphemeralDisks() {
+        int ephemeralDiskCount = 4;
+        int supportedDiskCount1 = 8;
+        int supportedDiskCount2 = 16;
+
+        final TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder().setOid(1001L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+
+        final TypeSpecificInfo.VirtualMachineInfo.Builder vmInfo =
+                TypeSpecificInfo.VirtualMachineInfo.newBuilder();
+        final ComputeTierInfo.Builder computeTierInfoBuilder = ComputeTierInfo.newBuilder()
+                .setInstanceDiskSizeGb(INSTANCE_DISK_SIZE_GB)
+                .setInstanceDiskType(InstanceDiskType.NVME_SSD);
+
+        // No ephemeral disks set, no compute tier, so return 0.
+        assertEquals(0, InstanceStoreSettingApplicator.getUsedEphemeralDisks(vmBuilder,
+                computeTierInfoBuilder.build()));
+
+        // Set compute tier info, verify that disk value is picked up.
+        computeTierInfoBuilder.addInstanceDiskCounts(supportedDiskCount1)
+                .addInstanceDiskCounts(supportedDiskCount2);
+        vmBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo).build());
+        assertEquals(supportedDiskCount1, InstanceStoreSettingApplicator.getUsedEphemeralDisks(vmBuilder,
+                computeTierInfoBuilder.build()));
+
+        // Set ephemeral disks, verify that is being picked up.
+        vmInfo.setNumEphemeralStorages(ephemeralDiskCount);
+        vmBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo).build());
+        assertEquals(ephemeralDiskCount, InstanceStoreSettingApplicator.getUsedEphemeralDisks(vmBuilder,
+                computeTierInfoBuilder.build()));
     }
 }

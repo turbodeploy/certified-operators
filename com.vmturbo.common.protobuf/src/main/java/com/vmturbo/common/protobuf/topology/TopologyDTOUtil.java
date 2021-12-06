@@ -117,6 +117,12 @@ public final class TopologyDTOUtil {
             ImmutableSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER);
 
     /**
+     * Entity property name for option constraint sent from probe. E.g. for GCP Local SSD VM
+     * scale action execution.
+     */
+    public static final String EXECUTION_CONSTRAINT_PROPERTY = "executionConstraint";
+
+    /**
      * VC Probe collects the sum of CPU ready (wait time) over 20 second intervals and this sum is
      * only meaningful if you know what interval this value is collected over. Ideally this
      * interval should come from the probe. See https://kb.vmware.com/s/article/2002181 for more details.
@@ -582,6 +588,11 @@ public final class TopologyDTOUtil {
                 VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
                 return createActionVmInfo(vmInfo, reservations).map(actionVmInfo -> {
                     getCPUCoreMhz(topologyEntity).ifPresent(actionVmInfo::setCpuCoreMhz);
+                    final String executionConstraint = topologyEntity.getEntityPropertyMapMap()
+                            .get(EXECUTION_CONSTRAINT_PROPERTY);
+                    if (StringUtils.isNotBlank(executionConstraint)) {
+                        actionVmInfo.setExecutionConstraint(executionConstraint);
+                    }
                     return ActionEntityTypeSpecificInfo.newBuilder().setVirtualMachine(
                             actionVmInfo);
                 });
@@ -610,7 +621,9 @@ public final class TopologyDTOUtil {
         actionVmInfo.putAllPartitions(vmInfo.getPartitionsMap());
 
         actionVmInfo.putAllReservationInfo(reservations);
-
+        if (vmInfo.hasNumEphemeralStorages()) {
+            actionVmInfo.setAttachedEphemeralVolumes(vmInfo.getNumEphemeralStorages());
+        }
         // Avoid creating an object if the necessary properties are not set.
         // Most notably, none of these properties are set for on-prem VMs.
         if (!(vmInfo.hasArchitecture() || vmInfo.hasVirtualizationType()

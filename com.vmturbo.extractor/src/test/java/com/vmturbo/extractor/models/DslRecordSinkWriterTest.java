@@ -70,6 +70,8 @@ public class DslRecordSinkWriterTest {
             .insertTimeoutSeconds(60)
             .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
             .searchBatchSize(10)
+            .scopeInsertBatchSize(10)
+            .scopeUpdateBatchSize(10)
             .build();
 
     private DslRecordSink metricSink;

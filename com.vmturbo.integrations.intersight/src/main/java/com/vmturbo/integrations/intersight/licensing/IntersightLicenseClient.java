@@ -12,6 +12,7 @@ import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.ApiResponse;
 import com.cisco.intersight.client.api.LicenseApi;
+import com.cisco.intersight.client.model.LicenseIwoLicenseCount;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfoList;
 import com.google.common.collect.ImmutableSet;
@@ -143,36 +144,44 @@ public class IntersightLicenseClient {
 
     /**
      * Update a {@link LicenseLicenseInfo} instance in the intersight server.
-     * @param moid the moid of the license info to update.
-     * @param updatedLicenseInfo a LicenseLicenseInfo containing the new values.
+     *
+     * @param vmLicenseCount the new VM license count to update
      * @return LicenseLicenseInfo returned from the Intersight API.
      * @throws IOException if there is an error establishing the session
      * @throws ApiException if there are errors returned from the Intersight API
      */
-    public LicenseLicenseInfo updateLicenseLicenseInfo(String moid, LicenseLicenseInfo updatedLicenseInfo) throws IOException, ApiException {
-        ApiClient apiClient = getApiClient();
-        LicenseApi licenseApi = new LicenseApi(apiClient);
-        ApiResponse<LicenseLicenseInfo> responseInfo = licenseApi.patchLicenseLicenseInfoWithHttpInfo(moid, updatedLicenseInfo, null);
-        LicenseLicenseInfo licenseInfo = responseInfo.getData();
-        logger.info("Response license: traceid {} moid {} license count {}}",
-                IntersightLicenseUtils.getTraceIdHeader(responseInfo.getHeaders()),
-                licenseInfo.getMoid(), licenseInfo.getLicenseCount());
-
-        // Following codes should be uncommented after intersight license deserialization works with new SDK
-        // Currently it only works with 0.0.1.19903. Contact Cisco YanYing Ma for details.
-        /*
-        final LicenseIwoLicenseCount licenseCount = new LicenseIwoLicenseCount();
-        licenseCount.setClassId("license.IwoLicenseCount");
-        licenseCount.setVmLicenseCount(updatedLicenseInfo.getLicenseCount());
-        final ApiResponse<LicenseIwoLicenseCount> responseLicenseCount =
-                licenseApi.patchLicenseIwoLicenseCountWithHttpInfo(moid, licenseCount, null);
-        final LicenseIwoLicenseCount licenseCountResponse = responseLicenseCount.getData();
-        logger.info("Response LicenseIwoLicenseCount: traceid {} moid {} license count {}}",
-                IntersightLicenseUtils.getTraceIdHeader(responseLicenseCount.getHeaders()),
-                licenseCountResponse.getMoid(), licenseCountResponse.getVmLicenseCount());
-        */
-
-        return licenseInfo;
+    public void updateIwoLicenseCount(long vmLicenseCount) throws IOException, ApiException {
+        final ApiClient apiClient = getApiClient();
+        final LicenseApi licenseApi = new LicenseApi(apiClient);
+        final LicenseIwoLicenseCount iwoLicenseCountToPatch = new LicenseIwoLicenseCount()
+                .classId("license.IwoLicenseCount").vmLicenseCount(vmLicenseCount);
+        final List<LicenseIwoLicenseCount> iwoLicenseCountList = licenseApi.getLicenseIwoLicenseCountList(
+                IntersightDefaultQueryParameters.$filter,
+                IntersightDefaultQueryParameters.$orderby,
+                IntersightDefaultQueryParameters.$top,
+                IntersightDefaultQueryParameters.$skip,
+                IntersightDefaultQueryParameters.$select,
+                IntersightDefaultQueryParameters.$expand,
+                IntersightDefaultQueryParameters.$apply,
+                IntersightDefaultQueryParameters.$count,
+                IntersightDefaultQueryParameters.$inlinecount,
+                IntersightDefaultQueryParameters.$at,
+                IntersightDefaultQueryParameters.$tags).getResults();
+        if (iwoLicenseCountList == null || iwoLicenseCountList.isEmpty()) {
+            logger.warn("Cannot update the vm license count because there is no "
+                    + "license.IwoLicenseCount object found in Intersight.");
+            return;
+        }
+        if (iwoLicenseCountList.size() > 1) {
+            logger.warn("More than one license.IwoLicenseCount object is found; will update all.");
+        }
+        for (final LicenseIwoLicenseCount iwoLicenseCount : iwoLicenseCountList) {
+            final ApiResponse<LicenseIwoLicenseCount> response =
+                    licenseApi.patchLicenseIwoLicenseCountWithHttpInfo(iwoLicenseCount.getMoid(), iwoLicenseCountToPatch, null);
+            logger.info("Response LicenseIwoLicenseCount: traceid {} moid {} license count {}}",
+                    IntersightLicenseUtils.getTraceIdHeader(response.getHeaders()),
+                    iwoLicenseCount.getMoid(), response.getData().getVmLicenseCount());
+        }
     }
 
     /**

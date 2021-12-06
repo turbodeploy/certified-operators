@@ -11,6 +11,7 @@ import org.jooq.DeleteLimitStep;
 import org.jooq.Field;
 import org.jooq.Name;
 import org.jooq.Record;
+import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
@@ -20,6 +21,13 @@ import org.jooq.impl.DSL;
  * Various utilities to be used with jOOQ.
  */
 public class JooqUtil {
+
+    /**
+     * There is no similar config variable in postgres, the query size limit is 2G, but we use 1G
+     * here to be consistent with mariadb in terms of performance.
+     */
+    private static final int POSTGRES_QUERY_SIZE_LIMIT = 1073741824;
+
     private JooqUtil() {
     }
 
@@ -223,5 +231,27 @@ public class JooqUtil {
         }
 
         dslContext.execute(enableStatement);
+    }
+
+    /**
+     * Get the max allowed packet in bytes for the database underlying the given DSLContext.
+     *
+     * @param dslContext {@link DSLContext}
+     * @return max allowed bytes for a single SQL statement
+     */
+    public static int getMaxAllowedPacket(DSLContext dslContext) {
+        final SQLDialect dialect = dslContext.configuration().family();
+        switch (dialect) {
+            case MARIADB:
+            case MYSQL:
+                Result<Record> maxPackageSize = dslContext.fetch(
+                        "SHOW VARIABLES LIKE 'max_allowed_packet';");
+                return maxPackageSize.get(0).getValue("Value", int.class);
+            case POSTGRES:
+                return POSTGRES_QUERY_SIZE_LIMIT;
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Dialect '%s' is not supported", dialect));
+        }
     }
 }

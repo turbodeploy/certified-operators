@@ -1,22 +1,26 @@
 package com.vmturbo.group.policy;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 @Configuration
-@Import({GroupComponentDBConfig.class,
+@Import({DbAccessConfig.class,
     IdentityProviderConfig.class,
     GroupConfig.class})
 public class PolicyConfig {
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -26,9 +30,16 @@ public class PolicyConfig {
 
     @Bean
     public PolicyStore policyStore() {
-        return new PolicyStore(databaseConfig.dsl(),
-            identityProviderConfig.identityProvider(),
-            policyValidator());
+        try {
+            return new PolicyStore(databaseConfig.dsl(),
+                identityProviderConfig.identityProvider(),
+                policyValidator());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PolicyStore", e);
+        }
     }
 
     @Bean

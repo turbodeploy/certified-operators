@@ -9,7 +9,7 @@
     </Appenders>
 
     <Loggers>
-        <Logger name="com.vmturbo" level="info" />
+        <Logger name="com.vmturbo" level="debug" />
         <Root level="info">
             <AppenderRef ref="stdout"/>
         </Root>

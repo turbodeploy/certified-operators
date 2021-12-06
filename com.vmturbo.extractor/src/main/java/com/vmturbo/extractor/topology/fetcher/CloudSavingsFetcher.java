@@ -108,6 +108,12 @@ public class CloudSavingsFetcher {
     public void syncCloudSavingsData(long startTime, long endTime)
             throws UnsupportedDialectException, SQLException, DataAccessException,
             InterruptedException {
+        // Skip syncing cloud savings data if DB endpoint is disabled.
+        if (!dbEndpoint.getConfig().isEndpointEnabled()) {
+            logger.info("Skipping sync of cloud savings data as DB endpoint is disabled.");
+            return;
+        }
+
         // Do migration check, this needs to be done here rather than constructor, so that DB
         // connection stuff gets time to initialize. Do it once after startup only.
         boolean isMigrationRequired = firstTimeAfterStartup && checkDataMigrationRequired();

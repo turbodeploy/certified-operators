@@ -6,6 +6,7 @@ import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.MI
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.RI_DATA_SECTION;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_BUILD_STAGE;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_UPLOAD_STAGE;
+import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.getBillingId;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -41,8 +42,6 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.mediation.hybrid.cloud.common.PropertyName;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -689,24 +688,6 @@ public class RICostDataUploader {
         if (billingData.hasBillingWindowEnd()) {
             coverage.setUsageEndTimestamp(billingData.getBillingWindowEnd());
         }
-    }
-
-    /**
-     * Gets the {@link PropertyName#BILLING_ID} from {@link EntityDTO#getEntityPropertiesList()} of
-     * {@code vm}, if this property is available, otherwise returns the {@link EntityDTO#getId()}.
-     * NOTE: Hack for Azure Subscription and Azure EA probe, which sends different id for the same
-     * virtual machine.
-     *
-     * @param vm the {@link TopologyStitchingEntity}
-     * @return the billing id of virtual machine.
-     */
-    private static String getBillingId(final TopologyStitchingEntity vm) {
-        return vm.getEntityBuilder()
-            .getEntityPropertiesList().stream()
-            .filter(property -> property.getName().equals(PropertyName.BILLING_ID))
-            .map(CommonDTO.EntityDTO.EntityProperty::getValue)
-            .findAny()
-            .orElse(vm.getLocalId());
     }
 
     /**

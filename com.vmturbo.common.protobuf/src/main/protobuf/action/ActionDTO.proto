@@ -459,14 +459,7 @@ message CloudSavingsDetails {
         //on demand cost of the tier.
         optional common_dto.CurrencyAmount on_demand_cost  = 2;
         //the cloud commitment info of the tier.
-        optional CloudCommitmentCoverage cloud_commitment_coverage = 3;
-    }
-
-    message CloudCommitmentCoverage {
-        //the coupons needed for the tier.
-        optional cloud_commitment_dto.CloudCommitmentAmount capacity = 1;
-        // the coupons covered for the tier
-        optional cloud_commitment_dto.CloudCommitmentAmount used = 2;
+        optional cloud_commitment_dto.CloudCommitmentCoverage cloud_commitment_coverage = 3;
     }
 
     //the entity uptime.
@@ -751,6 +744,11 @@ message Action {
 
         // Read-only locks related message preventing (Azure) VM writes.
         optional string locks = 4;
+
+        // Count of attached ephemeral disks - only used for GCP VM scaling for which execution
+        // within Turbo is disallowed for VMs with Local SSDs attached, because VM guest OS
+        // needs to be manually stopped.
+        optional int32 attached_ephemeral_volumes = 5;
     }
 
     // The pre-requisite types supported
@@ -774,6 +772,9 @@ message Action {
         SCALE_SET = 7;
         // Failed availability set preventing execution
         AVAILABILITY_SET = 8;
+
+        // GCP restriction: Cannot execute action because of local SSDs attached (cannot stop VM).
+        LOCAL_SSD_ATTACHED = 9;
     }
 
     // Defines if actions is disruptive.

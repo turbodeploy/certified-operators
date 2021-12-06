@@ -226,10 +226,10 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     }
 
     @Override
-    public void applyInsufficientHistoricalDataPolicy(@Nonnull EntityCommodityReference field) {
-        if (field.getProviderOid() == null) {
+    public void applyInsufficientHistoricalDataPolicy(@Nonnull EntityCommodityReference commRef) {
+        if (commRef.getProviderOid() == null) {
             // Disable resize on comm sold (disables resize on-prem)
-            getCommodityBuilder(soldBuilders, field, SOLD_BUILDER_EXTRACTOR)
+            getCommodityBuilder(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
                             .ifPresent(builder -> builder.setIsResizeable(false));
 
             // Disable scalable on all comm bought groupings (disables scaling actions in cloud)
@@ -240,7 +240,7 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
             //    comm bought without scaling them all.
             // 2. On all entities we scale today with multiple comm bought groupings, we only actually
             //    generate scale actions on one of them, so disabling scaling on all of them is fine.
-            Optional<TopologyEntity> entity = graph.getEntity(field.getEntityOid());
+            Optional<TopologyEntity> entity = graph.getEntity(commRef.getEntityOid());
             entity.ifPresent(e -> e.getTopologyEntityDtoBuilder()
                 .getCommoditiesBoughtFromProvidersBuilderList().forEach(commBoughtGroup ->
                     commBoughtGroup.setScalable(false)));

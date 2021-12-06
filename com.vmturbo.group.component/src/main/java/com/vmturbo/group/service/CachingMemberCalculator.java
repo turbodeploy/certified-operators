@@ -195,6 +195,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
         synchronized (regroupLock) {
             lock.writeLock().lock();
             try {
+                logger.debug("Regroup is starting.");
                 isRegroupRunning = true;
                 groupChanges.clear();
             } finally {
@@ -267,6 +268,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
                     groupChanges.clear();
                     result = new RegroupingResult(false, null, 0, 0, null);
                 }
+                logger.debug("Regrouping finished.");
             } finally {
                 isRegroupRunning = false;
                 lock.writeLock().unlock();
@@ -480,7 +482,12 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
         try {
             Set<Long> members = cacheGroupMembers(createdGroup, groupDefinition);
             if (isRegroupRunning) {
+                logger.debug("The create group is recorded because regroup is in "
+                                + "progress. (Group Id: {})", createdGroup);
                 groupChanges.add(GroupChange.create(createdGroup, groupDefinition.getType(), members));
+            } else {
+                logger.debug("The create group is not recorded because regroup is not in "
+                        + "progress. (Group Id: {})", createdGroup);
             }
         } finally {
             lock.writeLock().unlock();
@@ -493,7 +500,12 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
         try {
             Set<Long> members = cacheGroupMembers(updatedGroup, groupDefinition);
             if (isRegroupRunning) {
+                logger.debug("The update group is recorded because regroup is in "
+                                + "progress. (Group Id: {})", updatedGroup);
                 groupChanges.add(GroupChange.update(updatedGroup, groupDefinition.getType(), members));
+            } else {
+                logger.debug("The update group is not recorded because regroup is not in "
+                                + "progress. (Group Id: {})", updatedGroup);
             }
         } finally {
             lock.writeLock().unlock();
@@ -505,7 +517,12 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
         lock.writeLock().lock();
         try {
             if (isRegroupRunning) {
+                logger.debug("The delete group is recorded because regroup is in "
+                        + "progress. (Group Id: {})", groupId);
                 groupChanges.add(GroupChange.delete(groupId));
+            } else {
+                logger.debug("The delete group is not recorded because regroup is not in "
+                        + "progress. (Group Id: {})", groupId);
             }
             remove(groupId);
         } finally {

@@ -12,7 +12,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -20,6 +26,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * entity may be spread out across multiple targets and/or probes.
  */
 public class Entity {
+
+    private static final String CONVERSION_ERROR = "Could not get entity dto from entity with id: %s";
 
     /**
      * An ID assigned to this entity via the Identity Service.
@@ -36,9 +44,15 @@ public class Entity {
      */
     private final EntityType entityType;
 
-    public Entity(final long id, final EntityType entityType) {
+    private static final Logger logger = LogManager.getLogger();
+
+    private final boolean useSerializedEntities;
+
+
+    public Entity(final long id, final EntityType entityType, boolean useSerializedEntities) {
         this.id = id;
         this.entityType = entityType;
+        this.useSerializedEntities = useSerializedEntities;
     }
 
     public void addTargetInfo(final long targetId, @Nonnull final EntityDTO entityDTO) {
@@ -55,8 +69,13 @@ public class Entity {
                     .collect(Collectors.joining("\n")),
                 entityDTO));
         }
-
-        perTargetInfo.put(targetId, new PerTargetInfo(entityDTO));
+        PerTargetInfo info;
+        if (useSerializedEntities) {
+            info = new SerializedPerTargetInfo(entityDTO);
+        } else {
+            info = new DeserializedPerTargetInfo(entityDTO);
+        }
+        perTargetInfo.put(targetId, info);
     }
 
     public void setHostedBy(final long targetId, final long hostEntity) {
@@ -66,6 +85,10 @@ public class Entity {
     @Nonnull
     public Optional<PerTargetInfo> getTargetInfo(final long targetId) {
         return Optional.ofNullable(perTargetInfo.get(targetId));
+    }
+
+    public String getConversionError() {
+        return String.format(CONVERSION_ERROR, this.id);
     }
 
     /**
@@ -127,9 +150,42 @@ public class Entity {
     }
 
     /**
-     * Information about this entity as discovered by a specific target.
+     * Class that contains entity dto coming from different targets.
      */
-    public static class PerTargetInfo {
+    public interface PerTargetInfo {
+
+        /**
+         * Get the entity dto associated with this target.
+         * @return the dto
+         * @throws InvalidProtocolBufferException if the protobuf can't be serialized
+         */
+        @Nonnull
+        EntityDTO getEntityInfo() throws InvalidProtocolBufferException;
+
+        /**
+         * Get the associated host if of this entity.
+         * @return the host id
+         */
+        long getHost();
+
+        /**
+         * Get the entity dto builder associated with this target.
+         * @return the dto
+         * @throws InvalidProtocolBufferException if the protobuf can't be serialized
+         */
+        EntityDTO.Builder getEntityInfoBuilder() throws InvalidProtocolBufferException;
+
+        /**
+         * Set the host for this entity.
+         * @param hostEntity the oid of the host
+         */
+        void setHost(long hostEntity);
+    }
+
+    /**
+     * Non serialized information about this entity as discovered by a specific target.
+     */
+    public static class DeserializedPerTargetInfo implements PerTargetInfo {
 
         private final EntityDTO entityInfo;
 
@@ -137,26 +193,90 @@ public class Entity {
         // Only for VIRTUAL MACHINE -> PM (TODO (roman, Aug 2016): Solve this generally).
         private long physicalHost;
 
-        public PerTargetInfo(@Nonnull final EntityDTO entityInfo) {
+        /**
+         * Get an instance of a {@link DeserializedPerTargetInfo}.
+         * @param entityInfo the corresponding entity dto
+         */
+        public DeserializedPerTargetInfo(@Nonnull final EntityDTO entityInfo) {
             this.entityInfo = entityInfo;
         }
 
+        @Override
         @Nonnull
-        public EntityDTO getEntityInfo() {
+        public EntityDTO getEntityInfo() throws InvalidProtocolBufferException  {
             return entityInfo;
         }
 
+        @Override
         public long getHost() {
             return physicalHost;
         }
 
-        void setHost(final long hostEntity) {
+        @Override
+        public void setHost(final long hostEntity) {
             physicalHost = hostEntity;
         }
 
         @Override
         public String toString() {
             return entityInfo.toString();
+        }
+
+        @Override
+        public Builder getEntityInfoBuilder() {
+            return entityInfo.toBuilder();
+        }
+    }
+
+    /**
+     * Serialized information about this entity as discovered by a specific target.
+     */
+    public static class SerializedPerTargetInfo implements PerTargetInfo  {
+
+        private final byte[] serializedEntity;
+        private static final String ERORR_MESSAGE = "Could not parse entity dto from serialized entity";
+        // The physical machine on which the entity resides.
+        // Only for VIRTUAL MACHINE -> PM (TODO (roman, Aug 2016): Solve this generally).
+        private long physicalHost;
+
+        /**
+         * Get an instance of a {@link SerializedPerTargetInfo}.
+         * @param entityInfo the corresponding entity dto
+         */
+        public SerializedPerTargetInfo(@Nonnull final EntityDTO entityInfo) {
+            serializedEntity = entityInfo.toByteArray();
+        }
+
+        @Override
+        @Nonnull
+        public EntityDTO getEntityInfo() throws InvalidProtocolBufferException {
+            return EntityDTO.parseFrom(serializedEntity);
+        }
+
+        @Override
+        @Nonnull
+        public EntityDTO.Builder getEntityInfoBuilder() throws InvalidProtocolBufferException {
+            return EntityDTO.newBuilder().mergeFrom(serializedEntity);
+        }
+
+        @Override
+        public long getHost() {
+            return physicalHost;
+        }
+
+        @Override
+        public void setHost(final long hostEntity) {
+            physicalHost = hostEntity;
+        }
+
+        @Override
+        public String toString() {
+            try {
+                return getEntityInfo().toString();
+            } catch (InvalidProtocolBufferException e) {
+                logger.error(ERORR_MESSAGE, e);
+                return ERORR_MESSAGE;
+            }
         }
     }
 }

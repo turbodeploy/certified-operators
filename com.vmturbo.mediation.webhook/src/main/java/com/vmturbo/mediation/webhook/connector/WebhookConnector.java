@@ -103,6 +103,7 @@ public class WebhookConnector implements HttpConnector, Closeable {
                 .registerMethodTypeToQueryConverter(HttpMethodType.POST, webhookQueryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.PUT, webhookQueryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.DELETE, webhookQueryConverter)
+                .registerMethodTypeToQueryConverter(HttpMethodType.PATCH, webhookQueryConverter)
                 // registering all the code that has been listed as successful
                 // in https://datatracker.ietf.org/doc/html/rfc2616#section-10.2
                 .registerStatusCodeToResponseProcessor(HttpStatus.SC_OK,

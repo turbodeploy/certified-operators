@@ -172,7 +172,7 @@ public class DbEndpoint {
      */
     public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
         awaitCompletion(endpointCompleter.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
-        if (config.isEndpoinEnabled()) {
+        if (config.isEndpointEnabled()) {
             return DSL.using(getConfiguration());
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -189,7 +189,7 @@ public class DbEndpoint {
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
         awaitCompletion(endpointCompleter.maxAwaitCompletionMs, TimeUnit.MILLISECONDS);
-        if (config.isEndpoinEnabled()) {
+        if (config.isEndpointEnabled()) {
             return adapter.getDataSource(true);
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -529,7 +529,7 @@ public class DbEndpoint {
             logger.info("Completing {}", endpoint);
             try {
                 resolveConfig(config);
-                if (config.isEndpoinEnabled()) {
+                if (config.isEndpointEnabled()) {
                     final DbAdapter adapter = DbAdapter.of(config);
                     adapter.init();
                     endpoint.markComplete(adapter);

@@ -35,7 +35,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -342,8 +341,9 @@ public class EntitySettingsApplicator {
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
-                new ScalingPolicyApplicator(),
-                new HorizontalScalePolicyApplicator(),
+                FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()
+                                        ? new HorizontalScalePolicyApplicator()
+                                        : new ScalingPolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
                         CommodityType.DB_MEM),
                 new EnableScaleApplicator(),
@@ -1588,10 +1588,40 @@ public class EntitySettingsApplicator {
     @ThreadSafe
     private static class ResizeTargetUtilizationCommodityBoughtApplicator extends
             ResizeTargetUtilizationApplicator {
+        /**
+         * The Gcp IO Throughput commodities.
+         */
+        private static Set<Integer> IOThroughPutCommodities = ImmutableSet.of(CommodityType.IO_THROUGHPUT_READ_VALUE,
+                CommodityType.IO_THROUGHPUT_WRITE_VALUE);
+        /**
+         * The Gcp IOPS commodities.
+         */
+        private static Set<Integer> IOPSCommodities = ImmutableSet.of(CommodityType.STORAGE_ACCESS_SSD_READ_VALUE,
+                CommodityType.STORAGE_ACCESS_SSD_WRITE_VALUE, CommodityType.STORAGE_ACCESS_STANDARD_READ_VALUE,
+                CommodityType.STORAGE_ACCESS_STANDARD_WRITE_VALUE);
+
 
         private ResizeTargetUtilizationCommodityBoughtApplicator(
                 @Nonnull EntitySettingSpecs setting, @Nonnull final CommodityType commodityType) {
             super(setting, commodityType);
+        }
+
+        /**
+         * When a Gcp IOPS or IO throughput commodity bought is given, convert the type to
+         * IO_THROUGHPUT_VALUE or STORAGE_ACCESS_VALUE so that the resize target utilization
+         * can be propagated down.
+         *
+         * @param origType the original commodity type.
+         * @return converted commodity type.
+         */
+        private int convertRelevantResizableCommodityBought(int origType) {
+            if (IOThroughPutCommodities.contains(origType)) {
+                return CommodityType.IO_THROUGHPUT_VALUE;
+            }
+            if (IOPSCommodities.contains(origType)) {
+                return CommodityType.STORAGE_ACCESS_VALUE;
+            }
+            return origType;
         }
 
         @Override
@@ -1601,8 +1631,8 @@ public class EntitySettingsApplicator {
                     .stream()
                     .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
                     .flatMap(Collection::stream)
-                    .filter(commodity -> commodity.getCommodityType().getType() ==
-                            getCommodityType().getNumber())
+                    .filter(commodity -> convertRelevantResizableCommodityBought(commodity.getCommodityType().getType())
+                            == getCommodityType().getNumber())
                     .forEach(commodityBuilder -> {
                         commodityBuilder.setResizeTargetUtilization(resizeTargetUtilization);
                         logger.debug(APPLY_RESIZE_TARGET_UTILIZATION_MESSAGE,
@@ -1709,9 +1739,6 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                           @Nullable final Map<EntitySettingSpecs, Setting> entitySettings,
                           @Nullable final Map<ConfigurableActionSettings, Setting> actionModeSettings) {
-            if (!FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()) {
-                return;
-            }
             if (entity.getEntityType() != EntityType.APPLICATION_COMPONENT_VALUE) {
                 return;
             }
@@ -1764,9 +1791,6 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
-            if (FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()) {
-                return;
-            }
             if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
                 final String settingValue = setting.getEnumSettingValue().getValue();
                 boolean resizeScaling = ScalingPolicyEnum.RESIZE.name().equals(settingValue);

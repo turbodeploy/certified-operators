@@ -1,8 +1,10 @@
 package com.vmturbo.group.group;
 
+import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 
 import org.flywaydb.core.api.callback.FlywayCallback;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -11,10 +13,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.flyway.V1_11_Callback;
 import com.vmturbo.group.group.pagination.GroupPaginationConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
@@ -23,7 +26,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
         IdentityProviderConfig.class,
-        GroupComponentDBConfig.class,
+        DbAccessConfig.class,
         GroupPaginationConfig.class,
         TopologyProcessorClientConfig.class})
 public class GroupConfig {
@@ -38,7 +41,7 @@ public class GroupConfig {
     private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private GroupPaginationConfig groupPaginationConfig;
@@ -70,8 +73,15 @@ public class GroupConfig {
 
     @Bean
     public GroupDAO groupStore() {
-        return new GroupDAO(databaseConfig.dsl(),
-                groupPaginationConfig.groupPaginationParams());
+        try {
+            return new GroupDAO(databaseConfig.dsl(),
+                    groupPaginationConfig.groupPaginationParams());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create GroupDAO", e);
+        }
     }
 
     /**

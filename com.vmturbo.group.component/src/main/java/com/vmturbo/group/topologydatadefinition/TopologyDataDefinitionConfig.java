@@ -1,5 +1,8 @@
 package com.vmturbo.group.topologydatadefinition;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -8,24 +11,25 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.group.GroupComponentDBConfig;
+import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Configuration for TopologyDataDefinition RPC Service.
  */
 @Configuration
-@Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class})
+@Import({DbAccessConfig.class, IdentityProviderConfig.class, GroupConfig.class})
 public class TopologyDataDefinitionConfig {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private GroupConfig groupConfig;
@@ -48,7 +52,14 @@ public class TopologyDataDefinitionConfig {
     @Bean
     public PersistentTopologyDataDefinitionIdentityStore
             persistentTopologyDataDefinitionIdentityStore() {
-        return new PersistentTopologyDataDefinitionIdentityStore(databaseConfig.dsl());
+        try {
+            return new PersistentTopologyDataDefinitionIdentityStore(databaseConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PersistentTopologyDataDefinitionIdentityStore", e);
+        }
     }
 
     /**
@@ -72,7 +83,14 @@ public class TopologyDataDefinitionConfig {
      */
     @Bean
     public TopologyDataDefinitionStore topologyDataDefinitionStore() {
-        return new TopologyDataDefinitionStore(databaseConfig.dsl(),
-            topologyDataDefinitionIdentityStore(), groupConfig.groupStore());
+        try {
+            return new TopologyDataDefinitionStore(databaseConfig.dsl(),
+                topologyDataDefinitionIdentityStore(), groupConfig.groupStore());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create TopologyDataDefinitionStore", e);
+        }
     }
 }

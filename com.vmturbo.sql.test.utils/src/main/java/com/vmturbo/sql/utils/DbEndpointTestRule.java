@@ -27,6 +27,7 @@ import net.jpountz.xxhash.XXHashFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -137,14 +138,14 @@ public class DbEndpointTestRule implements TestRule {
         String dbHostDefault = getFromSystemProperties(endpointName, HOST_PROPERTY, dialect);
         logger.info("Host: {}", dbHostDefault);
         dbHostDefault = dbHostDefault != null ? dbHostDefault : "localhost";
-        propertySettings.putIfAbsent(getPropertyName(endpointName, HOST_PROPERTY), dbHostDefault);
+        propertySettings.put(getPropertyName(endpointName, HOST_PROPERTY), dbHostDefault);
         // set dbPort property
         String dbPortDefault = getFromSystemProperties(endpointName, PORT_PROPERTY, dialect);
         dbPortDefault = dbPortDefault != null ? dbPortDefault
                 : Integer.toString(DbEndpointResolver.getDefaultPort(dialect));
-        propertySettings.putIfAbsent(getPropertyName(endpointName, PORT_PROPERTY), dbPortDefault);
+        propertySettings.put(getPropertyName(endpointName, PORT_PROPERTY), dbPortDefault);
         // we should always allow destructive provisioning operations in a test database
-        propertySettings.putIfAbsent(
+        propertySettings.put(
                 getPropertyName(endpointName, DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY), "true");
     }
 
@@ -217,7 +218,9 @@ public class DbEndpointTestRule implements TestRule {
                 endpoint.awaitCompletion(30L, TimeUnit.SECONDS);
             } else {
                 if (endpoint.getConfig().getAccess().isWriteAccess()) {
-                    endpoint.getAdapter().truncateAllTables();
+                    try (DSLContext dslContext = endpoint.dslContext()) {
+                        dslContext.connection(conn -> endpoint.getAdapter().truncateAllTables(conn));
+                    }
                 }
             }
             this.endpoints.add(endpoint);

@@ -27,7 +27,6 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
-import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -59,8 +58,9 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.BlobPersistingCachingHistoricalEditor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
-import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.exceptions.HistoryPersistenceException;
+import com.vmturbo.topology.processor.history.exceptions.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.Builder;
@@ -104,7 +104,7 @@ public class PercentileEditor extends
     private static final String LATEST_DIAG_NAME_SUFFIX = "latest";
 
     /**
-     * Entity types for which percentile calculation is supported.
+     * Entity types for which percentile calculation is not supported.
      * These entities trade commodities with the types listed in {@link
      * PercentileEditor#REQUIRED_SOLD_COMMODITY_TYPES} and
      * {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES}
@@ -269,6 +269,7 @@ public class PercentileEditor extends
 
             Set<Long> currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
             // read the latest and full window blobs if haven't yet, set into cache
+            // NB this can return without actually loading data and flipping historyInitialized to true
             loadPersistedData(context, latestTimestamp -> {
                 // latest
                 return Pair.create(null, createTask(latestTimestamp)
@@ -346,6 +347,19 @@ public class PercentileEditor extends
             debugLogDataValues(logger,
                             (data) -> String.format("Percentile utilization counts: %s",
                                             data.getUtilizationCountStore().toDebugString()));
+        }
+
+        // If TP is running and database is still not running (initialization consistently keeps failing)
+        // for longer than minimal possible observation period across all entities (atm 3 days).
+        // Then our unmaintained 'latest' memory page will contain incorrect data, that should have been expired.
+        // TODO this is not a realistic scenario but may have to be handled nonetheless
+
+        if (!historyInitialized) {
+            // if no data have been loaded yet (e.g. history component is unavailable)
+            logger.warn("Percentile historical data not initialized, applying insufficient data policy to {} commodities",
+                            getCache().size());
+            getCache().forEach((field, data) -> context.getAccessor()
+                            .applyInsufficientHistoricalDataPolicy(field));
         }
     }
 
@@ -528,7 +542,10 @@ public class PercentileEditor extends
                     @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> latestLoader,
                     @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> fullLoader)
                     throws HistoryCalculationException, InterruptedException {
-        if (!historyInitialized) {
+        if (historyInitialized) {
+            return;
+        }
+        try {
             // assume today's midnight
             long now = getClock().millis();
             lastCheckpointMs = getDefaultMaintenanceCheckpointTimeMs(now);
@@ -546,6 +563,8 @@ public class PercentileEditor extends
                                     getCache().computeIfAbsent(field, ref -> historyDataCreator.get());
                     if (data.getUtilizationCountStore() == null) {
                         data.init(field, null, getConfig(), context);
+                    } else {
+                        data.getUtilizationCountStore().clearFullRecord();
                     }
                     data.getUtilizationCountStore().addFullCountsRecord(record);
                     data.getUtilizationCountStore().setPeriodDays(record.getPeriod());
@@ -589,7 +608,16 @@ public class PercentileEditor extends
                         data.init(latestEntry.getKey(), record, getConfig(),
                                   context);
                     } else {
+                        PercentileRecord.Builder alreadyAccumulatedBuilder = data.getLatestCountsRecord();
                         data.getUtilizationCountStore().setLatestCountsRecord(record);
+                        // we might already have in-memory data in latest page
+                        // that got accumulated from discoveries before history loading succeeded
+                        // we should add it on top of the loaded entry
+                        if (alreadyAccumulatedBuilder != null && alreadyAccumulatedBuilder.getCapacityChangesCount() > 0) {
+                            PercentileRecord alreadyAccumulated = alreadyAccumulatedBuilder.build();
+                            data.getUtilizationCountStore().addFullCountsRecord(alreadyAccumulated);
+                            data.getUtilizationCountStore().addLatestCountsRecord(alreadyAccumulated);
+                        }
                     }
                 }
                 logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
@@ -599,6 +627,10 @@ public class PercentileEditor extends
                 logger.warn(FAILED_TO_LOAD_LATEST_BLOB_MESSAGE, e);
             }
             historyInitialized = true;
+        } catch (HistoryPersistenceException e) {
+            // if there's a failure accessing database, we still keep accumulating 'latest' page points from discoveries
+            // and apply 'insufficient data policy' instead of failing the stage
+            logger.warn("Failed to initialize percentile history from the database", e);
         }
     }
 
@@ -625,7 +657,7 @@ public class PercentileEditor extends
 
         if (changedPeriodEntries.isEmpty()) {
             logger.debug("Observation periods for cache entries have not changed.");
-        } else {
+        } else if (historyInitialized) {
             entitiesToReassemble.putAll(changedPeriodEntries);
             /*
              * It is required to do reassemble at least in memory, because without it new setting

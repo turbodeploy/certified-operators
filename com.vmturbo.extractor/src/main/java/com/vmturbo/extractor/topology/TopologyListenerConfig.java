@@ -165,6 +165,12 @@ public class TopologyListenerConfig {
     @Value("${searchBatchSize:1000}")
     private int searchBatchSize;
 
+    @Value("${scopeUpdateBatchSize:0}")
+    private int scopeUpdateBatchSize;
+
+    @Value("${scopeInsertBatchSize:0}")
+    private int scopeInsertBatchSize;
+
     /**
      * The interval for extracting entity/group and sending to Kafka. Default to broadcast schedule.
      */
@@ -262,6 +268,8 @@ public class TopologyListenerConfig {
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
                 .unaggregatedCommodities(unaggregatedKeyedCommodityTypes)
                 .searchBatchSize(searchBatchSize)
+                .scopeUpdateBatchSize(scopeUpdateBatchSize)
+                .scopeInsertBatchSize(scopeInsertBatchSize)
                 .build();
     }
 
