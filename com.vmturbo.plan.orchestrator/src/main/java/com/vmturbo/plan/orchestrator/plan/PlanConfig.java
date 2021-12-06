@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -10,6 +11,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
@@ -42,18 +44,19 @@ import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
  * Spring configuration for plan instance manipulations.
  */
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, RepositoryClientConfig.class,
+@Import({DbAccessConfig.class, RepositoryClientConfig.class,
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
         BaseKafkaProducerConfig.class, ReservationConfig.class,
@@ -76,7 +79,7 @@ public class PlanConfig {
     private int numPlanAnalysisThreads;
 
     @Autowired
-    private PlanOrchestratorDBConfig dbConfig;
+    private DbAccessConfig dbConfig;
 
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
@@ -113,16 +116,24 @@ public class PlanConfig {
 
     @Bean
     public PlanDao planDao() {
-        return new PlanDaoImpl(dbConfig.dsl(),
-                groupClientConfig.groupChannel(),
-                repositoryClientConfig.searchServiceClient(),
-                supplyChainRpcService(),
-                globalConfig.clock(),
-                planCleanupExecutor(), planTimeoutMin,
-                TimeUnit.MINUTES,
-                planCleanupIntervalMin,
-                TimeUnit.MINUTES,
-                repositoryServiceBlockingStub());
+        try {
+            return new PlanDaoImpl(dbConfig.dsl(),
+                    groupClientConfig.groupChannel(),
+                    repositoryClientConfig.searchServiceClient(),
+                    supplyChainRpcService(),
+                    globalConfig.clock(),
+                    planCleanupExecutor(), planTimeoutMin,
+                    TimeUnit.MINUTES,
+                    planCleanupIntervalMin,
+                    TimeUnit.MINUTES,
+                    repositoryServiceBlockingStub());
+
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanDao", e);
+        }
     }
 
     /**

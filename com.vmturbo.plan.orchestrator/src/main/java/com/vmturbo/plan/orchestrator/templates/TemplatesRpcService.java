@@ -12,8 +12,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Iterators;
 
-import com.vmturbo.common.protobuf.plan.ReservationDTO;
-import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -55,15 +53,11 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
 
     private final int templateChunkSize;
 
-    private final ReservationDao reservationDao;
-
     TemplatesRpcService(@Nonnull final TemplatesDao templatesDao,
                         @Nonnull final DeploymentProfileDaoImpl deploymentProfileDao,
-                        @Nonnull final ReservationDao reservationDao,
                         final int templateChunkSize) {
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.deploymentProfileDao = Objects.requireNonNull(deploymentProfileDao);
-        this.reservationDao = Objects.requireNonNull(reservationDao);
         this.templateChunkSize = templateChunkSize;
     }
 

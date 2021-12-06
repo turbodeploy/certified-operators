@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.diagnostics;
 
 import java.util.Arrays;
 
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,11 +12,11 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.plan.export.PlanExportConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
+import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 
@@ -23,8 +24,8 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
  * Configuration from plan orchestrator component diagnostics
  */
 @Configuration
-@Import({TemplatesConfig.class, PlanConfig.class, PlanExportConfig.class, PlanProjectConfig.class, PlanOrchestratorDBConfig.class,
-    ScenarioConfig.class, DeploymentProfileConfig.class})
+@Import({TemplatesConfig.class, PlanConfig.class, PlanExportConfig.class, PlanProjectConfig.class, DbAccessConfig.class,
+    ScenarioConfig.class, DeploymentProfileConfig.class, ReservationConfig.class})
 public class PlanOrchestratorDiagnosticsConfig {
 
     @Autowired
@@ -46,7 +47,10 @@ public class PlanOrchestratorDiagnosticsConfig {
     private DeploymentProfileConfig deploymentProfileConfig;
 
     @Autowired
-    private PlanOrchestratorDBConfig planOrchestratorDBConfig;
+    private ReservationConfig reservationConfig;
+
+    @Autowired
+    private DbAccessConfig dbAccessConfig;
 
     @Bean
     public DiagsZipReaderFactory recursiveZipReaderFactory() {
@@ -58,7 +62,7 @@ public class PlanOrchestratorDiagnosticsConfig {
         return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
                 Arrays.asList(planConfig.planDao(), planExportConfig.planDestinationDao(),
                         planProjectConfig.planProjectDao(),
-                        planOrchestratorDBConfig.reservationDao(), scenarioConfig.scenarioDao(),
+                        reservationConfig.reservationDao(), scenarioConfig.scenarioDao(),
                         templatesConfig.templatesDao(), templatesConfig.templateSpecParser(),
                         deploymentProfileConfig.deploymentProfileDao()));
 

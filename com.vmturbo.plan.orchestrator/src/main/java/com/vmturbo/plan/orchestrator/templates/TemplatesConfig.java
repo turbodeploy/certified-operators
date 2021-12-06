@@ -1,5 +1,8 @@
 package com.vmturbo.plan.orchestrator.templates;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -9,12 +12,13 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOREST.DiscoveredTemplateDeploymentProfileServiceController;
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateServiceController;
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateSpecServiceController;
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, GlobalConfig.class, DeploymentProfileConfig.class})
+@Import({DbAccessConfig.class, GlobalConfig.class, DeploymentProfileConfig.class})
 public class TemplatesConfig {
 
     @Value("${templateSpecFile}")
@@ -33,7 +37,7 @@ public class TemplatesConfig {
     private int getTemplatesChunkSize;
 
     @Autowired
-    private PlanOrchestratorDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
@@ -48,20 +52,36 @@ public class TemplatesConfig {
 
     @Bean
     public TemplatesDao templatesDao() {
-        return new TemplatesDaoImpl(databaseConfig.dsl(), defaultTemplatesFile,
-                globalConfig.identityInitializer());
+        try {
+            return new TemplatesDaoImpl(databaseConfig.dsl(), defaultTemplatesFile,
+                    globalConfig.identityInitializer());
+
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create TemplatesDao", e);
+        }
     }
 
     @Bean
     DiscoveredTemplateDeploymentProfileDaoImpl discoveredTemplateDeploymentProfileDao() {
-        return new DiscoveredTemplateDeploymentProfileDaoImpl(databaseConfig.dsl());
+        try {
+            return new DiscoveredTemplateDeploymentProfileDaoImpl(databaseConfig.dsl());
+
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create DiscoveredTemplateDeploymentProfileDao", e);
+        }
     }
 
     @Bean
     public TemplatesRpcService templatesService() {
         return new TemplatesRpcService(templatesDao(),
                 deploymentProfileConfig.deploymentProfileDao(),
-                databaseConfig.reservationDao(), getTemplatesChunkSize);
+                getTemplatesChunkSize);
     }
 
     @Bean

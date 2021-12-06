@@ -33,6 +33,8 @@ import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
 import org.jetbrains.annotations.NotNull;
+import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -40,7 +42,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -69,18 +78,30 @@ import com.vmturbo.common.protobuf.topology.PlanExportToTargetServiceGrpc.PlanEx
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.plan.orchestrator.db.Plan;
+import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImplTest.TestPlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test for {@link PlanExportRpcService}.
  */
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestPlanOrchestratorDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class PlanExportRpcServiceTest {
+
+    @Autowired(required = false)
+    private TestPlanOrchestratorDBEndpointConfig dbEndpointConfig;
+
     private static final long UNKNOWN_DESTINATION_ID = 707;
     private static final long IN_PROGRESS_DESTINATION_ID = 717;
     private static final long VALID_DESTINATION_ID = 727;
@@ -103,6 +124,25 @@ public class PlanExportRpcServiceTest {
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("tp");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    /**
+     * Rule to enable Mockito features/annotations in this unit test.
+     */
+    @Rule
+    public MockitoRule rule = MockitoJUnit.rule();
+
+    /**
      * PlanExportRpcService object.
      */
     private PlanExportRpcService planExportRpcService;
@@ -118,8 +158,7 @@ public class PlanExportRpcServiceTest {
      */
     private PlanDestinationDao planDestinationDao;
 
-    private final TestPlanExportToTargetService tpPlanExportRpcService =
-        spy(TestPlanExportToTargetService.class);
+    private TestPlanExportToTargetService tpPlanExportRpcService;
     private PlanExportToTargetServiceBlockingStub tpPlanExportService;
     private ExecutorService exportExecutor;
     private PlanExportNotificationSender planExportNotificationSender;
@@ -133,11 +172,12 @@ public class PlanExportRpcServiceTest {
     @Captor
     ArgumentCaptor<PlanDestination> destinationCaptor;
 
-    /**
-     * The grpc server.
-     */
-    @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(tpPlanExportRpcService);
+    private DSLContext dsl;
+
+    // Even if it's an {@link ExternalResource} we need to start and close it manually because with
+    // the FeatureFlags.POSTGRES_PRIMARY_DB it needs to be recreated for every flag value combination
+    // This is also because some tests are counting how many methods are accessed on that instance
+    private GrpcTestServer grpcTestServer;
 
     /**
      * Setup method.
@@ -150,6 +190,10 @@ public class PlanExportRpcServiceTest {
         planDestinationDaoMock = mock(PlanDestinationDao.class);
         planDaoMock = mock(PlanDao.class);
 
+        tpPlanExportRpcService = spy(TestPlanExportToTargetService.class);
+        grpcTestServer = GrpcTestServer.newServer(tpPlanExportRpcService);
+        grpcTestServer.start();
+
         final ThreadFactory threadFactory = new ThreadFactoryBuilder()
             .setNameFormat("plan-export-starter-%d")
             .build();
@@ -159,6 +203,23 @@ public class PlanExportRpcServiceTest {
             PlanExportToTargetServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         planExportNotificationSender = mock(PlanExportNotificationSender.class);
+
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.planEndpoint());
+            dsl = dbEndpointConfig.planEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+    }
+
+    /**
+     * Tears down the test env/setup.
+     *
+     * @throws Exception any exception on teardown.
+     */
+    @After
+    public void teardown() throws Exception {
+        grpcTestServer.close();
     }
 
     /**
@@ -237,7 +298,7 @@ public class PlanExportRpcServiceTest {
      */
     @Test
     public void testGetPlanDestinationWithOIdNotFoundWithRealDao() {
-        planDestinationDao = new PlanDestinationDaoImpl(dbConfig.getDslContext(), new IdentityInitializer(0));
+        planDestinationDao = new PlanDestinationDaoImpl(dsl, new IdentityInitializer(0));
 
         // Given
         final long oid = 777777L;
@@ -264,7 +325,7 @@ public class PlanExportRpcServiceTest {
      */
     @Test
     public void testGetPlanDestinationWithOIdFoundWithRealDao() throws IntegrityException {
-        planDestinationDao = new PlanDestinationDaoImpl(dbConfig.getDslContext(), new IdentityInitializer(0));
+        planDestinationDao = new PlanDestinationDaoImpl(dsl, new IdentityInitializer(0));
 
         // Given
         final long targetId = 1234567L;

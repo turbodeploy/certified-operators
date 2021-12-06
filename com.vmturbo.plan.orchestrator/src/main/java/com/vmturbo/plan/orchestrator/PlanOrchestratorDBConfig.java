@@ -6,9 +6,11 @@ import javax.sql.DataSource;
 
 import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
 import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
+import com.vmturbo.sql.utils.ConditionalDbConfig;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -17,6 +19,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  * Configuration for plan-orchestrator component interaction with a schema.
  */
 @Configuration
+@Conditional(ConditionalDbConfig.SQLDatabaseConfigCondition.class)
 public class PlanOrchestratorDBConfig extends SQLDatabaseConfig {
 
     /**
@@ -47,25 +50,6 @@ public class PlanOrchestratorDBConfig extends SQLDatabaseConfig {
     public DataSource dataSource() {
         return getDataSource(dbSchemaName, planDbUsername, Optional.ofNullable(
                 !Strings.isEmpty(planDbPassword) ? planDbPassword : null));
-    }
-
-    /**
-     * To avoid circular dependency between {@link com.vmturbo.plan.orchestrator.templates.TemplatesConfig} and
-     * {@link com.vmturbo.plan.orchestrator.reservation.ReservationConfig}, initialize the reservation DAO here.
-     *
-     * @return reservation DAO.
-     */
-    @Bean
-    public ReservationDao reservationDao() {
-        return new ReservationDaoImpl(super.dsl());
-    }
-
-    /** Whether DbMonitor reports should be produced at all. */
-    @Value("${dbMonitorEnabled:true}")
-    private boolean dbMonitorEnabled;
-
-    public boolean isDbMonitorEnabled() {
-        return dbMonitorEnabled;
     }
 
     @Override
