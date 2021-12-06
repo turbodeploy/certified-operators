@@ -4,9 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.spy;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -43,7 +40,6 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
@@ -58,7 +54,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 public class ComponentRegistryTest {
 
     @Autowired(required = false)
-    private TestClustermgrDbEndpointConfig dbEndpointConfig;
+    private TestClustermgrDbEndpointConfig dbConfig;
 
     private static final UriInfo URI_INFO = UriInfo.newBuilder()
         .setRoute("route")
@@ -72,19 +68,19 @@ public class ComponentRegistryTest {
      * Rule to set up the database before running the tests.
      */
     @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Clustermgr.CLUSTERMGR);
+    public static DbConfigurationRule dbConfigurationRule = new DbConfigurationRule(Clustermgr.CLUSTERMGR);
 
     /**
      * Rule to clean up the database after each test.
      */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public DbCleanupRule dbCleanupRule = dbConfigurationRule.cleanupRule();
 
     /**
      * Test rule to use {@link DbEndpoint}s in test.
      */
-    @ClassRule
-    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("clustermgr");
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("clustermgr");
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
@@ -108,10 +104,10 @@ public class ComponentRegistryTest {
     @Before
     public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
         if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.clusterMgrEndpoint());
-            dsl = dbEndpointConfig.clusterMgrEndpoint().dslContext();
+            dbEndpointTestRule.addEndpoints(dbConfig.clusterMgrEndpoint());
+            dsl = dbConfig.clusterMgrEndpoint().dslContext();
         } else {
-            dsl = dbConfig.getDslContext();
+            dsl = dbConfigurationRule.getDslContext();
         }
         componentRegistry = new ComponentRegistry(dsl, clock, UNHEALTHY_DEREGISTRATION_SEC, TimeUnit.SECONDS);
     }
@@ -336,14 +332,5 @@ public class ComponentRegistryTest {
      * DbEndpointTestRule, making call to auth to get root password, etc.
      */
     @Configuration
-    static class TestClustermgrDbEndpointConfig extends ClustermgrDbEndpointConfig {
-
-        @Override
-        public DbEndpointCompleter endpointCompleter() {
-            // prevent actual completion of the DbEndpoint
-            DbEndpointCompleter dbEndpointCompleter = spy(super.endpointCompleter());
-            doNothing().when(dbEndpointCompleter).setEnvironment(any());
-            return dbEndpointCompleter;
-        }
-    }
+    static class TestClustermgrDbEndpointConfig extends ClustermgrDbEndpointConfig {}
 }

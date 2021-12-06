@@ -1,5 +1,12 @@
 package com.vmturbo.auth.component;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ARANGO_ROOT_PW_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.CONSUL_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.CONSUL_ROOT_DB_PASS_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.CONSUL_ROOT_DB_USER_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.INFLUX_ROOT_PW_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.POSTGRES_ROOT_USER_KEY;
+
 import java.sql.SQLException;
 import java.util.Optional;
 
@@ -16,6 +23,7 @@ import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -25,6 +33,7 @@ import com.vmturbo.auth.component.services.SecureStorageController;
 import com.vmturbo.auth.component.store.DBStore;
 import com.vmturbo.auth.component.store.ISecureStore;
 import com.vmturbo.common.api.crypto.CryptoFacility;
+import com.vmturbo.sql.utils.ConditionalDbConfig.SQLDatabaseConfigCondition;
 import com.vmturbo.sql.utils.JooqExceptionTranslator;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -33,6 +42,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  */
 @Configuration
 @EnableTransactionManagement
+@Conditional(SQLDatabaseConfigCondition.class)
 public class AuthDBConfig extends SQLDatabaseConfig {
     /**
      * The connection reconnect sleep time.
@@ -43,37 +53,6 @@ public class AuthDBConfig extends SQLDatabaseConfig {
      * The logger.
      */
     private final Logger logger = LogManager.getLogger(AuthDBConfig.class);
-
-    /**
-     * The Consul key
-     */
-    @VisibleForTesting
-    static final String CONSUL_KEY = "dbcreds";
-
-    /**
-     * The Consul root DB username key.
-     */
-    public static final String CONSUL_ROOT_DB_USER_KEY = "rootdbUsername";
-
-    /**
-     * The Postgres DB root username key.
-     */
-    public static final String POSTGRES_ROOT_USER_KEY = "postgresRootUsername";
-
-    /**
-     * The Consul root DB password key.
-     */
-    public static final String CONSUL_ROOT_DB_PASS_KEY = "rootdbcreds";
-
-    /**
-     * The arango root DB password key.
-     */
-    public static final String ARANGO_ROOT_PW_KEY = "arangocreds";
-
-    /**
-     * The influx root DB password key.
-     */
-    public static final String INFLUX_ROOT_PW_KEY = "influxcreds";
 
     /**
      * DB user name accessible to given schema.

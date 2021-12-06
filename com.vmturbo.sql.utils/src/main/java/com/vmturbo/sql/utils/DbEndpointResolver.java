@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -257,8 +258,8 @@ public class DbEndpointResolver {
      */
     public void resolvePassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getPassword);
-        config.setPassword(firstNonNull(configuredPropValue(PASSWORD_PROPERTY),
-                config.getPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword()));
+        config.setPassword(Optional.ofNullable(firstNonNull(configuredPropValue(PASSWORD_PROPERTY),
+                config.getPassword(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootPassword()));
     }
 
     /**
@@ -281,9 +282,8 @@ public class DbEndpointResolver {
      */
     public void resolveRootUserName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootUserName);
-        config.setRootUserName(firstNonNull(configuredPropValue(ROOT_USER_NAME_PROPERTY),
-                config.getRootUserName(), fromTemplate,
-                dbPasswordUtil.getSqlDbRootUsername(dialect.toString())));
+        config.setRootUserName(Optional.ofNullable(firstNonNull(configuredPropValue(ROOT_USER_NAME_PROPERTY),
+                config.getRootUserName(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootUsername(dialect.toString())));
     }
 
     /**
@@ -307,8 +307,8 @@ public class DbEndpointResolver {
      */
     public void resolveRootPassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootPassword);
-        config.setRootPassword(firstNonNull(configuredPropValue(ROOT_PASSWORD_PROPERTY),
-                config.getRootPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword()));
+        config.setRootPassword(Optional.ofNullable(firstNonNull(configuredPropValue(ROOT_PASSWORD_PROPERTY),
+                config.getRootPassword(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootPassword()));
     }
 
     /**

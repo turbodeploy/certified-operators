@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
@@ -228,4 +229,36 @@ public class SecurityConstant {
                     .put(OPERATIONAL_OBSERVER, 20)
                     .put(REPORT_EDITOR, 10)
                     .build();
+
+    /**
+     * The Consul key
+     */
+    @VisibleForTesting
+    public static final String CONSUL_KEY = "dbcreds";
+
+    /**
+     * The Consul root DB username key.
+     */
+    public static final String CONSUL_ROOT_DB_USER_KEY = "rootdbUsername";
+
+    /**
+     * The Postgres DB root username key.
+     */
+    public static final String POSTGRES_ROOT_USER_KEY = "postgresRootUsername";
+
+    /**
+     * The Consul root DB password key.
+     */
+    public static final String CONSUL_ROOT_DB_PASS_KEY = "rootdbcreds";
+
+    /**
+     * The arango root DB password key.
+     */
+    public static final String ARANGO_ROOT_PW_KEY = "arangocreds";
+
+    /**
+     * The influx root DB password key.
+     */
+    public static final String INFLUX_ROOT_PW_KEY = "influxcreds";
+
 }

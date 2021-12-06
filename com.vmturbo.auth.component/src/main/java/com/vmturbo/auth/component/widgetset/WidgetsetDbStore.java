@@ -39,8 +39,6 @@ public class WidgetsetDbStore implements IWidgetsetStore {
 
     private final DSLContext dsl;
 
-    private static final byte DB_FALSE = 0;
-
     public WidgetsetDbStore(DSLContext dsl) {
         this.dsl = dsl;
     }
@@ -98,7 +96,7 @@ public class WidgetsetDbStore implements IWidgetsetStore {
                                             @Nullable String scopeType, long queryUserOid) {
 
         SelectQuery<WidgetsetRecord> query = dsl.selectQuery(WIDGETSET);
-        query.addConditions(WIDGETSET.SHARED_WITH_ALL_USERS.ne(DB_FALSE)
+        query.addConditions(WIDGETSET.SHARED_WITH_ALL_USERS.ne(false)
             .or(WIDGETSET.OWNER_OID.eq(queryUserOid)));
         if (CollectionUtils.isNotEmpty(categoriesList)) {
             query.addConditions(WIDGETSET.CATEGORY.in(categoriesList));
@@ -125,7 +123,7 @@ public class WidgetsetDbStore implements IWidgetsetStore {
         WidgetsetRecord result = dsl.selectFrom(WIDGETSET)
             .where(WIDGETSET.OID.eq(oid)
             .and(WIDGETSET.OWNER_OID.eq(queryUserOid)
-            .or(WIDGETSET.SHARED_WITH_ALL_USERS.ne(DB_FALSE))))
+            .or(WIDGETSET.SHARED_WITH_ALL_USERS.ne(false))))
             .fetchOne();
         if (result == null) {
             logger.debug("Cannot find widgetset with ID " + oid +
@@ -278,7 +276,7 @@ public class WidgetsetDbStore implements IWidgetsetStore {
             dbWidgetset.setScopeType(widgetsetInfoProto.getScopeType());
         }
         if (widgetsetInfoProto.hasSharedWithAllUsers()) {
-            dbWidgetset.setSharedWithAllUsers((byte) (widgetsetInfoProto.getSharedWithAllUsers() ? 1 : 0));
+            dbWidgetset.setSharedWithAllUsers(widgetsetInfoProto.getSharedWithAllUsers());
         }
         if (widgetsetInfoProto.hasWidgets()) {
             dbWidgetset.setWidgets(widgetsetInfoProto.getWidgets());
