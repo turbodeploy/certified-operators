@@ -1,5 +1,11 @@
 package com.vmturbo.auth.component.store;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ARANGO_ROOT_PW_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.CONSUL_ROOT_DB_PASS_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.CONSUL_ROOT_DB_USER_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.INFLUX_ROOT_PW_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.POSTGRES_ROOT_USER_KEY;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -166,7 +172,7 @@ public class DBStore implements ISecureStore {
      * @return The database root password.
      */
     public @Nonnull String getRootSqlDBPassword() {
-        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_DB_PASS_KEY);
+        Optional<String> rootDbPassword = keyValueStore_.get(CONSUL_ROOT_DB_PASS_KEY);
         return CryptoFacility.decrypt(
                 rootDbPassword.orElseThrow(() -> new SecurityException("No root SQL DB password")));
     }
@@ -178,13 +184,13 @@ public class DBStore implements ISecureStore {
      */
     @Override
     public @Nonnull String getRootSqlDBUsername() {
-        Optional<String> rootDbUsername = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_DB_USER_KEY);
+        Optional<String> rootDbUsername = keyValueStore_.get(CONSUL_ROOT_DB_USER_KEY);
         return rootDbUsername.orElseThrow(() -> new SecurityException("No root SQL DB username"));
     }
 
     @Override
     public @Nonnull String getPostgresRootUsername() {
-        Optional<String> rootDbUsername = keyValueStore_.get(AuthDBConfig.POSTGRES_ROOT_USER_KEY);
+        Optional<String> rootDbUsername = keyValueStore_.get(POSTGRES_ROOT_USER_KEY);
         return rootDbUsername.orElseThrow(() -> new SecurityException("No Postgres root username"));
     }
 
@@ -197,7 +203,7 @@ public class DBStore implements ISecureStore {
      */
     public boolean setRootSqlDBPassword(final @Nonnull String existingPassword,
                                         final @Nonnull String newPassword) {
-        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_DB_PASS_KEY);
+        Optional<String> rootDbPassword = keyValueStore_.get(CONSUL_ROOT_DB_PASS_KEY);
         if (!rootDbPassword.isPresent() ||
             !Objects.equals(existingPassword, CryptoFacility.decrypt(rootDbPassword.get()))) {
             logger.error("Error changing SQL DB root password. The existing password doesn't match.");
@@ -223,7 +229,7 @@ public class DBStore implements ISecureStore {
                 }
             }
             if (changed) {
-                keyValueStore_.put(AuthDBConfig.CONSUL_ROOT_DB_PASS_KEY,
+                keyValueStore_.put(CONSUL_ROOT_DB_PASS_KEY,
                                    CryptoFacility.encrypt(newPassword));
                 logger.info("Successfully changed the SQL DB root password");
             } else {
@@ -254,7 +260,7 @@ public class DBStore implements ISecureStore {
      */
     @Override
     public @Nonnull String getRootArangoDBPassword() {
-        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.ARANGO_ROOT_PW_KEY);
+        Optional<String> rootDbPassword = keyValueStore_.get(ARANGO_ROOT_PW_KEY);
         return CryptoFacility.decrypt(
             rootDbPassword.orElseThrow(() -> new SecurityException("No root Arango DB password")));
     }
@@ -266,7 +272,7 @@ public class DBStore implements ISecureStore {
      */
     @Override
     public @Nonnull String getRootInfluxPassword() {
-        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.INFLUX_ROOT_PW_KEY);
+        Optional<String> rootDbPassword = keyValueStore_.get(INFLUX_ROOT_PW_KEY);
         return CryptoFacility.decrypt(
             rootDbPassword.orElseThrow(() -> new SecurityException("No root Influx DB password")));
     }

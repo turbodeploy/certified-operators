@@ -1,6 +1,6 @@
 package com.vmturbo.auth.component;
 
-import static com.vmturbo.auth.component.AuthDBConfig.CONSUL_KEY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.CONSUL_KEY;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
