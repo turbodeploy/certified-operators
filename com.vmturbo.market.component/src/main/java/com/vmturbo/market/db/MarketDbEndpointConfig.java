@@ -17,6 +17,13 @@ import com.vmturbo.sql.utils.DbEndpointsConfig;
 public class MarketDbEndpointConfig extends DbEndpointsConfig {
 
     /**
+     * If a database username is not provided, by default the component name will be used.
+     * Since the component name is "market-component" and the expected db username is "market",
+     * we must set the username explicitly.
+     */
+    private static final String marketDbUsername = "market";
+
+    /**
      * Endpoint for accessing market database.
      *
      * @return endpoint instance
@@ -27,6 +34,10 @@ public class MarketDbEndpointConfig extends DbEndpointsConfig {
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true))
+                .withUserName(marketDbUsername)
+                // TODO this is needed because we have not created the new migration structure yet
+                // remove once the integration with postgres is done
+                .withMigrationLocations("db.migration")
                 .build();
     }
 }
