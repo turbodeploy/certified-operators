@@ -40,11 +40,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
@@ -54,7 +54,7 @@ import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.components.common.setting.UsedIncrementUnitVCpu;
+import com.vmturbo.components.common.setting.VcpuScalingCoresPerSocketSocketModeEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -214,7 +214,7 @@ public class EntitySettingsApplicator {
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo, considerUtilizationConstraintInClusterHeadroomPlan),
-                new VMCPUIncrementApplicator(),
+                new VMCPUIncrementApplicator(graphWithSettings.getTopologyGraph()),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VmVmemIncrement,
                         CommodityType.VMEM),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ContainerSpecVcpuIncrement,
@@ -1392,35 +1392,40 @@ public class EntitySettingsApplicator {
      */
     @ThreadSafe
     private static class VMCPUIncrementApplicator extends BaseSettingApplicator {
+        TopologyGraph<TopologyEntity> topologyGraph;
+
+        public VMCPUIncrementApplicator(TopologyGraph<TopologyEntity> topologyGraph) {
+            this.topologyGraph = topologyGraph;
+        }
+
+        private static MhzHandler mhzHandler = new MhzHandler();
+        private static final Map<VCPUScalingUnitsEnum, VCPUScalingModeHandler>
+                vcpuScalingModeToHandler = ImmutableMap.of(
+                VCPUScalingUnitsEnum.MHZ, mhzHandler,
+                VCPUScalingUnitsEnum.CORES, new CoresHandler(),
+                VCPUScalingUnitsEnum.SOCKETS, new SocketsHandler());
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
-                        @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+                @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
+                @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
                 return;
             }
-            Optional<CommoditySoldDTO.Builder> vcpuCommodityBuilderOptional = entity.getCommoditySoldListBuilderList().stream()
-                            .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.VCPU_VALUE).findFirst();
+            Optional<CommoditySoldDTO.Builder> vcpuCommodityBuilderOptional =
+                    entity.getCommoditySoldListBuilderList().stream().filter(
+                            commodity -> commodity.getCommodityType().getType()
+                                    == CommodityType.VCPU_VALUE).findFirst();
             if (vcpuCommodityBuilderOptional.isPresent()) {
                 final CommoditySoldDTO.Builder vcpuCommodityBuilder =
-                                vcpuCommodityBuilderOptional.get();
-                float vcpuIncrement =
-                                getVcpuIncrement(entity, entitySettings, vcpuCommodityBuilder);
+                        vcpuCommodityBuilderOptional.get();
+                final VCPUScalingUnitsEnum vcpuScalingUnitsType = getSettingValue(entitySettings,
+                        EntitySettingSpecs.VcpuScalingUnits, VCPUScalingUnitsEnum.MHZ);
+                float vcpuIncrement = vcpuScalingModeToHandler.getOrDefault(vcpuScalingUnitsType, mhzHandler).getVcpuIncrement(
+                        entity, topologyGraph, entitySettings, vcpuCommodityBuilder);
                 if (logger.isTraceEnabled()) {
-                    logger.trace("CSR mode for {} is {}, VCPU increment settings are: [unit={}, sockets={}, megahertz={}], result capacity increment={}",
-                                    toString(entity),
-                                    getSettingValue(entitySettings,
-                                                    EntitySettingSpecs.VcpuScalingUnits,
-                                                    VCPUScalingUnitsEnum.SOCKETS),
-                                    getSettingValue(entitySettings,
-                                                    EntitySettingSpecs.VmVcpuIncrementUnit,
-                                                    UsedIncrementUnitVCpu.MHZ),
-                                    getNumericSetting(entitySettings,
-                                                    EntitySettingSpecs.VmVcpuIncrementSockets),
-                                    getNumericSetting(entitySettings,
-                                                    EntitySettingSpecs.VmVcpuIncrement),
-                                    vcpuIncrement);
+                    logger.trace("CSR mode for {} is {}, resulting capacity increment={}",
+                            toString(entity), vcpuScalingUnitsType, vcpuIncrement);
                 }
                 vcpuCommodityBuilder.setCapacityIncrement(vcpuIncrement);
             }
@@ -1430,75 +1435,200 @@ public class EntitySettingsApplicator {
             return String.format("%s[%s]", entity.getDisplayName(), entity.getOid());
         }
 
-        private float getVcpuIncrement(@Nonnull TopologyEntityDTO.Builder entity,
-                        @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nonnull CommoditySoldDTOOrBuilder vcpuCommodityBuilder) {
-            final float incrementMHz = (float)getNumericSetting(entitySettings,
-                            EntitySettingSpecs.VmVcpuIncrement);
-            /*
-             We support special handling only for CoreSocketRatioPolicyEnum.RESPECT mode.
-             In all other cases behavior should be the same as before.
-             */
-            final VCPUScalingUnitsEnum csrMode = getSettingValue(entitySettings,
-                            EntitySettingSpecs.VcpuScalingUnits,
-                            VCPUScalingUnitsEnum.SOCKETS);
-            if (csrMode == VCPUScalingUnitsEnum.MHZ) {
-                return incrementMHz;
-            }
-            final float socketSpeed = getSocketSpeed(entity, vcpuCommodityBuilder, incrementMHz, csrMode);
-            final UsedIncrementUnitVCpu incrementUnit =
-                            getSettingValue(entitySettings, EntitySettingSpecs.VmVcpuIncrementUnit,
-                                            UsedIncrementUnitVCpu.MHZ);
-            if (incrementUnit == UsedIncrementUnitVCpu.MHZ) {
-                return ResizeIncrementAdjustor.roundToProbeIncrement(incrementMHz, socketSpeed);
-            }
-            final int incrementSockets = (int)getNumericSetting(entitySettings,
-                            EntitySettingSpecs.VmVcpuIncrementSockets);
-            return socketSpeed * incrementSockets;
+        /**
+         * Interface for handling VcpuScalingUnit modes.
+         * Each mode has a different way to process vcpu increments.
+         *
+         */
+        private interface VCPUScalingModeHandler {
+            float getVcpuIncrement(TopologyEntityDTO.Builder entity,
+                    TopologyGraph<TopologyEntity> topologyGraph,
+                    Map<EntitySettingSpecs, Setting> entitySettings,
+                    CommoditySoldDTO.Builder vcpuCommodityBuilder);
         }
 
-        private static float getSocketSpeed(@Nonnull TopologyEntityDTO.Builder entity,
-                        @Nonnull CommoditySoldDTOOrBuilder vcpuCommodityBuilder, float incrementMHz, VCPUScalingUnitsEnum csrmode) {
-            if (vcpuCommodityBuilder.hasCapacityIncrement() && csrmode == VCPUScalingUnitsEnum.SOCKETS) {
-                return vcpuCommodityBuilder.getCapacityIncrement();
+        /**
+         * Implementation of handling MHZ case.
+         * In this setting, it will only get the increment mhz and scale using that.
+         *
+         */
+        private static class MhzHandler implements VCPUScalingModeHandler {
+            @Override
+            public float getVcpuIncrement(TopologyEntityDTO.Builder entity,
+                    TopologyGraph<TopologyEntity> topologyGraph,
+                    Map<EntitySettingSpecs, Setting> entitySettings,
+                    CommoditySoldDTO.Builder vcpuCommodityBuilder) {
+                return (int)getNumericSetting(entitySettings, EntitySettingSpecs.VmVcpuIncrement,
+                        logger);
             }
-            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
-                            VirtualMachineInfo::getNumCpus);
+        }
 
-            // Handling CONTROL case, set cores per socket to 1 and generate actions that assume
-            // this so that scale actions may be per vCPU/core
-            // TODO: 1 may be replaced with another optimal algorithm
-            final Integer cpsr;
-            if (csrmode == VCPUScalingUnitsEnum.CORES) {
-                cpsr = 1;
-            } else {
-                cpsr = getVmInfoParameter(entity, VirtualMachineInfo::hasCoresPerSocketRatio,
-                        VirtualMachineInfo::getCoresPerSocketRatio);
+        /**
+         * Implementation of CORES case.
+         * This setting has multiple subsettings which will behave differently.
+         * Based on PRESERVE, MATCH HOST, or USER SPECIFIED subsetting, vcpu increment will differ
+         *
+         */
+        private static class CoresHandler extends MhzHandler {
+            private static final Map<VcpuScalingCoresPerSocketSocketModeEnum, ModeHandler>
+                    MODE_TO_HANDLER =
+                    ImmutableMap.of(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE,
+                            new HandlePreserve(),
+                            VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST,
+                            new HandleMatchHost(),
+                            VcpuScalingCoresPerSocketSocketModeEnum.USER_SPECIFIED,
+                            (entity, topologyGraph, entitySettings, numCpus, cpsr) -> (int)getNumericSetting(
+                                    entitySettings,
+                                    EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketValue,
+                                    logger));
+
+            /**
+             * Interface for handling sub-settings for CORES mode
+             * Each sub-setting has a different way of calculating increment sockets.
+             *
+             */
+            @FunctionalInterface
+            private interface ModeHandler {
+                int getIncrementSockets(TopologyEntityDTO.Builder entity,
+                        TopologyGraph<TopologyEntity> topologyGraph,
+                        Map<EntitySettingSpecs, Setting> entitySettings, Integer numCpus,
+                        Integer cpsr);
             }
 
-            if (numCpus != null) {
-                final long coreSpeed = Math.round(vcpuCommodityBuilder.getCapacity() / numCpus);
-                if (cpsr == null) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Entity {} has no cores per socket number value, so 1 will be used.",
-                                        toString(entity));
+            /**
+             * Implementation of MATCH HOST option.
+             * This option will retrieve the number of sockets of the physical machine.
+             * Incrementing will be done using the new socket count.
+             *
+             */
+            private static class HandleMatchHost implements ModeHandler {
+                @Override
+                public int getIncrementSockets(TopologyEntityDTO.Builder entity,
+                        TopologyGraph<TopologyEntity> topologyGraph,
+                        Map<EntitySettingSpecs, Setting> entitySettings, Integer numCpus,
+                        Integer cpsr) {
+                    CommoditiesBoughtFromProvider commdityBoughtFromPM =
+                            entity.getCommoditiesBoughtFromProvidersList()
+                                    .stream()
+                                    .filter(e -> e.getProviderEntityType()
+                                            == EntityType.PHYSICAL_MACHINE_VALUE)
+                                    .findFirst()
+                                    .orElse(null);
+                    if (commdityBoughtFromPM == null) {
+                        logger.warn(
+                                "There is no commodity bought from provider for physical machine entity type in the virtual machine {}",
+                                entity.getDisplayName());
+                        return 1;
                     }
-                    return coreSpeed;
-                }
-                return coreSpeed * cpsr;
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("VCPU Increment in MHz {} will be used for analysis for '{}' entity,because it has neither capacity increment nor CPU numbers value.",
-                                    incrementMHz, toString(entity));
+                    TopologyEntity pm = topologyGraph.getEntity(commdityBoughtFromPM.getProviderId())
+                            .orElse(null);
+                    if (pm == null) {
+                        logger.warn(
+                                "There is no physical machine in the Topology that matches the given oid {}",
+                                commdityBoughtFromPM.getProviderId());
+                        return 1;
+                    }
+                    TopologyEntityDTO.Builder pmEntity = pm.getTopologyEntityDtoBuilder();
+                    if (!pmEntity.hasTypeSpecificInfo()) {
+                        logger.warn("There is no TypeSpecificInfo for the given for PM {}",
+                                pm.getDisplayName());
+                        return 1;
+                    }
+                    final TopologyDTO.TypeSpecificInfo typeSpecificInfo = pmEntity.getTypeSpecificInfo();
+                    if (!typeSpecificInfo.hasPhysicalMachine()) {
+                        logger.warn("There is no PhysicalMachineInfo for the given for PM {}",
+                                pm.getDisplayName());
+                        return 1;
+                    }
+                    final PhysicalMachineInfo pmInfo = typeSpecificInfo.getPhysicalMachine();
+                    if (pmInfo.hasNumCpuSockets()) {
+                        return pmInfo.getNumCpuSockets();
+                    }
+                    logger.warn("There is no NumCpuSockets for the given PM {}", pm.getDisplayName());
+                    return 1;
                 }
             }
-            return incrementMHz;
+
+            /**
+             * Implementation of PRESERVE option
+             * This option will keep the current VM socket value and increment using that.
+             *
+             */
+            private static class HandlePreserve implements ModeHandler {
+                @Override
+                public int getIncrementSockets(TopologyEntityDTO.Builder entity,
+                        TopologyGraph<TopologyEntity> topologyGraph,
+                        Map<EntitySettingSpecs, Setting> entitySettings, Integer numCpus,
+                        Integer cpsr) {
+                    if (numCpus != null && cpsr != null && cpsr > 0) {
+                        return numCpus / cpsr;
+                    } else {
+                        return 1;
+                    }
+                }
+            }
+
+            @Override
+            public float getVcpuIncrement(TopologyEntityDTO.Builder entity,
+                    TopologyGraph<TopologyEntity> topologyGraph,
+                    Map<EntitySettingSpecs, Setting> entitySettings,
+                    CommoditySoldDTO.Builder vcpuCommodityBuilder) {
+                final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
+                        VirtualMachineInfo::getNumCpus);
+                final Integer cpsr = getVmInfoParameter(entity,
+                        VirtualMachineInfo::hasCoresPerSocketRatio,
+                        VirtualMachineInfo::getCoresPerSocketRatio);
+
+                final VcpuScalingCoresPerSocketSocketModeEnum coresPerSocketModeType =
+                        getSettingValue(entitySettings,
+                                EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
+                                VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE);
+
+                final int incrementSockets = MODE_TO_HANDLER.containsKey(coresPerSocketModeType)
+                        ? MODE_TO_HANDLER.get(coresPerSocketModeType).getIncrementSockets(entity,
+                        topologyGraph, entitySettings, numCpus, cpsr) : 1;
+
+                if (numCpus != null && numCpus > 0) {
+                    return Math.round(vcpuCommodityBuilder.getCapacity() / numCpus)
+                            * incrementSockets;
+                } else {
+                    return super.getVcpuIncrement(entity, topologyGraph, entitySettings,
+                            vcpuCommodityBuilder);
+                }
+            }
+        }
+
+        /**
+         * Implementation of SOCKETS case.
+         * Yet to be implemented. Base functionality for now.
+         * If capacity increment is sent from probe, that will be used for increment.
+         * Otherwise the speed per core of the VM will be used for increment.
+         * Else this case will be handled the same way as MHZ mode - Will change in future sprint
+         *
+         */
+        private static class SocketsHandler extends MhzHandler {
+            @Override
+            public float getVcpuIncrement(TopologyEntityDTO.Builder entity,
+                    TopologyGraph<TopologyEntity> topologyGraph,
+                    Map<EntitySettingSpecs, Setting> entitySettings,
+                    CommoditySoldDTO.Builder vcpuCommodityBuilder) {
+                final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
+                        VirtualMachineInfo::getNumCpus);
+                if (vcpuCommodityBuilder.hasCapacityIncrement()) {
+                    return vcpuCommodityBuilder.getCapacityIncrement();
+                } else if (numCpus != null && numCpus > 0) {
+                    return Math.round(vcpuCommodityBuilder.getCapacity() / numCpus);
+                } else {
+                    return super.getVcpuIncrement(entity, topologyGraph, entitySettings,
+                            vcpuCommodityBuilder);
+                }
+            }
         }
 
         @Nullable
         private static Integer getVmInfoParameter(@Nonnull TopologyEntityDTO.Builder entity,
-                        @Nonnull Predicate<VirtualMachineInfo> valueChecker,
-                        @Nonnull Function<VirtualMachineInfo, Integer> valueGetter) {
+                @Nonnull Predicate<VirtualMachineInfo> valueChecker,
+                @Nonnull Function<VirtualMachineInfo, Integer> valueGetter) {
             if (!entity.hasTypeSpecificInfo()) {
                 return null;
             }

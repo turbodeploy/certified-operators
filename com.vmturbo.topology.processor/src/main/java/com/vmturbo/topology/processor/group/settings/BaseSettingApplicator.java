@@ -94,6 +94,19 @@ public abstract class BaseSettingApplicator implements SettingApplicator {
      */
     protected double getNumericSetting(@Nonnull Map<EntitySettingSpecs, Setting> settings,
             @Nonnull EntitySettingSpecs spec) {
+        return getNumericSetting(settings, spec, logger);
+    }
+
+    /**
+     * Get numeric setting value staticlly for static classes.
+     *
+     * @param settings settings
+     * @param spec setting spec
+     * @param logger logging object
+     * @return numeric value
+     */
+    protected static double getNumericSetting(@Nonnull Map<EntitySettingSpecs, Setting> settings,
+            @Nonnull EntitySettingSpecs spec, Logger logger) {
         Setting setting = settings.get(spec);
 
         if (setting == null || !setting.hasNumericSettingValue()) {
