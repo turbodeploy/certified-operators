@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,7 +55,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
+import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -113,8 +114,6 @@ public class ActionSpecMappingContextFactory {
     private final PoliciesService policiesService;
 
     private final ReservedInstancesService reservedInstancesService;
-
-    private Collection<PolicyApiDTO> policyApiDto;
 
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
@@ -215,12 +214,23 @@ public class ActionSpecMappingContextFactory {
         // the mapping context as the "System", so we don't trigger further auth checks upstream. This
         // is as simple as running the RPCS on a separate thread (and also gives us parallelization
         // of the calls, as Pengcheng originally designed for)
-        final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
-        final Future<Collection<PolicyApiDTO>> policiesApiDto = executorService.submit(() -> policiesService.convertPolicyDTOCollection(policies.get().values()));
         final Future<Map<Long, ApiPartialEntity>> entities = executorService.submit(() ->
             getEntities(actions, topologyContextId));
-        Map<Long, ApiPartialEntity> entitiesById = entities.get();
 
+        // Get the policies needed for conversion
+        final Set<Long> involvedPolicies = extractPolicyIdsRequiredForActionConversion(actions);
+        final Map<Long, PolicyApiDTO> policyIdToPolicyApiDto;
+        if (!involvedPolicies.isEmpty()) {
+            policyIdToPolicyApiDto = executorService.submit(() -> policiesService
+                    .convertPolicyDTOCollection(getPolicies(involvedPolicies))
+                    .stream()
+                    .collect(Collectors.toMap(p -> Long.valueOf(p.getUuid()), Function.identity())))
+                .get();
+        } else {
+            policyIdToPolicyApiDto = Collections.emptyMap();
+        }
+
+        Map<Long, ApiPartialEntity> entitiesById = entities.get();
         Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec  =
                                         getBuyRIIdToRIBoughtandRISpec(actions.stream()
                                         .filter(a -> a.getInfo().hasBuyRi())
@@ -289,10 +299,10 @@ public class ActionSpecMappingContextFactory {
         datacenterById.values().forEach(e -> entitiesById.put(e.getOid(), e));
 
         if (topologyContextId == realtimeTopologyContextId) {
-            return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
+            return new ActionSpecMappingContext(entitiesById, entityIdToRegion,
                 volumesAspectsByEntity, cloudAspects, containerPlatformAspects, Collections.emptyMap(), Collections.emptyMap(),
                 buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false,
-                policiesApiDto.get(), entityToCluster);
+                policyIdToPolicyApiDto, entityToCluster);
         }
 
         // fetch all vm aspects
@@ -309,11 +319,10 @@ public class ActionSpecMappingContextFactory {
                 Sets.newHashSet(ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER),
                 Sets.newHashSet(EnvironmentType.CLOUD), AspectName.DATABASE);
 
-        final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById,
-                policies.get(), entityIdToRegion,
+        final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById, entityIdToRegion,
             volumesAspectsByEntity, cloudAspects, containerPlatformAspects, vmAspects, dbAspects,
             buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true,
-            policiesApiDto.get(), entityToCluster);
+            policyIdToPolicyApiDto, entityToCluster);
 
         if (hasMigrationActions(actions)) {
             final Map<Long, EntityAspect> vmProjectedAspects =
@@ -337,6 +346,14 @@ public class ActionSpecMappingContextFactory {
             }
         }
         return context;
+    }
+
+    @Nonnull
+    private Set<Long> extractPolicyIdsRequiredForActionConversion(@Nonnull List<Action> actions) {
+        return actions.stream()
+            .map(RiskUtil::extractPolicyIds)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
     }
 
     private Map<Long, BaseApiDTO> getEntityClusters(Map<Long, ApiPartialEntity> entitiesById) {
@@ -640,11 +657,12 @@ public class ActionSpecMappingContextFactory {
     }
 
     @Nonnull
-    private Map<Long, PolicyDTO.Policy> getPolicies() {
-        final Map<Long, PolicyDTO.Policy> policies = new HashMap<>();
-        policyService.getPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
-                        response -> policies
-                                        .put(response.getPolicy().getId(), response.getPolicy()));
+    private List<PolicyDTO.Policy> getPolicies(@Nonnull Collection<Long> policyIds) {
+        final List<PolicyDTO.Policy> policies = new ArrayList<>(policyIds.size());
+        policyService.getPolicies(PolicyDTO.PolicyRequest.newBuilder()
+                    .addAllPolicyIds(policyIds)
+                    .build())
+            .forEachRemaining(response -> policies.add(response.getPolicy()));
         return policies;
     }
 
@@ -738,8 +756,6 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOs;
 
-        private final Map<Long, PolicyDTO.Policy> policies;
-
         private final Map<Long, ApiPartialEntity> entityIdToRegion;
 
         private final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByEntity;
@@ -758,7 +774,7 @@ public class ActionSpecMappingContextFactory {
 
         private final boolean isPlan;
 
-        private final Map<String, PolicyApiDTO> policiesApiDto;
+        private final Map<Long, PolicyApiDTO> policyIdToPolicyApiDto;
 
         private Set<ReservedInstanceApiDTO> reservedInstanceApiDTOs;
 
@@ -779,7 +795,6 @@ public class ActionSpecMappingContextFactory {
 
 
         ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
-                                 @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, ApiPartialEntity> entityIdToRegion,
                                  @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByEntity,
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
@@ -791,7 +806,7 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull Map<Long, ApiPartialEntity> oidToDatacenter,
                                  @Nonnull ServiceEntityMapper serviceEntityMapper,
                                  final boolean isPlan,
-                                 final Collection<PolicyApiDTO> policiesApiDto,
+                                 final Map<Long, PolicyApiDTO> policyIdToPolicyApiDto,
                                  @Nonnull Map<Long, BaseApiDTO> entityClusters) {
 
             /* topologyEntityDTOs contain some ZoneId -> Region entries,
@@ -802,7 +817,7 @@ public class ActionSpecMappingContextFactory {
             topologyEntityDTOs.entrySet().forEach(entry -> {
                 this.serviceEntityApiDTOs.put(entry.getKey(), seMap.get(entry.getValue().getOid()));
             });
-            this.policies = Objects.requireNonNull(policies);
+
             this.entityIdToRegion = Objects.requireNonNull(entityIdToRegion);
             this.volumeAspectsByEntity = Objects.requireNonNull(volumeAspectsByEntity);
             this.cloudAspects = Objects.requireNonNull(cloudAspects);
@@ -812,17 +827,12 @@ public class ActionSpecMappingContextFactory {
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
             this.oidToDatacenter = oidToDatacenter;
             this.isPlan = isPlan;
-            this.policiesApiDto = policiesApiDto.stream()
-                    .collect(Collectors.toMap(PolicyApiDTO::getUuid, Function.identity()));
+            this.policyIdToPolicyApiDto = Objects.requireNonNull(policyIdToPolicyApiDto);
             this.entityClusters = entityClusters;
         }
 
-        PolicyDTO.Policy getPolicy(long id) {
-            return policies.get(id);
-        }
-
-        Map<String, PolicyApiDTO> getPolicyApiDtoMap() {
-            return policiesApiDto;
+        Map<Long, PolicyApiDTO> getPolicyIdToApiDtoMap() {
+            return Collections.unmodifiableMap(policyIdToPolicyApiDto);
         }
 
         @Nonnull
@@ -931,6 +941,22 @@ public class ActionSpecMappingContextFactory {
 
         public boolean isPlan() {
             return isPlan;
+        }
+
+        /**
+         * Returns the name of a policy and null if the policy cannot be found.
+         *
+         * @param policyId the id of the policy.
+         * @return the display name of the policy and null otherwise.
+         */
+        @Nullable
+        public String getPolicyDisplayName(final long policyId) {
+            final PolicyApiDTO policiesApiDto = policyIdToPolicyApiDto.get(policyId);
+            if (policiesApiDto != null) {
+                return policiesApiDto.getDisplayName();
+            } else {
+                return null;
+            }
         }
     }
 }

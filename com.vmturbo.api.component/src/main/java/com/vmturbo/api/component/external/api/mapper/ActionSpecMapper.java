@@ -1028,7 +1028,7 @@ public class ActionSpecMapper {
     private String createRiskDescription(@Nonnull final ActionSpec actionSpec,
               @Nonnull final ActionSpecMappingContext context) throws UnsupportedActionException {
         return RiskUtil.createRiskDescription(actionSpec,
-            context::getPolicy,
+            context::getPolicyDisplayName,
             oid -> context.getEntity(oid).map(BaseApiDTO::getDisplayName).orElse(null));
     }
 
@@ -1166,20 +1166,17 @@ public class ActionSpecMapper {
     protected void populatePolicyForActionApiDto(@Nonnull final ActionDTO.Action action,
                                                  @Nonnull final ActionApiDTO wrapperDto,
                                                  @Nonnull final ActionSpecMappingContext context) {
-        Map<String, PolicyApiDTO> policyApiDtoMap = context.getPolicyApiDtoMap();
+        final Map<Long, PolicyApiDTO> policyApiDtoMap = context.getPolicyIdToApiDtoMap();
         if (policyApiDtoMap.isEmpty()) {
             return;
+        } else {
+            RiskUtil.extractPolicyIds(action)
+                    .stream()
+                    .map(policyApiDtoMap::get)
+                    .filter(Objects::nonNull)
+                    .findAny()
+                    .ifPresent(wrapperDto::setPolicy);
         }
-        ActionDTOUtil.getReasonCommodities(action)
-            .filter(c -> RiskUtil.POLICY_COMMODITY_TYPES.contains(c.getCommodityType().getType()))
-            .forEach(comm -> {
-                if (comm.getCommodityType() != null && comm.getCommodityType().getKey() != null) {
-                    PolicyApiDTO policy = policyApiDtoMap.get(comm.getCommodityType().getKey());
-                    if (policy != null) {
-                        wrapperDto.setPolicy(policy);
-                    }
-                }
-            });
     }
 
     private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,

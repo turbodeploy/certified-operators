@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * Manages application of a template on an action.
@@ -105,7 +106,7 @@ public class ActionTemplateApplicator {
         if (workflow.getWorkflowInfo().getType() == OrchestratorType.WEBHOOK) {
 
             final String serializedAction;
-            try {
+            try (Tracing.TracingScope tracingScope = Tracing.trace("API-object-conversion")) {
                 serializedAction = apiMessageServiceBlockingStub.convertActionToApiMessage(
                         ActionConversionRequest
                         .newBuilder()
@@ -126,7 +127,7 @@ public class ActionTemplateApplicator {
 
     private String applyTemplate(String template, ActionApiDTO actionApiDTO)
             throws ActionTemplateApplicationException {
-        try {
+        try (Tracing.TracingScope tracingScope = Tracing.trace("applying_template")) {
             return Velocity.apply(template, actionApiDTO);
         } catch (ParseException | MethodInvocationException | IOException ex) {
             logger.error("Applying webhook template failed for workflow {} because of an Exception.",
