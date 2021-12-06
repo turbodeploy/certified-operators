@@ -996,6 +996,7 @@ public class EntityStoreTest {
 
     /**
      * Test that when target has health problems all store entities are marked stale.
+     * Also test that when the target does not have health problems all entities are not marked stale.
      *
      * @throws IdentityServiceException when oid cannot be constructed
      * @throws TargetStoreException when target operation fails
@@ -1016,13 +1017,41 @@ public class EntityStoreTest {
 
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                         .thenReturn(Optional.of(SDKProbeType.HYPERV));
-        final TopologyStitchingGraph graph =
+
+        final TopologyStitchingGraph criticalStateGraph =
                         entityStore.constructStitchingContext(new StalenessInformationProvider() {
                             @Override
                             public HealthState getLastKnownTargetHealth(long targetOid) {
                                 return HealthState.CRITICAL;
                             }
                         }).getStitchingGraph();
-        Assert.assertTrue(graph.entities().allMatch(StitchingEntity::isStale));
+        Assert.assertTrue(criticalStateGraph.entities().allMatch(StitchingEntity::isStale));
+
+        final TopologyStitchingGraph majorStateGraph =
+                entityStore.constructStitchingContext(new StalenessInformationProvider() {
+                    @Override
+                    public HealthState getLastKnownTargetHealth(long targetOid) {
+                        return HealthState.MAJOR;
+                    }
+                }).getStitchingGraph();
+        Assert.assertTrue(majorStateGraph.entities().noneMatch(StitchingEntity::isStale));
+
+        final TopologyStitchingGraph minorStateGraph =
+                entityStore.constructStitchingContext(new StalenessInformationProvider() {
+                    @Override
+                    public HealthState getLastKnownTargetHealth(long targetOid) {
+                        return HealthState.MINOR;
+                    }
+                }).getStitchingGraph();
+        Assert.assertTrue(minorStateGraph.entities().noneMatch(StitchingEntity::isStale));
+
+        final TopologyStitchingGraph normalStateGraph =
+                entityStore.constructStitchingContext(new StalenessInformationProvider() {
+                    @Override
+                    public HealthState getLastKnownTargetHealth(long targetOid) {
+                        return HealthState.NORMAL;
+                    }
+                }).getStitchingGraph();
+        Assert.assertTrue(normalStateGraph.entities().noneMatch(StitchingEntity::isStale));
     }
 }

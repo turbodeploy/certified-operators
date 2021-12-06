@@ -424,7 +424,7 @@ public class EntityStore {
                                     entityBuilder, entityOid, targetId,
                                     incrementalEntities))
                             .orElse(entityBuilder);
-                    final boolean isStale = stalenessProvider.getLastKnownTargetHealth(targetId) != HealthState.NORMAL;
+                    final boolean isStale = stalenessProvider.getLastKnownTargetHealth(targetId) == HealthState.CRITICAL;
                     return StitchingEntityData.newBuilder(entityDTO)
                             .oid(entityOid)
                             .targetId(targetId)
