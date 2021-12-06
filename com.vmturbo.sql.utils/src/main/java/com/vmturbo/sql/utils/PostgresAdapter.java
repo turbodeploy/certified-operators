@@ -280,8 +280,13 @@ public class PostgresAdapter extends DbAdapter {
                 }
             }
             if (password != null) {
-                execute(conn, String.format("ALTER USER \"%s\" WITH PASSWORD '%s'",
-                        name, config.getPassword()));
+                try {
+                    execute(conn, String.format("ALTER USER \"%s\" WITH PASSWORD '%s'",
+                            name, config.getPassword()));
+                } catch (SQLException e) {
+                    throw copySQLExceptionWithoutStack(
+                            String.format("Failed to set password for user `%s`@'%%'", name), e);
+                }
             }
         }
     }

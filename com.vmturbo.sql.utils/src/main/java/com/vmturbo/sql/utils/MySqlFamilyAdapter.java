@@ -113,8 +113,15 @@ class MySqlFamilyAdapter extends DbAdapter {
                 }
             }
             if (password != null) {
-                execute(conn, String.format("SET PASSWORD FOR `%s`@`%%` = password('%s')",
-                        name, config.getPassword()));
+                try {
+                    execute(conn, String.format("SET PASSWORD FOR `%s`@`%%` = password('%s')",
+                            name, config.getPassword()));
+                } catch (SQLException e) {
+                    // replace the thrown exception with one that loses the upstream stack trace,
+                    // since otherwise we risk exposing password in logs
+                    throw copySQLExceptionWithoutStack(
+                            String.format("Failed to set password for user `%s`@'%%'", name), e);
+                }
             }
         }
     }

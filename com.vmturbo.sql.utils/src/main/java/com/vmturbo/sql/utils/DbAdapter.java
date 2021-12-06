@@ -575,4 +575,18 @@ public abstract class DbAdapter {
      * @return quoted name
      */
     protected abstract String quote(String name);
+
+    /**
+     * Create an SQLException but leaving out message and cause, and substituting a new messages.
+     *
+     * <p>This is used when the existing message, or messages attached to nested exceptions, might
+     * contain sensitive information like passwords.</p>
+     *
+     * @param msg message to appear in new exception
+     * @param e   orginal exception
+     * @return new exception partially copied from original
+     */
+    protected static SQLException copySQLExceptionWithoutStack(String msg, SQLException e) {
+        return new SQLException(msg, e.getSQLState(), e.getErrorCode());
+    }
 }
