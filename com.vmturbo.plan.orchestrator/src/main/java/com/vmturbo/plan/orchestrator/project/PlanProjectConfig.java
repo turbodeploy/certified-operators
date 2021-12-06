@@ -1,9 +1,11 @@
 package com.vmturbo.plan.orchestrator.project;
 
+import java.sql.SQLException;
 import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,8 +19,8 @@ import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProjectServiceContro
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
@@ -26,12 +28,13 @@ import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration related to plans.
  */
 @Configuration
-@Import({PlanOrchestratorDBConfig.class,
+@Import({DbAccessConfig.class,
         GlobalConfig.class,
         RepositoryClientConfig.class,
         HistoryClientConfig.class,
@@ -44,7 +47,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         ReservationConfig.class})
 public class PlanProjectConfig {
     @Autowired
-    private PlanOrchestratorDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
@@ -108,7 +111,15 @@ public class PlanProjectConfig {
      */
     @Bean
     public PlanProjectDao planProjectDao() {
-        return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
+        try {
+            return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
+
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanProjectDao", e);
+        }
     }
 
     /**

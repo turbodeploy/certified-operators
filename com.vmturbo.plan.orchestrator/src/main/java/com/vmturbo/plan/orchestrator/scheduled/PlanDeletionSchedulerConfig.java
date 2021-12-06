@@ -1,9 +1,12 @@
 package com.vmturbo.plan.orchestrator.scheduled;
 
+import java.sql.SQLException;
 import java.time.LocalTime;
 import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -19,13 +22,14 @@ import org.springframework.scheduling.support.CronTrigger;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring Configuration for deletion of old/expired plans.
@@ -36,7 +40,7 @@ import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
 @Import({GroupClientConfig.class,
          PlanConfig.class,
          ScenarioConfig.class,
-         PlanOrchestratorDBConfig.class,
+         DbAccessConfig.class,
          PlanProjectConfig.class})
 public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
@@ -44,7 +48,7 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private PlanOrchestratorDBConfig dbConfig;
+    private DbAccessConfig dbConfig;
 
     @Autowired
     private PlanDao planDao;
@@ -80,9 +84,16 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Bean
     public PlanDeletionTask planDeletionTask() {
-        return new PlanDeletionTask(settingServiceClient(), planDao, planProjectDao, scenarioDao,
-                    dbConfig.dsl(), threadPoolTaskScheduler(), cronTrigger(),
-                    batchSize, delayBetweenDeletesInSeconds);
+        try {
+            return new PlanDeletionTask(settingServiceClient(), planDao, planProjectDao, scenarioDao,
+                        dbConfig.dsl(), threadPoolTaskScheduler(), cronTrigger(),
+                        batchSize, delayBetweenDeletesInSeconds);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanDeletionTask", e);
+        }
     }
 
     /**

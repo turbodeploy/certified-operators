@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -14,6 +15,7 @@ import io.grpc.ServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +38,7 @@ import com.vmturbo.plan.orchestrator.scheduled.MigrationConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanDeletionSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Responsible for orchestrating plan workflow.
@@ -48,7 +51,7 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
         ApiSecurityConfig.class,
         GlobalConfig.class,
         PlanExportConfig.class,
-        PlanOrchestratorDBConfig.class,
+        DbAccessConfig.class,
         PlanProjectSchedulerConfig.class,
         PlanProjectConfig.class,
         ReservationConfig.class,
@@ -76,7 +79,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     private int mariaHealthCheckIntervalSeconds;
 
     @Autowired
-    private PlanOrchestratorDBConfig dbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private PlanExportConfig planExportConfig;
@@ -114,13 +117,20 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         LOGGER.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
-        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-            dbConfig.dataSource()::getConnection));
+
+        try {
+            getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                dbAccessConfig.dataSource()::getConnection));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create MariaDBHealthMonitor", e);
+        }
+
         getHealthMonitor().addHealthCheck(planConfig.messageProducerHealthMonitor());
 
-        if (dbConfig.isDbMonitorEnabled()) {
-            dbConfig.startDbMonitor();
-        }
+        dbAccessConfig.startDbMonitor();
     }
 
     /**

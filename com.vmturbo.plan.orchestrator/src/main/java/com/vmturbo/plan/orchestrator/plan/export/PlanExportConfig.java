@@ -1,5 +1,8 @@
 package com.vmturbo.plan.orchestrator.plan.export;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,21 +13,22 @@ import com.vmturbo.common.protobuf.topology.PlanExportToTargetServiceGrpc;
 import com.vmturbo.common.protobuf.topology.PlanExportToTargetServiceGrpc.PlanExportToTargetServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
  * Spring configuration related to plan destinations.
  */
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, GlobalConfig.class,
+@Import({DbAccessConfig.class, GlobalConfig.class,
     PlanConfig.class, BaseKafkaProducerConfig.class, TopologyProcessorClientConfig.class})
 public class PlanExportConfig {
     @Autowired
-    private PlanOrchestratorDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
@@ -45,7 +49,15 @@ public class PlanExportConfig {
      */
     @Bean
     public PlanDestinationDao planDestinationDao() {
-        return new PlanDestinationDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
+        try {
+            return new PlanDestinationDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
+
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanDestinationDao", e);
+        }
     }
 
     /**

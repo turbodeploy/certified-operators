@@ -38,11 +38,18 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
@@ -72,18 +79,31 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.db.Plan;
+import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImplTest.TestPlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanDaoImpl.OldPlanCleanup;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test for {@link PlanProjectDaoImpl}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestPlanOrchestratorDBEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class PlanDaoImplTest {
+
+    @Autowired(required = false)
+    private TestPlanOrchestratorDBEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -96,9 +116,22 @@ public class PlanDaoImplTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("tp");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
     private static final long GENERATION_TIME = 111111111L;
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private DSLContext dsl;
 
     private Clock clock = new MutableFixedClock(10_000_000);
 
@@ -110,7 +143,7 @@ public class PlanDaoImplTest {
     private SettingServiceMole settingBackend = spy(SettingServiceMole.class);
     private SettingPolicyServiceMole settingPolicyBackend = spy(SettingPolicyServiceMole.class);
     private SearchServiceMole searchBackend = spy(SearchServiceMole.class);
-    private ScheduledExecutorService planCleanupExecutor = mock(ScheduledExecutorService.class);
+    private ScheduledExecutorService planCleanupExecutor;
 
     private RepositoryServiceBlockingStub repositoryServiceClient;
     private RepositoryServiceMole repositoryServiceMole = spy(RepositoryServiceMole.class);
@@ -133,6 +166,18 @@ public class PlanDaoImplTest {
         repositoryGrpcServer = GrpcTestServer.newServer(repositoryServiceMole);
         repositoryGrpcServer.start();
         repositoryServiceClient = RepositoryServiceGrpc.newBlockingStub(repositoryGrpcServer.getChannel());
+
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.planEndpoint());
+            dsl = dbEndpointConfig.planEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+
+        // recreating this mock every time, because tests are counting how many times we are invoking
+        // its methods. With the 2 options for FeatureFlags.POSTGRES_PRIMARY_DB, the count will be off
+        // unless we are resetting the mock every run
+        planCleanupExecutor = mock(ScheduledExecutorService.class);
 
         planDao = new PlanDaoImpl(dsl,
             grpcServer.getChannel(), SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),

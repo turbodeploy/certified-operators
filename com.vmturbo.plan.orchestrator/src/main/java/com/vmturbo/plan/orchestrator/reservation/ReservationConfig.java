@@ -1,5 +1,8 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,16 +13,17 @@ import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring Configuration for Reservation services.
  */
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, TemplatesConfig.class, BaseKafkaProducerConfig.class,
+@Import({DbAccessConfig.class, TemplatesConfig.class, BaseKafkaProducerConfig.class,
         MarketClientConfig.class})
 public class ReservationConfig {
 
@@ -30,7 +34,7 @@ public class ReservationConfig {
     private PlanConfig planConfig;
 
     @Autowired
-    private PlanOrchestratorDBConfig dbConfig;
+    private DbAccessConfig dbConfig;
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
@@ -45,9 +49,22 @@ public class ReservationConfig {
     private long delayedDeletionTimeInMillis;
 
     @Bean
+    public ReservationDao reservationDao() {
+        try {
+            return new ReservationDaoImpl(dbConfig.dsl());
+
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ReservationDao", e);
+        }
+    }
+
+    @Bean
     public ReservationRpcService reservationRpcService() {
         return new ReservationRpcService(templatesConfig.templatesDao(),
-                dbConfig.reservationDao(), reservationManager(),
+                reservationDao(), reservationManager(),
                 delayedDeletionTimeInMillis);
     }
 
@@ -79,7 +96,7 @@ public class ReservationConfig {
      */
     @Bean
     public ReservationManager reservationManager() {
-        return new ReservationManager(dbConfig.reservationDao(), reservationNotificationSender(),
+        return new ReservationManager(reservationDao(), reservationNotificationSender(),
                 initialPlacementService(), templatesConfig.templatesDao(), planConfig.planDao(),
                 planConfig.planService(), prepareReservationCache,
                 planConfig.groupServiceBlockingStub());

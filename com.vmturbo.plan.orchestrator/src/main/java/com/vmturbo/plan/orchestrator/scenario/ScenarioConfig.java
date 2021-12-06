@@ -1,5 +1,8 @@
 package com.vmturbo.plan.orchestrator.scenario;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,16 +18,17 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.plan.orchestrator.DbAccessConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, GlobalConfig.class, UserSessionConfig.class,
+@Import({DbAccessConfig.class, GlobalConfig.class, UserSessionConfig.class,
     GroupClientConfig.class, RepositoryClientConfig.class})
 public class ScenarioConfig {
     @Autowired
-    private PlanOrchestratorDBConfig databaseConfig;
+    private DbAccessConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
@@ -40,7 +44,15 @@ public class ScenarioConfig {
 
     @Bean
     public ScenarioDao scenarioDao() {
-        return new ScenarioDao(databaseConfig.dsl());
+        try {
+            return new ScenarioDao(databaseConfig.dsl());
+
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ScenarioDao", e);
+        }
     }
 
     @Bean

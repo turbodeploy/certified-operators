@@ -21,8 +21,6 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.plan.ReservationDTO;
-import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -61,9 +59,8 @@ public class TemplatesRpcTest {
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
     private DeploymentProfileDaoImpl deploymentProfileDao = mock(DeploymentProfileDaoImpl.class);
-    private ReservationDaoImpl reservationDao = mock(ReservationDaoImpl.class);
 
-    private TemplatesRpcService templatesRpcService = new TemplatesRpcService(templatesDao, deploymentProfileDao, reservationDao, 1);
+    private TemplatesRpcService templatesRpcService = new TemplatesRpcService(templatesDao, deploymentProfileDao, 1);
 
     private TemplateServiceBlockingStub templateServiceBlockingStub;
 
