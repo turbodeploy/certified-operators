@@ -666,13 +666,14 @@ public class ActionsService implements IActionsService {
     @Override
     public Map<String, ActionDetailsApiDTO> getActionDetailsByUuids(ScopeUuidsApiInputDTO inputDto)
             throws OperationFailedException, IllegalArgumentException {
-        // Use marketId field if it is set, otherwise use old deprecated topologyContextId
-        final String inputDtoTopologyContextId = Strings.isNullOrEmpty(inputDto.getMarketId())
-                ? inputDto.getTopologyContextId()
-                : Long.toString(uuidMapper.fromUuid(inputDto.getMarketId()).oid());
 
-        final List<Long> actionIds = actionSearchUtil.getInstanceIdForRecommendationIds(inputDto.getUuids(),
-                inputDtoTopologyContextId);
+        final String inputDtoTopologyContextId = Strings.isNullOrEmpty(inputDto.getMarketId()) ?
+                null :
+                Long.toString(uuidMapper.fromUuid(inputDto.getMarketId()).oid());
+
+        final List<Long> actionIds =
+                actionSearchUtil.getInstanceIdForRecommendationIds(inputDto.getUuids(),
+                    inputDtoTopologyContextId);
 
         if (actionIds.isEmpty()) {
             return Collections.emptyMap();

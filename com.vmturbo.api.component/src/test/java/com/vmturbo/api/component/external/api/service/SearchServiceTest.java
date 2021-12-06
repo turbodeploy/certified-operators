@@ -320,7 +320,7 @@ public class SearchServiceTest {
         final SearchPaginationRequest paginatedSearchRequest = getSearchPaginationRequest(10);
         searchService.getSearchResults(null,
                          Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()), null, null,
-                         null, EnvironmentType.CLOUD, null, paginatedSearchRequest, null, null, true, null, null);
+                         null, EnvironmentType.CLOUD, null, paginatedSearchRequest, null, null, null, null);
         SearchQuery searchQuery = SearchQuery.newBuilder()
                         .addSearchParameters(
                                         SearchProtoUtil
@@ -343,7 +343,7 @@ public class SearchServiceTest {
             null,
             null,
             null,
-            true, Origin.USER,  null));
+            Origin.USER,  null));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), any(), eq(EnvironmentType.ONPREM), any(), any(), eq(true), isA(Origin.class));
 
         when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), any(), eq(EnvironmentType.ONPREM), any(), any(), eq(true), eq(null))).thenReturn(paginationResponse);
@@ -358,7 +358,7 @@ public class SearchServiceTest {
                 null,
                 null,
                 null,
-                true, null,
+                null,
                 null));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), any(), eq(EnvironmentType.ONPREM), any(), any(), eq(true), eq(null));
 
@@ -377,7 +377,7 @@ public class SearchServiceTest {
             paginationRequest,
             null,
             null,
-            true, null, null));
+            null, null));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(),
                 eq(GroupType.COMPUTE_HOST_CLUSTER), any(), eq(EnvironmentType.ONPREM), any(), any(),
                 eq(false), eq(null));
@@ -420,7 +420,7 @@ public class SearchServiceTest {
                         null,
                         null,
                         null,
-                        true, Origin.USER,  null));
+                        Origin.USER,  null));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), any(), eq(EnvironmentType.ONPREM), any(), any(), eq(true), isA(Origin.class));
 
         when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), any(), eq(EnvironmentType.ONPREM), any(), any(), eq(true), eq(null))).thenReturn(paginationResponse);
@@ -435,7 +435,7 @@ public class SearchServiceTest {
                         null,
                         null,
                         null,
-                        true, null,
+                        null,
                         null));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), any(), eq(EnvironmentType.ONPREM), any(), any(), eq(true), eq(null));
     }
@@ -472,7 +472,6 @@ public class SearchServiceTest {
                 paginationRequest,
                 null,
                 null,
-                true,
                 null, null);
 
         //THEN
@@ -509,7 +508,7 @@ public class SearchServiceTest {
             for (QueryType queryType : QueryType.values()) {
                 searchService.getSearchResults(entry.getKey(), Lists.newArrayList("VirtualMachine"),
                         Lists.newArrayList("Market"), null, null, EnvironmentType.ONPREM, null,
-                                               searchPaginationRequest, null, null, true, null, queryType);
+                                               searchPaginationRequest, null, null, null, queryType);
 
                 final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
                 final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);
@@ -551,7 +550,7 @@ public class SearchServiceTest {
             for (QueryType queryType : QueryType.values()) {
                 searchService.getSearchResults(entry.getKey(), Lists.newArrayList("VirtualMachine"),
                                                Lists.newArrayList("Market"), null, null, EnvironmentType.ONPREM, null,
-                                               paginationRequest, null, null, true, null, queryType);
+                                               paginationRequest, null, null, null, queryType);
 
                 final ArgumentCaptor<SearchParameters> paramsCaptor = ArgumentCaptor.forClass(
                                 SearchParameters.class);
@@ -576,7 +575,7 @@ public class SearchServiceTest {
     public void testInvalidGetSearchResults() throws Exception {
         // Type, entity type and group type are all empty. This should throw an exception.
         searchService.getSearchResults(".*a.*", null, Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
-                null, null, null, Lists.newArrayList("probeType1"), true, null, null);
+                null, null, null, Lists.newArrayList("probeType1"), null, null);
     }
 
 
@@ -590,7 +589,7 @@ public class SearchServiceTest {
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(Collections.emptySet());
         searchService.getSearchResults(".*a.*", Lists.newArrayList("VirtualMachine"), Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
-                null, getSearchPaginationRequest(10), null, Lists.newArrayList("probeType1"), true, null, null);
+                null, getSearchPaginationRequest(10), null, Lists.newArrayList("probeType1"), null, null);
     }
 
     /**
@@ -603,7 +602,7 @@ public class SearchServiceTest {
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(Collections.emptySet());
         searchService.getSearchResults(".*a.*", Lists.newArrayList("VirtualMachine"), Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
-                                       null, getSearchPaginationRequest(null), null, Lists.newArrayList("probeType1"), true, null, null);
+                                       null, getSearchPaginationRequest(null), null, Lists.newArrayList("probeType1"), null, null);
     }
 
     @Test
@@ -676,7 +675,6 @@ public class SearchServiceTest {
                 null,
                 null,
                 null,
-                true,
                 null,
                 null));
         verify(targetsService, Mockito.never()).getTargets();
@@ -724,7 +722,7 @@ public class SearchServiceTest {
         // Act
         searchService.getSearchResults(
                         null, types, scopes, null, null, null,
-                        null, searchPaginationRequest, null, null, true, null, null);
+                        null, searchPaginationRequest, null, null, null, null);
         //Assert
 
         final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
@@ -829,7 +827,7 @@ public class SearchServiceTest {
 
         // Act
        searchService.getSearchResults(null, types, scopes, null, null, null, null,
-               paginationRequest, null,  null, true, null, null);
+               paginationRequest, null,  null, null, null);
 
         // Assert
         verify(groupsService).getPaginatedGroupApiDTOs(eq(Collections.EMPTY_LIST),
@@ -875,7 +873,7 @@ public class SearchServiceTest {
                         entityDetailType,
                         paginationRequest,
                         null,
-                        null, true, null, null);
+                        null, null, null);
 
         //THEN
         verify(req).requestAspects(entityAspectMapper, null);
@@ -983,7 +981,7 @@ public class SearchServiceTest {
                         entityDetailType,
                         getSearchPaginationRequest(10),
                         null,
-                        null, true, null, null);
+                        null, null, null);
 
         //THEN
         verify(req, times(0)).requestAspects(entityAspectMapper, null);
@@ -1004,7 +1002,7 @@ public class SearchServiceTest {
         final SearchPaginationRequest paginationReq = spy(new SearchPaginationRequest(null, null,
                 true, null));
         searchService.getSearchResults(null, types, scopes, null, null, null,
-                null, paginationReq, null, null, true, null,
+                null, paginationReq, null, null, null,
                 null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, Collections.emptyList(), paginationReq);
     }
@@ -1023,7 +1021,7 @@ public class SearchServiceTest {
         final SearchPaginationRequest paginationReq = spy(new SearchPaginationRequest(null, null, true, null));
         searchService.getSearchResults(null, Collections.singletonList(ApiEntityType.BUSINESS_ACCOUNT.apiStr()),
                 null, null, null, null, null, paginationReq,
-                null, Arrays.asList(probeType1, probeType2), true, null, null);
+                null, Arrays.asList(probeType1, probeType2), null, null);
 
         final ArgumentCaptor<List<FilterApiDTO>> filterListCaptor =
             ArgumentCaptor.forClass((Class<List<FilterApiDTO>>)(Class)List.class);
@@ -1968,7 +1966,7 @@ public class SearchServiceTest {
 
         //WHEN
         searchService.getSearchResults(null, types, null, null, null, null, null,
-                                       getSearchPaginationRequest(10), null, null, true, null, null);
+                                       getSearchPaginationRequest(10), null, null, null, null);
         //THEN
         final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
         final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);
@@ -2054,7 +2052,7 @@ public class SearchServiceTest {
 
         //WHEN
         searchService.getSearchResults(nameRegex, types, scopes, state, null, envirType, entityDetailType,
-                                       searchPaginationRequest, null, probeTypes, true, null, null);
+                                       searchPaginationRequest, null, probeTypes, null, null);
         //THEN
         final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
         final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);

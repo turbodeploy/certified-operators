@@ -1488,7 +1488,6 @@ public class ActionSpecMapper {
         }
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getOldCapacity()));
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
-        actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         // set units if available
 
         CommodityTypeMapping.getCommodityUnitsForActions(resizeInfo.getCommodityType().getType(),
@@ -1554,7 +1553,6 @@ public class ActionSpecMapper {
         }
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getOldCapacity()));
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
-        actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         // set units if available
         CommodityTypeMapping.getCommodityUnitsForActions(resize.getCommodityType().getType(), null)
                 .ifPresent(actionApiDTO::setValueUnits);
@@ -1635,7 +1633,6 @@ public class ActionSpecMapper {
             newEntity.setClassName(riApiDTO.getClassName());
             actionApiDTO.setNewEntity(newEntity);
             actionApiDTO.setNewValue(formatBuyRINewValue(riApiDTO));
-            actionApiDTO.setResizeToValue(formatBuyRINewValue(riApiDTO));
         } catch (NotFoundMatchPaymentOptionException e) {
             logger.error("Payment Option not found for RI : {}", buyRI.getBuyRiId(),  e);
         } catch (NotFoundMatchTenancyException e) {

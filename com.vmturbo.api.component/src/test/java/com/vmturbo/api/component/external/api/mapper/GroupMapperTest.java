@@ -1901,10 +1901,6 @@ public class GroupMapperTest {
         Assert.assertEquals("2", billingFamilyApiDTO.getMasterAccountUuid());
         Assert.assertEquals("Development", billingFamilyApiDTO.getDisplayName());
 
-        Assert.assertEquals(
-            ImmutableMap.of("2", "Development", "1", "Product Trust"),
-            billingFamilyApiDTO.getUuidToNameMap());
-
         Assert.assertEquals(3.25F + 2.5F, billingFamilyApiDTO.getCostPrice(), 0.0000001F);
 
         /* Member count should only consider accounts that are monitored by a probe. Accounts that
