@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -71,10 +72,10 @@ public class CostCleanupConfig {
     @Value("${histEntityRiCoverageRecordsRollingWindowDays:60}")
     private long histEntityRiCoverageRecordsRollingWindowDays;
 
-    @Value("${tableCleanup.corePoolSize:1}")
+    @Value("${tableCleanup.corePoolSize:0}")
     private int cleanupCorePoolSize;
 
-    @Value("${tableCleanup.maxPoolSize:12}")
+    @Value("${tableCleanup.maxPoolSize:0}")
     private int cleanupMaxPoolSize;
 
     @Value("${tableCleanup.threadKeepAliveMins:1}")
@@ -83,7 +84,7 @@ public class CostCleanupConfig {
     @Value("${tableCleanup.executorQueueSize:10}")
     private int cleanupExecutorQueueSize;
 
-    @Value("${tableCleanup.taskSchedulerPoolSize:5}")
+    @Value("${tableCleanup.taskSchedulerPoolSize:0}")
     private int taskSchedulerPoolSize;
 
     @Value("${tableCleanup.cleanupIntervalSeconds:3600}")
@@ -144,12 +145,22 @@ public class CostCleanupConfig {
     /**
      * The cleanup executor service.
      *
+     * @param tableCleanups The table cleanup configurations.
      * @return The cleanup executor service.
      */
     @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService cleanupExecutorService() {
-        return new ThreadPoolExecutor(cleanupCorePoolSize,
-                cleanupMaxPoolSize,
+    public ExecutorService cleanupExecutorService(@Nonnull List<CostTableCleanup> tableCleanups) {
+
+
+        final int corePoolSize = cleanupCorePoolSize > 0
+                ? cleanupCorePoolSize
+                : Math.max(tableCleanups.size(), 1);
+        final int maxPoolSize = cleanupMaxPoolSize > 0
+                ? cleanupMaxPoolSize
+                : corePoolSize;
+
+        return new ThreadPoolExecutor(corePoolSize,
+                maxPoolSize,
                 cleanupThreadKeepAliveMins,
                 TimeUnit.MINUTES,
                 new ArrayBlockingQueue<>(cleanupExecutorQueueSize),
@@ -162,16 +173,20 @@ public class CostCleanupConfig {
 
     /**
      * The {@link CostTableCleanupManager}.
+     * @param cleanupWorkerFactory The cleanup worker factory.
+     * @param cleanupManagerScheduler The cleanup manager scheduler.
      * @param tableCleanups The table cleanups.
      * @return The {@link CostTableCleanupManager}.
      */
     @Lazy(false)
     @Bean
-    public CostTableCleanupManager cleanupManager(@Nonnull List<CostTableCleanup> tableCleanups) {
+    public CostTableCleanupManager cleanupManager(@Nonnull TableCleanupWorkerFactory cleanupWorkerFactory,
+                                                  @Nonnull @Qualifier("cleanupManagerScheduler") TaskScheduler cleanupManagerScheduler,
+                                                  @Nonnull List<CostTableCleanup> tableCleanups) {
 
         return new CostTableCleanupManager(
-                tableCleanupWorkerFactory(),
-                taskScheduler(),
+                cleanupWorkerFactory,
+                cleanupManagerScheduler,
                 tableCleanups);
     }
 
@@ -192,10 +207,14 @@ public class CostCleanupConfig {
 
     /**
      * The {@link TableCleanupWorkerFactory}.
+     * @param cleanupExecutorService The cleanup trimmer task executor.
      * @return The {@link TableCleanupWorkerFactory}.
      */
-    public TableCleanupWorkerFactory tableCleanupWorkerFactory() {
-        return new TableCleanupWorkerFactory(cleanupExecutorService());
+    @Bean
+    public TableCleanupWorkerFactory tableCleanupWorkerFactory(
+            @Nonnull @Qualifier("cleanupExecutorService") ExecutorService cleanupExecutorService) {
+
+        return new TableCleanupWorkerFactory(cleanupExecutorService);
     }
 
     /**
@@ -467,12 +486,19 @@ public class CostCleanupConfig {
     /**
      * Create a {@link TaskScheduler} to use in periodically
      * cleaning up cost stats table.
+     *
+     * @param tableCleanups The table cleanup configurations.
      * @return a {@link TaskScheduler} to use for cluster stats rollups
      */
     @Bean(destroyMethod = "shutdown")
-    protected ThreadPoolTaskScheduler taskScheduler() {
+    protected ThreadPoolTaskScheduler cleanupManagerScheduler(@Nonnull List<CostTableCleanup> tableCleanups) {
+
+        final int poolSize = taskSchedulerPoolSize > 0
+                ? taskSchedulerPoolSize
+                : Math.max(tableCleanups.size(), 1);
+
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(taskSchedulerPoolSize);
+        scheduler.setPoolSize(poolSize);
         scheduler.setThreadFactory(threadFactory());
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
         scheduler.initialize();
