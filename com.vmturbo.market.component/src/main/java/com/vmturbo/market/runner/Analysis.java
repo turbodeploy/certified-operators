@@ -567,10 +567,6 @@ public class Analysis {
             reservedCapacityResults = ReservedCapacityResults.EMPTY;
         }
 
-        //Execute ReconfigureActionAnalysis
-
-        List<Action> reconfigurationActions = this.externalReconfigureActionEngine.execute(topologyDTOs);
-
         ConvertedTopology convertedTopology = ConvertedTopology.EMPTY;
         if (isM2AnalysisEnabled) {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
@@ -903,6 +899,10 @@ public class Analysis {
                     // to support multiple analyses for the same topology ID
                     actionPlanBuilder.addAllAction(wastedFilesAnalysis.getActions());
                     actionPlanBuilder.addAllAction(reservedCapacityResults.getActions());
+
+                    //Execute ReconfigureActionAnalysis, need to consider existing actions to avoid duplicates.
+                    List<Action> reconfigurationActions = this.externalReconfigureActionEngine.execute(topologyDTOs, actions);
+
                     actionPlanBuilder.addAllAction(reconfigurationActions);
                     logger.info(logPrefix + "Completed successfully");
                     processResultTime.observe();
