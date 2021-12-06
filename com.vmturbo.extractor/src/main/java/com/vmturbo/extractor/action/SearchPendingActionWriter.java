@@ -205,7 +205,7 @@ class SearchPendingActionWriter implements IActionWriter {
         // calculate related entities for ARM entities first
         // TODO (OM-63758): maybe only calculate the supply chains from the top ARM entities
         timer.start("Calculate related entities for ARM entities");
-        InvolvedEntityExpansionUtil.EXPANSION_REQUIRED_ENTITY_TYPES.forEach(type -> {
+        InvolvedEntityExpansionUtil.ENTITY_WITH_EXPAND_ENTITY_SET_MAP.keySet().forEach(type -> {
             topologyGraph.entitiesOfType(type).parallel().forEach(entity ->
                     SupplyChainFetcher.calculateFullSupplyChain(entity, topologyGraph, syncEntityToRelated));
         });
@@ -269,7 +269,7 @@ class SearchPendingActionWriter implements IActionWriter {
         // check if we need to expand to related types
         final Set<Integer> expandedEntityTypes;
         if (InvolvedEntityExpansionUtil.expansionRequiredEntityType(entityType)) {
-            expandedEntityTypes = InvolvedEntityExpansionUtil.EXPANSION_ALL_ENTITY_TYPES;
+            expandedEntityTypes = InvolvedEntityExpansionUtil.ENTITY_WITH_EXPAND_ENTITY_SET_MAP.get(entityType);
         } else {
             expandedEntityTypes = ApiEntityType.PROTO_ENTITY_TYPES_TO_EXPAND.getOrDefault(
                     entityType, Collections.emptySet());

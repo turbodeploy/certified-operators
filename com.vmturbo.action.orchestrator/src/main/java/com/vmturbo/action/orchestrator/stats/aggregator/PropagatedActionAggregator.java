@@ -1,7 +1,7 @@
 package com.vmturbo.action.orchestrator.stats.aggregator;
 
 import static com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID;
-import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.EXPANSION_REQUIRED_ENTITY_TYPES;
+import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.ENTITY_WITH_EXPAND_ENTITY_SET_MAP;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -57,7 +57,7 @@ public class PropagatedActionAggregator extends ActionAggregatorFactory.ActionAg
         final ActionEntity primaryEntity = action.primaryEntity();
         final boolean isNewAction = actionIsNew(action, previousBroadcastActions);
 
-        EXPANSION_REQUIRED_ENTITY_TYPES.forEach(propagatedEntityType -> {
+        ENTITY_WITH_EXPAND_ENTITY_SET_MAP.keySet().forEach(propagatedEntityType -> {
             if (involvedEntitiesExpander.shouldPropagateAction(primaryEntity.getId(), Collections.singleton(propagatedEntityType))) {
                 // If at least one action entity should propagate actions then create an action stats record
                 // for propagated entity types.
