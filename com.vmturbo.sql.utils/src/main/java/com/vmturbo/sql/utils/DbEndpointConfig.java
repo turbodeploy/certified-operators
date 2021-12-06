@@ -184,7 +184,7 @@ public class DbEndpointConfig {
         return endpointEnabled;
     }
 
-    public boolean isEndpoinEnabled() {
+    public boolean isEndpointEnabled() {
         // resolved endpoints will always have non-null enablement, so this should
         // never result in a false "false"
         return endpointEnabled != null ? endpointEnabled : false;
