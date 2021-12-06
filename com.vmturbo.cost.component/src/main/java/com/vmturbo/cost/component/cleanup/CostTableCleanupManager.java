@@ -11,7 +11,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Table;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.TaskScheduler;
 
 import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableCleanupInfo;
 import com.vmturbo.cost.component.cleanup.TableCleanupWorker.TableCleanupWorkerFactory;
@@ -24,7 +24,7 @@ public class CostTableCleanupManager {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ThreadPoolTaskScheduler workerScheduler;
+    private final TaskScheduler workerScheduler;
 
     private final Map<Table<?>, TableCleanupWorker> cleanupWorkerMap;
 
@@ -35,7 +35,7 @@ public class CostTableCleanupManager {
      * @param tableCleanups The table cleanups.
      */
     public CostTableCleanupManager(@Nonnull TableCleanupWorkerFactory cleanupWorkerFactory,
-                                   @Nonnull ThreadPoolTaskScheduler workerScheduler,
+                                   @Nonnull TaskScheduler workerScheduler,
                                    @Nonnull final List<CostTableCleanup> tableCleanups) {
 
         this.workerScheduler = Objects.requireNonNull(workerScheduler);

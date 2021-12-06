@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.logging.log4j.LogManager;
@@ -102,12 +103,17 @@ public class TableCleanupWorker {
 
         final TableTrimTask trimTask = TableTrimTask.create(tableCleanup);
         final Future<Boolean> trimTaskFuture = taskExecutorService.submit(trimTask);
+        final Stopwatch taskTimer = Stopwatch.createStarted();
 
         while (true) {
             try {
                 return trimTaskFuture.get(cleanupInfo.longRunningDuration().toMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
+
                 isLongRunning.set(true);
+                logger.warn("Cleanup task for '{}' is long running (Duration={})",
+                        cleanupInfo.shortTableName(), taskTimer);
+
             } catch (Exception e) {
                 logger.warn("Clean task for '{}' threw an exception", cleanupInfo.shortTableName(), e);
                 return false;
