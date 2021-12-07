@@ -15,6 +15,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -641,7 +643,11 @@ public class SavingsCalculatorTest {
         JsonReader reader = new JsonReader(new FileReader(eventFileName));
         List<ScriptEvent> events = Arrays.asList(gson.fromJson(reader, ScriptEvent[].class));
         AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
-        events.forEach(event -> EventInjector.addEvent(event, entityEventsJournal,
+        Map<String, Long> oidMap = events.stream()
+                .map(event -> event.uuid)
+                .collect(Collectors.toSet()).stream()
+                .collect(Collectors.toMap(Function.identity(), Long::valueOf));
+        events.forEach(event -> EventInjector.addEvent(event, oidMap, entityEventsJournal,
                 purgePreviousTestState));
     }
 
