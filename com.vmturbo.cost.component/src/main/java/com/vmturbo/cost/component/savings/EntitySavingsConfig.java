@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
@@ -317,6 +318,9 @@ public class EntitySavingsConfig {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
+    @Autowired
+    private SearchServiceBlockingStub searchServiceBlockingStub;
+
     /**
      * Gets access to events store.
      *
@@ -335,7 +339,8 @@ public class EntitySavingsConfig {
     @Bean
     public EventInjector eventInjector() {
         EventInjector injector = new EventInjector(entitySavingsTracker(), entitySavingsProcessor(),
-                entityEventsJournal(), getEntitySavingsRetentionConfig());
+                entityEventsJournal(), getEntitySavingsRetentionConfig(),
+                searchServiceBlockingStub);
         injector.start();
         return injector;
     }

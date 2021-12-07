@@ -16,21 +16,40 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
@@ -76,13 +95,18 @@ public class EventInjector implements Runnable {
     private final EntitySavingsRetentionConfig entitySavingsRetentionConfig;
 
     /**
+     * Search service client, used for name to OID resolution.
+     */
+    private final SearchServiceBlockingStub searchServiceStub;
+
+    /**
      * Event format passed between the data generator and the event injector.
      */
     public static class ScriptEvent {
         long timestamp;
         long expirationTimestamp;
         String eventType;
-        long uuid;
+        String uuid;
         boolean state;
         double destTier;
         double sourceTier;
@@ -104,14 +128,17 @@ public class EventInjector implements Runnable {
      * @param entitySavingsProcessor savings processor
      * @param entityEventsJournal events journal to populate.
      * @param entitySavingsRetentionConfig savings action retention configuration.
+     * @param searchServiceStub search service client
      */
     EventInjector(EntitySavingsTracker entitySavingsTracker,
             EntitySavingsProcessor entitySavingsProcessor, EntityEventsJournal entityEventsJournal,
-            @Nonnull final EntitySavingsRetentionConfig entitySavingsRetentionConfig) {
+            @Nonnull final EntitySavingsRetentionConfig entitySavingsRetentionConfig,
+            SearchServiceBlockingStub searchServiceStub) {
         this.entitySavingsTracker = entitySavingsTracker;
         this.entitySavingsProcessor = entitySavingsProcessor;
         this.entityEventsJournal = entityEventsJournal;
         this.entitySavingsRetentionConfig = entitySavingsRetentionConfig;
+        this.searchServiceStub = searchServiceStub;
     }
 
 
@@ -121,7 +148,7 @@ public class EventInjector implements Runnable {
     public void start() {
         (new Thread(new EventInjector(entitySavingsTracker, entitySavingsProcessor,
                 entityEventsJournal,
-                entitySavingsRetentionConfig))).start();
+                entitySavingsRetentionConfig, searchServiceStub))).start();
     }
 
     /**
@@ -188,10 +215,14 @@ public class EventInjector implements Runnable {
         JsonReader reader;
         List<ScriptEvent> events = new ArrayList<>();
         AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
+        @Nonnull Map<String, Long> uuidMap = new HashMap<>();
         try {
             reader = new JsonReader(new FileReader(SCRIPT_FILE));
             events = Arrays.asList(gson.fromJson(reader, ScriptEvent[].class));
-            events.forEach(event -> addEvent(event, entityEventsJournal, purgePreviousTestState));
+            uuidMap = resolveEntities(events);
+            for (ScriptEvent event : events) {
+                addEvent(event, uuidMap, entityEventsJournal, purgePreviousTestState);
+            }
         } catch (FileNotFoundException e) {
             logger.error("Cannot inject events: {}", e.toString());
         } finally {
@@ -205,11 +236,10 @@ public class EventInjector implements Runnable {
         for (ScriptEvent event : events) {
             earliestEventTime = Math.min(earliestEventTime, event.timestamp);
             latestEventTime = Math.max(latestEventTime, event.timestamp);
-            if (event.uuid != 0L) {
-                participatingUuids.add(event.uuid);
+            if (uuidIsValid(event.uuid)) {
+                participatingUuids.add(uuidMap.get(event.uuid));
             }
         }
-
         if (earliestEventTime > latestEventTime) {
             logger.warn("No events in script file - not running savings tracker");
             return;
@@ -220,6 +250,84 @@ public class EventInjector implements Runnable {
             entitySavingsTracker.purgeState(participatingUuids);
         }
         entitySavingsTracker.processEvents(startTime, endTime, participatingUuids);
+    }
+
+    /**
+     * Return whether a UUID is valid.  Valid UUIDs are non-null, not empty, and not "0".
+     *
+     * @param uuid uuid to check
+     * @return true if the event's UUID is valid.
+     */
+    private static boolean uuidIsValid(@Nullable String uuid) {
+        return uuid != null && !uuid.isEmpty() && !uuid.equals("0");
+    }
+
+    @Nonnull
+    private Map<String, Long> resolveEntities(List<ScriptEvent> events) {
+        SearchQuery.Builder searchQueryBuilder = SearchQuery.newBuilder()
+                .setLogicalOperator(LogicalOperator.OR);
+        Set<String> entityNames = events.stream()
+                .map(e -> e.uuid)
+                // If the event is not associated with an entity, skip it.
+                .filter(EventInjector::uuidIsValid)
+                .collect(Collectors.toSet());
+        for (String entityName : entityNames) {
+            SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder();
+
+            // Starting filter
+            List<String> entityTypes = ImmutableList.of(
+                    "VirtualMachine",
+                    "VirtualVolume",
+                    "Database",
+                    "DatabaseServer");
+            PropertyFilter propertyFilter = SearchProtoUtil.entityTypeFilter(entityTypes);
+            parametersBuilder.setStartingFilter(propertyFilter);
+
+            // Search filter
+            propertyFilter = SearchProtoUtil.stringPropertyFilterRegex("displayName", entityName);
+            SearchFilter searchFilter = SearchProtoUtil.searchFilterProperty(propertyFilter);
+            parametersBuilder.addSearchFilter(searchFilter);
+            searchQueryBuilder.addSearchParameters(parametersBuilder);
+        }
+        Search.SearchEntitiesRequest searchRequest = SearchEntitiesRequest.newBuilder()
+                .setSearch(searchQueryBuilder)
+                .setReturnType(Type.MINIMAL)
+                .build();
+        SearchEntitiesResponse rsp = searchServiceStub.searchEntities(searchRequest);
+        Map<String, Long> resolvedEntities = new Hashtable<>();
+        Map<String, Long> results = new Hashtable<>();
+        if (rsp != null && rsp.getEntitiesList() != null) {
+            for (PartialEntity partialEntity : rsp.getEntitiesList()) {
+                MinimalEntity entity = partialEntity.getMinimal();
+                resolvedEntities.put(entity.getDisplayName(), entity.getOid());
+            }
+        }
+        // For any unresolved entity name, use a dummy OID base on the name as the resolved OID
+        for (String entityName : entityNames) {
+            Long oid = resolvedEntities.get(entityName);
+            if (oid == null) {
+                oid = makeDummyOid(entityName);
+                logger.warn("Cannot determine OID for entity {} - using dummy OID {}",
+                        entityName, oid);
+            }
+            results.put(entityName, oid);
+        }
+        return results;
+    }
+
+    /**
+     * Create a dummy OID for entities that are not resolvable.
+     *
+     * @param entityName entity display name
+     * @return dummy OID.  If the entity name can be parsed as a long, then that is returned, else
+     * the hash code of the name is returned.
+     */
+    private static long makeDummyOid(String entityName) {
+        try {
+            return Long.valueOf(entityName);
+        } catch (NumberFormatException e) {
+            return entityName.hashCode();
+        }
     }
 
     @VisibleForTesting
@@ -238,15 +346,16 @@ public class EventInjector implements Runnable {
     /**
      * Convert a script event to a SavingsEvent and add it to the journal.
      * @param event event generated by the script
+     * @param oidMap map from entity name to resolved OID
      * @param entityEventsJournal event journal to populate
      * @param purgePreviousTestState true if the stats and entity for the entities in the UUID list
-     *          should be deleted before processing the events.
      */
-     public static void addEvent(ScriptEvent event, EntityEventsJournal entityEventsJournal,
-             AtomicBoolean purgePreviousTestState) {
+     public static void addEvent(ScriptEvent event, @Nonnull Map<String, Long> oidMap,
+             EntityEventsJournal entityEventsJournal, AtomicBoolean purgePreviousTestState) {
         logger.debug("Adding event: " + event);
+        Long uuid = oidMap.getOrDefault(event.uuid, 0L);
         Builder result = new SavingsEvent.Builder()
-                .entityId(event.uuid)
+                .entityId(uuid)
                 .timestamp(event.timestamp)
                 .expirationTime(event.expirationTimestamp);
          if ("RECOMMENDATION_ADDED".equals(event.eventType)) {
@@ -257,7 +366,7 @@ public class EventInjector implements Runnable {
                     .destinationOid((long)event.destTier)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
-                    .actionId(event.uuid)
+                    .actionId(uuid)
                     .eventType(ActionEventType.RECOMMENDATION_ADDED)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
@@ -268,7 +377,7 @@ public class EventInjector implements Runnable {
                     .destinationOid(0L)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
-                    .actionId(event.uuid)
+                    .actionId(uuid)
                     .eventType(ActionEventType.RECOMMENDATION_REMOVED)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(dummyPriceChange);
@@ -291,7 +400,7 @@ public class EventInjector implements Runnable {
                     .destinationOid((long)event.destTier)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
-                    .actionId(event.uuid)
+                    .actionId(uuid)
                     .eventType(ActionEventType.SCALE_EXECUTION_SUCCESS)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
@@ -303,7 +412,7 @@ public class EventInjector implements Runnable {
                     .destinationOid((long)event.destTier)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
-                    .actionId(event.uuid)
+                    .actionId(uuid)
                     .eventType(ActionEventType.DELETE_EXECUTION_SUCCESS)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
