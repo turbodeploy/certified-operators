@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -23,6 +25,8 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.CostProtoUtil;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
@@ -31,6 +35,10 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCl
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsResponse;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentCoverageStatsRequest;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsRequest;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse.CloudCommitmentUtilizationRecord;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudCommitmentFilter;
@@ -47,7 +55,7 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
     private static final Set<String> SUPPORTED_STATS =
             ImmutableSet.of(StringConstants.CLOUD_COMMITMENT_UTILIZATION, StringConstants.CLOUD_COMMITMENT_COVERAGE);
 
-    private CloudCommitmentStatsServiceBlockingStub cloudCommitmentStatsServiceGrpc;
+    private final CloudCommitmentStatsServiceBlockingStub cloudCommitmentStatsServiceGrpc;
 
     /**
      * Constructor for the CloudCommitmentsStatsSubQuery.
@@ -76,13 +84,31 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
             throws OperationFailedException, InterruptedException, ConversionException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
         if (containsStat(StringConstants.CLOUD_COMMITMENT_UTILIZATION, stats)) {
-            Iterator<GetHistoricalCloudCommitmentUtilizationResponse> responseIterator = cloudCommitmentStatsServiceGrpc.getHistoricalCommitmentUtilization(createHistoricalUtilizationRequest(context));
+            final Iterator<GetHistoricalCloudCommitmentUtilizationResponse> responseIterator =
+                    cloudCommitmentStatsServiceGrpc.getHistoricalCommitmentUtilization(createHistoricalUtilizationRequest(context));
             while (responseIterator.hasNext()) {
                 GetHistoricalCloudCommitmentUtilizationResponse response = responseIterator.next();
                 List<CloudCommitmentStatRecord> statResponse = response.getCommitmentStatRecordChunkList();
                 snapshots.addAll(convertCloudCommitmentStatRecordsToStatsDTO(statResponse,
                         StringConstants.CLOUD_COMMITMENT_UTILIZATION));
             }
+            final List<TopologyType> types = new ArrayList<>();
+            if (context.includeCurrent()) {
+                types.add(TopologyType.TOPOLOGY_TYPE_SOURCE);
+            }
+            if (context.requestProjected()) {
+                types.add(TopologyType.TOPOLOGY_TYPE_PROJECTED);
+            }
+            types.forEach(topologyType -> {
+                final GetTopologyCommitmentUtilizationStatsRequest request =
+                        GetTopologyCommitmentUtilizationStatsRequest.newBuilder()
+                                .setTopologyType(topologyType).build();
+                cloudCommitmentStatsServiceGrpc.getTopologyCommitmentUtilization(request)
+                        .forEachRemaining(response ->
+                                response.getCommitmentUtilizationRecordChunkList().forEach(chunk ->
+                                        snapshots.add(makeUtilizationSnapshot(topologyType, chunk))));
+            });
+
         }
         if (containsStat(StringConstants.CLOUD_COMMITMENT_COVERAGE, stats)) {
             Iterator<GetHistoricalCommitmentCoverageStatsResponse> responseIterator = cloudCommitmentStatsServiceGrpc
@@ -93,8 +119,85 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
                 snapshots.addAll(convertCloudCommitmentStatRecordsToStatsDTO(statResponse,
                         StringConstants.CLOUD_COMMITMENT_COVERAGE));
             }
+            final List<TopologyType> types = new ArrayList<>();
+            if (context.includeCurrent()) {
+                types.add(TopologyType.TOPOLOGY_TYPE_SOURCE);
+            }
+            if (context.requestProjected()) {
+                types.add(TopologyType.TOPOLOGY_TYPE_PROJECTED);
+            }
+            types.forEach(topologyType -> {
+                final GetTopologyCommitmentCoverageStatsRequest request =
+                        GetTopologyCommitmentCoverageStatsRequest.newBuilder()
+                                .setTopologyType(topologyType)
+                                .build();
+                cloudCommitmentStatsServiceGrpc.getTopologyCommitmentCoverage(request)
+                        .forEachRemaining(response ->
+                                response.getCommitmentCoverageStatChunkList().forEach(chunk -> {
+                                    final StatApiDTO stat = makeInnerStat(chunk.getCapacity(), chunk.getUsed());
+                                    stat.setName(StringConstants.CLOUD_COMMITMENT_COVERAGE);
+                                    snapshots.add(makeTopologySnapshot(topologyType, stat));
+                                })
+                        );
+            });
         }
         return snapshots;
+    }
+
+    private StatSnapshotApiDTO makeUtilizationSnapshot(TopologyType topologyType, CloudCommitmentUtilizationRecord chunk) {
+        final StatApiDTO stat = makeInnerStat(chunk.getUtilization().getCapacity(), chunk.getUtilization().getUsed());
+        stat.setName(StringConstants.CLOUD_COMMITMENT_UTILIZATION);
+        if (chunk.hasCommitmentOid()) {
+            final BaseApiDTO relatedCloudCommitment = new BaseApiDTO();
+            relatedCloudCommitment.setUuid(String.valueOf(chunk.getCommitmentOid()));
+            relatedCloudCommitment.setClassName(StringConstants.CLOUD_COMMITMENT);
+            stat.setRelatedEntityType(StringConstants.CLOUD_COMMITMENT);
+            stat.setRelatedEntity(relatedCloudCommitment);
+        }
+        stat.setReserved(extractStatValue(chunk.getUtilization().getOverhead()));
+        return makeTopologySnapshot(topologyType, stat);
+    }
+
+    private StatSnapshotApiDTO makeTopologySnapshot(@Nonnull TopologyType topologyType, StatApiDTO innerStat) {
+        final StatSnapshotApiDTO result = new StatSnapshotApiDTO();
+        if (topologyType == TopologyType.TOPOLOGY_TYPE_SOURCE) {
+            result.setEpoch(Epoch.CURRENT);
+        }
+        if (topologyType == TopologyType.TOPOLOGY_TYPE_PROJECTED) {
+            result.setEpoch(Epoch.PROJECTED);
+        }
+        result.setStatistics(Collections.singletonList(innerStat));
+        return result;
+    }
+
+    private StatValueApiDTO extractStatValue(CloudCommitmentAmount amount) {
+        final StatValueApiDTO result = new StatValueApiDTO();
+        if (amount.hasAmount()) {
+            float value = (float)amount.getAmount().getAmount();
+            result.setAvg(value);
+            result.setTotal(value);
+            result.setMin(value);
+            result.setMax(value);
+        } else if (amount.hasCoupons()) {
+            float value = (float)amount.getCoupons();
+            result.setAvg(value);
+            result.setTotal(value);
+            result.setMin(value);
+            result.setMax(value);
+        }
+        return result;
+    }
+
+    private StatApiDTO makeInnerStat(CloudCommitmentAmount capacity, CloudCommitmentAmount used) {
+        final StatApiDTO stat = new StatApiDTO();
+        if (capacity.hasAmount()) {
+            stat.setUnits(CostProtoUtil.getCurrencyUnit(capacity.getAmount()));
+        } else if (capacity.hasCoupons()) {
+            stat.setUnits(StringConstants.NUMBER_OF_COUPONS);
+        }
+        stat.setCapacity(extractStatValue(capacity));
+        stat.setValues(extractStatValue(used));
+        return stat;
     }
 
     @Nonnull

@@ -14,9 +14,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -30,8 +27,6 @@ import com.vmturbo.platform.sdk.common.PricingDTO.Price;
  * Utility methods for protobuf messages in Cost.proto.
  */
 public class CostProtoUtil {
-
-    private static final Logger logger = LogManager.getLogger();
 
     public static final int DAYS_IN_YEAR = 365;
 
@@ -73,7 +68,7 @@ public class CostProtoUtil {
      */
     public static long timeUnitsInTerm(@Nonnull final ReservedInstanceType riType,
                                        @Nonnull final TimeUnit timeUnit) {
-        return timeUnit.convert(riType.getTermYears() * DAYS_IN_YEAR, TimeUnit.DAYS);
+        return timeUnit.convert((long)riType.getTermYears() * DAYS_IN_YEAR, TimeUnit.DAYS);
     }
 
     /**
@@ -170,13 +165,12 @@ public class CostProtoUtil {
      */
     public static double getUnitPriceAmount(@Nonnull final Price.Unit unit, final double hourlyPrice) {
         switch (unit) {
-            case HOURS:
-                return hourlyPrice;
             case DAYS:
                 return hourlyPrice * HOURS_IN_DAY;
             case MONTH: case MILLION_IOPS: case GB_MONTH:
                 return hourlyPrice * HOURS_IN_MONTH;
             case TOTAL:
+            case HOURS:
                 return hourlyPrice;
             default:
                 throw new IllegalArgumentException("Unhandled unit: " + unit);
