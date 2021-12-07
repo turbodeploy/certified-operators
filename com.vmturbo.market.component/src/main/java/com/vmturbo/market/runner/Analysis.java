@@ -601,7 +601,7 @@ public class Analysis {
 
                 processResultTime = RESULT_PROCESSING.labels(contextType).startTimer();
 
-                if (topologyInfo.getTopologyType() == TopologyType.REALTIME || !stopAnalysis) {
+                if (!stopAnalysis) {
                     if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                         commodityIdUpdater.updateReplayActions(
                             this, converter.getCommodityConverter().getCommTypeAllocator());
@@ -672,6 +672,9 @@ public class Analysis {
                         logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                             "Analysis execute", e.getMessage(), e);
                     }
+                } else {
+                    logger.info(logPrefix + " Analysis Stopped");
+                    state = AnalysisState.FAILED;
                 }
             } catch (RuntimeException e) {
                 logger.error(logPrefix + e + " Runtime exception while running M2 analysis", e);
@@ -689,7 +692,7 @@ public class Analysis {
 
         try {
             CloudTopology<TopologyEntityDTO> projectedCloudTopology = null;
-            if (topologyInfo.getTopologyType() == TopologyType.REALTIME || !stopAnalysis) {
+            if (!stopAnalysis) {
                 if (!isM2AnalysisEnabled && isBuyRIImpactAnalysis) {
                     processResultTime = RESULT_PROCESSING.labels(contextType).startTimer();
                 }
@@ -910,25 +913,16 @@ public class Analysis {
                     List<Action> reconfigurationActions = this.externalReconfigureActionEngine.execute(topologyDTOs, actions);
 
                     actionPlanBuilder.addAllAction(reconfigurationActions);
-                    completionTime = clock.instant();
+                    logger.info(logPrefix + "Completed successfully");
                     processResultTime.observe();
+                    state = AnalysisState.SUCCEEDED;
+                    completionTime = clock.instant();
                     actionPlan = actionPlanBuilder.setAnalysisCompleteTimestamp(completionTime.toEpochMilli())
-                            .build();
-
-                    // mark RT analysis as completed or stopped
-                    if (!stopAnalysis) {
-                        logger.info(logPrefix + "Completed successfully");
-                        state = AnalysisState.SUCCEEDED;
-                    } else {
-                        logger.info(logPrefix + "Analysis Stopped");
-                        state = AnalysisState.FAILED;
-                    }
+                        .build();
                 }
             } else {
-                // plan analysis stopped
-                logger.info(logPrefix + "Plan Analysis Stopped");
+                logger.info(logPrefix + " Analysis Stopped");
                 processResultTime.observe();
-                completionTime = clock.instant();
                 state = AnalysisState.FAILED;
             }
         } catch (RuntimeException e) {

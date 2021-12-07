@@ -150,7 +150,7 @@ public class MarketRunnerTest {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
         runner = new MarketRunner(threadPool, serverApi,
-            analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementFinder, 10000);
+            analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementFinder);
 
         topologyContextId += 100;
 

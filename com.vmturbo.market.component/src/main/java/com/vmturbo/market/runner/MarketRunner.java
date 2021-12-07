@@ -7,9 +7,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
@@ -35,14 +32,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.PlacementProblem;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
@@ -78,8 +73,6 @@ public class MarketRunner {
 
     private final Set<Long> analysisStoppageSet = Sets.newConcurrentHashSet();
 
-    private final long rtAnalysisTimeoutSecs;
-
     private static final DataMetricHistogram INPUT_TOPOLOGY = DataMetricHistogram.builder()
             .withName("mkt_input_topology")
             .withHelp("Size of the topology to analyze.")
@@ -94,15 +87,13 @@ public class MarketRunner {
                         @Nonnull final AnalysisFactory analysisFactory,
                         @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
                         final TopologyProcessingGate topologyProcessingGate,
-                        @Nonnull final InitialPlacementFinder initialPlacementFinder,
-                        final long rtAnalysisTimeoutSecs) {
+                        @Nonnull final InitialPlacementFinder initialPlacementFinder) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
         this.serverApi = Objects.requireNonNull(serverApi);
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
         this.analysisFactory = Objects.requireNonNull(analysisFactory);
         this.topologyProcessingGate = Objects.requireNonNull(topologyProcessingGate);
         this.initialPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
-        this.rtAnalysisTimeoutSecs = rtAnalysisTimeoutSecs;
     }
 
     /**
@@ -260,31 +251,6 @@ public class MarketRunner {
     }
 
     /**
-     * Schedule a call to stop Analysis of a plan with a specific configuration.
-     *
-     * @param contextID The context id of RT topologies.
-     * @param topologyId The id of the RT topology to stop.
-     */
-    private void stopRTAnalysis(final long contextID, long topologyId) throws InterruptedException {
-        synchronized (analysisMap) {
-            if (analysisMap.containsKey(contextID)) {
-                Analysis analysis = analysisMap.get(contextID);
-                if (analysis.getTopologyId() == topologyId) {
-                    // call stopAnalysis that sets the forceStop boolean to true
-                    logger.info("Performing forceStop on real time analysis with id {}.", topologyId);
-                    analysis.cancelAnalysis();
-                } else {
-                    logger.info("Real time with id {} already completed. "
-                            + "Returning without triggering forcestop.", topologyId);
-                }
-            } else {
-                logger.info("Real time with context {} already completed. "
-                        + "Returning without triggering forcestop.", contextID);
-            }
-        }
-    }
-
-    /**
      * Run the analysis, when done - remove it from the map of runs and notify listeners.
      *
      * <P>AnalysisStatusNotification is for RunTime exceptions. Actions/Projected entity/topology creation,
@@ -296,17 +262,6 @@ public class MarketRunner {
         boolean isPlan = analysis.getTopologyInfo().hasPlanInfo();
         long startTime = 0;
         if (!isPlan) {
-            if (FeatureFlags.ENABLE_ANALYSIS_TIMEOUT.isEnabled()) {
-                ScheduledExecutorService timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
-                logger.info("Scheduling forcestop for analysis {}", analysis.getTopologyId());
-                timeoutScheduler.schedule(() -> {
-                    try {
-                        stopRTAnalysis(analysis.getContextId(), analysis.getTopologyId());
-                    } catch (InterruptedException e) {
-                        logger.error("Could not send market notifications due to a potential timeout.", e);
-                    }
-                }, rtAnalysisTimeoutSecs, TimeUnit.SECONDS);
-            }
             // Set replay actions from last succeeded market cycle.
             analysis.setReplayActions(realtimeReplayActions);
         } else {
@@ -326,11 +281,7 @@ public class MarketRunner {
                     debugService.recordCompletedAnalysis(analysis);
                 });
 
-                // create ActionPlan for successful plan, successful RT and also for stopped RT.
-                if (analysis.getState() == AnalysisState.SUCCEEDED ||
-                    // create ActionPlan for stopped RT analysis
-                    (analysis.getTopologyInfo().getTopologyType() == TopologyType.REALTIME
-                            && analysis.isStopAnalysis())) {
+                if (analysis.getState() == AnalysisState.SUCCEEDED) {
                     // if this was a plan topology, broadcast the plan analysis topology
                     if (!isPlan) {
                         // Update replay actions to contain actions from most recent analysis.
