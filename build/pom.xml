@@ -316,6 +316,7 @@
             <modules>
                 <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.repository.api</module>
+                <module>../com.vmturbo.sql.utils</module>
                 <module>../com.vmturbo.repository.component</module>
             </modules>
         </profile>

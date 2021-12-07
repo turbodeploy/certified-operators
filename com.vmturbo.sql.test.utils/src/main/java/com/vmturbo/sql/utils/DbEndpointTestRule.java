@@ -136,7 +136,6 @@ public class DbEndpointTestRule implements TestRule {
         final String endpointName = endpoint.getConfig().getName();
         // set dbHost property
         String dbHostDefault = getFromSystemProperties(endpointName, HOST_PROPERTY, dialect);
-        logger.info("Host: {}", dbHostDefault);
         dbHostDefault = dbHostDefault != null ? dbHostDefault : "localhost";
         propertySettings.put(getPropertyName(endpointName, HOST_PROPERTY), dbHostDefault);
         // set dbPort property

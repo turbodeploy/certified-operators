@@ -1,5 +1,6 @@
 package com.vmturbo.repository;
 
+import java.sql.SQLException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import javax.annotation.PreDestroy;
@@ -21,6 +22,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -47,14 +49,15 @@ import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.listener.RepositoryPlanGarbageCollector;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.plan.db.DbAccessConfig;
 import com.vmturbo.repository.plan.db.MySQLPlanEntityStore;
-import com.vmturbo.repository.plan.db.RepositoryDBConfig;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.SupplyChainService;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
@@ -148,7 +151,7 @@ public class RepositoryComponentConfig {
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
     @Autowired
-    private RepositoryDBConfig repositoryDBConfig;
+    private DbAccessConfig dbAccessConfig;
 
     private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
 
@@ -221,9 +224,15 @@ public class RepositoryComponentConfig {
      */
     @Bean
     public MySQLPlanEntityStore mySQLPlanEntityStore() {
-        return new MySQLPlanEntityStore(repositoryDBConfig.dsl(), partialEntityConverter(),
-            new SupplyChainCalculator(), sqlInsertionChunkSize, sqlDeletionChunkSize,
-                userSessionConfig.userSessionContext());
+        try {
+            return new MySQLPlanEntityStore(dbAccessConfig.dsl(), partialEntityConverter(), new SupplyChainCalculator(), sqlInsertionChunkSize, sqlDeletionChunkSize,
+                    userSessionConfig.userSessionContext());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create mySQLPlanEntityStore", e);
+        }
     }
 
     /**

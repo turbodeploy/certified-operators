@@ -1,6 +1,7 @@
 package com.vmturbo.repository;
 
 import java.net.URISyntaxException;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +19,7 @@ import io.grpc.ServerInterceptor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -48,7 +50,7 @@ import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
@@ -64,8 +66,8 @@ import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseExc
 import com.vmturbo.repository.listener.MarketTopologyListener;
 import com.vmturbo.repository.listener.TopologyEntitiesListener;
 import com.vmturbo.repository.migration.RepositoryMigrationsLibrary;
+import com.vmturbo.repository.plan.db.DbAccessConfig;
 import com.vmturbo.repository.plan.db.PlanEntityFilter.PlanEntityFilterConverter;
-import com.vmturbo.repository.plan.db.RepositoryDBConfig;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
@@ -78,6 +80,7 @@ import com.vmturbo.repository.service.TagsPaginator;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -99,7 +102,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
     RepositoryProperties.class,
     RepositoryComponentConfig.class,
     RepositoryDiagnosticsConfig.class,
-    RepositoryDBConfig.class
+    DbAccessConfig.class
 })
 public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);
@@ -135,7 +138,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     private RepositoryDiagnosticsConfig repositoryDiagnosticsConfig;
 
     @Autowired
-    private RepositoryDBConfig repositoryDBConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Value("${repositoryEntityStatsPaginationDefaultLimit:100}")
     private int repositoryEntityStatsPaginationDefaultLimit;
@@ -184,7 +187,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     private int concurrentSearchWaitTimeoutMin;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
-    private int mariaHealthCheckIntervalSeconds;
+    private int mariadbHealthCheckIntervalSeconds;
 
     @PostConstruct
     private void setup() {
@@ -197,10 +200,17 @@ public class RepositoryComponent extends BaseVmtComponent {
                     Optional.ofNullable(repositoryComponentConfig.getArangoDatabaseName())));
         }
 
-        logger.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor()
-                .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                        repositoryDBConfig.dataSource()::getConnection));
+        try {
+            logger.info("Adding {} health check to the component health monitor.", dbAccessConfig.dsl().dialect().getName());
+            getHealthMonitor().addHealthCheck(
+                    new SQLDBHealthMonitor(dbAccessConfig.dsl().dialect().getName(),
+                            mariadbHealthCheckIntervalSeconds, dbAccessConfig.dataSource()::getConnection));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create SQLDBHealthMonitor", e);
+        }
 
         getHealthMonitor().addHealthCheck(apiConfig.messageProducerHealthMonitor());
         // Temporarily force all Repository migrations to retry, in order to address some
@@ -208,9 +218,7 @@ public class RepositoryComponent extends BaseVmtComponent {
         // previous versions.
         setForceRetryMigrations(true);
 
-        if (repositoryDBConfig.isDbMonitorEnabled()) {
-            repositoryDBConfig.startDbMonitor();
-        }
+        dbAccessConfig.startDbMonitor();
     }
 
     @Bean
