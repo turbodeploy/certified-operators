@@ -14,10 +14,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySetOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,6 +78,8 @@ import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionDisruptiveness;
@@ -323,8 +322,22 @@ public class ActionSpecMapperTest {
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
-                reservedInstanceUtilizationCoverageServiceBlockingStub =
-                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
+                reservedInstanceUtilizationCoverageServiceBlockingStub = ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
+        when(reservedInstanceUtilizationCoverageServiceMole.getEntityReservedInstanceCoverage(any()))
+                .thenReturn(Cost.GetEntityReservedInstanceCoverageResponse.newBuilder()
+                            .putCoverageByEntityId(TARGET_ID,
+                                    Cost.EntityReservedInstanceCoverage.newBuilder()
+                                            .setEntityCouponCapacity(1.0)
+                                            .build())
+                            .build());
+        when(reservedInstanceUtilizationCoverageServiceMole.getProjectedEntityReservedInstanceCoverageStats(any()))
+                .thenReturn(Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
+                        .putCoverageByEntityId(TARGET_ID,
+                                Cost.EntityReservedInstanceCoverage.newBuilder()
+                                        .setEntityCouponCapacity(8.0)
+                                        .build())
+                        .build());
         ActionSpecMappingContextFactory actionSpecMappingContextFactory =
                 new ActionSpecMappingContextFactory(
                         policyService,
@@ -1328,6 +1341,76 @@ public class ActionSpecMapperTest {
             Mockito.verify(cloudSavingsDetailsDtoConverter, Mockito.times(1)).convert(
                     Mockito.any());
         });
+    }
+
+    /**
+     * Test the data for {@link CloudResizeActionDetailsApiDTO}
+     * is populated from {@link CloudSavingsDetails}.
+     * Except the RI Buy data is from grpc.
+     */
+    @Test
+    public void testMCPMoveActionRIBuy() {
+        final CloudSavingsDetails cloudSavingsDetails =
+                CloudSavingsDetails.newBuilder()
+                        .setSourceTierCostDetails(TierCostDetails.newBuilder()
+                                .setCloudCommitmentCoverage(CloudCommitmentCoverage.newBuilder()
+                                        .setCapacity(
+                                                CloudCommitmentAmount.newBuilder().setCoupons(4))
+                                        .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(1)))
+                                .setOnDemandCost(CurrencyAmount.newBuilder().setAmount(10))
+                                .setOnDemandRate(CurrencyAmount.newBuilder().setAmount(0)))
+                        .setProjectedTierCostDetails(
+                                TierCostDetails.newBuilder()
+                                        .setCloudCommitmentCoverage(
+                                                CloudCommitmentCoverage.newBuilder()
+                                                        .setCapacity(
+                                                                CloudCommitmentAmount.newBuilder()
+                                                                        .setCoupons(4))
+                                                        .setUsed(CloudCommitmentAmount.newBuilder()
+                                                                .setCoupons(1)))
+                                        .setOnDemandCost(CurrencyAmount.newBuilder().setAmount(20))
+                                        .setOnDemandRate(CurrencyAmount.newBuilder().setAmount(0)))
+                        .setEntityUptime(EntityUptimeDTO.newBuilder().setUptimePercentage(1.0))
+                        .build();
+
+        final ActionEntity actionEntity = ActionEntity.newBuilder()
+                                                    .setId(TARGET_ID)
+                                                    .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                                    .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                                                    .build();
+
+        ActionInfo actionInfo = ActionInfo.newBuilder()
+                                .setMove(Move.newBuilder()
+                                            .setTarget(actionEntity)
+                                            .addChanges(ChangeProvider.newBuilder()
+                                                    .setSource(ApiUtilsTest.createActionEntity(2))
+                                                    .setDestination(ApiUtilsTest.createActionEntity(3))
+                                                    .build())
+                                            .setCloudSavingsDetails(cloudSavingsDetails)
+                                            .build())
+                                .build();
+        Mockito.reset(cloudSavingsDetailsDtoConverter);
+        final ActionSpec actionSpec = ActionSpec.newBuilder().setRecommendation(
+                Action.newBuilder()
+                        .setId(ACTION_STABLE_IMPACT_ID)
+                        .setInfo(actionInfo)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(Explanation.newBuilder())).build();
+
+        final ActionOrchestratorAction actionOrchestratorAction =
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(ACTION_LEGACY_INSTANCE_ID)
+                        .setActionSpec(actionSpec)
+                        .build();
+        // act
+        final CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO =
+                (CloudResizeActionDetailsApiDTO) mapper.createActionDetailsApiDTO(actionOrchestratorAction, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        // check
+        assertNotNull(cloudResizeActionDetailsApiDTO);
+        // ri coverage
+        assertEquals(1f, cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getCapacity().getAvg(), 0);
+        assertEquals(8f, cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 0);
+        assertEquals(1.0, cloudResizeActionDetailsApiDTO.getEntityUptime().getUptimePercentage(), 0);
     }
 
     /**
