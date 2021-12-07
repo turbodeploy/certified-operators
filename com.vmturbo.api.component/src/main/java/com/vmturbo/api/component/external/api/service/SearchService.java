@@ -481,6 +481,7 @@ public class SearchService implements ISearchService {
                                                      SearchPaginationRequest paginationRequest,
                                                      List<String> entityTypes,
                                                      List<String> probeTypes,
+                                                     boolean isRegex,
                                                      @Nullable Origin groupOrigin,
                                                      @Nullable QueryType queryType)
             throws Exception {

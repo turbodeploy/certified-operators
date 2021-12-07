@@ -462,6 +462,9 @@ public class BusinessAccountRetrieverTest {
         // One member. Doesn't count the master account.
         assertThat(billingFamily.getMembersCount(), is(1));
         assertThat(billingFamily.getMasterAccountUuid(), is(convertedParent.getUuid()));
+        assertThat(billingFamily.getUuidToNameMap(), is(ImmutableMap.of(
+            convertedParent.getUuid(), convertedParent.getDisplayName(),
+            convertedChild.getUuid(), convertedChild.getDisplayName())));
         assertThat(billingFamily.getCostPrice(), is(convertedParent.getCostPrice() + convertedChild.getCostPrice()));
         assertThat(billingFamily.getEnvironmentType(), is(EnvironmentType.CLOUD));
 

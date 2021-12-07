@@ -395,6 +395,48 @@ public class ActionsServiceTest {
     }
 
     /**
+     * Tests getting action details for actions with/without spec, order of details the same as in request.
+     * Verifies that when input DTO contains no topologyContextId, the default realtime one is used.
+     */
+    @Test
+    public void testGetActionDetailsByUuids()
+            throws OperationFailedException, IllegalArgumentException {
+        // ARRANGE
+        setupGetActionDetailsByUuids(false);
+
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Arrays.asList(Long.toString(FIRST_ACTION_ID), Long.toString(SECOND_ACTION_ID)));
+
+        // ACT
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+
+        // ASSERT
+        verify(actionsServiceBackend, never()).getInstanceIdsForRecommendationIds(any());
+        verifyCallsAndResults(actionDetails, false, REALTIME_TOPOLOGY_ID);
+    }
+
+
+    /**
+     * Tests getting action details for actions when stable action id is set.
+     */
+    @Test
+    public void testGetActionDetailsByStableUuids()
+            throws OperationFailedException, IllegalArgumentException {
+        // ARRANGE
+        setupGetActionDetailsByUuids(true);
+
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Arrays.asList(Long.toString(FIRST_ACTION_RECOMMENDATION_ID),
+                Long.toString(SECOND_ACTION_RECOMMENDATION_ID)));
+
+        // ACT
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUsingStableId.getActionDetailsByUuids(inputDTO);
+
+        // ASSERT
+        verifyCallsAndResults(actionDetails, true, REALTIME_TOPOLOGY_ID);
+    }
+
+    /**
      * Tests getting action details for actions in a specific topology context.
      */
     @Test
