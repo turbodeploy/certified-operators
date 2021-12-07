@@ -116,17 +116,18 @@ public class DbEndpointCompatConfig {
     protected String dbRootPassword;
 
     protected DbEndpointBuilder fixEndpointForMultiDb(DbEndpointBuilder builder) {
+        DbEndpointConfig preview = builder.preview();
         if (dbSchemaName != null) {
             builder = builder.withSchemaName(dbSchemaName)
                     // MySqlFamilyAdapter uses databaseName, not schemaName
                     .withDatabaseName(dbSchemaName);
         }
         // unlike most properties, the dbUsername property includes the component name as a prefix,
-        if (getDbUserName() != null) {
+        if (getDbUserName() != null && preview.getUserName() == null) {
             builder = builder.withUserName(getDbUserName());
         }
         // likewise for dbPassword
-        if (getDbPassword() != null) {
+        if (getDbPassword() != null && preview.getPassword() == null) {
             builder = builder.withPassword(getDbPassword());
         }
         builder = builder.withSecure(isSecureDBConnectionRequested);
@@ -139,10 +140,10 @@ public class DbEndpointCompatConfig {
         if (dbPort != null) {
             builder = builder.withPort(dbPort);
         }
-        if (dbRootUsername != null) {
+        if (dbRootUsername != null && preview.getRootUserName() == null) {
             builder = builder.withRootUserName(dbRootUsername);
         }
-        if (dbRootPassword != null) {
+        if (dbRootPassword != null && preview.getRootPassword() == null) {
             builder = builder.withRootPassword(dbRootPassword);
         }
         if (!FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {

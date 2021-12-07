@@ -11,6 +11,7 @@ import java.util.function.UnaryOperator;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.Gson;
 
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
@@ -36,6 +37,7 @@ public class DbEndpointBuilder {
 
     private final DbEndpointConfig config;
     private final DbEndpointCompleter endpointCompleter;
+    private final Gson gson = new Gson();
 
     /**
      * Internal constructor for a new endpoint instance.
@@ -54,6 +56,17 @@ public class DbEndpointBuilder {
         config = new DbEndpointConfig(name);
         config.setDialect(dialect);
         this.endpointCompleter = endpointCompleter;
+    }
+
+    /**
+     * Obtain a "preview" of an endpoint being built by a builder. Unlike the {@link #build()}
+     * method, this does not register the endpoint for completion. The returned {@link
+     * DbEndpointConfig} object is a copy of the one under construction, so any changes made to it
+     * will not affect the endpoint being built.
+     * @return a "preview" of an endpoint being built by a builder.
+     */
+    public DbEndpointConfig preview() {
+        return gson.fromJson(gson.toJson(config), DbEndpointConfig.class);
     }
 
     /**

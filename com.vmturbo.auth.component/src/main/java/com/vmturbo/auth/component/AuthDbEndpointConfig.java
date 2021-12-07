@@ -151,10 +151,15 @@ public class AuthDbEndpointConfig extends DbEndpointsConfig {
                     CryptoFacility.encrypt(dbPassword));
             return dbPassword;
         }
-        Optional<String> rootDbPassword = authKVConfig.authKeyValueStore().get(
-                CONSUL_ROOT_DB_PASS_KEY);
-        return rootDbPassword.map(CryptoFacility::decrypt).orElseGet(
-                DBPasswordUtil::obtainDefaultPW);
+        final Optional<String> rootDbPassword = authKVConfig.authKeyValueStore()
+                .get(CONSUL_ROOT_DB_PASS_KEY);
+        if (rootDbPassword.isPresent()) {
+            return rootDbPassword.map(CryptoFacility::decrypt).get();
+        } else {
+            final String defaultPw = DBPasswordUtil.obtainDefaultPW();
+            authKVConfig.authKeyValueStore().put(CONSUL_ROOT_DB_PASS_KEY, CryptoFacility.encrypt(defaultPw));
+            return defaultPw;
+        }
     }
 
     /**
