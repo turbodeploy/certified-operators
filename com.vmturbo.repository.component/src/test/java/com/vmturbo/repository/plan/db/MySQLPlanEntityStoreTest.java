@@ -5,9 +5,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -21,6 +23,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -41,20 +51,33 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.repository.db.Repository;
 import com.vmturbo.repository.db.Tables;
+import com.vmturbo.repository.plan.db.MySQLPlanEntityStoreTest.TestRepositoryDbEndpointConfig;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
  * Unit tests for the {@link MySQLPlanEntityStore}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestRepositoryDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class MySQLPlanEntityStoreTest {
+
+    @Autowired(required = false)
+    private TestRepositoryDbEndpointConfig dbEndpointConfig;
 
     /**
      * Class rule to create a DB.
@@ -67,6 +90,20 @@ public class MySQLPlanEntityStoreTest {
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("repository");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
 
     private MySQLPlanEntityStore planEntityStore;
 
@@ -127,14 +164,26 @@ public class MySQLPlanEntityStoreTest {
             .addAllSupplyChainNodes(pmSupplyChain.getSupplyChainNodesList())
             .build();
 
+    private DSLContext dsl;
+
     /**
      * Common code before every test.
+     *
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
      */
     @Before
-    public void setup() {
-        planEntityStore = new MySQLPlanEntityStore(dbConfig.getDslContext(), partialEntityConverter,
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.repositoryEndpoint());
+            dsl = dbEndpointConfig.repositoryEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        planEntityStore = new MySQLPlanEntityStore(dsl, partialEntityConverter,
                 supplyChainCalculator, 1, 1, mock(UserSessionContext.class));
-        when(partialEntityConverter.createPartialEntity(any(), any(), any())).thenAnswer(invocationOnMock -> {
+        doAnswer(invocationOnMock -> {
             TopologyEntityDTOOrBuilder dto = invocationOnMock.getArgumentAt(0, TopologyEntityDTOOrBuilder.class);
             if (dto instanceof TopologyEntityDTO.Builder) {
                 return PartialEntity.newBuilder()
@@ -145,7 +194,7 @@ public class MySQLPlanEntityStoreTest {
                     .setFullEntity((TopologyEntityDTO)dto)
                     .build();
             }
-        });
+        }).when(partialEntityConverter).createPartialEntity(any(), any(), any());
         when(supplyChainCalculator.getSupplyChainNodes(any(), eq(Collections.singleton(vm.getOid())), any(), any()))
                 .thenReturn(vmSupplyChain.getSupplyChainNodesList().stream()
                     .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity())));
@@ -272,7 +321,6 @@ public class MySQLPlanEntityStoreTest {
             // Expected.
         }
 
-        DSLContext dsl = dbConfig.getDslContext();
         assertThat(dsl.fetchCount(Tables.PLAN_ENTITY), is(0));
         assertThat(dsl.fetchCount(Tables.PLAN_ENTITY_SCOPE), is(0));
         assertThat(dsl.fetchCount(Tables.PRICE_INDEX), is(0));
@@ -463,5 +511,17 @@ public class MySQLPlanEntityStoreTest {
         assertThat(retVms, containsInAnyOrder(vm));
 
     }
+
+    /**
+     * Workaround for {@link RepositoryDBEndpointConfig} (remove conditional annotation), since
+     * it's conditionally initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we
+     * test all combinations of it using {@link FeatureFlagTestRule}, first it's false, so
+     * {@link RepositoryDBEndpointConfig} is not created; then second it's true,
+     * {@link RepositoryDBEndpointConfig} is created, but the endpoint inside is also eagerly
+     * initialized due to the same FF, which results in several issues like: it doesn't go through
+     * DbEndpointTestRule, making call to auth to get root password, etc.
+     */
+    @Configuration
+    public static class TestRepositoryDbEndpointConfig extends RepositoryDBEndpointConfig {}
 
 }
