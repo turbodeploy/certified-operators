@@ -125,6 +125,16 @@ public class MarketRunnerConfig {
     @Value("${analysisQueueTimeoutMins:90}")
     private long analysisQueueTimeoutMins;
 
+    @Value("${saveAnalysisDiagsTimeoutSecs:3600}")
+    private int saveAnalysisDiagsTimeoutSecs;
+
+    /**
+     * We automatically write analysis diags in case of market exceptions. This is the number of diagnostics to retain.
+     * If set to 0, this feature will be disabled.
+     */
+    @Value("${numRealTimeAnalysisDiagsToRetain:0}")
+    private int numRealTimeAnalysisDiagsToRetain;
+
     /**
      * The type of {@link TopologyProcessingGate} to use.
      */
@@ -238,7 +248,9 @@ public class MarketRunnerConfig {
                 useVMReservationAsUsed,
                 newReconfigureActionAnalysisEngine(),
                 singleVMonHost,
-                customUtilizationThreshold);
+                customUtilizationThreshold,
+                saveAnalysisDiagsTimeoutSecs,
+                numRealTimeAnalysisDiagsToRetain);
     }
 
     /**

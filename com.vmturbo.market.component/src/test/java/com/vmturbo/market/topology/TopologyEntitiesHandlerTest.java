@@ -47,6 +47,8 @@ import com.vmturbo.commons.analysis.ByProductMap;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -443,6 +445,7 @@ public class TopologyEntitiesHandlerTest {
         Analysis analysis = mock(Analysis.class);
         when(analysis.getReplayActions()).thenReturn(new ReplayActions()).thenCallRealMethod();
         doCallRealMethod().when(analysis).setReplayActions(any(ReplayActions.class));
+        when(analysis.getDiagnosticsCleaner()).thenReturn(new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
         mockCommsToAdjustForOverhead(analysis, converter);
 
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(
@@ -712,6 +715,7 @@ public class TopologyEntitiesHandlerTest {
         when(trader.getOid()).thenReturn(111L);
         topology.addProvisionedShoppingList(sl);
         Analysis analysis = mock(Analysis.class);
+        when(analysis.getDiagnosticsCleaner()).thenReturn(new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
                 REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
 
@@ -838,6 +842,7 @@ public class TopologyEntitiesHandlerTest {
         Analysis analysis = mock(Analysis.class);
         mockCommsToAdjustForOverhead(analysis, converter);
         when(analysis.getReplayActions()).thenReturn(new ReplayActions());
+        when(analysis.getDiagnosticsCleaner()).thenReturn(new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
 
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
@@ -1096,6 +1101,7 @@ public class TopologyEntitiesHandlerTest {
     private AnalysisResults generateEnd2EndActions(Analysis analysis, Collection<TraderTO> economyDTOs,
             TopologyConverter converter) {
         mockCommsToAdjustForOverhead(analysis, converter);
+        when(analysis.getDiagnosticsCleaner()).thenReturn(new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                 .setTopologyType(TopologyType.PLAN).setTopologyId(1L).build();
 

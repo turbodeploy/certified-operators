@@ -1,5 +1,8 @@
 package com.vmturbo.market.diagnostics;
 
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ANALYSIS_DIAGS_DIRECTORY;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ANALYSIS_DIAGS_SUFFIX;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.Objects;
@@ -30,10 +33,10 @@ public class MarketComponentDiagnosticsHandler implements IDiagnosticsHandler {
     @Override
     public void dump(@Nonnull ZipOutputStream zipStream) {
         try {
-            File dumpDirectory = new File("/" + AnalysisDiagnosticsCollector.ANALYSIS_DIAGS_DIRECTORY);
+            File dumpDirectory = new File("/" + ANALYSIS_DIAGS_DIRECTORY);
             final String[] allDiscoveryDumpFiles = dumpDirectory.list();
             for (String filename : allDiscoveryDumpFiles) {
-                if (filename.contains(AnalysisDiagnosticsCollector.ANALYSIS_DIAGS_SUFFIX)) {
+                if (filename.contains(ANALYSIS_DIAGS_SUFFIX)) {
                     File file = new File(Objects.requireNonNull(dumpDirectory), filename);
                     ZipEntry ze = new ZipEntry(filename);
                     zipStream.putNextEntry(ze);

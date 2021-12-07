@@ -15,17 +15,20 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.StatusRuntimeException;
 
@@ -84,6 +87,8 @@ import com.vmturbo.market.diagnostics.ActionLogger;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsUtils;
+import com.vmturbo.market.diagnostics.IDiagnosticsCleaner;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis.BuyCommitmentImpactResult;
@@ -296,6 +301,8 @@ public class Analysis {
 
     private final ExternalReconfigureActionEngine externalReconfigureActionEngine;
 
+    private final IDiagnosticsCleaner diagnosticsCleaner;
+
     /**
      * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
      */
@@ -356,7 +363,8 @@ public class Analysis {
                     @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
                     @Nonnull final CommodityIdUpdater commodityIdUpdater,
                     @Nonnull final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory,
-                    @Nonnull final ExternalReconfigureActionEngine externalReconfigureActionEngine) {
+                    @Nonnull final ExternalReconfigureActionEngine externalReconfigureActionEngine,
+                    @Nonnull final IDiagnosticsCleaner diagnosticsCleaner) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -388,6 +396,7 @@ public class Analysis {
         this.contextType = topologyInfo.hasPlanInfo() ? TopologyConversionConstants.PLAN_CONTEXT_TYPE_LABEL
                 : TopologyConversionConstants.LIVE_CONTEXT_TYPE_LABEL;
         this.externalReconfigureActionEngine = externalReconfigureActionEngine;
+        this.diagnosticsCleaner = diagnosticsCleaner;
     }
 
     /**
@@ -486,7 +495,7 @@ public class Analysis {
         if (!stopAnalysis) {
             List<CommoditySpecification> commsToAdjustOverheadInClone =
                     createCommsToAdjustOverheadInClone();
-            saveAnalysisDiags(traderTOs.values(), commsToAdjustOverheadInClone);
+            diagnosticsCleaner.setSaveAnalysisDiagsFuture(saveAnalysisDiagsAsync(traderTOs.values(), commsToAdjustOverheadInClone));
             Topology topology = TopologyEntitiesHandler.createTopology(traderTOs.values(),
                     topologyInfo, commsToAdjustOverheadInClone, config);
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
@@ -1001,12 +1010,18 @@ public class Analysis {
         }
     }
 
-    private void saveAnalysisDiags(final Collection<TraderTO> traderTOs,
-                                   final List<CommoditySpecification> commSpecsToAdjustOverhead) {
-        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(topologyInfo.getTopologyContextId()
-                + "-" + topologyInfo.getTopologyId(), AnalysisMode.M2).ifPresent(diagsCollector -> {
-            diagsCollector.saveAnalysis(traderTOs.stream().collect(Collectors.toList()), topologyInfo, config, commSpecsToAdjustOverhead);
+    private Future<?> saveAnalysisDiagsAsync(final Collection<TraderTO> traderTOs,
+                                             final List<CommoditySpecification> commSpecsToAdjustOverhead) {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("analysis-diags-writer-%d").build();
+        final ExecutorService diagsWriterExecutorService = Executors.newFixedThreadPool(1, threadFactory);
+        return diagsWriterExecutorService.submit(() -> {
+            AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+            factory.newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo),
+                    AnalysisMode.M2).ifPresent(diagsCollector -> { diagsCollector.saveAnalysisIfEnabled(
+                            traderTOs.stream().collect(Collectors.toList()), topologyInfo, config, commSpecsToAdjustOverhead,
+                    diagnosticsCleaner.getNumRealTimeAnalysisDiagsToRetain());
+            });
         });
     }
 
@@ -1118,10 +1133,10 @@ public class Analysis {
 
     private void saveSMADiags(final SMAInput smaInput) {
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(topologyInfo.getTopologyContextId()
-                + "-" + topologyInfo.getTopologyId(), AnalysisMode.SMA).ifPresent(diagsCollector -> {
-            diagsCollector.saveSMAInput(smaInput, topologyInfo);
-        });
+        factory.newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo), AnalysisMode.SMA)
+                .ifPresent(diagsCollector -> {
+                    diagsCollector.saveSMAInputIfEnabled(smaInput, topologyInfo);
+                });
     }
 
     /*
@@ -1133,8 +1148,7 @@ public class Analysis {
                                    TopologyConverter converter, CloudCostData cloudCostData) {
 
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(topologyInfo.getTopologyContextId()
-                + "-" + topologyInfo.getTopologyId(), AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
+        factory.newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo), AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
             // Write actions to log file in CSV format
             ActionLogger externalize = new ActionLogger();
             List<String> actionLogs = new ArrayList<>();
@@ -1151,7 +1165,7 @@ public class Analysis {
                         converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
                         converter.getConsistentScalingHelper()));
             }
-            diagsCollector.saveActions(actionLogs, topologyInfo);
+            diagsCollector.saveActionsIfEnabled(actionLogs, topologyInfo);
         });
     }
 
@@ -1729,6 +1743,10 @@ public class Analysis {
      */
     public void setReplayActions(@NonNull ReplayActions replayActions) {
         realtimeReplayActions = replayActions;
+    }
+
+    public IDiagnosticsCleaner getDiagnosticsCleaner() {
+        return diagnosticsCleaner;
     }
 
     /**

@@ -22,6 +22,8 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -74,7 +76,8 @@ public class CommodityIdUpdaterTest {
             mock(AnalysisRICoverageListener.class), mock(ConsistentScalingHelperFactory.class),
             mock(InitialPlacementFinder.class), mock(ReversibilitySettingFetcherFactory.class),
             mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
-            mock(JournalActionSavingsCalculatorFactory.class), mock(ExternalReconfigureActionEngine.class));
+            mock(JournalActionSavingsCalculatorFactory.class), mock(ExternalReconfigureActionEngine.class),
+                new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
     }
 
     /**

@@ -1,5 +1,19 @@
 package com.vmturbo.market.diagnostics;
 
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ADJUST_OVERHEAD_DIAGS_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ANALYSIS_CONFIG_DIAGS_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.HISTORICAL_CACHED_COMMTYPE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.HISTORICAL_CACHED_ECONOMY_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.NEW_BUYERS_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTIME_CACHED_COMMTYPE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTIME_CACHED_ECONOMY_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONFIG_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONTEXT_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_RESERVED_INSTANCE_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_TEMPLATE_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_VIRTUAL_MACHINE_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TOPOLOGY_INFO_DIAGS_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TRADER_DIAGS_FILE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -37,8 +51,10 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -52,6 +68,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMo
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -153,7 +170,7 @@ public class AnalysisDiagnosticsCollectorTest {
                 Path path = paths.next();
                 String fileName = path.getFileName().toString();
                 switch (fileName) {
-                    case AnalysisDiagnosticsCollector.HISTORICAL_CACHED_ECONOMY_NAME:
+                    case HISTORICAL_CACHED_ECONOMY_NAME:
                         fi = new FileInputStream(new File(path.toString()));
                         oi = new ObjectInputStream(fi);
                         // Read objects
@@ -161,7 +178,7 @@ public class AnalysisDiagnosticsCollectorTest {
                         oi.close();
                         fi.close();
                         break;
-                    case AnalysisDiagnosticsCollector.REALTIME_CACHED_ECONOMY_NAME:
+                    case REALTIME_CACHED_ECONOMY_NAME:
                         fi = new FileInputStream(new File(path.toString()));
                         oi = new ObjectInputStream(fi);
                         // Read objects
@@ -169,13 +186,13 @@ public class AnalysisDiagnosticsCollectorTest {
                         oi.close();
                         fi.close();
                         break;
-                    case AnalysisDiagnosticsCollector.HISTORICAL_CACHED_COMMTYPE_NAME:
+                    case HISTORICAL_CACHED_COMMTYPE_NAME:
                         historicalCachedCommType = extractMultipleInstancesOfType(path, InitialPlacementCommTypeMap.class);
                         break;
-                    case AnalysisDiagnosticsCollector.REALTIME_CACHED_COMMTYPE_NAME:
+                    case REALTIME_CACHED_COMMTYPE_NAME:
                         realtimeCachedCommType = extractMultipleInstancesOfType(path, InitialPlacementCommTypeMap.class);
                         break;
-                    case AnalysisDiagnosticsCollector.NEW_BUYERS_NAME:
+                    case NEW_BUYERS_NAME:
                         newBuyers = extractMultipleInstancesOfType(path, InitialPlacementDTO.class);
                         break;
                     default:
@@ -368,6 +385,29 @@ public class AnalysisDiagnosticsCollectorTest {
         assertTrue(results.getActionsList().size() > 0);
     }
 
+    /**
+     * Test IsAnalysisDiagsSaveEnabled for various combinations of real time / plan / debug level /
+     * numRealTimeAnalysisDiagsToRetain.
+     */
+    @Test
+    public void testIsAnalysisDiagsSaveEnabled() {
+        final TopologyInfo rtTopoInfo = TopologyInfo.newBuilder().setTopologyContextId(777777L).setTopologyId(1L).build();
+        final TopologyInfo planTopoInfo = TopologyInfo.newBuilder().setTopologyContextId(777777L).setTopologyId(1L).setPlanInfo(
+                PlanTopologyInfo.getDefaultInstance()).build();
+
+        Configurator.setLevel(LogManager.getLogger(AnalysisDiagnosticsCollector.class).getName(), Level.DEBUG);
+        assertTrue(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(rtTopoInfo, 5));
+        assertTrue(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(rtTopoInfo, 0));
+        assertTrue(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(planTopoInfo, 5));
+        assertTrue(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(planTopoInfo, 0));
+
+        Configurator.setLevel(LogManager.getLogger(AnalysisDiagnosticsCollector.class).getName(), Level.INFO);
+        assertTrue(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(rtTopoInfo, 5));
+        assertFalse(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(rtTopoInfo, 0));
+        assertFalse(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(planTopoInfo, 5));
+        assertFalse(AnalysisDiagnosticsCollector.isAnalysisDiagsSaveEnabled(planTopoInfo, 0));
+    }
+
     /**<p>The test is not needed to be run during the build as it doesn't really test anything.
      * It produces utilization distribution per commodity. It can be run on an as-needed basis.</p>
      * <p>Unit test to check "balance" of the environment after analysis.
@@ -413,6 +453,7 @@ public class AnalysisDiagnosticsCollectorTest {
         ReplayActions restoredReplayActions = new ReplayActions(replayActions,
             ImmutableList.copyOf(replayDeactivateActions));
         when(analysis.getReplayActions()).thenReturn(restoredReplayActions);
+        when(analysis.getDiagnosticsCleaner()).thenReturn(new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
         return analysis;
     }
 
@@ -551,10 +592,10 @@ public class AnalysisDiagnosticsCollectorTest {
                 }
                 int index = Integer.parseInt(splitStrings[1]);
                 switch (splitStrings[0]) {
-                    case AnalysisDiagnosticsCollector.SMA_RESERVED_INSTANCE_PREFIX:
+                    case SMA_RESERVED_INSTANCE_PREFIX:
                         reservedInstanceList.put(index, extractMultipleInstancesOfType(path, SMAReservedInstance.class));
                         break;
-                    case AnalysisDiagnosticsCollector.SMA_CONTEXT_PREFIX:
+                    case SMA_CONTEXT_PREFIX:
                         Optional<SMAContext> context = extractSingleInstanceOfType(path, SMAContext.class);
                         if (!context.isPresent()) {
                             smaInput = Optional.empty();
@@ -563,7 +604,7 @@ public class AnalysisDiagnosticsCollectorTest {
                         }
                         contextList.put(index, context.get());
                         break;
-                    case AnalysisDiagnosticsCollector.SMA_CONFIG_PREFIX:
+                    case SMA_CONFIG_PREFIX:
                         Optional<SMAConfig> config = extractSingleInstanceOfType(path, SMAConfig.class);
                         if (!config.isPresent()) {
                             smaInput = Optional.empty();
@@ -572,10 +613,10 @@ public class AnalysisDiagnosticsCollectorTest {
                         }
                         configList.put(index, config.get());
                         break;
-                    case AnalysisDiagnosticsCollector.SMA_TEMPLATE_PREFIX:
+                    case SMA_TEMPLATE_PREFIX:
                         templateList.put(index, extractMultipleInstancesOfType(path, SMATemplate.class));
                         break;
-                    case AnalysisDiagnosticsCollector.SMA_VIRTUAL_MACHINE_PREFIX:
+                    case SMA_VIRTUAL_MACHINE_PREFIX:
                         virtualMachineList.put(index, extractMultipleInstancesOfType(path, SMAVirtualMachine.class));
                         break;
                     default:
@@ -619,20 +660,20 @@ public class AnalysisDiagnosticsCollectorTest {
             while (paths.hasNext()) {
                 Path path = paths.next();
                 String fileName = path.getFileName().toString();
-                if (fileName.startsWith(AnalysisDiagnosticsCollector.TRADER_DIAGS_FILE_NAME)) {
+                if (fileName.startsWith(TRADER_DIAGS_FILE_NAME)) {
                     try (FileInputStream fi = new FileInputStream(new File(path.toString()))) {
                         traderTOs.addAll(TraderDiagsTO.parseFrom(fi).getTraderTOsList());
                     }
                     logger.info("Successfully extracted {}", fileName);
                 } else {
                     switch (fileName) {
-                        case AnalysisDiagnosticsCollector.ANALYSIS_CONFIG_DIAGS_FILE_NAME:
+                        case ANALYSIS_CONFIG_DIAGS_FILE_NAME:
                             analysisConfig = extractSingleInstanceOfType(path, AnalysisConfig.class);
                             break;
-                        case AnalysisDiagnosticsCollector.TOPOLOGY_INFO_DIAGS_FILE_NAME:
+                        case TOPOLOGY_INFO_DIAGS_FILE_NAME:
                             topologyInfo = extractSingleInstanceOfType(path, TopologyInfo.class);
                             break;
-                        case AnalysisDiagnosticsCollector.ADJUST_OVERHEAD_DIAGS_FILE_NAME:
+                        case ADJUST_OVERHEAD_DIAGS_FILE_NAME:
                             commSpecsToAdjustOverhead = extractMultipleInstancesOfType(path, CommoditySpecification.class);
                             break;
                         default:
