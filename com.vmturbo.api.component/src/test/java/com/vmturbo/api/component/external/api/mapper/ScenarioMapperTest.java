@@ -75,6 +75,7 @@ import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioChangeApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -1251,6 +1252,7 @@ public class ScenarioMapperTest {
                 .build()).build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        List<ScenarioChangeApiDTO> changes = dto.getChanges();
         assertEquals(1, dto.getLoadChanges().getMaxUtilizationList().size());
     }
 
