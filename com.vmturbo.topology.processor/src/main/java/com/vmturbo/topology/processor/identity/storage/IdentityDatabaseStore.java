@@ -56,7 +56,7 @@ public class IdentityDatabaseStore {
     private void insert(@Nonnull final DSLContext context,
             @Nonnull final Collection<IdentityRecord> records) {
         Iterators.partition(records.iterator(), BATCH_SIZE).forEachRemaining( batch -> {
-            for (IdentityRecord record: records) {
+            for (IdentityRecord record: batch) {
                 Collection<Query> queries = new HashSet<>();
                 EntityInMemoryProxyDescriptor descriptor = record.getDescriptor();
                 Query query = context.insertInto(AssignedIdentity.ASSIGNED_IDENTITY)

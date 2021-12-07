@@ -66,7 +66,7 @@ public class EntityConfig {
     @Value("${accountForVendorAutomation:false}")
     private boolean accountForVendorAutomation;
 
-    @Value("${useSerializedEntities:true}")
+    @Value("${useSerializedEntities:false}")
     private boolean useSerializedEntities;
 
     @Bean
