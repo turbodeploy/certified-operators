@@ -576,24 +576,6 @@ public enum EntitySettingSpecs {
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
 
     /**
-     * Virtual CPU Increment in sockets for virtual machines.
-     */
-    //Todo: remove this setting while refactoring the EntitySettingsApplicator.
-    VmVcpuIncrementSockets("usedIncrement_VCPU_Sockets", "Increment constant for VCPU [Sockets]",
-            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(1f/*min*/, 1000000.0f/*max*/, 1f/*default*/), true),
-
-    /**
-     * Virtual CPU Increment unit for virtual machines.
-     */
-    //Todo: remove this setting while refactoring the EntitySettingsApplicator.
-    VmVcpuIncrementUnit("usedIncrement_VCPU_Unit", "Increment constant unit For VCPU",
-            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(UsedIncrementUnitVCpu.MHZ, UsedIncrementUnitVCpu.class), true),
-
-    /**
      * Core Socket Ratio Policy for virtual machines.
      */
     VcpuScalingUnits("vcpuScalingUnits", "VCPU Scaling Units",

@@ -166,8 +166,6 @@
         "utilTarget",
         "targetBand",
         "usedIncrement_VCPU",
-        "usedIncrement_VCPU_Sockets",
-        "usedIncrement_VCPU_Unit",
         "vcpuScalingUnits",
         "vcpuScaling_sockets_coresPerSocketMode",
         "vcpuScaling_sockets_coresPerSocketValue",
