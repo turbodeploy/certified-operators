@@ -87,6 +87,8 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -280,7 +282,7 @@ public class AnalysisTest {
             tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
             new CommodityIdUpdater(), actionSavingsCalculatorFactory,
-                externalReconfigureActionEngine);
+                externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of

@@ -31,6 +31,9 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.DiagsFileSystem;
+import com.vmturbo.market.diagnostics.IDiagnosticsCleaner;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -153,6 +156,10 @@ public interface AnalysisFactory {
 
         private final float customUtilizationThreshold;
 
+        private final int saveAnalysisDiagsTimeoutSecs;
+
+        private final int numRealTimeAnalysisDiagsToRetain;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -183,7 +190,9 @@ public interface AnalysisFactory {
                                       final boolean useVMReservationAsUsed,
                                       @Nonnull ExternalReconfigureActionEngine externalReconfigureActionEngine,
                                       final boolean singleVMonHost,
-                                      final float customUtilizationThreshold) {
+                                      final float customUtilizationThreshold,
+                                      final int saveAnalysisDiagsTimeoutSecs,
+                                      final int numRealTimeAnalysisDiagsToRetain) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -221,6 +230,8 @@ public interface AnalysisFactory {
             this.externalReconfigureActionEngine = externalReconfigureActionEngine;
             this.singleVMonHost = singleVMonHost;
             this.customUtilizationThreshold = customUtilizationThreshold;
+            this.saveAnalysisDiagsTimeoutSecs = saveAnalysisDiagsTimeoutSecs;
+            this.numRealTimeAnalysisDiagsToRetain = numRealTimeAnalysisDiagsToRetain;
         }
 
         /**
@@ -240,6 +251,8 @@ public interface AnalysisFactory {
                 licensePriceWeightScale, enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed,
                 singleVMonHost, customUtilizationThreshold);
             configCustomizer.customize(configBuilder);
+            final IDiagnosticsCleaner diagsCleaner = new AnalysisDiagnosticsCleaner(saveAnalysisDiagsTimeoutSecs,
+                    numRealTimeAnalysisDiagsToRetain, new DiagsFileSystem());
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
@@ -247,7 +260,7 @@ public interface AnalysisFactory {
                 buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine, tierExcluderFactory, listener,
                 consistentScalingHelperFactory, initialPlacementFinder, reversibilitySettingFetcherFactory,
                 migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
-                actionSavingsCalculatorFactory, externalReconfigureActionEngine);
+                actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner);
         }
 
         /**

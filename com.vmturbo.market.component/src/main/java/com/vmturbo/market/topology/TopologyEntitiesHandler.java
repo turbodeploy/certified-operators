@@ -35,6 +35,9 @@ import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.tracing.ClassicTracer;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -398,6 +401,7 @@ public class TopologyEntitiesHandler {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                     "realtime second round", e.getMessage(), e);
             }
+            analysis.getDiagnosticsCleaner().cleanup(economy, topologyInfo);
 
             runTimer.observe();
 

@@ -1,5 +1,23 @@
 package com.vmturbo.market.diagnostics;
 
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ACTIONS_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ADJUST_OVERHEAD_DIAGS_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ANALYSIS_CONFIG_DIAGS_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.HISTORICAL_CACHED_COMMTYPE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.HISTORICAL_CACHED_ECONOMY_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.MAX_NUM_TRADERS_PER_PARTITION;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.NEW_BUYERS_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTIME_CACHED_COMMTYPE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTIME_CACHED_ECONOMY_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMAINPUT_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONFIG_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONTEXT_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_RESERVED_INSTANCE_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_TEMPLATE_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_VIRTUAL_MACHINE_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TOPOLOGY_INFO_DIAGS_FILE_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TRADER_DIAGS_FILE_NAME;
+
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -43,52 +61,11 @@ import com.vmturbo.platform.analysis.protobuf.SerializationDTOs.TraderDiagsTO;
  */
 public class AnalysisDiagnosticsCollector {
 
-    @VisibleForTesting
-    static final String TRADER_DIAGS_FILE_NAME = "TraderTOs.diags";
-    @VisibleForTesting
-    static final String TOPOLOGY_INFO_DIAGS_FILE_NAME = "TopologyInfo.diags";
-    @VisibleForTesting
-    static final String ANALYSIS_CONFIG_DIAGS_FILE_NAME = "AnalysisConfig.diags";
-    @VisibleForTesting
-    static final String ADJUST_OVERHEAD_DIAGS_FILE_NAME = "CommSpecsToAdjustOverhead.diags";
-    @VisibleForTesting
-    static final String SMAINPUT_FILE_NAME = "SMAInput.diags";
-    @VisibleForTesting
-    static final String ACTIONS_FILE_NAME = "Actions.csv";
-    @VisibleForTesting
-    static final String HISTORICAL_CACHED_COMMTYPE_NAME = "HistoricalCachedCommTypeMap.diags";
-    @VisibleForTesting
-    static final String REALTIME_CACHED_COMMTYPE_NAME = "RealtimeCachedCommTypeMap.diags";
-    @VisibleForTesting
-    static final String HISTORICAL_CACHED_ECONOMY_NAME = "HistoricalCachedEconomy.diags";
-    @VisibleForTesting
-    static final String REALTIME_CACHED_ECONOMY_NAME = "RealtimeCachedEconomy.diags";
-    @VisibleForTesting
-    static final String NEW_BUYERS_NAME = "NewBuyers.diags";
-    @VisibleForTesting
-    static final String SMA_RESERVED_INSTANCE_PREFIX = "RI";
-    @VisibleForTesting
-    static final String SMA_VIRTUAL_MACHINE_PREFIX = "VM";
-    @VisibleForTesting
-    static final String SMA_CONTEXT_PREFIX = "Context";
-    @VisibleForTesting
-    static final String SMA_CONFIG_PREFIX = "Config";
-    @VisibleForTesting
-    static final String SMA_TEMPLATE_PREFIX = "Template";
-
-
-    static final String ANALYSIS_DIAGS_DIRECTORY = "tmp/";
-    static final String SMA_ZIP_LOCATION_PREFIX = "sma";
-    static final String M2_ZIP_LOCATION_PREFIX = "analysis";
-    static final String ACTION_ZIP_LOCATION_PREFIX = "action";
-    static final String INITIAL_PLACEMENT_ZIP_LOCATION_PREFIX = "initialPlacement";
-    static final String ANALYSIS_DIAGS_SUFFIX = "Diags-";
-    static final int MAX_NUM_TRADERS_PER_PARTITION = 250000;
-
     private static final Logger logger = LogManager.getLogger();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
-    private final DiagnosticsWriter diagsWriter;
-    private final ZipOutputStream diagnosticZip;
+
+    private final String zipFilenameSuffix;
+    private final AnalysisMode analysisMode;
 
     /**
      * To identify which analysis diags we are saving.
@@ -138,13 +115,12 @@ public class AnalysisDiagnosticsCollector {
     /**
      * AnalysisDiagnosticsCollector constructor.
      *
-     * @param diagsWriter   the diagnostics writer.
-     * @param diagnosticZip the zip output stream.
+     * @param zipFilenameSuffix   the diagnostics writer.
+     * @param analysisMode the zip output stream.
      */
-    private AnalysisDiagnosticsCollector(DiagnosticsWriter diagsWriter,
-                                         ZipOutputStream diagnosticZip) {
-        this.diagsWriter = diagsWriter;
-        this.diagnosticZip = diagnosticZip;
+    private AnalysisDiagnosticsCollector(String zipFilenameSuffix, AnalysisMode analysisMode) {
+        this.zipFilenameSuffix = zipFilenameSuffix;
+        this.analysisMode = analysisMode;
     }
 
     /**
@@ -153,9 +129,15 @@ public class AnalysisDiagnosticsCollector {
      * @param actionLogs   list of actions.
      * @param topologyInfo topology info
      */
-    public void saveActions(List<String> actionLogs,
-                            final TopologyInfo topologyInfo) {
+    public void saveActionsIfEnabled(List<String> actionLogs,
+                                     final TopologyInfo topologyInfo) {
+        if (!isEnabled()) {
+            return;
+        }
+        ZipOutputStream diagnosticZip = null;
         try {
+            diagnosticZip = createZipOutputStream(zipFilenameSuffix, analysisMode);
+            DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
             logger.info("Starting dump of Actions for topology context id {}",
                     topologyInfo.getTopologyContextId());
             final Stopwatch stopwatch = Stopwatch.createStarted();
@@ -168,11 +150,7 @@ public class AnalysisDiagnosticsCollector {
             // Analysis should not stop because there was an error in saving diags.
             logger.error("Error when attempting to save Actions. But analysis will continue.", e);
         } finally {
-            try {
-                diagnosticZip.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            closeZipOutputStream(diagnosticZip);
         }
     }
 
@@ -188,17 +166,22 @@ public class AnalysisDiagnosticsCollector {
      * @param historicalCachedEconomy historical cached economy.
      * @param realtimeCachedEconomy realtime cached economy.
      */
-    public void saveInitialPlacementDiags(@Nullable String timeStamp,
-        @Nullable BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
-        @Nullable BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
-        @Nonnull List<InitialPlacementDTO> newInitialPlacements,
-        @Nullable Economy historicalCachedEconomy,
-        @Nullable Economy realtimeCachedEconomy) {
+    public void saveInitialPlacementDiagsIfEnabled(@Nullable String timeStamp,
+                                                   @Nullable BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
+                                                   @Nullable BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
+                                                   @Nonnull List<InitialPlacementDTO> newInitialPlacements,
+                                                   @Nullable Economy historicalCachedEconomy,
+                                                   @Nullable Economy realtimeCachedEconomy) {
+        if (!isEnabled()) {
+            return;
+        }
         final Stopwatch stopwatch = Stopwatch.createStarted();
+        ZipOutputStream diagnosticZip = null;
         try {
             logger.info("FindInitialPlacement: Starting dump of InitialPlacement diagnostics with timeStamp {}",
                     timeStamp);
-
+            diagnosticZip = createZipOutputStream(zipFilenameSuffix, analysisMode);
+            DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
             if (historicalCachedEconomy != null) {
                 try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
                      ObjectOutputStream oos = new ObjectOutputStream(bos)) {
@@ -247,11 +230,7 @@ public class AnalysisDiagnosticsCollector {
         } catch (Exception e) {
             logger.error("FindInitialPlacement: Error when attempting to save InitialPlacement diags", e);
         } finally {
-            try {
-                diagnosticZip.close();
-            } catch (IOException e) {
-                logger.error("FindInitialPlacement: Error when attempting to close diagnostics zip file.", e);
-            }
+            closeZipOutputStream(diagnosticZip);
             stopwatch.stop();
             logger.info("FindInitialPlacement: Completed dump of InitialPlacement diagnostics with timeStamp  {} in {} seconds",
                     timeStamp, stopwatch.elapsed(TimeUnit.SECONDS));
@@ -265,11 +244,17 @@ public class AnalysisDiagnosticsCollector {
      * @param smaInput     smaInput to save
      * @param topologyInfo topology info
      */
-    public void saveSMAInput(final SMAInput smaInput,
-                             final TopologyInfo topologyInfo) {
+    public void saveSMAInputIfEnabled(final SMAInput smaInput,
+                                      final TopologyInfo topologyInfo) {
+        if (!isEnabled()) {
+            return;
+        }
         final Stopwatch stopwatch = Stopwatch.createStarted();
         smaInput.getContexts().stream().forEach(a -> a.compress());
+        ZipOutputStream diagnosticZip = null;
         try {
+            diagnosticZip = createZipOutputStream(zipFilenameSuffix, analysisMode);
+            DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
             logger.info("Starting dump of SMA diagnostics for topology context id {}",
                     topologyInfo.getTopologyContextId());
             for (int contextIndex = 0; contextIndex < smaInput.getContexts().size(); contextIndex++) {
@@ -307,16 +292,27 @@ public class AnalysisDiagnosticsCollector {
             // Analysis should not stop because there was an error in saving diags.
             logger.error("Error when attempting to save SMA diags. But analysis will continue.", e);
         } finally {
-            try {
-                diagnosticZip.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            closeZipOutputStream(diagnosticZip);
             smaInput.getContexts().stream().forEach(a -> a.decompress());
             stopwatch.stop();
             logger.info("Completed dump of SMA diagnostics for topology context id {} in {} seconds",
                     topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));
         }
+    }
+
+    /**
+     * create a zip output stream.
+     * @param zipFilenameSuffix suffix for the zip file created
+     * @param analysisMode determines what data is stored
+     * @return the zipOutputStream created.
+     * @throws FileNotFoundException if ANALYSIS_DIAGS_DIRECTORY is not found.
+     */
+    private ZipOutputStream createZipOutputStream(String zipFilenameSuffix, AnalysisMode analysisMode)
+            throws FileNotFoundException {
+        final String zipLocation = AnalysisDiagnosticsUtils.getZipFileFullPath(
+                AnalysisDiagnosticsUtils.getFilePrefix(analysisMode), zipFilenameSuffix);
+        FileOutputStream fos = new FileOutputStream(zipLocation);
+        return new ZipOutputStream(fos);
     }
 
     /**
@@ -326,17 +322,26 @@ public class AnalysisDiagnosticsCollector {
      * @param topologyInfo              topology info
      * @param analysisConfig            analysis config
      * @param commSpecsToAdjustOverhead commSpecsToAdjustOverhead
+     * @param numRealTimeAnalysisDiagsToRetain number of real time analysis diagnostics to retain
      */
-    public void saveAnalysis(final List<TraderTO> traderTOs,
-                             final TopologyInfo topologyInfo,
-                             final AnalysisConfig analysisConfig,
-                             final List<CommoditySpecification> commSpecsToAdjustOverhead) {
+    public void saveAnalysisIfEnabled(final List<TraderTO> traderTOs,
+                                      final TopologyInfo topologyInfo,
+                                      final AnalysisConfig analysisConfig,
+                                      final List<CommoditySpecification> commSpecsToAdjustOverhead,
+                                      final int numRealTimeAnalysisDiagsToRetain) {
+        if (!isAnalysisDiagsSaveEnabled(topologyInfo, numRealTimeAnalysisDiagsToRetain)) {
+            return;
+        }
+        ZipOutputStream diagnosticZip = null;
         try {
-            List<List<TraderTO>> partitonedTraderTOs = Lists.partition(traderTOs, MAX_NUM_TRADERS_PER_PARTITION);
             logger.info("Starting dump of Analysis diagnostics for topology context id {}",
                     topologyInfo.getTopologyContextId());
             final Stopwatch stopwatch = Stopwatch.createStarted();
 
+            diagnosticZip = createZipOutputStream(zipFilenameSuffix, analysisMode);
+            DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+
+            List<List<TraderTO>> partitonedTraderTOs = Lists.partition(traderTOs, MAX_NUM_TRADERS_PER_PARTITION);
             logger.info("Starting dump of TraderTOs");
             for (int i = 0; i < partitonedTraderTOs.size(); i++) {
                 diagsWriter.writeZipEntry(TRADER_DIAGS_FILE_NAME + String.format( "%03d", i),
@@ -372,12 +377,22 @@ public class AnalysisDiagnosticsCollector {
             // Analysis should not stop because there was an error in saving diags.
             logger.error("Error when attempting to save Analysis diags. But analysis will continue.", e);
         } finally {
-            try {
-                diagnosticZip.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            closeZipOutputStream(diagnosticZip);
         }
+    }
+
+    /**
+     * Analysis diags should be saved when either:
+     * 1. debug is enabled
+     * OR
+     * 2. topology is for real time AND the number of diags to retain is greater than zero.
+     * @param topologyInfo topology info
+     * @param numRealTimeAnalysisDiagsToRetain number of real time analysis diags to retain
+     * @return true if analysis diags is to be saved, false otherwise
+     */
+    @VisibleForTesting
+    static boolean isAnalysisDiagsSaveEnabled(final TopologyInfo topologyInfo, final int numRealTimeAnalysisDiagsToRetain) {
+        return isEnabled() || !topologyInfo.hasPlanInfo() && numRealTimeAnalysisDiagsToRetain > 0;
     }
 
     private <T> void writeAnalysisDiagsEntry(final DiagnosticsWriter diagsWriter,
@@ -387,6 +402,16 @@ public class AnalysisDiagnosticsCollector {
         logger.info("Starting dump of {}", logSuffix);
         diagsWriter.writeZipEntry(fileName, diagsEntries.map(d -> GSON.toJson(d)).iterator());
         logger.info("Completed dump of {}", logSuffix);
+    }
+
+    private void closeZipOutputStream(@Nullable ZipOutputStream diagnosticZip) {
+        try {
+            if (diagnosticZip != null) {
+                diagnosticZip.close();
+            }
+        } catch (IOException e) {
+            logger.error("Error occurred while closing action diags zip file", e);
+        }
     }
 
     /**
@@ -426,47 +451,14 @@ public class AnalysisDiagnosticsCollector {
             @Override
             public Optional<AnalysisDiagnosticsCollector> newDiagsCollector(String zipFilenameSuffix, AnalysisMode analysisMode) {
                 AnalysisDiagnosticsCollector diagsCollector = null;
-                if (AnalysisDiagnosticsCollector.isEnabled()) {
-                    try {
-                        ZipOutputStream diagnosticZip = createZipOutputStream(zipFilenameSuffix, analysisMode);
-                        DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
-                        diagsCollector = new AnalysisDiagnosticsCollector(diagsWriter, diagnosticZip);
-                    } catch (Exception e) {
-                        logger.error("Error when attempting to write DTOs. But analysis will continue.", e);
-                    }
+                try {
+                    // ZipOutputStream diagnosticZip = createZipOutputStream(zipFilenameSuffix, analysisMode);
+                    // DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+                    diagsCollector = new AnalysisDiagnosticsCollector(zipFilenameSuffix, analysisMode);
+                } catch (Exception e) {
+                    logger.error("Error when attempting to write DTOs. But analysis will continue.", e);
                 }
                 return Optional.ofNullable(diagsCollector);
-            }
-
-            /**
-             * create a zip output stream.
-             * @param zipFilenameSuffix suffix for the zip file created
-             * @param analysisMode determines what data is stored
-             * @return the zipOutputStream created.
-             * @throws FileNotFoundException if ANALYSIS_DIAGS_DIRECTORY is not found.
-             */
-            private ZipOutputStream createZipOutputStream(String zipFilenameSuffix, AnalysisMode analysisMode)
-                    throws FileNotFoundException {
-
-                String zipPrefix = "";
-                if (analysisMode == AnalysisMode.SMA) {
-                    zipPrefix = SMA_ZIP_LOCATION_PREFIX;
-                } else if (analysisMode == AnalysisMode.M2) {
-                    zipPrefix = M2_ZIP_LOCATION_PREFIX;
-                } else if (analysisMode == AnalysisMode.ACTIONS) {
-                    zipPrefix = ACTION_ZIP_LOCATION_PREFIX;
-                } else if (analysisMode == AnalysisMode.INITIAL_PLACEMENT) {
-                    zipPrefix = INITIAL_PLACEMENT_ZIP_LOCATION_PREFIX;
-                }
-
-                final String zipLocation = ANALYSIS_DIAGS_DIRECTORY + zipPrefix
-                        + ANALYSIS_DIAGS_SUFFIX
-                        + zipFilenameSuffix
-                        + ".zip";
-
-                FileOutputStream fos = new FileOutputStream(zipLocation);
-                ZipOutputStream diagnosticZip = new ZipOutputStream(fos);
-                return diagnosticZip;
             }
         }
     }

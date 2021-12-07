@@ -30,6 +30,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.After;
 import org.junit.Before;
@@ -195,7 +197,7 @@ public class MarketRunnerTest {
                     consistentScalingHelperFactory, initialPlacementFinder,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                     new CommodityIdUpdater(), actionSavingsCalculatorFactory,
-                    externalReconfigureActionEngine);
+                    externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 

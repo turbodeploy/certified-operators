@@ -538,7 +538,7 @@ public class InitialPlacementFinder {
         String now = String.valueOf((new Date()).getTime());
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
         factory.newDiagsCollector(now, AnalysisMode.INITIAL_PLACEMENT).ifPresent(diagsCollector -> {
-            diagsCollector.saveInitialPlacementDiags(now,
+            diagsCollector.saveInitialPlacementDiagsIfEnabled(now,
                     economyCaches.getHistoricalCachedCommTypeMap(),
                     economyCaches.getRealtimeCachedCommTypeMap(),
                     initialPlacements,

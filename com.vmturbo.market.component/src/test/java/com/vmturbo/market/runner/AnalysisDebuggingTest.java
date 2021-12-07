@@ -62,6 +62,8 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
@@ -308,7 +310,7 @@ public class AnalysisDebuggingTest {
                 mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder,
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                         new CommodityIdUpdater(), actionSavingsCalculatorFactory, mock(
-                ExternalReconfigureActionEngine.class));
+                ExternalReconfigureActionEngine.class), new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
         return analysis;
     }
 
