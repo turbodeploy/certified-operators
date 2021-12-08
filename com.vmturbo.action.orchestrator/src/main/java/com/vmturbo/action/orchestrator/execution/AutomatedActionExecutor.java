@@ -30,7 +30,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToReadyEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -270,21 +269,17 @@ public class AutomatedActionExecutor {
                 // TODO (roman, July 30 2019): OM-49079 - Submit an asynchronous callable to
                 // the threadpool, and use a different mechanism than the size of the threadpool
                 // to limit concurrent actions.
-                if (!actionList.isEmpty()) {
-                    try {
-                        ConditionalFuture future = new ConditionalFuture(
-                                new AutomatedActionTask(targetId, actionList));
-                        submitter.execute(future);
-                        futures.add(future);
-                    } catch (RejectedExecutionException ex) {
-                        final String actionIdsString = actionList.stream()
-                                .map(Action::getId)
-                                .map(String::valueOf)
-                                .collect(Collectors.joining(", "));
-                        logger.error("Failed to submit actions {} to executor.", actionIdsString, ex);
-                    }
-                } else {
-                    logger.debug("There are no actions ready for execution, from the set of combined actions");
+                try {
+                    ConditionalFuture future = new ConditionalFuture(
+                            new AutomatedActionTask(targetId, actionList));
+                    submitter.execute(future);
+                    futures.add(future);
+                } catch (RejectedExecutionException ex) {
+                    final String actionIdsString = actionList.stream()
+                            .map(Action::getId)
+                            .map(String::valueOf)
+                            .collect(Collectors.joining(", "));
+                    logger.error("Failed to submit actions {} to executor.", actionIdsString, ex);
                 }
             }
         }
@@ -364,7 +359,12 @@ public class AutomatedActionExecutor {
         public AutomatedActionTask call() throws Exception {
             final List<Action> filteredActionList = new ArrayList<>(actionList.size());
             for (final Action action : actionList) {
-                if (hasBeenRolledBack(action)) {
+                if (!isExecutionWindowActive(action)) {
+                    // rollback action from QUEUED to ACCEPTED state because of
+                    // a missing execution window
+                    logger.info("Action {} wasn't send for execution because "
+                            + "associated execution window is not active", action.getId());
+                    action.receive(new RollBackToAcceptedEvent());
                     continue;
                 }
 
@@ -426,69 +426,6 @@ public class AutomatedActionExecutor {
             }
 
             return this;
-        }
-
-        /**
-         * Return true if the input action has been rolled back to a previous state, false otherwise.
-         * The action roll back can happen in the following situations:
-         * - when the action execution schedule is not active, a roll back from QUEUED to ACCEPTED state
-         * will happen when the action mode is set MANUAL or EXTERNAL_APPROVAL. For all other action
-         * modes, the action will be rolled back from QUEUED to READY state.
-         * - when the action execution schedule is active, action mode is AUTOMATIC and the action doesn't
-         * have user acceptance, the action will be rolled back from QUEUED to READY state.
-         *
-         * @param action The input action that can be rolled backed to a previous state.
-         * @return true if the input action has been rolled back to a previous state, false otherwise.
-         */
-        private boolean hasBeenRolledBack(@Nonnull Action action) {
-            boolean result = false;
-            final Optional<ActionSchedule> execScheduleOpt = action.getSchedule();
-
-            ActionMode actionMode = action.getMode();
-            if (execScheduleOpt.isPresent()) {
-                if (!isExecutionWindowActive(action)) {
-                    if ((actionMode == ActionMode.MANUAL || actionMode == ActionMode.EXTERNAL_APPROVAL)
-                        && execScheduleOpt.get().getAcceptingUser() != null) {
-                        // Rollback action from QUEUED to ACCEPTED state because of
-                        // a missing execution window
-                        logger.debug("Action with {} mode and {} ID won't be executed because the associated "
-                                + "execution window is not active; rolling it back to ACCEPTED state",
-                                actionMode, action.getId());
-                        action.receive(new RollBackToAcceptedEvent());
-                        result = true;
-                    } else {
-                        logger.debug("Action with {} mode and {} ID won't be executed because the associated "
-                                + "execution window is not active; rolling it back to READY state",
-                                actionMode, action.getId());
-                        action.receive(new RollBackToReadyEvent());
-                        result = true;
-                    }
-                } else {
-                    if (actionMode != ActionMode.AUTOMATIC && execScheduleOpt.get().getAcceptingUser() == null) {
-                        logger.debug("Action with {} mode and {} ID won't be executed because it's not automated "
-                                + "and doesn't have user acceptance; rolling it back to READY state",
-                                actionMode, action.getId());
-                        action.receive(new RollBackToReadyEvent());
-                        result = true;
-                    } else {
-                        logger.debug("The automated action will be executed because it's accepted by user",
-                                action.getId());
-                    }
-                }
-            } else {
-                if (actionMode != ActionMode.AUTOMATIC) {
-                    logger.debug("Action with {} mode and {} ID won't be executed during the execution window "
-                            + "because it's not automated; rolling it back to READY state",
-                            actionMode, action.getId());
-                    action.receive(new RollBackToReadyEvent());
-                    result = true;
-                } else {
-                    logger.debug("The automated action will be executed during its execution window",
-                            action.getId());
-                }
-            }
-
-            return result;
         }
 
         private boolean isExecutionWindowActive(@Nonnull Action action) {

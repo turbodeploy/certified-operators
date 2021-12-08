@@ -17,7 +17,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToReadyEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition;
@@ -33,17 +32,17 @@ public class ActionStateMachine {
     /**
      * Generate a new state machine for an action. The state machine looks like:
      * <pre>
-     *      -->READY ----------> CLEARED
-     *     |     ^  ^               ^^^
-     *     |     |  |               |||
-     *     |     |  v               |||
-     *     |     |  REJECTED ------- ||
-     *     |     v                   ||
-     *     |  ACCEPTED---------------||
-     *     |     ^                    |
-     *     |     |                    |
-     *     |     v                    |
-     *     ----QUEUED------------------
+     *          READY ----------> CLEARED
+     *           ^  ^               ^^^
+     *           |  |               |||
+     *           |  v               |||
+     *           |  REJECTED ------- ||
+     *           v                   ||
+     *        ACCEPTED---------------||
+     *           ^                    |
+     *           |                    |
+     *           v                    |
+     *        QUEUED------------------
      *           |
      *           v
      *        PRE_IN_PROGRESS---------------------------------
@@ -122,9 +121,6 @@ public class ActionStateMachine {
             .addTransition(from(ActionState.QUEUED).to(ActionState.ACCEPTED)
                 .onEvent(RollBackToAcceptedEvent.class)
                 .after(action::onActionRemovedFromQueue))
-            .addTransition(from(ActionState.QUEUED).to(ActionState.READY)
-                    .onEvent(RollBackToReadyEvent.class)
-                    .after(action::onActionRemovedFromQueue))
 
             // Handle progress events while in PRE
             .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.PRE_IN_PROGRESS)
