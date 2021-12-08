@@ -405,6 +405,11 @@ message ResizeInfo {
     // scaling group ID that the source entities belong to
     optional string scaling_group_id = 7;
 
+    // currently configured cores per socket value
+    optional int32 old_cpsr = 8 [default = 1];
+
+    // desired cores per socket value
+    optional int32 new_cpsr = 9 [default = 1];
 }
 
 // Change one or more providers of an entity.
@@ -530,6 +535,11 @@ message Resize {
     // deprecated reason commodity being resized.
     reserved 10;
     reserved "reason";
+
+    // currently configured cores per socket value
+    optional int32 old_cpsr = 11 [default = 1];
+    // desired cores per socket value
+    optional int32 new_cpsr = 12 [default = 1];
 }
 
 // Activate an existing deactivated entity.

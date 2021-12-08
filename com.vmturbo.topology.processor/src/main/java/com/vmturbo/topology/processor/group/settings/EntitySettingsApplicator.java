@@ -1584,13 +1584,19 @@ public class EntitySettingsApplicator {
                                 EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
                                 VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE);
 
-                final int incrementSockets = MODE_TO_HANDLER.containsKey(coresPerSocketModeType)
-                        ? MODE_TO_HANDLER.get(coresPerSocketModeType).getIncrementSockets(entity,
-                        topologyGraph, entitySettings, numCpus, cpsr) : 1;
-
+                final ModeHandler modeHandler = MODE_TO_HANDLER.get(coresPerSocketModeType);
+                final int sockets;
+                if (modeHandler == null) {
+                    sockets = 1;
+                } else {
+                    sockets = modeHandler.getIncrementSockets(entity,
+                            topologyGraph, entitySettings, numCpus, cpsr);
+                    entity.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                            .getCpuScalingPolicyBuilder().setSockets(sockets);
+                }
                 if (numCpus != null && numCpus > 0) {
                     return Math.round(vcpuCommodityBuilder.getCapacity() / numCpus)
-                            * incrementSockets;
+                            * sockets;
                 } else {
                     return super.getVcpuIncrement(entity, topologyGraph, entitySettings,
                             vcpuCommodityBuilder);

@@ -9,7 +9,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
@@ -19,6 +22,9 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAt
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.Builder;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
@@ -98,6 +104,22 @@ public class ResizeContext extends AbstractActionExecutionContext {
         populatedPrimaryActionAdditionalFields(builders);
 
         return builders;
+    }
+
+    @Override
+    protected EntityDTO getFullEntityDTO(long entityId) throws ContextCreationException {
+        final EntityDTO result = super.getFullEntityDTO(entityId);
+        final Resize resize = getActionInfo().getResize();
+        if (resize.hasNewCpsr() && result.hasVirtualMachineData()) {
+            final VirtualMachineData virtualMachineData = result.getVirtualMachineData();
+            if (virtualMachineData.hasCoresPerSocketChangeable()) {
+                final VirtualMachineData.Builder vmDataBuilder =
+                                VirtualMachineData.newBuilder(virtualMachineData)
+                                                .setCoresPerSocketRatio(resize.getNewCpsr());
+                return EntityDTO.newBuilder(result).setVirtualMachineData(vmDataBuilder).build();
+            }
+        }
+        return result;
     }
 
     /**

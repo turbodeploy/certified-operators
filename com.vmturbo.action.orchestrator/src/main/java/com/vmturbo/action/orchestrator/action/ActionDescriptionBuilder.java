@@ -121,6 +121,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize {0} for {1}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
+        ACTION_DESCRIPTION_RESIZE_VCPU_CPS("Resize {0} {1} for {2} from {3} to {4} and cores per socket from {5} to {6}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to {1} {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES("Reconfigure {0} to provide {1} from {2}"),
@@ -285,21 +286,33 @@ public class ActionDescriptionBuilder {
                 beautifyEntityTypeAndName(entity));
         }
 
-        ActionMessageFormat messageFormat =
-            resize.getCommodityAttribute() == CommodityAttribute.CAPACITY
-                ? ActionMessageFormat.ACTION_DESCRIPTION_RESIZE
-                : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
-
         String commodity = beautifyCommodityType(resize.getCommodityType());
         ActionVirtualMachineInfo vmInfo = entity.getTypeSpecificInfo().getVirtualMachine();
 
         if (commodityType == CommodityType.VCPU && vmInfo.getCpuCoreMhz() != 0.0) {
+            if (resize.hasOldCpsr() && resize.hasNewCpsr()) {
+                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_VCPU_CPS.format(
+                                resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
+                                commodity, beautifyEntityTypeAndName(entity),
+                                formatResizeActionCommodityValue(commodityType,
+                                                entity.getEntityType(), resize.getOldCapacity(),
+                                                false),
+                                formatResizeActionCommodityValue(commodityType,
+                                                entity.getEntityType(), resize.getNewCapacity(),
+                                                true), resize.getOldCpsr(),
+                                resize.getNewCpsr());
+            }
             Double cpuReservation = vmInfo.getReservationInfoMap().get(CommodityType.CPU_VALUE);
             if (cpuReservation != null
                     && resize.getNewCapacity() * vmInfo.getCpuCoreMhz() < cpuReservation) {
                 commodity += RESERVATION;
             }
-        } else if (commodityType == CommodityType.VMEM) {
+        }
+        ActionMessageFormat messageFormat =
+                        resize.getCommodityAttribute() == CommodityAttribute.CAPACITY
+                                        ? ActionMessageFormat.ACTION_DESCRIPTION_RESIZE
+                                        : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
+        if (commodityType == CommodityType.VMEM) {
             Double memReservation = vmInfo.getReservationInfoMap().get(CommodityType.MEM_VALUE);
             if (memReservation != null && resize.getNewCapacity() < memReservation) {
                 commodity += RESERVATION;
