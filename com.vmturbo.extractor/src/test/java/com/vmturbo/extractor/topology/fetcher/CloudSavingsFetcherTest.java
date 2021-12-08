@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
@@ -44,6 +45,7 @@ import com.vmturbo.extractor.schema.enums.SavingsType;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * For cloud savings related tests.
@@ -64,6 +66,12 @@ public class CloudSavingsFetcherTest {
     private DslRecordSink sink;
 
     private CloudSavingsFetcher savingsFetcher;
+
+    /**
+     * Rule to initialize FeatureFlags.POSTGRES_PRIMARY_DB store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     /**
      * GRPC cost service test server.
