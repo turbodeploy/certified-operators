@@ -169,6 +169,10 @@ public class MarketRunnerConfig {
     @Value("${customUtilizationThreshold:0.5}")
     private float customUtilizationThreshold;
 
+    // setting timeout to 60mins
+    @Value("${rtAnalysisTimeoutSecs:3600}")
+    private long rtAnalysisTimeoutSecs;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -202,7 +206,8 @@ public class MarketRunnerConfig {
             analysisFactory(),
             marketRpcConfig.marketDebugRpcService(),
             analysisGate(),
-            marketRpcConfig.getInitialPlacementFinder());
+            marketRpcConfig.getInitialPlacementFinder(),
+            rtAnalysisTimeoutSecs);
     }
 
     @Bean
