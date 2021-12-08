@@ -184,7 +184,10 @@
         <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
         <!-- For spinning up a postgres container for testing during maven build-->
         <postgres-image-tag>13.5</postgres-image-tag>
-        <dockerHost>unix:///var/run/docker.sock</dockerHost>
+        <!-- this is needed so postgres container is created locally rather than remote machine,
+             and the name needs to be different from DOCKER_HOST env variable, so images can be
+             pushed to remote machine during team branch's nightly build -->
+        <fabricateDockerHost>unix:///var/run/docker.sock</fabricateDockerHost>
         <postgresHost>localhost</postgresHost>
         <!--This doesn't work here since it has to not be set in the case that we launch a
             postgres container instead of relying on a separate postgres service being available.
@@ -1624,7 +1627,7 @@
             </activation>
             <properties>
                 <!-- On Docker for Windows this will require exposing the Daemon with TLS disabled . -->
-                <dockerHost>tcp://localhost:2375</dockerHost>
+                <fabricateDockerHost>tcp://localhost:2375</fabricateDockerHost>
             </properties>
         </profile>
     </profiles>
