@@ -34,7 +34,7 @@ public class PrerequisiteDescriptionComposer {
             "Alternatively, you can exclude templates that require ENA";
     private static final String NVME_PREREQUISITE_FORMAT =
         "To unblock, enable NVMe for {0} and change instance type in the AWS Console. " +
-            "Alternatively, you can exclude templates that require NVMe";
+            "Alternatively, you can configure a policy to ignore NVMe";
     private static final String ARCHITECTURE_PREREQUISITE_FORMAT =
         "To unblock, enable 64-bit AMIs for {0}. " +
             "Alternatively, you can exclude templates that require 64-bit AMIs";
