@@ -50,7 +50,7 @@ public class PrerequisiteDescriptionComposerTest {
             "(^_^)~To unblock, enable ENA for {entity:1:displayName:Virtual Machine}. " +
                 "Alternatively, you can exclude templates that require ENA",
             "(^_^)~To unblock, enable NVMe for {entity:1:displayName:Virtual Machine} and change instance " +
-                "type in the AWS Console. Alternatively, you can exclude templates that require NVMe",
+                "type in the AWS Console. Alternatively, you can configure a policy to ignore NVMe",
             "(^_^)~To unblock, enable 64-bit AMIs for {entity:1:displayName:Virtual Machine}. " +
                 "Alternatively, you can exclude templates that require 64-bit AMIs",
             "(^_^)~To unblock, enable HVM AMIs for {entity:1:displayName:Virtual Machine}. " +
