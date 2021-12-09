@@ -179,14 +179,14 @@ class MySqlFamilyAdapter extends DbAdapter {
     @Override
     protected void tearDown() {
         try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP DATABASE `%s`", config.getDatabaseName()));
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop database {}", config.getDatabaseName(), e);
-        }
-        try (Connection conn = getRootConnection()) {
             execute(conn, String.format("DROP USER `%s`@`%%`", config.getUserName()));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop user {}", config.getUserName(), e);
+        }
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("DROP DATABASE `%s`", config.getDatabaseName()));
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Failed to drop database {}", config.getDatabaseName(), e);
         }
     }
 
