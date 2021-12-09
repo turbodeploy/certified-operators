@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import static com.vmturbo.api.component.external.api.mapper.aspect.ContainerPlatformContextAspectMapper.ContainerPlatformContextMapper.CLOUD_NATIVE_ENTITY_CONNECTIONS;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -13,7 +14,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -55,10 +55,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Unit tests for {@link ContainerPlatformContextMapper}.
  */
 public class ContainerPlatformContextMapperTest {
-    private static Set<Integer> cloudNativeEntityConnections
-            = ImmutableSet.of(ApiEntityType.NAMESPACE.typeNumber(),
-            ApiEntityType.CONTAINER_PLATFORM_CLUSTER.typeNumber());
-
     private ContainerPlatformContextMapper contextMapper;
 
     private final long realTimeTopologyContextId = 7777777L;
@@ -77,12 +73,13 @@ public class ContainerPlatformContextMapperTest {
     private final BaseApiDTO namespaceEntity = ServiceEntityMapper.toBaseApiDTO(namespace);
 
     private final long secondNamespaceOid = 889L;
-    private final String secondNsDisplayName = "turbo";
+    private final String secondNsDisplayName = "turbo2";
     private final MinimalEntity secondNamespace = MinimalEntity.newBuilder()
             .setOid(secondNamespaceOid)
             .setEntityType(ApiEntityType.NAMESPACE.typeNumber())
             .setDisplayName(secondNsDisplayName)
             .build();
+    private final BaseApiDTO secondNamespaceEntity = ServiceEntityMapper.toBaseApiDTO(secondNamespace);
 
     private final long clusterOid = 999L;
     private final String clusterDisplayName = "kube-cluster";
@@ -104,43 +101,71 @@ public class ContainerPlatformContextMapperTest {
     private final ApiPartialEntity containerSpec = ApiPartialEntity.newBuilder().setOid(31L)
             .setEntityType(ApiEntityType.CONTAINER_SPEC.typeNumber())
             .build();
-    private final ApiPartialEntity controller = ApiPartialEntity.newBuilder().setOid(41L)
+    private final long controllerOid = 41L;
+    private final ApiPartialEntity controller = ApiPartialEntity.newBuilder().setOid(controllerOid)
             .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
             .build();
+    private final String controllerName = "wcTurbo";
+    private final MinimalEntity controllerMinimalEntity = MinimalEntity.newBuilder()
+            .setOid(controllerOid)
+            .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
+            .setDisplayName(controllerName)
+            .build();
+    private final BaseApiDTO controllerEntity = ServiceEntityMapper.toBaseApiDTO(controllerMinimalEntity);
+    private final long controller2Oid = 42L;
+    private final ApiPartialEntity controller2 = ApiPartialEntity.newBuilder().setOid(controller2Oid)
+            .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
+            .build();
+    private final String controller2Name = "wc2Turbo";
+    private final MinimalEntity controller2MinimalEntity = MinimalEntity.newBuilder()
+            .setOid(controller2Oid)
+            .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
+            .setDisplayName(controller2Name)
+            .build();
+    private final BaseApiDTO controller2Entity = ServiceEntityMapper.toBaseApiDTO(controller2MinimalEntity);
 
     private final SupplyChainSeed containerSeed = SupplyChainSeed.newBuilder()
             .setSeedOid(container.getOid())
             .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(container.getOid())
-                    .addAllEntityTypesToInclude(cloudNativeEntityConnections))
+                    .addAllEntityTypesToInclude(CLOUD_NATIVE_ENTITY_CONNECTIONS))
             .build();
     private final SupplyChainSeed podSeed = SupplyChainSeed.newBuilder()
             .setSeedOid(pod.getOid())
             .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(pod.getOid())
-                    .addAllEntityTypesToInclude(cloudNativeEntityConnections))
+                    .addAllEntityTypesToInclude(CLOUD_NATIVE_ENTITY_CONNECTIONS))
             .build();
     private final SupplyChainSeed secondPodSeed = SupplyChainSeed.newBuilder()
             .setSeedOid(secondPod.getOid())
             .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(secondPod.getOid())
-                    .addAllEntityTypesToInclude(cloudNativeEntityConnections))
+                    .addAllEntityTypesToInclude(CLOUD_NATIVE_ENTITY_CONNECTIONS))
             .build();
 
     private final SupplyChainSeed containerSpecSeed = SupplyChainSeed.newBuilder()
             .setSeedOid(containerSpec.getOid())
             .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(containerSpec.getOid())
-                    .addAllEntityTypesToInclude(cloudNativeEntityConnections))
+                    .addAllEntityTypesToInclude(CLOUD_NATIVE_ENTITY_CONNECTIONS))
             .build();
 
     private final SupplyChainSeed controllerSeed = SupplyChainSeed.newBuilder()
             .setSeedOid(controller.getOid())
             .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(controller.getOid())
-                    .addAllEntityTypesToInclude(cloudNativeEntityConnections))
+                    .addAllEntityTypesToInclude(ImmutableSet.of(
+                            EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE, EntityType.NAMESPACE_VALUE)))
             .build();
 
+    private final SupplyChainNode controllerNode = SupplyChainNode.newBuilder()
+            .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
+            .putMembersByState(1, MemberList.newBuilder().addMemberOids(controllerOid).build())
+            .build();
+    private final SupplyChainNode controller2Node = SupplyChainNode.newBuilder()
+            .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
+            .putMembersByState(1, MemberList.newBuilder().addMemberOids(controller2Oid).build())
+            .build();
     private final SupplyChainNode namespaceNode = SupplyChainNode.newBuilder()
             .setEntityType(ApiEntityType.NAMESPACE.typeNumber())
             .putMembersByState(1, MemberList.newBuilder().addMemberOids(namespaceOid).build())
@@ -156,11 +181,13 @@ public class ContainerPlatformContextMapperTest {
             .build();
 
     private final SupplyChain supplyChain = SupplyChain.newBuilder()
+            .addSupplyChainNodes(controllerNode)
             .addSupplyChainNodes(namespaceNode)
             .addSupplyChainNodes(clusterNode)
             .build();
 
     private final SupplyChain secondSupplyChain = SupplyChain.newBuilder()
+            .addSupplyChainNodes(controller2Node)
             .addSupplyChainNodes(secondNamespaceNode)
             .addSupplyChainNodes(clusterNode)
             .build();
@@ -211,8 +238,9 @@ public class ContainerPlatformContextMapperTest {
      */
     @Test
     public void testMappingContextForMultipleEntities() {
-        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace,
+                containerCluster, controllerMinimalEntity));
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid, controllerOid)))
             .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
@@ -259,24 +287,48 @@ public class ContainerPlatformContextMapperTest {
         context = (ContainerPlatformContextAspectApiDTO)containerContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect podContext = entityAspects.get(pod.getOid());
         assertTrue(podContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)podContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect containerSpecContext = entityAspects.get(containerSpec.getOid());
         assertTrue(containerSpecContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)containerSpecContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect controllerContext = entityAspects.get(controller.getOid());
         assertTrue(controllerContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)controllerContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
     }
 
     /**
@@ -284,8 +336,9 @@ public class ContainerPlatformContextMapperTest {
      */
     @Test
     public void testMappingContextForPlanEntities() {
-        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace,
+                containerCluster, controllerMinimalEntity));
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid, controllerOid)))
             .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
@@ -315,7 +368,6 @@ public class ContainerPlatformContextMapperTest {
                     .setSeedOid(controller.getOid())
                     .setSupplyChain(supplyChain)
                     .build()
-
             ));
 
         Collection<ApiPartialEntity> entities = Arrays.asList(container, pod, containerSpec, controller);
@@ -332,24 +384,48 @@ public class ContainerPlatformContextMapperTest {
         context = (ContainerPlatformContextAspectApiDTO)containerContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect podContext = entityAspects.get(pod.getOid());
         assertTrue(podContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)podContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect containerSpecContext = entityAspects.get(containerSpec.getOid());
         assertTrue(containerSpecContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)containerSpecContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect controllerContext = entityAspects.get(controller.getOid());
         assertTrue(controllerContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)controllerContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
     }
 
     /**
@@ -358,8 +434,9 @@ public class ContainerPlatformContextMapperTest {
      */
     @Test
     public void testMappingContextForProvisionedPlanEntities() {
-        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace,
+                containerCluster, controllerMinimalEntity));
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid, controllerOid)))
             .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
@@ -406,18 +483,36 @@ public class ContainerPlatformContextMapperTest {
         context = (ContainerPlatformContextAspectApiDTO)containerContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect cloneContext = entityAspects.get(cloneId);
         assertTrue(cloneContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)cloneContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect secondCloneContext = entityAspects.get(secondCloneId);
         assertTrue(secondCloneContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)secondCloneContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
     }
 
     /**
@@ -426,9 +521,10 @@ public class ContainerPlatformContextMapperTest {
      */
     @Test
     public void testMappingContextForEntitiesInDifferentNamespaces() {
-        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, secondNamespace, containerCluster));
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace,
+                secondNamespace, containerCluster, controllerMinimalEntity, controller2MinimalEntity));
         when(repositoryApi.entitiesRequest(
-            Sets.newSet(clusterOid, namespaceOid, secondNamespaceOid)))
+            Sets.newSet(clusterOid, namespaceOid, secondNamespaceOid, controllerOid, controller2Oid)))
             .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
@@ -457,14 +553,26 @@ public class ContainerPlatformContextMapperTest {
         EntityAspect secondPodContext = entityAspects.get(secondPod.getOid());
         assertTrue(secondPodContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)secondPodContext;
-        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(secondNamespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(secondNamespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controller2Entity.toString(), context.getWorkloadControllerEntity().toString());
 
         EntityAspect podContext = entityAspects.get(pod.getOid());
         assertTrue(podContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)podContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
     }
 
     /**
@@ -480,11 +588,12 @@ public class ContainerPlatformContextMapperTest {
                 .setSeedOid(podEntityDto.getOid())
                 .setScope(SupplyChainScope.newBuilder()
                         .addStartingEntityOid(podEntityDto.getOid())
-                        .addAllEntityTypesToInclude(cloudNativeEntityConnections))
+                        .addAllEntityTypesToInclude(CLOUD_NATIVE_ENTITY_CONNECTIONS))
                 .build();
 
-        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace,
+                containerCluster, controllerMinimalEntity));
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid, controllerOid)))
             .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
@@ -515,6 +624,8 @@ public class ContainerPlatformContextMapperTest {
         Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
         Assert.assertNotNull(context.getContainerClusterEntity());
         Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
+        Assert.assertNotNull(context.getWorkloadControllerEntity());
+        Assert.assertEquals(controllerEntity.toString(), context.getWorkloadControllerEntity().toString());
     }
 
     /**
@@ -524,7 +635,7 @@ public class ContainerPlatformContextMapperTest {
     @Test
     public void testMissingContextinfo() {
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid, controllerOid)))
             .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
@@ -550,6 +661,10 @@ public class ContainerPlatformContextMapperTest {
         assertTrue(podContext instanceof ContainerPlatformContextAspectApiDTO);
         context = (ContainerPlatformContextAspectApiDTO)podContext;
         Assert.assertNull(context.getNamespace());
+        Assert.assertNull(context.getNamespaceEntity());
+        Assert.assertNull(context.getWorkloadControllerEntity());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
     }
 }
