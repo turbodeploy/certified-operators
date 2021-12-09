@@ -11,13 +11,11 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Record3;
 import org.jooq.Result;
-import org.jooq.SelectConditionStep;
+import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.history.db.BasedbIO.Style;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.ingesters.live.writers.VolumeAttachmentHistoryWriter;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 
@@ -28,16 +26,16 @@ public class VolumeAttachmentHistoryReader {
 
     private static final Logger logger = LogManager.getLogger();
     private static final VolumeAttachmentHistory table =
-        VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY;
-    private final HistorydbIO historydbIO;
+            VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY;
+    private final DSLContext dsl;
 
     /**
      * Creates an instance of VolumeAttachmentHistoryReader.
      *
-     * @param historydbIO instance to execute queries.
+     * @param dsl instance to execute queries.
      */
-    public VolumeAttachmentHistoryReader(@Nonnull final HistorydbIO historydbIO) {
-        this.historydbIO = historydbIO;
+    public VolumeAttachmentHistoryReader(@Nonnull final DSLContext dsl) {
+        this.dsl = dsl;
     }
 
     /**
@@ -52,24 +50,21 @@ public class VolumeAttachmentHistoryReader {
         if (volumeOids.isEmpty()) {
             return Collections.emptyList();
         }
-        final SelectConditionStep<Record3<Long, Long, Date>> select = HistorydbIO.getJooqBuilder()
-            .select(table.VOLUME_OID, table.VM_OID, table.LAST_ATTACHED_DATE)
-            .from(table)
-            .where(table.VOLUME_OID.in(volumeOids));
         try {
-            @SuppressWarnings("unchecked")
-            final Result<Record3<Long, Long, Date>> result = (Result<Record3<Long, Long, Date>>)
-                historydbIO.execute(Style.IMMEDIATE, select);
+            @SuppressWarnings("unchecked") final Result<Record3<Long, Long, Date>> result =
+                    dsl.select(table.VOLUME_OID, table.VM_OID, table.LAST_ATTACHED_DATE)
+                            .from(table)
+                            .where(table.VOLUME_OID.in(volumeOids)).fetch();
             if (result != null) {
                 return result.stream()
-                    // group records related to a volume oid
-                    .collect(Collectors.groupingBy(Record3::component1, Collectors.toList()))
-                    .values().stream()
-                    // get the most recent record for each volume
-                    .map(this::getMostRecentRecord)
-                    .collect(Collectors.toList());
+                        // group records related to a volume oid
+                        .collect(Collectors.groupingBy(Record3::component1, Collectors.toList()))
+                        .values().stream()
+                        // get the most recent record for each volume
+                        .map(this::getMostRecentRecord)
+                        .collect(Collectors.toList());
             }
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error(String.format("Error retrieving volume attachment history for volumes %s ",
                 volumeOids), e);
         }

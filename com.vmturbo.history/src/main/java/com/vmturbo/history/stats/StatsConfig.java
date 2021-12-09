@@ -1,15 +1,11 @@
 package com.vmturbo.history.stats;
 
 import java.time.Clock;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.jooq.Record;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +25,6 @@ import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -44,7 +39,6 @@ import com.vmturbo.history.stats.live.LiveStatsStore;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
@@ -166,7 +160,7 @@ public class StatsConfig {
     @Bean
     public BulkLoader<ClusterStatsByDayRecord> clusterStatsByDayLoader() {
         final SimpleBulkLoaderFactory loaders =
-                new SimpleBulkLoaderFactory(historyDbConfig.historyDbIO(),
+                new SimpleBulkLoaderFactory(historyDbConfig.dsl(),
                         historyDbConfig.bulkLoaderConfig(),
                         Executors.newSingleThreadExecutor());
         return loaders.getLoader(ClusterStatsByDay.CLUSTER_STATS_BY_DAY);
@@ -192,6 +186,7 @@ public class StatsConfig {
                 clusterStatsReader(),
                 clusterStatsByDayLoader(),
                 historyDbConfig.historyDbIO(),
+                historyDbConfig.dataSource(),
                 projectedStatsStore(),
                 paginationParamsFactory(),
                 statSnapshotCreator(),
@@ -206,13 +201,13 @@ public class StatsConfig {
     @Bean
     protected PercentileReader percentileReader() {
         return new PercentileReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
-                historyDbConfig.historyDbIO());
+                historyDbConfig.dsl());
     }
 
     @Bean
     protected MovingStatisticsReader movingStatisticsReader() {
         return new MovingStatisticsReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
-                historyDbConfig.historyDbIO());
+                historyDbConfig.dsl());
     }
 
     @Bean
@@ -290,12 +285,13 @@ public class StatsConfig {
 
     @Bean
     public SystemLoadReader systemLoadReader() {
-        return new SystemLoadReader(historyDbConfig.historyDbIO());
+        return new SystemLoadReader(historyDbConfig.dsl());
     }
 
     @Bean
     public LiveStatsReader liveStatsReader() {
         return new LiveStatsReader(historyDbConfig.historyDbIO(),
+                historyDbConfig.dsl(),
                 defaultTimeRangeFactory(),
                 statsQueryFactory(),
                 computedPropertiesProcessorFactory(),
@@ -305,7 +301,7 @@ public class StatsConfig {
 
     @Bean
     protected HistUtilizationReader histUtilizationReader() {
-        return new HistUtilizationReader(historyDbConfig.historyDbIO(), entitiesReadPerChunk, liveStatsStore());
+        return new HistUtilizationReader(historyDbConfig.dsl(), entitiesReadPerChunk, liveStatsStore());
     }
 
     /**
@@ -325,7 +321,7 @@ public class StatsConfig {
 
     @Bean
     public PlanStatsReader planStatsReader() {
-        return new PlanStatsReader(historyDbConfig.historyDbIO());
+        return new PlanStatsReader(historyDbConfig.dsl());
     }
 
 
@@ -336,7 +332,8 @@ public class StatsConfig {
      */
     @Bean
     public ClusterTimeRangeFactory clusterTimeRangeFactory() {
-        return new ClusterTimeRangeFactory(historyDbConfig.historyDbIO(), timeFrameCalculator());
+        return new ClusterTimeRangeFactory(
+                historyDbConfig.historyDbIO(), historyDbConfig.dsl(), timeFrameCalculator());
     }
 
     /**
@@ -346,12 +343,13 @@ public class StatsConfig {
      */
     @Bean
     public ClusterStatsReader clusterStatsReader() {
-        return new ClusterStatsReader(historyDbConfig.historyDbIO(), clusterTimeRangeFactory(), defaultTimeRangeFactory(),
-                computedPropertiesProcessorFactory(), maxAmountOfEntitiesPerGrpcMessage);
+        return new ClusterStatsReader(historyDbConfig.dsl(), clusterTimeRangeFactory(),
+                defaultTimeRangeFactory(), computedPropertiesProcessorFactory(),
+                maxAmountOfEntitiesPerGrpcMessage);
     }
 
     @Bean
     VolumeAttachmentHistoryReader volumeAttachmentHistoryReader() {
-        return new VolumeAttachmentHistoryReader(historyDbConfig.historyDbIO());
+        return new VolumeAttachmentHistoryReader(historyDbConfig.dsl());
     }
 }

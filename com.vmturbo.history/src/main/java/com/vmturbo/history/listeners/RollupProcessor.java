@@ -16,7 +16,6 @@ import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectFrom;
 
 import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -43,6 +42,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -52,9 +52,7 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.RetentionPolicy;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.abstraction.Routines;
 import com.vmturbo.history.schema.abstraction.routines.EntityStatsRollup;
@@ -93,17 +91,21 @@ public class RollupProcessor {
      */
     public static final int VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD = 14;
 
-    private final HistorydbIO historydbIO;
     private final ExecutorService executorService;
+    private final DSLContext dsl;
+    private final DSLContext unpooledDsl;
 
     /**
      * Create a new instance.
      *
-     * @param historydbIO     DB utilities
+     * @param dsl             DB access for general use
+     * @param unpooledDsl     DB access for long-running operations
      * @param executorService thread pool to run individual tasks
      */
-    public RollupProcessor(HistorydbIO historydbIO, ExecutorService executorService) {
-        this.historydbIO = historydbIO;
+    public RollupProcessor(DSLContext dsl, DSLContext unpooledDsl,
+            ExecutorService executorService) {
+        this.dsl = dsl;
+        this.unpooledDsl = unpooledDsl;
         this.executorService = executorService;
     }
 
@@ -171,9 +173,8 @@ public class RollupProcessor {
         Timestamp rollupTime = rollupType.getRollupTime(snapshot);
         Timestamp rollupStart = rollupType.getPeriodStart(snapshot);
         Timestamp rollupEnd = rollupType.getPeriodEnd(snapshot);
-        try (Connection conn = historydbIO.connection()) {
-            String sql = historydbIO.using(conn)
-                    .insertInto(AVAILABLE_TIMESTAMPS,
+        try {
+            String sql = dsl.insertInto(AVAILABLE_TIMESTAMPS,
                             AVAILABLE_TIMESTAMPS.TIME_STAMP,
                             AVAILABLE_TIMESTAMPS.TIME_FRAME,
                             AVAILABLE_TIMESTAMPS.HISTORY_VARIETY,
@@ -181,24 +182,30 @@ public class RollupProcessor {
                     .select(
                             select(
                                     inline(rollupTime).as(AVAILABLE_TIMESTAMPS.TIME_STAMP),
-                                    inline(rollupType.getTimeFrame().name()).as(AVAILABLE_TIMESTAMPS.TIME_FRAME),
-                                    inline(historyVariety.name()).as(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY),
+                                    inline(rollupType.getTimeFrame().name()).as(
+                                            AVAILABLE_TIMESTAMPS.TIME_FRAME),
+                                    inline(historyVariety.name()).as(
+                                            AVAILABLE_TIMESTAMPS.HISTORY_VARIETY),
                                     inline(Timestamp.from(
-                                            rollupType.getRetentionPolicy().getExpiration(rollupTime.toInstant())))
+                                            rollupType.getRetentionPolicy()
+                                                    .getExpiration(rollupTime.toInstant())))
                                             .as(AVAILABLE_TIMESTAMPS.EXPIRES_AT))
                                     .from(AVAILABLE_TIMESTAMPS)
                                     .where(exists(selectFrom(AVAILABLE_TIMESTAMPS)
-                                            .where(AVAILABLE_TIMESTAMPS.TIME_STAMP.between(inline(rollupStart), inline(rollupEnd)))
-                                            .and(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY.eq(inline(historyVariety.name()))))
+                                            .where(AVAILABLE_TIMESTAMPS.TIME_STAMP.between(
+                                                    inline(rollupStart), inline(rollupEnd)))
+                                            .and(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY.eq(
+                                                    inline(historyVariety.name()))))
                                     )
 
                     ).getSQL();
             // JOOQ's onDuplicateKeyIgnore method can't currently be used with its INSERT...SELECT
             // construction. So we need to create the INSERT statement without it, and then modify
             // the generated SQL as needed to get the intended effect.
-            sql = Pattern.compile("^INSERT", Pattern.CASE_INSENSITIVE).matcher(sql).replaceFirst("INSERT IGNORE");
-            historydbIO.using(conn).execute(sql);
-        } catch (VmtDbException | SQLException | DataAccessException e) {
+            sql = Pattern.compile("^INSERT", Pattern.CASE_INSENSITIVE).matcher(sql).replaceFirst(
+                    "INSERT IGNORE");
+            dsl.execute(sql);
+        } catch (DataAccessException e) {
             logger.error("Failed to rollup available_timestamps", e);
         }
     }
@@ -215,41 +222,38 @@ public class RollupProcessor {
         }
         // available_timestamps is small, so we just manually delete records that exceed expiration
         timer.start("Expire available_timestamps records");
-        try (Connection conn = historydbIO.connection()) {
-            historydbIO.using(conn).deleteFrom(AVAILABLE_TIMESTAMPS)
+        try {
+            dsl.deleteFrom(AVAILABLE_TIMESTAMPS)
                     .where(DSL.currentTimestamp().ge(AVAILABLE_TIMESTAMPS.EXPIRES_AT)).execute();
-        } catch (VmtDbException | SQLException | DataAccessException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to delete expired available_timestamps records", e);
         } finally {
             timer.stop();
         }
         timer.start("Purge expired cluster_stats records");
-        try (Connection conn = historydbIO.connection()) {
-            Routines.purgeExpiredClusterStats(historydbIO.using(conn).configuration());
-        } catch (VmtDbException | SQLException | DataAccessException e) {
+        try {
+            Routines.purgeExpiredClusterStats(dsl.configuration());
+        } catch (DataAccessException e) {
             logger.error("Failed to delete expired cluster_stats records", e);
         } finally {
             timer.stop();
         }
         timer.start("Purge expired volume_attachment_history records");
-        try (Connection conn = historydbIO.connection()) {
-            final int deletedRowsCount =
-                    historydbIO.using(conn)
-                            .delete(VOLUME_ATTACHMENT_HISTORY)
-                            .where(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID
-                                    .in(HistorydbIO.getJooqBuilder()
-                                            .select(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
-                                            .from(VOLUME_ATTACHMENT_HISTORY)
-                                            .groupBy(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
-                                            .having(dateDiff(currentDate(),
-                                                    max(VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE))
-                                                    .gt(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD))))
-                            .execute();
+        try {
+            final int deletedRowsCount = dsl.delete(VOLUME_ATTACHMENT_HISTORY)
+                    .where(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID
+                            .in(dsl.select(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
+                                    .from(VOLUME_ATTACHMENT_HISTORY)
+                                    .groupBy(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
+                                    .having(dateDiff(currentDate(),
+                                            max(VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE))
+                                            .gt(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD))))
+                    .execute();
             if (deletedRowsCount > 0) {
                 logger.info("Number of rows deleted from Volume Attachment History table: {}",
                         deletedRowsCount);
             }
-        } catch (VmtDbException | SQLException | DataAccessException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to delete expired volume_attachment_history records", e);
         } finally {
             timer.stop();
@@ -294,7 +298,7 @@ public class RollupProcessor {
         EntityType.allEntityTypes().stream()
                 .filter(EntityType::rollsUp)
                 .forEach(type -> {
-                    List<String> missing = new ArrayList();
+                    List<String> missing = new ArrayList<>();
                     type.getLatestTable().map(tables::add).orElseGet(() -> missing.add("Latest"));
                     type.getHourTable().map(tables::add).orElseGet(() -> missing.add("Hourly"));
                     type.getDayTable().map(tables::add).orElseGet(() -> missing.add("Daily"));
@@ -310,11 +314,11 @@ public class RollupProcessor {
 
     private Future<Void> scheduleRepartition(Table<?> table) {
         return executorService.submit(() -> {
-            try (Connection conn = historydbIO.unpooledConnection()) {
-                historydbIO.using(conn).execute(String.format(
-                        "CALL rotate_partition('%s', NULL)", table.getName()));
+            try {
+                Routines.rotatePartition(unpooledDsl.configuration(), table.getName(), null);
             } catch (Exception e) {
-                logger.error("Repartitioning failed for table {}: {}", table.getName(), e.toString());
+                logger.error("Repartitioning failed for table {}: {}", table.getName(),
+                        e.toString());
             }
             return null;
         });
@@ -327,7 +331,7 @@ public class RollupProcessor {
         timer.start(rollupType.getLabel() + " Prep");
         // schedule all the task for execution in the thread pool
         final List<Pair<Table, List<Future<Void>>>> tableFutures = tables.stream()
-                .filter(t -> rollupType.canRollup(t))
+                .filter(rollupType::canRollup)
                 .map(t -> Pair.of(t, scheduleRollupTasks(t, rollupType, snapshot)))
                 .collect(Collectors.toList());
         timer.stop();
@@ -377,11 +381,11 @@ public class RollupProcessor {
                     rollupType.isCopyMonthKey() ? 1 : 0,
                     rollupType.sourceHasSamples() ? 1 : 0);
             futures.add(executorService.submit(() -> {
-                try (Connection conn = historydbIO.unpooledTransConnection()) {
-                    conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
-                    historydbIO.using(conn).execute(sql);
-                    conn.commit();
-                }
+                unpooledDsl.transaction(trans -> {
+                    trans.dsl().connection(conn ->
+                            conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
+                    trans.dsl().execute(sql);
+                });
                 return null;
             }));
             lowBound = highBound;
@@ -392,11 +396,11 @@ public class RollupProcessor {
     private List<Future<Void>> scheduleMarketStatsRollupTask() {
         String sql = String.format("CALL %s('%s')", MARKET_ROLLUP_PROC, MARKET_TABLE_PREFIX);
         final Future<Void> future = executorService.submit(() -> {
-            try (Connection conn = historydbIO.unpooledTransConnection()) {
-                conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
-                historydbIO.using(conn).execute(sql);
-                conn.commit();
-            }
+            unpooledDsl.transaction(trans -> {
+                trans.dsl().connection(conn ->
+                        conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
+                trans.dsl().execute(sql);
+            });
             return null;
         });
         return Collections.singletonList(future);
@@ -414,11 +418,11 @@ public class RollupProcessor {
                 snapshotTime, rollupTime,
                 rollupType.sourceHasSamples() ? 1 : 0);
         final Future<Void> future = executorService.submit(() -> {
-            try (Connection conn = historydbIO.unpooledTransConnection()) {
-                conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
-                historydbIO.using(conn).execute(sql);
-                conn.commit();
-            }
+            unpooledDsl.transaction(trans -> {
+                trans.dsl().connection(conn ->
+                        conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
+                trans.dsl().execute(sql);
+            });
             return null;
         });
         return Collections.singletonList(future);

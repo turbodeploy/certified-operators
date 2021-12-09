@@ -5,8 +5,6 @@
 package com.vmturbo.history.stats.readers;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,8 +33,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.HistoryUtilizationType;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.stats.INonPaginatingStatsReader;
@@ -46,12 +42,12 @@ import com.vmturbo.history.stats.live.LiveStatsStore;
  * {@link HistUtilizationReader} reads from {@link HistUtilization#HIST_UTILIZATION} table.
  */
 public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtilizationRecord> {
-    private final HistorydbIO historydbIO;
     private final int entitiesPerChunk;
     private final LiveStatsStore liveStatsStore;
+    private final DSLContext dsl;
 
-    public HistUtilizationReader(@Nonnull HistorydbIO historydbIO, int entitiesPerChunk, LiveStatsStore liveStatsStore) {
-        this.historydbIO = Objects.requireNonNull(historydbIO);
+    public HistUtilizationReader(@Nonnull DSLContext dsl, int entitiesPerChunk, LiveStatsStore liveStatsStore) {
+        this.dsl = Objects.requireNonNull(dsl);
         this.entitiesPerChunk = entitiesPerChunk;
         this.liveStatsStore = liveStatsStore;
     }
@@ -59,7 +55,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
     @Nonnull
     @Override
     public List<HistUtilizationRecord> getRecords(@Nonnull Set<String> entityIds,
-                    @Nonnull StatsFilter statsFilter) throws VmtDbException {
+                    @Nonnull StatsFilter statsFilter) throws DataAccessException {
         final Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes =
                         getPropertyTypeToUtilizationTypes(statsFilter);
         final boolean histUtilizationRequestRequired = propertyTypeToUtilizationTypes.values().stream()
@@ -104,18 +100,16 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
     @Nonnull
     private List<HistUtilizationRecord> getDataFromHistUtilization(
                     @Nonnull Collection<String> entityIds,
-                    @Nonnull Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes)
-                    throws VmtDbException {
-        try (Connection connection = historydbIO.transConnection();
-             DSLContext context = historydbIO.using(connection)) {
+                    @Nonnull Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes) {
+        try {
             final Condition condition =
                             getPropertyToUtilizationTypeConditions(propertyTypeToUtilizationTypes);
 
             final List<HistUtilizationRecord> result = getChunkedEntityIds(entityIds).stream()
-                            .map(chunk -> getHistUtilizationRecordsPage(chunk, context, condition))
+                            .map(chunk -> getHistUtilizationRecordsPage(chunk, dsl, condition))
                             .flatMap(Collection::stream).collect(Collectors.toList());
             return result;
-        } catch (SQLException e) {
+        } catch (DataAccessException e) {
             throw new DataAccessException("Failed in connection auto-close", e);
         }
     }
@@ -220,8 +214,8 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                 Map<Integer, Double> entityCapacityStats = liveStatsStore.getEntityCapacityStats(entityOid);
                 for (int commType : commTypes) {
                     if (entitySmoothedUsageStats.containsKey(commType)) {
-                        records.add(new HistUtilizationRecord(entityOid, 0l, commType, 0, "",
-                                HistoryUtilizationType.Smoothed.ordinal(), 0, new BigDecimal(entitySmoothedUsageStats.get(commType)),
+                        records.add(new HistUtilizationRecord(entityOid, 0L, commType, 0, "",
+                                HistoryUtilizationType.Smoothed.ordinal(), 0, new  BigDecimal(entitySmoothedUsageStats.get(commType)),
                                 entityCapacityStats.get(commType)));
                     }
                 }

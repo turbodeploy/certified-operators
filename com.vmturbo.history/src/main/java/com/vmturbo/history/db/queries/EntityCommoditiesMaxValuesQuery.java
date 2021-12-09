@@ -24,6 +24,7 @@ import javax.annotation.Nonnull;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.JoinType;
 import org.jooq.Table;
@@ -54,30 +55,38 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
     /**
      * Create a new default query.
      *
-     * @param table Entity
-     * @param comms The list of commodities to get the max value for.
+     * @param table        Entity
+     * @param comms        The list of commodities to get the max value for.
      * @param lookbackDays Look back days for querying max used value.
+     * @param dsl          DB access
      */
     public EntityCommoditiesMaxValuesQuery(@Nonnull Table<?> table, @Nonnull List<String> comms,
-        @Nonnull int lookbackDays) {
-        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, false, null, Optional.empty());
+            int lookbackDays, @Nonnull DSLContext dsl) {
+        super(dsl);
+        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, false, null,
+                Optional.empty());
     }
 
     /**
      * Creates a new query considering whether a commodity is bought, and a specified set of uuids
      * in addition to the original arguments considered.
      *
-     * @param table the stats table for which stats are being queried
-     * @param comms the commodities for which to compute a historical max
-     * @param lookbackDays the number of days to look back
+     * @param table           the stats table for which stats are being queried
+     * @param comms           the commodities for which to compute a historical max
+     * @param lookbackDays    the number of days to look back
      * @param commodityBought whether we're interested in bought commodites - if false, consider
-     * sold commodities
-     * @param uuids the entity uuids for which stats should be gathered - if null or empty, consider all
-     * @param tempTableName the name of the optional temp table to use
+     *                        sold commodities
+     * @param uuids           the entity uuids for which stats should be gathered - if null or
+     *                        empty, consider all
+     * @param tempTableName   the name of the optional temp table to use
+     * @param dsl             DB access
      */
     public EntityCommoditiesMaxValuesQuery(@Nonnull Table<?> table, @Nonnull List<String> comms,
-            @Nonnull int lookbackDays, boolean commodityBought, @Nonnull List<Long> uuids, Optional<String> tempTableName) {
-        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, commodityBought, uuids, tempTableName);
+            int lookbackDays, boolean commodityBought, @Nonnull List<Long> uuids,
+            Optional<String> tempTableName, DSLContext dsl) {
+        super(dsl);
+        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, commodityBought, uuids,
+                tempTableName);
     }
 
     /**
@@ -94,7 +103,7 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
     public void getEntityCommoditiesMaxValuesQuery(
             @Nonnull final Table<?> table,
             @Nonnull final List<String> comms,
-            @Nonnull int lookbackDays,
+            int lookbackDays,
             final boolean commodityBought,
             @Nullable final List<Long> uuids,
             Optional<String> tempTableNameOptional) {
@@ -122,7 +131,7 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
         // on topology processor startup. Otherwise let the database choose.
         if (CollectionUtils.isEmpty(uuids)) {
             table.getIndexes().stream()
-                .filter(idx -> idx.getName().toLowerCase().equals(FORCE_INDEX))
+                .filter(idx -> idx.getName().equalsIgnoreCase(FORCE_INDEX))
                 .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
         }
 

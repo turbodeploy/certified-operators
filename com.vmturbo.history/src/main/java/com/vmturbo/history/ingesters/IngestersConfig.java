@@ -203,7 +203,7 @@ public class IngestersConfig {
                 projectedPlanTopologyIngester(),
                 rollupProcessor(),
                 historyApiConfig.statsAvailabilityTracker(),
-                historyDbConfig.historyDbIO(),
+                historyDbConfig.dsl(),
                 topologyCoordinatorConfig());
     }
 
@@ -235,7 +235,8 @@ public class IngestersConfig {
                         ),
                         new SystemLoadWriter.Factory(
                                 groupServiceBlockingStub(),
-                                historyDbConfig.historyDbIO()
+                                historyDbConfig.dsl(),
+                                historyDbConfig.unpooledDsl()
                         ),
                         new EntitiesWriter.Factory(
                                 historyDbConfig.historyDbIO()
@@ -398,7 +399,8 @@ public class IngestersConfig {
     @Bean
     RollupProcessor rollupProcessor() {
         return new RollupProcessor(
-                historyDbConfig.historyDbIO(), historyDbConfig.bulkLoaderThreadPool());
+                historyDbConfig.dsl(), historyDbConfig.dsl(),
+                historyDbConfig.bulkLoaderThreadPool());
     }
 
     /**
@@ -488,7 +490,7 @@ public class IngestersConfig {
      */
     @Bean
     Supplier<SimpleBulkLoaderFactory> bulkLoaderFactorySupplier() {
-        return () -> new SimpleBulkLoaderFactory(historyDbConfig.historyDbIO(),
+        return () -> new SimpleBulkLoaderFactory(historyDbConfig.dsl(),
                 historyDbConfig.bulkLoaderConfig(), historyDbConfig.bulkLoaderThreadPool());
     }
 

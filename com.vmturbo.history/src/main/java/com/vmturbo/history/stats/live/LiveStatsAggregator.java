@@ -20,6 +20,7 @@ import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -27,7 +28,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
@@ -224,10 +224,10 @@ public class LiveStatsAggregator implements MemReporter {
      * rows in case there are partial chunks. Called when done handling the incoming message
      * chunks.
      *
-     * @throws VmtDbException       when there is a problem writing to the DB.
+     * @throws DataAccessException       when there is a problem writing to the DB.
      * @throws InterruptedException if interrupted
      */
-    public void writeFinalStats() throws VmtDbException, InterruptedException {
+    public void writeFinalStats() throws DataAccessException, InterruptedException {
         for (final MarketStatsAccumulator statsAccumulator : accumulatorsByEntityAndEnvType.values()) {
             statsAccumulator.writeFinalStats();
         }

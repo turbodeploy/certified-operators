@@ -1,7 +1,7 @@
 package com.vmturbo.history.ingesters.plan.writers;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,13 +9,13 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
@@ -35,11 +35,11 @@ public class PlanStatsWriter extends TopologyWriterBase implements MemReporter {
                             @Nonnull IngesterState state) {
         try {
             historydbIO.addMktSnapshotRecord(topologyInfo);
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to add market snapshot record; will skip stats collection", e);
-            this.initFailed = true;
         }
-        this.aggregator = new PlanStatsAggregator(state.getLoaders(), historydbIO, topologyInfo, true);
+        this.aggregator = new PlanStatsAggregator(state.getLoaders(), historydbIO, topologyInfo,
+                true);
     }
 
     @Override
@@ -89,6 +89,6 @@ public class PlanStatsWriter extends TopologyWriterBase implements MemReporter {
 
     @Override
     public List<MemReporter> getNestedMemReporters() {
-        return Arrays.asList(aggregator);
+        return Collections.singletonList(aggregator);
     }
 }

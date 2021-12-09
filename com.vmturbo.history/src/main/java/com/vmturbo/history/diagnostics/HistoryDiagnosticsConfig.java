@@ -32,7 +32,7 @@ public class HistoryDiagnosticsConfig {
      */
     @Bean
     public AggregationMetadataDiagnostics aggregationMetadataDiagnostics() {
-        return new AggregationMetadataDiagnostics(Clock.systemUTC(), historyDbConfig.historyDbIO());
+        return new AggregationMetadataDiagnostics(Clock.systemUTC(), historyDbConfig.dsl());
     }
 
     /**
@@ -42,7 +42,7 @@ public class HistoryDiagnosticsConfig {
      */
     @Bean
     public AggregationPerformanceDiagnostics aggregationPerformanceDiagnostics() {
-        return new AggregationPerformanceDiagnostics(Clock.systemUTC(), historyDbConfig.historyDbIO());
+        return new AggregationPerformanceDiagnostics(Clock.systemUTC(), historyDbConfig.dsl());
     }
 
     @Bean

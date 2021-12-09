@@ -12,69 +12,47 @@ import static java.time.temporal.ChronoUnit.HOURS;
 import static java.time.temporal.ChronoUnit.MONTHS;
 import static org.junit.Assert.assertEquals;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.Optional;
 
 import org.jooq.DSLContext;
-import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.schema.HistoryVariety;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
-import com.vmturbo.history.stats.DbTestConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Tests of the {@link RetentionPolicy} class.
  *
  * <p>These tests are executed in a test database constructed from history component migrations.</p>
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {DbTestConfig.class})
-@DirtiesContext(classMode = ClassMode.AFTER_CLASS)
 public class RetentionPolicyTest {
-    @Autowired
-    private DbTestConfig dbTestConfig;
-
-    private static HistorydbIO historydbIO;
-    private static String testDbName;
 
     /**
-     * Create a history database to be used by all tests.
-     *
-     * @throws VmtDbException if an error occurs during migrations
+     * Provision and provide access to a test database.
      */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /**
+     * Clean up tables in the test database before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    DSLContext dsl = dbConfig.getDslContext();
+
+    /** Initialize retention policies before each test. */
     @Before
-    public void setup() throws VmtDbException {
-        testDbName = dbTestConfig.testDbName();
-        historydbIO = dbTestConfig.historydbIO();
-        HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.setSchemaForTests(testDbName);
-        historydbIO.init(false, null, testDbName, Optional.empty());
-    }
-
-    /**
-     * Discard the test database.
-     *
-     * @throws VmtDbException if an error occurs
-     * @throws SQLException if an error occurs
-     */
-    @AfterClass
-    public static void afterClass() throws SQLException, VmtDbException {
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        }
+    public void before() {
+        RetentionPolicy.init(dsl);
     }
 
     /**
@@ -123,64 +101,59 @@ public class RetentionPolicyTest {
      * Test that expiration values in available_timestamps records are updated correctly in response to
      * reported changes in retention policies during live operation.
      *
-     * @throws VmtDbException if certain DB errors occur
-     * @throws SQLException if other DB errors occur
      */
     @Test
-    public void testPolicyChange() throws VmtDbException, SQLException {
-        try (Connection conn = historydbIO.connection()) {
-            DSLContext ctx = historydbIO.using(conn);
-            // create some available_snapshots reocrds to test
-            Timestamp tsL = Timestamp.from(Instant.parse("2019-01-02T03:00:00Z"));
-            insertAvailableTimestamp(tsL, LATEST, ENTITY_STATS, RetentionPolicy.LATEST_STATS, ctx);
-            Timestamp tsL1 = Timestamp.from(Instant.parse("2019-01-02T03:00:01Z"));
-            insertAvailableTimestamp(tsL1, LATEST, ENTITY_STATS, RetentionPolicy.LATEST_STATS, ctx);
-            Timestamp tsH = Timestamp.from(Instant.parse("2019-01-02T03:00:00Z"));
-            insertAvailableTimestamp(tsH, HOUR, ENTITY_STATS, RetentionPolicy.HOURLY_STATS, ctx);
-            Timestamp tsH1 = Timestamp.from(Instant.parse("2019-01-02T03:00:01Z"));
-            insertAvailableTimestamp(tsH1, HOUR, ENTITY_STATS, RetentionPolicy.HOURLY_STATS, ctx);
-            Timestamp tsD = Timestamp.from(Instant.parse("2019-01-02T00:00:00Z"));
-            insertAvailableTimestamp(tsD, DAY, ENTITY_STATS, RetentionPolicy.DAILY_STATS, ctx);
-            Timestamp tsD1 = Timestamp.from(Instant.parse("2019-01-02T00:00:01Z"));
-            insertAvailableTimestamp(tsD1, DAY, ENTITY_STATS, RetentionPolicy.DAILY_STATS, ctx);
-            Timestamp tsM = Timestamp.from(Instant.parse("2019-01-01T00:00:00Z"));
-            insertAvailableTimestamp(tsM, MONTH, ENTITY_STATS, RetentionPolicy.MONTHLY_STATS, ctx);
-            Timestamp tsM1 = Timestamp.from(Instant.parse("2019-01-01T00:00:01Z"));
-            insertAvailableTimestamp(tsM1, MONTH, ENTITY_STATS, RetentionPolicy.MONTHLY_STATS, ctx);
-            // make some policy changes
-            changePolicy(RetentionPolicy.LATEST_STATS, 3, ctx);
-            changePolicy(RetentionPolicy.HOURLY_STATS, 15, ctx);
-            changePolicy(RetentionPolicy.DAILY_STATS, 10, ctx);
-            changePolicy(RetentionPolicy.MONTHLY_STATS, 5, ctx);
-            // notify regarding the change
-            RetentionPolicy.onChange();
-            // retreive available_timestamps records and check that they have correctly updated expirations
-            AvailableTimestampsRecord rL = getAvailableTimestamp(tsL, LATEST, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-01-02T06:00:00Z"), rL.getExpiresAt().toInstant());
-            AvailableTimestampsRecord rL1 = getAvailableTimestamp(tsL1, LATEST, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-01-02T07:00:00Z"), rL1.getExpiresAt().toInstant());
-            AvailableTimestampsRecord rH = getAvailableTimestamp(tsH, HOUR, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-01-02T18:00:00Z"), rH.getExpiresAt().toInstant());
-            AvailableTimestampsRecord rH1 = getAvailableTimestamp(tsH1, HOUR, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-01-02T19:00:00Z"), rH1.getExpiresAt().toInstant());
-            AvailableTimestampsRecord rD = getAvailableTimestamp(tsD, DAY, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-01-12T00:00:00Z"), rD.getExpiresAt().toInstant());
-            AvailableTimestampsRecord rD1 = getAvailableTimestamp(tsD1, DAY, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-01-13T00:00:00Z"), rD1.getExpiresAt().toInstant());
-            AvailableTimestampsRecord rM = getAvailableTimestamp(tsM, MONTH, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-06-01T00:00:00Z"), rM.getExpiresAt().toInstant());
-            AvailableTimestampsRecord rM1 = getAvailableTimestamp(tsM1, MONTH, ENTITY_STATS, ctx);
-            assertEquals(Instant.parse("2019-07-01T00:00:00Z"), rM1.getExpiresAt().toInstant());
-            // Undo our database changes (We couldn't just do everything in a transaction and roll it back,
-            // unfortunately, because the policy changes need to be committed in order for RetentionPolicy class
-            // to see those changes when processing the change.)
-            ctx.deleteFrom(AVAILABLE_TIMESTAMPS).execute();
-            changePolicy(RetentionPolicy.LATEST_STATS, 2, ctx);
-            changePolicy(RetentionPolicy.HOURLY_STATS, 72, ctx);
-            changePolicy(RetentionPolicy.DAILY_STATS, 60, ctx);
-            changePolicy(RetentionPolicy.MONTHLY_STATS, 24, ctx);
-            RetentionPolicy.onChange();
-        }
+    public void testPolicyChange() {
+        // create some available_snapshots reocrds to test
+        Timestamp tsL = Timestamp.from(Instant.parse("2019-01-02T03:00:00Z"));
+        insertAvailableTimestamp(tsL, LATEST, ENTITY_STATS, RetentionPolicy.LATEST_STATS, dsl);
+        Timestamp tsL1 = Timestamp.from(Instant.parse("2019-01-02T03:00:01Z"));
+        insertAvailableTimestamp(tsL1, LATEST, ENTITY_STATS, RetentionPolicy.LATEST_STATS, dsl);
+        Timestamp tsH = Timestamp.from(Instant.parse("2019-01-02T03:00:00Z"));
+        insertAvailableTimestamp(tsH, HOUR, ENTITY_STATS, RetentionPolicy.HOURLY_STATS, dsl);
+        Timestamp tsH1 = Timestamp.from(Instant.parse("2019-01-02T03:00:01Z"));
+        insertAvailableTimestamp(tsH1, HOUR, ENTITY_STATS, RetentionPolicy.HOURLY_STATS, dsl);
+        Timestamp tsD = Timestamp.from(Instant.parse("2019-01-02T00:00:00Z"));
+        insertAvailableTimestamp(tsD, DAY, ENTITY_STATS, RetentionPolicy.DAILY_STATS, dsl);
+        Timestamp tsD1 = Timestamp.from(Instant.parse("2019-01-02T00:00:01Z"));
+        insertAvailableTimestamp(tsD1, DAY, ENTITY_STATS, RetentionPolicy.DAILY_STATS, dsl);
+        Timestamp tsM = Timestamp.from(Instant.parse("2019-01-01T00:00:00Z"));
+        insertAvailableTimestamp(tsM, MONTH, ENTITY_STATS, RetentionPolicy.MONTHLY_STATS, dsl);
+        Timestamp tsM1 = Timestamp.from(Instant.parse("2019-01-01T00:00:01Z"));
+        insertAvailableTimestamp(tsM1, MONTH, ENTITY_STATS, RetentionPolicy.MONTHLY_STATS, dsl);
+        // make some policy changes
+        changePolicy(RetentionPolicy.LATEST_STATS, 3, dsl);
+        changePolicy(RetentionPolicy.HOURLY_STATS, 15, dsl);
+        changePolicy(RetentionPolicy.DAILY_STATS, 10, dsl);
+        changePolicy(RetentionPolicy.MONTHLY_STATS, 5, dsl);
+        // notify regarding the change
+        RetentionPolicy.onChange();
+        // retreive available_timestamps records and check that they have correctly updated expirations
+        AvailableTimestampsRecord rL = getAvailableTimestamp(tsL, LATEST, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-01-02T06:00:00Z"), rL.getExpiresAt().toInstant());
+        AvailableTimestampsRecord rL1 = getAvailableTimestamp(tsL1, LATEST, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-01-02T07:00:00Z"), rL1.getExpiresAt().toInstant());
+        AvailableTimestampsRecord rH = getAvailableTimestamp(tsH, HOUR, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-01-02T18:00:00Z"), rH.getExpiresAt().toInstant());
+        AvailableTimestampsRecord rH1 = getAvailableTimestamp(tsH1, HOUR, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-01-02T19:00:00Z"), rH1.getExpiresAt().toInstant());
+        AvailableTimestampsRecord rD = getAvailableTimestamp(tsD, DAY, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-01-12T00:00:00Z"), rD.getExpiresAt().toInstant());
+        AvailableTimestampsRecord rD1 = getAvailableTimestamp(tsD1, DAY, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-01-13T00:00:00Z"), rD1.getExpiresAt().toInstant());
+        AvailableTimestampsRecord rM = getAvailableTimestamp(tsM, MONTH, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-06-01T00:00:00Z"), rM.getExpiresAt().toInstant());
+        AvailableTimestampsRecord rM1 = getAvailableTimestamp(tsM1, MONTH, ENTITY_STATS, dsl);
+        assertEquals(Instant.parse("2019-07-01T00:00:00Z"), rM1.getExpiresAt().toInstant());
+        // Undo our database changes (We couldn't just do everything in a transaction and roll it back,
+        // unfortunately, because the policy changes need to be committed in order for RetentionPolicy class
+        // to see those changes when processing the change.)
+        dsl.deleteFrom(AVAILABLE_TIMESTAMPS).execute();
+        changePolicy(RetentionPolicy.LATEST_STATS, 2, dsl);
+        changePolicy(RetentionPolicy.HOURLY_STATS, 72, dsl);
+        changePolicy(RetentionPolicy.DAILY_STATS, 60, dsl);
+        changePolicy(RetentionPolicy.MONTHLY_STATS, 24, dsl);
+        RetentionPolicy.onChange();
     }
 
     /**

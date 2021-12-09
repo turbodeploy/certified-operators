@@ -25,6 +25,7 @@ import io.opentracing.SpanContext;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
@@ -47,7 +48,6 @@ import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.ingesters.IngestionMetrics;
 import com.vmturbo.history.ingesters.IngestionMetrics.SafetyValve;
@@ -122,7 +122,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
      * @param projectedPlanTopologyIngester used to fully process a projected plan topology
      * @param rollupProcessor               used to perform rollup and repartitioning operations
      * @param statsAvailabilityTracker      used to announce successful ingestions of topologies
-     * @param historydbIO                   database utils
+     * @param dsl                   database utils
      * @param config                        config parameters
      */
     public TopologyCoordinator(
@@ -132,7 +132,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
             @Nonnull final ProjectedPlanTopologyIngester projectedPlanTopologyIngester,
             @Nonnull final RollupProcessor rollupProcessor,
             @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
-            @Nonnull final HistorydbIO historydbIO,
+            @Nonnull final DSLContext dsl,
             @Nonnull final TopologyCoordinatorConfig config) {
         this(
                 sourceRealtimeTopologyIngester,
@@ -143,7 +143,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
                 null,
                 null,
                 statsAvailabilityTracker,
-                historydbIO,
+                dsl,
                 config
         );
     }
@@ -163,7 +163,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
      * @param maybeNullProcessingLoop       thread to run a processing loop; if null a new one is created
      *                                      (nonnull is used in testing)
      * @param statsAvailabilityTracker      used to announce successful ingestions of topologies
-     * @param historydbIO                   database utils
+     * @param dsl                   database utils
      * @param config                        config parameters
      */
     @VisibleForTesting
@@ -176,7 +176,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
             final ProcessingStatus maybeNullProcessingStatus,
             final Thread maybeNullProcessingLoop,
             @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
-            @Nonnull final HistorydbIO historydbIO,
+            @Nonnull final DSLContext dsl,
             @Nonnull final TopologyCoordinatorConfig config) {
         this.sourceRealtimeTopologyIngester = Objects.requireNonNull(sourceRealtimeTopologyIngester);
         this.projectedRealtimeTopologyIngester = Objects.requireNonNull(projectedRealtimeTopologyIngester);
@@ -185,7 +185,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
         this.rollupProcessor = Objects.requireNonNull(rollupProcessor);
         this.availabilityTracker = Objects.requireNonNull(statsAvailabilityTracker);
         this.processingStatus = maybeNullProcessingStatus != null ? maybeNullProcessingStatus
-                : new ProcessingStatus(config, historydbIO);
+                : new ProcessingStatus(config, dsl);
         this.ingestionTimeoutSecs = config.ingestionTimeoutSecs();
         // Create a processing loop that will be driven from our processing stats. We'll
         // start it the first time we receive a message

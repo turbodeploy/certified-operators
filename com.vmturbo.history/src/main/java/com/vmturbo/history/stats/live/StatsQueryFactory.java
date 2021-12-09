@@ -34,9 +34,9 @@ import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 import org.jooq.Condition;
 import org.jooq.Field;
+import org.jooq.ResultQuery;
 import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
@@ -99,7 +99,7 @@ public interface StatsQueryFactory {
      * CLUSTER has no Hourly and Latest tables.
      */
     @Nonnull
-    Optional<Select<?>> createStatsQuery(@Nonnull List<String> entities,
+    Optional<ResultQuery<?>> createStatsQuery(@Nonnull List<String> entities,
             @Nonnull Table<?> table,
             @Nonnull List<CommodityRequest> commodityRequests,
             @Nonnull TimeRange timeRange,
@@ -195,7 +195,7 @@ public interface StatsQueryFactory {
 
         @Override
         @Nonnull
-        public Optional<Select<?>> createStatsQuery(@Nonnull final List<String> entities,
+        public Optional<ResultQuery<?>> createStatsQuery(@Nonnull final List<String> entities,
                 @Nonnull final Table<?> table,
                 @Nonnull final List<CommodityRequest> commodityRequests,
                 @Nonnull final TimeRange timeRange,
@@ -363,10 +363,10 @@ public interface StatsQueryFactory {
             return Optional.of(commodityTests);
         }
 
-        @NotNull
+        @Nonnull
         @Override
         public Optional<Condition> createExcludeZeroCountRecordsCond(
-                @NotNull final StatsFilter statsFilter, @Nonnull final Table<?> table) {
+                @Nonnull final StatsFilter statsFilter, @Nonnull final Table<?> table) {
             if (statsFilter.getCommodityRequestsCount() == 0) {
                 Condition cond = DSL.not(
                         JooqUtils.getStringField(table, PROPERTY_TYPE)

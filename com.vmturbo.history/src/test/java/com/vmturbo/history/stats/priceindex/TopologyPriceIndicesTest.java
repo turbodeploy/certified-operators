@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.jooq.exception.DataAccessException;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -17,7 +18,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -30,17 +30,17 @@ public class TopologyPriceIndicesTest {
         .build();
 
     @Test
-    public void testVisitProjectedEntities() throws VmtDbException, InterruptedException {
+    public void testVisitProjectedEntities() throws DataAccessException, InterruptedException {
         final TopologyPriceIndices priceIndices = TopologyPriceIndices.builder(TOPOLOGY_INFO)
-            .addEntity(ProjectedTopologyEntity.newBuilder()
-                .setOriginalPriceIndex(8)
-                .setEntity(TopologyEntityDTO.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setOid(7L)
-                    .setEnvironmentType(EnvironmentType.ON_PREM))
-                .build())
-            .addEntity(ProjectedTopologyEntity.newBuilder()
-                .setOriginalPriceIndex(88)
+                .addEntity(ProjectedTopologyEntity.newBuilder()
+                        .setOriginalPriceIndex(8)
+                        .setEntity(TopologyEntityDTO.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .setOid(7L)
+                                .setEnvironmentType(EnvironmentType.ON_PREM))
+                        .build())
+                .addEntity(ProjectedTopologyEntity.newBuilder()
+                        .setOriginalPriceIndex(88)
                 .setEntity(TopologyEntityDTO.newBuilder()
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setOid(77L)
@@ -75,15 +75,16 @@ public class TopologyPriceIndicesTest {
     }
 
     @Test
-    public void testVisitProjectedEntityUnsetPriceIdx() throws VmtDbException, InterruptedException {
+    public void testVisitProjectedEntityUnsetPriceIdx()
+            throws DataAccessException, InterruptedException {
         final TopologyPriceIndices priceIndices = TopologyPriceIndices.builder(TOPOLOGY_INFO)
-            .addEntity(ProjectedTopologyEntity.newBuilder()
-                .setEntity(TopologyEntityDTO.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setOid(7L)
-                    .setEnvironmentType(EnvironmentType.ON_PREM))
-                .build())
-            .build();
+                .addEntity(ProjectedTopologyEntity.newBuilder()
+                        .setEntity(TopologyEntityDTO.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .setOid(7L)
+                                .setEnvironmentType(EnvironmentType.ON_PREM))
+                        .build())
+                .build();
 
         final TopologyPriceIndexVisitor visitor = mock(TopologyPriceIndexVisitor.class);
         priceIndices.visit(visitor);
@@ -94,20 +95,24 @@ public class TopologyPriceIndicesTest {
     }
 
     /**
-     * Tests that TopologyEntityDTO with an AnalysisOrigin do not get visited by the TopologyPriceIndexVisitor
+     * Tests that TopologyEntityDTO with an AnalysisOrigin do not get visited by the
+     * TopologyPriceIndexVisitor
      */
     @Test
-    public void testDoNotVisitMarketEntity() throws VmtDbException,
-        InterruptedException {
+    public void testDoNotVisitMarketEntity() throws DataAccessException, InterruptedException {
         final TopologyPriceIndices priceIndices = TopologyPriceIndices.builder(TOPOLOGY_INFO)
-            .addEntity(ProjectedTopologyEntity.newBuilder()
-                .setEntity(TopologyEntityDTO.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setOid(7L)
-                    .setEnvironmentType(EnvironmentType.ON_PREM)
-                    .setOrigin(Origin.newBuilder().setAnalysisOrigin(AnalysisOrigin.newBuilder().setOriginalEntityId(6L).build()).build()))
-                .build())
-            .build();
+                .addEntity(ProjectedTopologyEntity.newBuilder()
+                        .setEntity(TopologyEntityDTO.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .setOid(7L)
+                                .setEnvironmentType(EnvironmentType.ON_PREM)
+                                .setOrigin(Origin.newBuilder()
+                                        .setAnalysisOrigin(AnalysisOrigin.newBuilder()
+                                                .setOriginalEntityId(6L)
+                                                .build())
+                                        .build()))
+                        .build())
+                .build();
 
         final TopologyPriceIndexVisitor visitor = mock(TopologyPriceIndexVisitor.class);
         priceIndices.visit(visitor);

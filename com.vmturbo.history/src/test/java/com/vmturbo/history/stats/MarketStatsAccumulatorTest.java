@@ -29,12 +29,12 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
 import org.hamcrest.Matchers;
-import org.jooq.Insert;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertSetStep;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -60,9 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
-import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.tables.AppStatsLatest;
@@ -133,8 +131,6 @@ public class MarketStatsAccumulatorTest {
      */
     @Before
     public void setup() {
-        BasedbIO.setSharedInstance(historydbIO);
-
         try {
             testVm = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_VM_PATH);
             testApp = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_APP_PATH);
@@ -175,7 +171,7 @@ public class MarketStatsAccumulatorTest {
         // assert
 //        assertThat(marketStatsAccumulator.values().size(), is(1));
         verify(historydbIO).getCommodityInsertStatement(StatsTestUtils.PM_LATEST_TABLE);
-        verify(historydbIO).execute(Mockito.anyObject(), any(Insert.class));
+//        verify(historydbIO).execute(Mockito.anyObject(), any(Insert.class));
 // TODO        verify(historydbIO).getMarketStatsRecord(statsDataCaptor.capture(), eq(TOPOLOGY_INFO));
         verifyNoMoreInteractions(historydbIO);
 
@@ -243,11 +239,11 @@ public class MarketStatsAccumulatorTest {
      * Tests generated records parameters for inserting information about timeslots and percentile
      * utilization for sold commodities.
      *
-     * @throws VmtDbException       If there is an error interacting with the database.
+     * @throws DataAccessException       If there is an error interacting with the database.
      * @throws InterruptedException if interrupted.
      */
     @Test
-    public void testRecordsParametersSoldCommodity() throws InterruptedException, VmtDbException {
+    public void testRecordsParametersSoldCommodity() throws InterruptedException, DataAccessException {
         final List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
         commoditiesSold.add(StatsTestUtils.cpu(3.14));
         commoditiesSold.add(StatsTestUtils.q1_vcpu(3.14));
@@ -272,12 +268,12 @@ public class MarketStatsAccumulatorTest {
      * Tests generated records parameters for inserting information about timeslots and percentile
      * utilization for bought commodities.
      *
-     * @throws VmtDbException       If there is an error interacting with the database.
+     * @throws DataAccessException       If there is an error interacting with the database.
      * @throws InterruptedException if interrupted.
      */
     @Test
     public void testRecordsParametersForBoughtCommodity()
-        throws InterruptedException, VmtDbException {
+        throws InterruptedException, DataAccessException {
         final LongDataPack oidPack = new LongDataPack();
         final CommodityCache capacityCache = new CommodityCache(excludedCommodityTypes, oidPack);
         capacityCache.cacheUsagesAndCapacity(testVm);
@@ -317,7 +313,7 @@ public class MarketStatsAccumulatorTest {
 
     private void checkParametersRecordsByCommodityValues(long oid, Long providerId,
             Collection<HistUtilizationRecord> records, CommodityType commodityType, Double capacity,
-            HistoricalValues historicalUsed) throws VmtDbException {
+            HistoricalValues historicalUsed) throws DataAccessException {
         Long checkProviderId = providerId;
         if (providerId == null) {
             checkProviderId = 0L;

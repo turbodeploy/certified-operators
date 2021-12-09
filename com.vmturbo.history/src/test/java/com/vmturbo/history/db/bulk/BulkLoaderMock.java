@@ -8,17 +8,16 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
 
 /**
@@ -51,7 +50,7 @@ public class BulkLoaderMock {
         try {
             doAnswer(getTransientLoader).when(mock).getTransientLoader(
                     isA(Table.class), isA(TableOperation.class));
-        } catch (SQLException | InstantiationException | VmtDbException | IllegalAccessException e) {
+        } catch (DataAccessException | InstantiationException |  IllegalAccessException e) {
         }
         return mock;
     }

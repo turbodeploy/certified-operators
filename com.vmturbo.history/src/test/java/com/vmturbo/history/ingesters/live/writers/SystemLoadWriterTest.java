@@ -5,13 +5,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
@@ -21,7 +16,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.MoreExecutors;
 
@@ -33,17 +27,14 @@ import io.grpc.testing.GrpcCleanupRule;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.h2.jdbcx.JdbcDataSource;
 import org.jooq.DSLContext;
-import org.jooq.Query;
 import org.jooq.Record;
-import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -62,8 +53,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -74,6 +63,8 @@ import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Tests of the {@link SystemLoadWriter} class.
@@ -83,7 +74,6 @@ public class SystemLoadWriterTest {
 
     private static final String DAY1_245PM = "2020-01-01T14:25:00Z";
     private static final String DAY1_345PM = "2020-01-01T15:25:00Z";
-
 
     private static final Set<SystemLoadCommodity> hostCommodities = ImmutableSet.of(
             SystemLoadCommodity.CPU, SystemLoadCommodity.CPU_PROVISIONED,
@@ -140,8 +130,6 @@ public class SystemLoadWriterTest {
 
     private SystemLoadWriter.Factory writerFactory;
 
-    private static DSLContext dsl;
-    private static HistorydbIO historydbIO;
     private static final ExecutorService threadPool = MoreExecutors.newDirectExecutorService();
     private SimpleBulkLoaderFactory loaders;
 
@@ -152,59 +140,26 @@ public class SystemLoadWriterTest {
             .maxRetryBackoffMsec(1000)
             .build();
 
-    /**
-     * Set up for tests, including establishing an in-memory H2 database that will be resued for all
-     * tests.
-     *
-     * <p>By using jOOQ's internal schema netadata to build the schema, we avoid the growing cost
-     * of doing that using Flyway migrations. And of course we get a big speed boost by using an
-     * in-memory DB.</p>
-     *
-     * <p>We also set up a HistorydbIO mock that's customized to skip its normal initialization and
-     * and deliver H2 connections via its various connection-providing methods.</p>
-     *
-     * @throws SQLException   if we have a DB problem
-     * @throws VmtDbException thrown by some mocked HistorydbIO methods
-     */
-    @BeforeClass
-    public static void beforeClass() throws SQLException, VmtDbException {
-        final JdbcDataSource ds = new JdbcDataSource();
-        ds.setUrl("jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
-        ds.setUser("sa");
-        ds.setPassword("sa");
-        dsl = DSL.using(ds, SQLDialect.H2);
-        Stopwatch w = Stopwatch.createStarted();
-        dsl.ddl(Vmtdb.VMTDB).forEach(Query::execute);
-        logger.info("Created in {}", w);
-        historydbIO = mock(HistorydbIO.class);
-        HistorydbIO.setSharedInstance(historydbIO);
-        when(historydbIO.connection()).thenAnswer(i -> ds.getConnection());
-        when(historydbIO.transConnection()).thenAnswer(i -> ds.getConnection());
-        when(historydbIO.unpooledConnection()).thenAnswer(i -> ds.getConnection());
-        when(historydbIO.unpooledTransConnection()).thenAnswer(i -> ds.getConnection());
-        when(historydbIO.using(any(Connection.class))).thenReturn(dsl);
-    }
+    /** Manage database provisioning and access. */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /** Remove any data inserted during a test. */
+    @Rule
+    public DbCleanupRule cleanup = dbConfig.cleanupRule();
+
+    private DSLContext dsl = dbConfig.getDslContext();
 
     /**
-     * Set up temporary database for use in tests.
+     * Setup for each test.
      *
-     * <p>We only do this for the first test that runs, even though it's in the @Before method.
-     * Tables that are actually changed by any given tests are cleared out after that test, which is
-     * much lest costly than tearing the database down and recreating it.</p>
-     *
-     * @throws IOException if there's a problem starting up group service
+     * @throws IOException if trouble setting up group service
      */
     @Before
     public void before() throws IOException {
         final GroupServiceBlockingStub groupService = createGroupService();
-        Stopwatch w = Stopwatch.createStarted();
-        dsl.connection(c -> {
-            DSL.using(c).execute("SET REFERENTIAL_INTEGRITY=false");
-            Vmtdb.VMTDB.tableStream().forEach(t -> DSL.using(c).truncateTable(t).execute());
-        });
-        logger.info("Truncated all in {}", w);
-        loaders = new SimpleBulkLoaderFactory(historydbIO, config, threadPool);
-        this.writerFactory = new SystemLoadWriter.Factory(groupService, historydbIO);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
+        this.writerFactory = new SystemLoadWriter.Factory(groupService, dsl, dsl);
     }
 
     /**
@@ -218,15 +173,16 @@ public class SystemLoadWriterTest {
     }
 
     /**
-     * Shut down the threadpool and destroy the test database when finished.
+     * Shut down the threadpool.
      */
     @AfterClass
     public static void afterClass() {
         threadPool.shutdownNow();
-        dsl.dropSchema(Vmtdb.VMTDB);
     }
 
-    /** manages release of grpc test resources at end of tests. */
+    /**
+     * manages release of grpc test resources at end of tests.
+     */
     @Rule
     public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
@@ -299,7 +255,8 @@ public class SystemLoadWriterTest {
                 .mergeFrom(VM1)
                 .setEntityType(EntityType.LOAD_BALANCER_VALUE)
                 .build();
-        systemLoadWriter.processEntities(createChunk(PM1, STG1, VM1, loadBalancer), TOPOLOGY_SUMMARY);
+        systemLoadWriter.processEntities(createChunk(PM1, STG1, VM1, loadBalancer),
+                TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // all capacity bases are 1.0, and usage bases are all 2.0 in this cluster, so utilization
         // is 2.0 across the board
@@ -355,13 +312,15 @@ public class SystemLoadWriterTest {
         // first load a full topology touching both clusters
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
                 createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
-        systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM3), TOPOLOGY_SUMMARY);
+        systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM3),
+                TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // now we run another cycle, using VM4 instead of VM3 - only difference is higher usages,
         // so utilization for cluster 2 should go up
         systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
                 createTopoInfo(DAY1_345PM), new IngesterState(loaders)).get();
-        systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM4), TOPOLOGY_SUMMARY);
+        systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM4),
+                TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // make sure we had utilization records written for cluster 2 but not cluster 1
         assertThat(getUtilizationRecordClusters(DAY1_345PM), is(ImmutableSet.of(CLUSTER2_ID)));
@@ -410,7 +369,6 @@ public class SystemLoadWriterTest {
         return GroupServiceGrpc.newBlockingStub(chan);
     }
 
-
     /**
      * Create a {@link Grouping} structure represeting a cluster.
      *
@@ -432,13 +390,12 @@ public class SystemLoadWriterTest {
                 .build();
     }
 
-
     /**
      * Create a {@link TopologyEntityDTO} for a PM selling all system-load host commodities with
      * capacities calculated by multiplying a base value by the position of the commodity in the
      * {@link SystemLoadCommodity} members list.
      *
-     * @param id           entity id
+     * @param id entity id
      * @param capacityBase base capacity value
      * @return the new PM entity
      */
@@ -462,12 +419,13 @@ public class SystemLoadWriterTest {
      * commodities, with capacities calculated by multiplying a base value by the position of
      * the commodity in the {@link SystemLoadCommodity} members list.
      *
-     * @param id           entity id
+     * @param id entity id
      * @param capacityBase base capacity value
-     * @param buyers       PMs to which this storage sells DSPM access
+     * @param buyers PMs to which this storage sells DSPM access
      * @return the new STORAGE entity
      */
-    private static TopologyEntityDTO createStorage(long id, double capacityBase, TopologyEntityDTO... buyers) {
+    private static TopologyEntityDTO createStorage(long id, double capacityBase,
+            TopologyEntityDTO... buyers) {
         return TopologyEntityDTO.newBuilder()
                 .setOid(id)
                 .setEntityType(EntityType.STORAGE_VALUE)
@@ -496,15 +454,16 @@ public class SystemLoadWriterTest {
      * base values by the position of the commodity in the {@link SystemLoadCommodity} members
      * list.
      *
-     * @param id           entity id
-     * @param baseUsage    base for used values
-     * @param basePeak     base for peak values
+     * @param id entity id
+     * @param baseUsage base for used values
+     * @param basePeak base for peak values
      * @param baseCapacity base for capacity values
-     * @param sellers      PMs that sell to this VM
+     * @param sellers PMs that sell to this VM
      * @return the new VM entity
      */
     private static TopologyEntityDTO createVm(
-            long id, double baseUsage, double basePeak, double baseCapacity, TopologyEntityDTO... sellers) {
+            long id, double baseUsage, double basePeak, double baseCapacity,
+            TopologyEntityDTO... sellers) {
         return TopologyEntityDTO.newBuilder()
                 .setOid(id)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -537,7 +496,8 @@ public class SystemLoadWriterTest {
     }
 
     /**
-     * Given a {@link TopologyEntityDTO}, create a copy that also buys and sells every non-system-load
+     * Given a {@link TopologyEntityDTO}, create a copy that also buys and sells every
+     * non-system-load
      * commodity.
      *
      * <p>All capacity, used, and peak values for the added commodities are 1.0, and the copy buys
@@ -550,31 +510,36 @@ public class SystemLoadWriterTest {
         final TopologyEntityDTO.Builder copy = TopologyEntityDTO.newBuilder().mergeFrom(template);
         final CommoditiesBoughtFromProvider.Builder cbfp =
                 template.getCommoditiesBoughtFromProvidersCount() == 0
-                        ? CommoditiesBoughtFromProvider.newBuilder()
-                        : CommoditiesBoughtFromProvider.newBuilder().mergeFrom(
+                ? CommoditiesBoughtFromProvider.newBuilder()
+                : CommoditiesBoughtFromProvider.newBuilder().mergeFrom(
                         template.getCommoditiesBoughtFromProviders(0));
         Arrays.stream(CommodityDTO.CommodityType.values())
-                .filter(type -> !SystemLoadCommodity.fromSdkCommodityType(type.getNumber()).isPresent())
+                .filter(type -> !SystemLoadCommodity.fromSdkCommodityType(type.getNumber())
+                        .isPresent())
                 .forEach(type -> {
                     cbfp.addCommodityBought(CommodityBoughtDTO.newBuilder()
-                            .setCommodityType(CommodityType.newBuilder().setType(type.getNumber()).build())
+                            .setCommodityType(
+                                    CommodityType.newBuilder().setType(type.getNumber()).build())
                             .setUsed(1.0).setPeak(1.0).build());
                     copy.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                            .setCommodityType(CommodityType.newBuilder().setType(type.getNumber()).build())
+                            .setCommodityType(
+                                    CommodityType.newBuilder().setType(type.getNumber()).build())
                             .setCapacity(1.0).build());
                 });
         return copy.build();
     }
 
     /**
-     * Check that the correct records were written to the transient table for a given VM appearing in
+     * Check that the correct records were written to the transient table for a given VM appearing
+     * in
      * the topology, for the given timestamp and cluster id.
      *
-     * @param time         topolgoy timestamp, in format to be parsed by {@link Instant#parse(CharSequence)}
-     * @param clusterId    id of cluster to check
-     * @param entityId     entity id of VM
-     * @param baseUsed     base for used values
-     * @param basePeak     base for peak values
+     * @param time topolgoy timestamp, in format to be parsed by {@link
+     *         Instant#parse(CharSequence)}
+     * @param clusterId id of cluster to check
+     * @param entityId entity id of VM
+     * @param baseUsed base for used values
+     * @param basePeak base for peak values
      * @param baseCapacity base for capacity values
      */
     private void checkEntityCommodityRecords(String time, long clusterId, long entityId,
@@ -600,40 +565,41 @@ public class SystemLoadWriterTest {
         } else {
             fail("Unable to locate transient system-load table");
         }
-
     }
 
     /**
      * Check that the given list of bought commodities records has the correct used and peak values
      * given the base values from which they were caluculated.
      *
-     * @param records  bought commodities records for some VM
+     * @param records bought commodities records for some VM
      * @param baseUsed base for used values
      * @param basePeak base vor peak used values
      */
-    private void checkBoughtCommodities(List<SystemLoadRecord> records, double baseUsed, double basePeak) {
-        records.stream().filter(r -> r.getRelation() == RelationType.COMMODITIESBOUGHT).forEach(r -> {
-            final SystemLoadCommodity type = SystemLoadCommodity.valueOf(r.getPropertyType());
-            assertThat(r.getPropertySubtype(), is(StringConstants.USED));
-            assertThat(r.getAvgValue(), is(baseUsed * (type.ordinal() + 1)));
-            assertThat(r.getMinValue(), is(baseUsed * (type.ordinal() + 1)));
-            assertThat(r.getMaxValue(), is(basePeak * (type.ordinal() + 1)));
-            assertNull(r.getCapacity());
-        });
+    private void checkBoughtCommodities(List<SystemLoadRecord> records, double baseUsed,
+            double basePeak) {
+        records.stream().filter(r -> r.getRelation() == RelationType.COMMODITIESBOUGHT).forEach(
+                r -> {
+                    final SystemLoadCommodity type = SystemLoadCommodity.valueOf(
+                            r.getPropertyType());
+                    assertThat(r.getPropertySubtype(), is(StringConstants.USED));
+                    assertThat(r.getAvgValue(), is(baseUsed * (type.ordinal() + 1)));
+                    assertThat(r.getMinValue(), is(baseUsed * (type.ordinal() + 1)));
+                    assertThat(r.getMaxValue(), is(basePeak * (type.ordinal() + 1)));
+                    assertNull(r.getCapacity());
+                });
     }
 
     /**
      * Check that the given sold commodities records have the correct capacity values, given the
      * base capacity from which they were calculated.
      *
-     * @param records      sold capacity records for some VM
-     * @param baseUsed     base for used value
-     * @param basePeak     base for peak value
+     * @param records sold capacity records for some VM
+     * @param baseUsed base for used value
+     * @param basePeak base for peak value
      * @param baseCapacity base for capacity values
-     *
      */
     private void checkSoldCommodities(List<SystemLoadRecord> records, double baseUsed,
-                                      double basePeak, double baseCapacity) {
+            double basePeak, double baseCapacity) {
         records.stream().filter(r -> r.getRelation() == RelationType.COMMODITIES).forEach(r -> {
             final SystemLoadCommodity type = SystemLoadCommodity.valueOf(r.getPropertyType());
             assertThat(r.getPropertySubtype(), is(StringConstants.USED));
@@ -650,16 +616,17 @@ public class SystemLoadWriterTest {
      * <p>Base values supplied as arguments should be the sum of the base values used in
      * constructing the relevant entities appearing in the procesed topology.</p>
      *
-     * @param time             timestamp of topology
-     * @param clusterId        id of cluster to check
+     * @param time timestamp of topology
+     * @param clusterId id of cluster to check
      * @param hostCapacityBase aggregate base capacity for PM entities
-     * @param stgCapacityBase  aggregate base capacity for STORAGE entities
-     * @param hostUsedBase     aggregate base used value for PM commodity buys
-     * @param stgUsedBase      aggregate base peak value for STORAGE commodity buys
-     * @param systemLoad       expected overall system load for cluster
+     * @param stgCapacityBase aggregate base capacity for STORAGE entities
+     * @param hostUsedBase aggregate base used value for PM commodity buys
+     * @param stgUsedBase aggregate base peak value for STORAGE commodity buys
+     * @param systemLoad expected overall system load for cluster
      */
     private void checkUtilizationRecords(String time, long clusterId,
-            double hostCapacityBase, double stgCapacityBase, double hostUsedBase, double stgUsedBase,
+            double hostCapacityBase, double stgCapacityBase, double hostUsedBase,
+            double stgUsedBase,
             double systemLoad) {
         List<SystemLoadRecord> utilizationRecords = getUtilizationRecords(time, clusterId);
         // we should have a record for every system-load commodity
@@ -668,14 +635,19 @@ public class SystemLoadWriterTest {
         for (final SystemLoadRecord rec : utilizationRecords) {
             final SystemLoadCommodity type = SystemLoadCommodity.valueOf(rec.getPropertySubtype());
             double base = hostCommodities.contains(type) ? hostCapacityBase : stgCapacityBase;
-            assertThat("Incorrect slice capacity for " + type, rec.getCapacity(), is(base * (type.ordinal() + 1)));
+            assertThat("Incorrect slice capacity for " + type, rec.getCapacity(),
+                    is(base * (type.ordinal() + 1)));
             base = hostCommodities.contains(type) ? hostUsedBase : stgUsedBase;
-            assertThat("Incorrect slice avg used for " + type, rec.getAvgValue(), is(base * (type.ordinal() + 1)));
-            assertThat("Incorrect slice min used for " + type, rec.getMinValue(), is(base * (type.ordinal() + 1)));
-            assertThat("Incorrect slice max used for " + type, rec.getMaxValue(), is(base * (type.ordinal() + 1)));
+            assertThat("Incorrect slice avg used for " + type, rec.getAvgValue(),
+                    is(base * (type.ordinal() + 1)));
+            assertThat("Incorrect slice min used for " + type, rec.getMinValue(),
+                    is(base * (type.ordinal() + 1)));
+            assertThat("Incorrect slice max used for " + type, rec.getMaxValue(),
+                    is(base * (type.ordinal() + 1)));
         }
         // make sure we have the correct overall system load value
-        assertThat("Incorrect system load in cluster " + clusterId, getSystemLoad(time, clusterId), is(systemLoad));
+        assertThat("Incorrect system load in cluster " + clusterId, getSystemLoad(time, clusterId),
+                is(systemLoad));
     }
 
     /**
@@ -706,7 +678,7 @@ public class SystemLoadWriterTest {
      * <p>These records will have been written to the main SYSTEM_LOAD table, and will have
      * "system_load" property type, but not "system load" as subtype.</p>
      *
-     * @param time      snapshot time
+     * @param time snapshot time
      * @param clusterId cluster id
      * @return utilization records
      */
@@ -729,7 +701,7 @@ public class SystemLoadWriterTest {
      * <p>The system load value is written to the main SYSTEM_LOAD table with property type
      * and subtype both set to "system_load"</p>
      *
-     * @param time      snapshot time
+     * @param time snapshot time
      * @param clusterId cluster id
      * @return the overall system load value
      */

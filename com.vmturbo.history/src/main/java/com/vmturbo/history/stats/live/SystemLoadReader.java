@@ -2,8 +2,6 @@ package com.vmturbo.history.stats.live;
 
 import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -18,13 +16,13 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 
@@ -41,16 +39,15 @@ public class SystemLoadReader {
     private static final double SYSTEM_LOAD_PERCENTILE = 90;
 
     private static final Logger logger = LogManager.getLogger();
-
-    private final HistorydbIO historydbIO;
+    private final DSLContext dsl;
 
     /**
      * Create a new instance.
      *
-     * @param historydbIO DB utilites.
+     * @param dsl DB utilites.
      */
-    public SystemLoadReader(HistorydbIO historydbIO) {
-        this.historydbIO = historydbIO;
+    public SystemLoadReader(DSLContext dsl) {
+        this.dsl = dsl;
     }
 
     /**
@@ -61,18 +58,19 @@ public class SystemLoadReader {
      * @return list of slice system load values within specified range
      */
     public Map<Long, Double> getSystemLoadValues(final Timestamp fromInclusive, final Timestamp toInclusive) {
-        try (Connection conn = historydbIO.connection()) {
+        try {
             final Result<Record2<String, Double>> results =
-                    historydbIO.using(conn).select(SYSTEM_LOAD.SLICE, SYSTEM_LOAD.AVG_VALUE)
+                    dsl.select(SYSTEM_LOAD.SLICE, SYSTEM_LOAD.AVG_VALUE)
                             .from(SYSTEM_LOAD)
                             .where(SYSTEM_LOAD.SNAPSHOT_TIME.between(fromInclusive, toInclusive)
                                     .and(SYSTEM_LOAD.PROPERTY_TYPE.eq(StringConstants.SYSTEM_LOAD))
-                                    .and(SYSTEM_LOAD.PROPERTY_SUBTYPE.eq(StringConstants.SYSTEM_LOAD)))
+                                    .and(SYSTEM_LOAD.PROPERTY_SUBTYPE.eq(
+                                            StringConstants.SYSTEM_LOAD)))
                             .fetch();
             return results.stream().collect(ImmutableMap.toImmutableMap(
                     rec -> Long.valueOf(rec.value1()),
                     Record2::value2));
-        } catch (SQLException | VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to retrieve system load values between {} and {}",
                     fromInclusive, toInclusive, e);
             return ImmutableMap.of();
@@ -107,15 +105,19 @@ public class SystemLoadReader {
         // Loading the "system_load" records from past LOOPBACK_DAYS and calculating the system
         // load value for each of these dates
         for (int i = 0; i < LOOPBACK_DAYS; i++) {
-            calendar.add(Calendar.DATE, -i);            // calculate the start time of the day i+1 days before
+            calendar.add(Calendar.DATE,
+                    -i);            // calculate the start time of the day i+1 days before
             Date endTime = calendar.getTime();
-            calendar.add(Calendar.DATE, -1);    // calcualte the end time of the day i+1 days before
+            // calcualte the end time of the day i+1 days before
+            calendar.add(Calendar.DATE, -1);
             Date startTime = calendar.getTime();
-            calendar.setTime(today);                    // reset to today to prepare for next iteration calculations
+            // reset to today to prepare for next iteration calculations
+            calendar.setTime(today);
 
-            SelectConditionStep<SystemLoadRecord> systemLoadQueryBuilder = historydbIO.JooqBuilder()
-                    .selectFrom(SystemLoad.SYSTEM_LOAD)
-                    .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(startTime.getTime()), new Timestamp(endTime.getTime())))
+            SelectConditionStep<SystemLoadRecord> systemLoadQueryBuilder = dsl.selectFrom(
+                            SystemLoad.SYSTEM_LOAD)
+                    .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(
+                            new Timestamp(startTime.getTime()), new Timestamp(endTime.getTime())))
                     .and(SystemLoad.SYSTEM_LOAD.PROPERTY_TYPE.eq(StringConstants.SYSTEM_LOAD))
                     // we exclude overall-system load records (one per slice). They were introduced
                     // as an optimization for `SystemLoadWriter`, and users of this method will
@@ -126,8 +128,8 @@ public class SystemLoadReader {
             List<SystemLoadRecord> systemLoadRecords = null;
 
             try {
-                systemLoadRecords = (List<SystemLoadRecord>)historydbIO.execute(systemLoadQueryBuilder);
-            } catch (VmtDbException e) {
+                systemLoadRecords = dsl.fetch(systemLoadQueryBuilder);
+            } catch (DataAccessException e) {
                 logger.error("Error when reading the system load records from the DB : " + e);
             }
 
@@ -173,17 +175,17 @@ public class SystemLoadReader {
         // Query to not return values where uuid is null and we will not get records with vmId = 0. We are only interested in records
         // which have a VM associated with them but some records, for example, represent cluster info like total capacity or system load
         // which are not required by the caller.
-        SelectConditionStep<SystemLoadRecord> queryBuilder = historydbIO.JooqBuilder()
-                .selectFrom(SystemLoad.SYSTEM_LOAD)
-                .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(startTime.getTime()), new Timestamp(endTime.getTime())))
+        SelectConditionStep<SystemLoadRecord> queryBuilder = dsl.selectFrom(SystemLoad.SYSTEM_LOAD)
+                .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(
+                        new Timestamp(startTime.getTime()), new Timestamp(endTime.getTime())))
                 .and(SystemLoad.SYSTEM_LOAD.SLICE.eq(slice))
                 .and(SystemLoad.SYSTEM_LOAD.UUID.isNotNull());
 
         List<SystemLoadRecord> records = null;
 
         try {
-            records = (List<SystemLoadRecord>)historydbIO.execute(queryBuilder);
-        } catch (VmtDbException e) {
+            records = (List<SystemLoadRecord>)dsl.fetch(queryBuilder);
+        } catch (DataAccessException e) {
             logger.error("Error when reading the system load info from the DB : " + e);
         }
         return records;

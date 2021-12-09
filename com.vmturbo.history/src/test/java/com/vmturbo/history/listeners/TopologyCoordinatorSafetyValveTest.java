@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 import io.opentracing.SpanContext;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.jooq.DSLContext;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
 
@@ -37,7 +38,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.db.bulk.BulkInserterStats;
 import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
@@ -86,8 +86,8 @@ public class TopologyCoordinatorSafetyValveTest {
                 .repartitioningTimeoutSecs(2)
                 .build();
         final TopologyCoordinator topologyCoordinator = mock(TopologyCoordinator.class);
-        final HistorydbIO historydbIo = mock(HistorydbIO.class);
-        final ProcessingStatus procStatus = new ProcessingStatus(config, historydbIo);
+        final DSLContext dsl = mock(DSLContext.class);
+        final ProcessingStatus procStatus = new ProcessingStatus(config, dsl);
         final ProcessingStatus procStatusSpy = spy(procStatus);
         doNothing().when(procStatusSpy).load();
         final ProcessingLoop procLoop = new ProcessingLoop(
@@ -131,17 +131,17 @@ public class TopologyCoordinatorSafetyValveTest {
                 .ingestionTimeoutSecs(3)
                 .build();
         // we only care about the listener, almost everything else can be mocked
-        final HistorydbIO historydbIO = mock(HistorydbIO.class);
+        final DSLContext dsl = mock(DSLContext.class);
         final TopologyCoordinator topologyCoordinator = new TopologyCoordinator(
                 mock(SourceRealtimeTopologyIngester.class),
                 mock(ProjectedRealtimeTopologyIngester.class),
                 mock(SourcePlanTopologyIngester.class),
                 mock(ProjectedPlanTopologyIngester.class),
                 mock(RollupProcessor.class),
-                new ProcessingStatus(config, historydbIO), // this needs to be real
+                new ProcessingStatus(config, dsl), // this needs to be real
                 new Thread(), // processing loop
                 mock(StatsAvailabilityTracker.class),
-                historydbIO,
+                dsl,
                 config);
         topologyCoordinator.startup();
         RemoteIterator<Topology.DataSegment> topology = mock(RemoteIterator.class);
@@ -188,8 +188,8 @@ public class TopologyCoordinatorSafetyValveTest {
                 .build();
         // everything is mocked except topology coordinator, processing status, and processing loop
         final RollupProcessor rollupProcessor = mock(RollupProcessor.class);
-        final HistorydbIO historydbIO = mock(HistorydbIO.class);
-        final ProcessingStatus processingStatus = new ProcessingStatus(config, historydbIO);
+        final DSLContext dsl = mock(DSLContext.class);
+        final ProcessingStatus processingStatus = new ProcessingStatus(config, dsl);
         final ProcessingStatus procStatusSpy = spy(processingStatus);
         doNothing().when(procStatusSpy).load();
         doNothing().when(procStatusSpy).store();
@@ -211,7 +211,7 @@ public class TopologyCoordinatorSafetyValveTest {
                 procStatusSpy,
                 new Thread(new ProcessingLoop(topologyCoordinatorFuture, procStatusSpy, config)),
                 mock(StatsAvailabilityTracker.class),
-                historydbIO,
+                dsl,
                 config);
         topologyCoordinatorFuture.complete(topologyCoordinator);
         topologyCoordinator.startup();

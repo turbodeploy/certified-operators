@@ -34,6 +34,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.input.CloseShieldInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.flywaydb.core.Flyway;
 import org.springframework.beans.BeansException;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
@@ -60,7 +61,6 @@ import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.securekvstore.VaultKeyValueStore;
-import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.voltron.Voltron.VoltronContext;
@@ -160,7 +160,10 @@ public class VoltronsContainer {
         try {
             // If the context has a database configuration, delete the database.
             SQLDatabaseConfig config = context.getBean(SQLDatabaseConfig.class);
-            DbCleanupRule.cleanDb(config.dsl(), component.getDbSchema().get());
+            Flyway flyway = new Flyway();
+            flyway.setSchemas(component.getDbSchema().get().getName());
+            flyway.setDataSource(config.dataSource());
+            flyway.clean();
         } catch (BeansException e) {
             // No SQLDatabaseConfig.
             logger.debug("No SQL database config for {}. {}", component.getShortName(), e.getMessage());

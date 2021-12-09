@@ -13,11 +13,11 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.hamcrest.TypeSafeMatcher;
+import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction;
@@ -29,11 +29,10 @@ import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
 public class ProcessingLoopTest {
 
     private static final long CYCLE_TIME_MILLIS = TimeUnit.MINUTES.toMillis(10);
-    private static final int REALTIME_TOPOLOGY_CONTEXT_ID = 77777;
 
     private ProcessingStatus ps;
     private ProcessingLoop loop;
-    private HistorydbIO historydbIO = mock(HistorydbIO.class);
+    private final DSLContext dsl = mock(DSLContext.class);
     private static final Instant t0 = Instant.parse("2019-10-21T15:34:23Z");
 
     /**
@@ -51,7 +50,7 @@ public class ProcessingLoopTest {
                         .hourlyRollupTimeoutSecs(Integer.MAX_VALUE)
                         .processingLoopMaxSleepSecs(60)
                         .build();
-        this.ps = new ProcessingStatus(config, historydbIO);
+        this.ps = new ProcessingStatus(config, dsl);
         this.loop = new ProcessingLoop(mock(TopologyCoordinator.class), ps, config);
     }
 

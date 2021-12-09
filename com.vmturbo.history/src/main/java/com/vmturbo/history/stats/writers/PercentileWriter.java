@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.sql.DataSource;
 
 import com.google.protobuf.ByteString;
 
@@ -25,7 +26,6 @@ import org.jooq.TableField;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.history.SharedMetrics;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.PercentileBlobs;
 import com.vmturbo.history.schema.abstraction.tables.records.PercentileBlobsRecord;
 
@@ -42,11 +42,11 @@ public class PercentileWriter extends AbstractBlobsWriter<SetPercentileCountsRes
      *
      * @param responseObserver provides information about errors to the client side that called
      *                         percentile writer instance.
-     * @param historydbIO provides connection to database.
+     * @param dataSource provides connection to database.
      */
     public PercentileWriter(@Nonnull StreamObserver<SetPercentileCountsResponse> responseObserver,
-                    @Nonnull HistorydbIO historydbIO) {
-        super(responseObserver, historydbIO, SharedMetrics.PERCENTILE_WRITING, PERCENTILE_BLOBS_TABLE);
+                    @Nonnull DataSource dataSource) {
+        super(responseObserver, dataSource, SharedMetrics.PERCENTILE_WRITING, PERCENTILE_BLOBS_TABLE);
     }
 
     @Override
@@ -96,8 +96,8 @@ public class PercentileWriter extends AbstractBlobsWriter<SetPercentileCountsRes
                 insertNewValues.execute();
             }
             logger.trace("Chunk#{} of {} data '{}' for '{}' timestamp and '{}' period has been processed.",
-                    () -> processedChunks, () -> getRecordSimpleName(), content::size,
-                    () -> chunk.getStartTimestamp(), () -> chunk.getPeriod());
+                    () -> processedChunks, this::getRecordSimpleName, content::size,
+                    chunk::getStartTimestamp, chunk::getPeriod);
         }
         return bytes;
     }

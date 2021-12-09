@@ -20,13 +20,17 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.action.orchestrator.db.Action;
+import com.vmturbo.action.orchestrator.db.tables.AcceptedActions;
+import com.vmturbo.action.orchestrator.db.tables.AcceptedActionsPolicies;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit test for {@link AcceptedActionsStore}.
  */
+@CleanupOverrides(truncate = {AcceptedActions.class, AcceptedActionsPolicies.class})
 public class AcceptedActionsStoreTest {
     /**
      * Rule to create the DB schema and migrate it.

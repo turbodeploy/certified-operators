@@ -11,15 +11,16 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import com.google.protobuf.ByteString;
 
@@ -30,11 +31,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.commons.io.IOUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.jooq.SQLDialect;
-import org.jooq.conf.MappedSchema;
-import org.jooq.conf.RenderMapping;
-import org.jooq.conf.Settings;
-import org.jooq.impl.DSL;
+import org.jooq.exception.DataAccessException;
 import org.jooq.tools.jdbc.MockConnection;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,10 +40,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.TestDataProvider;
-import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.history.stats.TestDataProvider.SqlWithResponse;
 
 /**
  * Checks that {@link AbstractBlobsWriter} implementation is working as expected.
@@ -59,11 +54,11 @@ public abstract class AbstractBlobsWriterTest<P, C> {
      * Returns a new {@link AbstractBlobsWriter} constructed with the given parameters.
      *
      * @param responseObserver the {@link StreamObserver} for the SQL response
-     * @param historydbIO provides connection to database.
+     * @param dataSource provides connection to database.
      * @return a new {@link AbstractBlobsWriter}
      */
     protected abstract AbstractBlobsWriter newWriter(@Nonnull StreamObserver<P> responseObserver,
-            @Nonnull HistorydbIO historydbIO);
+            @Nonnull DataSource dataSource);
 
     /**
      * Returns a new chunk of the statistics constructed with the given parameters.
@@ -73,7 +68,8 @@ public abstract class AbstractBlobsWriterTest<P, C> {
      * @param data the data of the chunk
      * @return the constructed new chunk
      */
-    protected abstract C newChunk(@Nullable Long period, long startTimestamp, @Nonnull ByteString data);
+    protected abstract C newChunk(@Nullable Long period, long startTimestamp,
+            @Nonnull ByteString data);
 
     /**
      * Returns the delete statement to be registered in the mock SQL server.
@@ -101,61 +97,56 @@ public abstract class AbstractBlobsWriterTest<P, C> {
     private static final String TEST_DATA = "Test data bytes to be stored in database";
     static final long START_TIMESTAMP = 21L;
 
-    private HistorydbIO historyDbIo;
-    protected LinkedList<Pair<Pair<String, List<?>>, ?>> sqlRequestToResponse;
-    private StreamObserver<P> streamObserver;
-    private MockConnection connection;
+    protected final Queue<SqlWithResponse> sqlWithResponses = new ArrayDeque<>();
+    private final StreamObserver<P> streamObserver = mockStreamObserver();
+    private final DataSource dataSource = Mockito.mock(DataSource.class);
+    private final Connection spiedConnection = Mockito.spy(
+            new MockConnection(new TestDataProvider(sqlWithResponses)));
 
     /**
      * Initializes all resources required by tests.
+     * @throws SQLException required by mock
      */
     @Before
-    public void before() {
-        historyDbIo = Mockito.mock(HistorydbIO.class);
-        final Settings settings = new Settings().withRenderMapping(new RenderMapping().withSchemata(
-                new MappedSchema().withInput("vmtdb").withOutput(TEST_DB_SCHEMA_NAME)));
-        Mockito.when(historyDbIo.JooqBuilder())
-                        .thenReturn(DSL.using(connection, SQLDialect.MARIADB, settings));
-        sqlRequestToResponse = new LinkedList<>();
-        connection = Mockito.spy(new MockConnection(
-                        new TestDataProvider(sqlRequestToResponse)));
-        streamObserver = mockStreamObserver();
+    public void before() throws SQLException {
+        Mockito.when(dataSource.getConnection()).thenReturn(spiedConnection);
     }
 
     private static <V> StreamObserver<V> mockStreamObserver() {
-        @SuppressWarnings("unchecked")
-        final StreamObserver<V> result = (StreamObserver<V>)Mockito.mock(StreamObserver.class);
+        @SuppressWarnings("unchecked") final StreamObserver<V> result =
+                (StreamObserver<V>)Mockito.mock(StreamObserver.class);
         return result;
     }
 
     /**
      * Checks that data writing should be done successfully.
      *
-     * @throws VmtDbException in case of error while creating/closing DB connection.
-     * @throws IOException in case of error while manipulating piped streams(connecting, reading, writing).
-     * @throws SQLException in case of error while executing SQL expression.
+     * @throws IOException in case of error while manipulating piped streams(connecting,
+     *         reading, writing).
+     * @throws DataAccessException in case of error while executing SQL expression.
+     * @throws SQLException if there's a problem creating a prepared statemnt
      */
     @Test
-    public void checkDataUpdated() throws VmtDbException, IOException, SQLException {
-        sqlRequestToResponse.add(Pair.create(Pair.create(deleteStatement(),
-                        Collections.singletonList(START_TIMESTAMP)), null));
+    public void checkDataUpdated() throws IOException, DataAccessException, SQLException {
+        sqlWithResponses.add(new SqlWithResponse(
+                deleteStatement(), Collections.singletonList(START_TIMESTAMP), null));
         addInsertStatement();
         final AtomicReference<InputStream> writingData = new AtomicReference<>();
-        Mockito.when(connection.prepareStatement(Mockito.anyString()))
-                        .thenAnswer((Answer<PreparedStatement>)invocation -> {
-                            final PreparedStatement result =
-                                            Mockito.spy((PreparedStatement)invocation
-                                                            .callRealMethod());
-                            Mockito.doAnswer((Answer<Object>)invocation1 -> {
-                                writingData.set(invocation1.getArgumentAt(1, InputStream.class));
-                                return null;
-                            }).when(result).setBinaryStream(Mockito.anyInt(),
-                                            Mockito.any(InputStream.class));
-                            return result;
-                        });
-        Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
-        final StreamObserver<C> writer = newWriter(streamObserver, historyDbIo);
-        writer.onNext(newChunk(getPeriod(), START_TIMESTAMP, ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8)));
+        Mockito.when(spiedConnection.prepareStatement(Mockito.anyString()))
+                .thenAnswer((Answer<PreparedStatement>)invocation -> {
+                    final PreparedStatement result =
+                            Mockito.spy((PreparedStatement)invocation
+                                    .callRealMethod());
+                    Mockito.doAnswer((Answer<Object>)invocation1 -> {
+                        writingData.set(invocation1.getArgumentAt(1, InputStream.class));
+                        return null;
+                    }).when(result).setBinaryStream(Mockito.anyInt(),
+                            Mockito.any(InputStream.class));
+                    return result;
+                });
+        final StreamObserver<C> writer = newWriter(streamObserver, dataSource);
+        writer.onNext(newChunk(getPeriod(), START_TIMESTAMP,
+                ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8)));
         final String actual = getDataToWriteInDb(writingData);
         writer.onCompleted();
         Assert.assertThat(actual, CoreMatchers.is(TEST_DATA));
@@ -166,16 +157,15 @@ public abstract class AbstractBlobsWriterTest<P, C> {
      * SQLException} and piped buffer became full. In this case it is expected that we will print a
      * comprehensive description about what have failed.
      *
-     * @throws VmtDbException in case of error while creating/closing DB connection.
      * @throws SQLException in case of error while executing SQL expression.
      */
     @Test
-    public void checkPreparedStatementFailure() throws SQLException, VmtDbException {
-        sqlRequestToResponse.add(Pair.create(Pair.create(deleteStatement(),
-                        Collections.singletonList(START_TIMESTAMP)), null));
+    public void checkPreparedStatementFailure() throws SQLException {
+        sqlWithResponses.add(new SqlWithResponse(
+                deleteStatement(), Collections.singletonList(START_TIMESTAMP), null));
         final String insertStatement = addInsertStatement();
         final AtomicReference<InputStream> writingData = new AtomicReference<>();
-        Mockito.when(connection.prepareStatement(Mockito.anyString())).thenAnswer(
+        Mockito.when(spiedConnection.prepareStatement(Mockito.anyString())).thenAnswer(
                 (Answer<PreparedStatement>)invocation -> {
                     final PreparedStatement result = Mockito.spy(
                             (PreparedStatement)invocation.callRealMethod());
@@ -193,9 +183,9 @@ public abstract class AbstractBlobsWriterTest<P, C> {
                     }
                     return result;
                 });
-        Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
-        final StreamObserver<C> writer = newWriter(streamObserver, historyDbIo);
-        writer.onNext(newChunk(getPeriod(), START_TIMESTAMP, ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8)));
+        final StreamObserver<C> writer = newWriter(streamObserver, dataSource);
+        writer.onNext(newChunk(getPeriod(), START_TIMESTAMP,
+                ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8)));
         final byte[] bytes = new byte[1026];
         Arrays.fill(bytes, (byte)1);
         writer.onNext(newChunk(getPeriod(), START_TIMESTAMP, ByteString.copyFrom(bytes)));
@@ -213,16 +203,15 @@ public abstract class AbstractBlobsWriterTest<P, C> {
      * or something unexpected and piped buffer became full. In this case it is expected that we
      * will print a comprehensive description about what have failed.
      *
-     * @throws VmtDbException in case of error while creating/closing DB connection.
      * @throws SQLException in case of error while executing SQL expression.
      */
     @Test
-    public void checkPreparedStatementInterrupted() throws SQLException, VmtDbException {
-        sqlRequestToResponse.add(Pair.create(Pair.create(deleteStatement(),
-                        Collections.singletonList(START_TIMESTAMP)), null));
+    public void checkPreparedStatementInterrupted() throws SQLException {
+        sqlWithResponses.add(new SqlWithResponse(
+                deleteStatement(), Collections.singletonList(START_TIMESTAMP), null));
         final String insertStatement = addInsertStatement();
         final AtomicReference<InputStream> writingData = new AtomicReference<>();
-        Mockito.when(connection.prepareStatement(Mockito.anyString())).thenAnswer(
+        Mockito.when(spiedConnection.prepareStatement(Mockito.anyString())).thenAnswer(
                 (Answer<PreparedStatement>)invocation -> {
                     final PreparedStatement result = Mockito.spy(
                             (PreparedStatement)invocation.callRealMethod());
@@ -240,9 +229,9 @@ public abstract class AbstractBlobsWriterTest<P, C> {
                     }
                     return result;
                 });
-        Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
-        final StreamObserver<C> writer = newWriter(streamObserver, historyDbIo);
-        writer.onNext(newChunk(getPeriod(), START_TIMESTAMP, ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8)));
+        final StreamObserver<C> writer = newWriter(streamObserver, dataSource);
+        writer.onNext(newChunk(getPeriod(), START_TIMESTAMP,
+                ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8)));
         final byte[] bytes = new byte[1026];
         Arrays.fill(bytes, (byte)1);
         writer.onNext(newChunk(getPeriod(), START_TIMESTAMP, ByteString.copyFrom(bytes)));
@@ -254,47 +243,28 @@ public abstract class AbstractBlobsWriterTest<P, C> {
         checkThrowable(originalException, null, InterruptedIOException.class);
     }
 
-    private static <V extends Throwable> void checkThrowable(@Nonnull Throwable cause,
-            @Nullable String message, @Nullable Class<V> exceptionType) {
-        Objects.requireNonNull(cause);
-        Assert.assertThat(cause, CoreMatchers.instanceOf(exceptionType));
-        Assert.assertThat(cause.getMessage(), CoreMatchers.is(message));
-    }
-
-    private static String getDataToWriteInDb(@Nonnull AtomicReference<InputStream> writingData)
-                    throws IOException {
-        final InputStream input = Objects.requireNonNull(writingData).get();
-        final int available = input.available();
-        final byte[] data = new byte[available];
-        input.read(data, 0, available);
-        return new String(data, StandardCharsets.UTF_8);
-    }
-
     /**
-     * Checks that {@link VmtDbException} is throwing in case of exception while closing DB
+     * Checks that {@link DataAccessException} is throwing in case of exception while closing DB
      * connection.
      *
-     * @throws VmtDbException in case of exception while closing/opening DB connection.
+     * @throws SQLException required by mocks
      */
     @Test
-    public void checkSqlExceptionOnCommitConnection() throws VmtDbException {
-        sqlRequestToResponse.add(Pair.create(Pair.create(deleteStatement(),
-                        Collections.singletonList(new Timestamp(START_TIMESTAMP))), null));
+    public void checkSqlExceptionOnCommitConnection() throws SQLException {
+        sqlWithResponses.add(new SqlWithResponse(deleteStatement(),
+                Collections.singletonList(new Timestamp(START_TIMESTAMP)), null));
         addInsertStatement();
-        Mockito.when(historyDbIo.transConnection()).thenAnswer((Answer<Connection>)invocation -> {
-            final PreparedStatement mockedStatement = Mockito.mock(PreparedStatement.class);
-            Mockito.when(connection.prepareStatement(Mockito.anyString()))
-                            .thenReturn(mockedStatement);
-            Mockito.doThrow(new SQLException(SQL_EXCEPTION_MESSAGE)).when(connection).commit();
-            return connection;
-        });
+        final PreparedStatement mockedStatement = Mockito.mock(PreparedStatement.class);
+        Mockito.when(spiedConnection.prepareStatement(Mockito.anyString()))
+                .thenReturn(mockedStatement);
+        Mockito.doThrow(new SQLException(SQL_EXCEPTION_MESSAGE)).when(spiedConnection).commit();
         Mockito.doAnswer((Answer<Object>)invocation -> {
             final Throwable exception = invocation.getArgumentAt(0, Throwable.class);
             Assert.assertThat(exception.getCause().getMessage(),
-                            Matchers.containsString(SQL_EXCEPTION_MESSAGE));
+                    Matchers.containsString(SQL_EXCEPTION_MESSAGE));
             return null;
         }).when(streamObserver).onError(Mockito.any());
-        final StreamObserver<C> writer = newWriter(streamObserver, historyDbIo);
+        final StreamObserver<C> writer = newWriter(streamObserver, dataSource);
         writer.onNext(newChunk(getPeriod(), START_TIMESTAMP, ByteString.EMPTY));
         writer.onCompleted();
         Mockito.verify(streamObserver, Mockito.times(1)).onError(Mockito.any());
@@ -304,24 +274,40 @@ public abstract class AbstractBlobsWriterTest<P, C> {
      * Checks that {@link StreamObserver} will provide information about error in case {@link
      * SQLException} will happen while data reading process.
      *
-     * @throws VmtDbException in case of exception while closing/opening DB connection.
+     * @throws SQLException reqauired by mocks
      */
     @Test
-    public void checkSqlExceptionOnConnectionCreation() throws VmtDbException {
-        sqlRequestToResponse.add(Pair.create(Pair.create(deleteStatement(),
-                        Collections.singletonList(new Timestamp(START_TIMESTAMP))), null));
+    public void checkSqlExceptionOnConnectionCreation() throws SQLException {
+        sqlWithResponses.add(new SqlWithResponse(
+                deleteStatement(), Collections.singletonList(new Timestamp(START_TIMESTAMP)),
+                null));
         addInsertStatement();
-        Mockito.when(historyDbIo.transConnection())
-                        .thenThrow(new VmtDbException(VmtDbException.CONN_POOL_STARTUP,
-                                        SQL_EXCEPTION_MESSAGE));
+        Mockito.when(dataSource.getConnection())
+                .thenThrow(new SQLException(SQL_EXCEPTION_MESSAGE));
         Mockito.doAnswer((Answer<Object>)invocation -> {
             final Throwable exception = invocation.getArgumentAt(0, Throwable.class);
             Assert.assertThat(exception.getCause().getMessage(),
-                            Matchers.containsString("Error initializing connection pool"));
+                    Matchers.containsString(SQL_EXCEPTION_MESSAGE));
             return null;
         }).when(streamObserver).onError(Mockito.any());
-        final StreamObserver<C> writer = newWriter(streamObserver, historyDbIo);
+        final StreamObserver<C> writer = newWriter(streamObserver, dataSource);
         writer.onNext(newChunk(getPeriod(), START_TIMESTAMP, ByteString.EMPTY));
         Mockito.verify(streamObserver, Mockito.times(1)).onError(Mockito.any());
+    }
+
+    private static <V extends Throwable> void checkThrowable(@Nonnull Throwable cause,
+            @Nullable String message, @Nullable Class<V> exceptionType) {
+        Objects.requireNonNull(cause);
+        Assert.assertThat(cause, CoreMatchers.instanceOf(exceptionType));
+        Assert.assertThat(cause.getMessage(), CoreMatchers.is(message));
+    }
+
+    private static String getDataToWriteInDb(@Nonnull AtomicReference<InputStream> writingData)
+            throws IOException {
+        final InputStream input = Objects.requireNonNull(writingData).get();
+        final int available = input.available();
+        final byte[] data = new byte[available];
+        input.read(data, 0, available);
+        return new String(data, StandardCharsets.UTF_8);
     }
 }

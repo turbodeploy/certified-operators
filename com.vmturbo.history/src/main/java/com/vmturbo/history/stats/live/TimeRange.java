@@ -27,10 +27,12 @@ import com.google.common.base.Preconditions;
 
 import org.apache.commons.lang.time.DateUtils;
 import org.jooq.Condition;
+import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record1;
 import org.jooq.Result;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -41,7 +43,6 @@ import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPerio
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.stats.ClusterStatsReader;
 
@@ -156,16 +157,16 @@ public class TimeRange {
          * @param requiredTimeFrame the timeframe that must be used for resolution, if provided
          * @return An {@link Optional} containing the time range, or an empty optional if
          * there is no data in the time range specified by the filter.
-         * @throws VmtDbException           If there is an error connecting to the database.
+         * @throws DataAccessException           If there is an error connecting to the database.
          * @throws IllegalArgumentException If the filter is misconfigured.
          */
         @Nonnull
         Optional<TimeRange> resolveTimeRange(@Nonnull StatsFilter statsFilter,
-                @Nonnull final Optional<List<String>> entityOIDsOpt,
-                @Nonnull final Optional<EntityType> entityTypeOpt,
-                @Nonnull final Optional<EntityStatsPaginationParams> paginationParams,
-                @Nonnull final Optional<TimeFrame> requiredTimeFrame)
-                throws IllegalArgumentException, VmtDbException;
+                @Nonnull Optional<List<String>> entityOIDsOpt,
+                @Nonnull Optional<EntityType> entityTypeOpt,
+                @Nonnull Optional<EntityStatsPaginationParams> paginationParams,
+                @Nonnull Optional<TimeFrame> requiredTimeFrame)
+                throws IllegalArgumentException, DataAccessException;
 
         /**
          * The default implementation of {@link TimeRangeFactory} used in production.
@@ -180,12 +181,13 @@ public class TimeRange {
             private final long latestTableTimeWindowMS;
 
             public DefaultTimeRangeFactory(@Nonnull final HistorydbIO historydbIO,
-                                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
-                                           final long latestTableTimeWindow,
-                                           final TimeUnit latestTableTimeWindowUnit) {
+                    @Nonnull final TimeFrameCalculator timeFrameCalculator,
+                    final long latestTableTimeWindow,
+                    final TimeUnit latestTableTimeWindowUnit) {
                 this.historydbIO = Objects.requireNonNull(historydbIO);
                 this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
-                this.latestTableTimeWindowMS = latestTableTimeWindowUnit.toMillis(latestTableTimeWindow);
+                this.latestTableTimeWindowMS = latestTableTimeWindowUnit.toMillis(
+                        latestTableTimeWindow);
             }
 
             @Override
@@ -195,20 +197,22 @@ public class TimeRange {
                     @Nonnull final Optional<EntityType> entityTypeOpt,
                     @Nonnull final Optional<EntityStatsPaginationParams> paginationParams,
                     @Nonnull final Optional<TimeFrame> requiredTimeFrame)
-                    throws IllegalArgumentException, VmtDbException {
+                    throws IllegalArgumentException {
 
                 // assume that either both startTime and endTime are null, or startTime and endTime are set
                 if (statsFilter.hasStartDate() != statsFilter.hasEndDate()) {
-                    throw new IllegalArgumentException("one of 'startTime', 'endTime' null but not both: "
-                        + statsFilter.getStartDate() + ":" + statsFilter.getEndDate());
+                    throw new IllegalArgumentException(
+                            "one of 'startTime', 'endTime' null but not both: "
+                                    + statsFilter.getStartDate() + ":" + statsFilter.getEndDate());
                 } else if (statsFilter.getStartDate() > statsFilter.getEndDate()) {
-                    throw new IllegalArgumentException("Invalid date range for retrieving statistics: StartDate > EndDate.");
+                    throw new IllegalArgumentException(
+                            "Invalid date range for retrieving statistics: StartDate > EndDate.");
                 }
 
                 long resolvedStartTime = -1;
                 long resolvedEndTime = -1;
                 List<Timestamp> timestampsInRange = null;
-                TimeFrame timeFrame = null;
+                TimeFrame timeFrame;
                 Optional<Timestamp> priceIndexTimeStamp = Optional.empty();
 
                 // Right now we are only dealing with a single specific entity, not a group
@@ -255,8 +259,9 @@ public class TimeRange {
                     // Iterate over all applicable time frames in chronological order
                     // (for example : latest->hourly->daily->monthly)
                     for (TimeFrame currentTimeFrame : timeFrames) {
-                        if (!CollectionUtils.isEmpty(timestampsInRange) ||
-                                requiredTimeFrame.map(tf -> tf != currentTimeFrame).orElse(false)) {
+                        if (!CollectionUtils.isEmpty(timestampsInRange)
+                                || requiredTimeFrame.map(tf -> tf != currentTimeFrame).orElse(
+                                false)) {
                             break;
                         }
                         timeFrame = currentTimeFrame;
@@ -266,9 +271,10 @@ public class TimeRange {
                         if (statsFilter.getStartDate() == statsFilter.getEndDate()) {
                             // resolve the most recent time stamp with regard to the start date
                             Optional<Timestamp> closestTimestamp = historydbIO
-                                    .getClosestTimestampBefore(Optional.of(statsFilter.getStartDate()),
+                                    .getClosestTimestampBefore(
+                                            Optional.of(statsFilter.getStartDate()),
                                             Optional.of(currentTimeFrame), HistoryVariety.ENTITY_STATS);
-                            if(commRequestContainsPI(statsFilter.getCommodityRequestsList())) {
+                            if (commRequestContainsPI(statsFilter.getCommodityRequestsList())) {
                                 priceIndexTimeStamp = historydbIO
                                     .getClosestTimestampBefore(Optional.empty(), requiredTimeFrame,
                                         HistoryVariety.PRICE_DATA);
@@ -358,8 +364,8 @@ public class TimeRange {
          */
         class ClusterTimeRangeFactory implements TimeRangeFactory {
 
-            private final HistorydbIO historydbIO;
             private final TimeFrameCalculator timeFrameCalculator;
+            private final DSLContext dsl;
 
             /**
              * Create a new instance.
@@ -368,8 +374,9 @@ public class TimeRange {
              * @param timeFrameCalculator time frame calculator based on retention policies
              */
             public ClusterTimeRangeFactory(@Nonnull final HistorydbIO historydbIO,
+                    @Nonnull final DSLContext dsl,
                     @Nonnull final TimeFrameCalculator timeFrameCalculator) {
-                this.historydbIO = historydbIO;
+                this.dsl = dsl;
                 this.timeFrameCalculator = timeFrameCalculator;
             }
 
@@ -383,7 +390,7 @@ public class TimeRange {
                     // pagination params curerntly not relevant
                     @Nonnull final Optional<EntityStatsPaginationParams> unusedPaginationParams,
                     @Nonnull final Optional<TimeFrame> requiredTimeFrame)
-                    throws IllegalArgumentException, VmtDbException {
+                    throws IllegalArgumentException {
 
                 TimeRange result = null;
 
@@ -461,11 +468,9 @@ public class TimeRange {
              * @param statsFilter        stats filter, for requested commodities list
              * @param timeFrame          timeframe to consider
              * @return retrieved timestamp, or null if no records available
-             * @throws VmtDbException for database error
              */
             private Timestamp getMaxTimestamp(@Nullable Long maxInclusiveMillis,
-                    Optional<String> clusterId, StatsFilter statsFilter, TimeFrame timeFrame)
-                    throws VmtDbException {
+                    Optional<String> clusterId, StatsFilter statsFilter, TimeFrame timeFrame) {
                 // compute timestamp upperbound as a Timestamp, using current time if none supplied
                 Timestamp maxInclusive = new Timestamp(maxInclusiveMillis != null ? maxInclusiveMillis
                         : System.currentTimeMillis());
@@ -476,23 +481,20 @@ public class TimeRange {
                 final Field<String> internalNameField = getStringField(table, INTERNAL_NAME);
                 final Field<String> propertyTypeField = getStringField(table, PROPERTY_TYPE);
                 conditions.add(recordedOnField.le(maxInclusive));
-                clusterId.ifPresent(id -> {
-                    conditions.add(internalNameField.eq(id));
-                });
+                clusterId.ifPresent(id -> conditions.add(internalNameField.eq(id)));
                 if (!statsFilter.getCommodityRequestsList().isEmpty()) {
                     conditions.add(propertyTypeField.in(
                             statsFilter.getCommodityRequestsList().stream()
-                                    .map(req -> req.getCommodityName())
+                                    .map(CommodityRequest::getCommodityName)
                                     .collect(Collectors.toList())));
                 }
                 // execute query to retrieve timestamp
-                final Result<Record1<Timestamp>> result = (Result<Record1<Timestamp>>)
-                        historydbIO.execute(HistorydbIO.getJooqBuilder()
-                                .selectDistinct(recordedOnField)
-                                .from(table)
-                                .where(conditions)
-                                .orderBy(recordedOnField.desc())
-                                .limit(1));
+                final Result<Record1<Timestamp>> result = dsl.selectDistinct(recordedOnField)
+                        .from(table)
+                        .where(conditions)
+                        .orderBy(recordedOnField.desc())
+                        .limit(1)
+                        .fetch();
                 // return single result
                 return result.size() > 0 ? result.get(0).value1() : null;
             }
@@ -509,12 +511,10 @@ public class TimeRange {
              * @param clusterId        optional cluster id
              * @param statsFilter      stats filter used for requested properties
              * @return list of available timestamps, in increasing order
-             * @throws VmtDbException if a database error occurs
              */
             private List<Timestamp> getClusterTimestamps(TimeFrame timeFrame,
                     long minInclusiveMsec, long maxInclusiveMsec,
-                    Optional<String> clusterId, StatsFilter statsFilter)
-                    throws VmtDbException {
+                    Optional<String> clusterId, StatsFilter statsFilter) {
                 // compute time bounds as Timestamp values
                 final Timestamp minInclusive = new Timestamp(minInclusiveMsec);
                 final Timestamp maxInclusive = new Timestamp(maxInclusiveMsec);
@@ -534,17 +534,17 @@ public class TimeRange {
                 }
                 clusterId.ifPresent(id -> conditions.add(internalNameField.eq(id)));
                 final List<String> propertyTypes = statsFilter.getCommodityRequestsList().stream()
-                        .map(req -> req.getCommodityName()).collect(Collectors.toList());
+                        .map(CommodityRequest::getCommodityName)
+                        .collect(Collectors.toList());
                 if (!propertyTypes.isEmpty()) {
                     conditions.add(propertyTypeField.in(propertyTypes));
                 }
                 // retrieve timestamps
-                final Result<Record1<Timestamp>> result = (Result<Record1<Timestamp>>)
-                        historydbIO.execute(historydbIO.getJooqBuilder()
-                                .selectDistinct(recordedOnField)
-                                .from(table)
-                                .where(conditions)
-                                .orderBy(recordedOnField.asc()));
+                final Result<Record1<Timestamp>> result = dsl.selectDistinct(recordedOnField)
+                        .from(table)
+                        .where(conditions)
+                        .orderBy(recordedOnField.asc())
+                        .fetch();
                 // and return them all
                 return result.getValues(recordedOnField);
             }

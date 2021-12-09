@@ -32,6 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -525,7 +526,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      * Class to hold bought commodities pending availability of the seller entity.
      *
      * <p>A class was required, instead of a block, as queueCommoditiesBought() throws
-     * VmtDbException.</p>
+     * {@link DataAccessException}.</p>
      */
     public class DelayedCommodityBoughtWriter {
         private final long snapshotTime;

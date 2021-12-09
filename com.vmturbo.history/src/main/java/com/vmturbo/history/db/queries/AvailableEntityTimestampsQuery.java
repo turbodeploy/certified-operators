@@ -12,15 +12,15 @@ import java.sql.Timestamp;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.SortOrder;
 import org.jooq.Table;
 
-import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.EntityTypeDefinitions;
 import com.vmturbo.history.db.QueryBase;
 
 /**
@@ -41,16 +41,20 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
     /**
      * Create a new query instance.
      *
+     * @param dsl               DB access
      * @param timeFrame         required {@link TimeFrame}
      * @param entityType        required {@link EntityType}
      * @param entityOid         required entity OID (only if entityType is provided)
      * @param limit             max number of returned values, or 0 for no limit
      * @param fromInclusive     inclusive lower bound on returned timestamps
      * @param toInclusive       inclusive upper bound on returned timestamps
-     * @param excludeProperties true if listed properties must not appear, else they must appear
-     * @param propertyTypes     property types that must/must not appear in stats records considered
+     * @param excludeProperties true if listed properties must not appear, else they must
+     *                          appear
+     * @param propertyTypes     property types that must/must not appear in stats records
+     *                          considered
      */
-    public AvailableEntityTimestampsQuery(@Nonnull TimeFrame timeFrame,
+    public AvailableEntityTimestampsQuery(DSLContext dsl,
+            @Nonnull TimeFrame timeFrame,
             @Nullable EntityType entityType,
             @Nullable String entityOid,
             int limit,
@@ -58,6 +62,7 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
             @Nullable Timestamp toInclusive,
             boolean excludeProperties,
             String... propertyTypes) {
+        super(dsl);
         // This special casing is needed due to the difference in schema of clusters and the other entity types stats.
         // TODO: this special casing can be removed after changing the schema of the cluster stats table
         //  to be the same as the other entities table.

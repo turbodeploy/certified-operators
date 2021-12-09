@@ -94,7 +94,7 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
                     record.set(GENERIC_STATS_TABLE.PROPERTY_TYPE, StringConstants.PRICE_INDEX);
                     record.set(GENERIC_STATS_TABLE.PROPERTY_SUBTYPE, StringConstants.PRICE_INDEX);
                     record.set(GENERIC_STATS_TABLE.RELATION, RelationType.METRICS);
-                    double clipped = historydbIO.clipValue(priceIndex);
+                    double clipped = HistorydbIO.clipValue(priceIndex);
                     record.set(GENERIC_STATS_TABLE.AVG_VALUE, clipped);
                     record.set(GENERIC_STATS_TABLE.MIN_VALUE, clipped);
                     record.set(GENERIC_STATS_TABLE.MAX_VALUE, clipped);

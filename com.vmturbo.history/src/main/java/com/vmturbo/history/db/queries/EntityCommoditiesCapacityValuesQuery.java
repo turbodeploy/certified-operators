@@ -18,6 +18,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
@@ -38,11 +39,13 @@ public class EntityCommoditiesCapacityValuesQuery extends QueryBase {
     /**
      * Creating a query to get the max capacity of all entities in this table over the last 7 days.
      *
-     * @param table destination for the query
+     * @param table       destination for the query
      * @param commodities The types of commodities we want.
+     * @param dsl         DB access
      */
     public EntityCommoditiesCapacityValuesQuery(@Nonnull Table<?> table,
-                                                Set<String> commodities) {
+            Set<String> commodities, DSLContext dsl) {
+        super(dsl);
         final Field<String> uuidField = getStringField(table, UUID);
         final Field<String> propertyTypeField = getStringField(table, PROPERTY_TYPE);
         final Field<String> commodityKeyField = getStringField(table, COMMODITY_KEY);
@@ -51,8 +54,8 @@ public class EntityCommoditiesCapacityValuesQuery extends QueryBase {
         final Field<RelationType> relationField = getRelationTypeField(table, RELATION);
 
         table.getIndexes().stream()
-            .filter(idx -> idx.getName().toLowerCase().equals(FORCE_INDEX))
-            .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
+                .filter(idx -> idx.getName().equalsIgnoreCase(FORCE_INDEX))
+                .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
 
         addSelectFields(uuidField, commodityKeyField, propertyTypeField, DSL.max(capacityField));
         addTable(table);

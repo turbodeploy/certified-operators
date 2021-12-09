@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.Record;
+import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -27,7 +28,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoaderMock;
 import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -66,7 +66,6 @@ public class LiveStatsAggregatorTest {
         Mockito.doCallRealMethod().when(historydbIO).initializeCommodityRecord(any(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
         Mockito.doCallRealMethod().when(historydbIO).setCommodityValues(any(), anyDouble(), anyDouble(), any(), any());
         Mockito.doCallRealMethod().when(historydbIO).getMarketStatsRecord(any(MarketStatsData.class), any(TopologyInfo.class));
-        Mockito.doCallRealMethod().when(historydbIO).clipValue(anyDouble());
         Mockito.when(historydbIO.getEntityType(anyInt())).thenCallRealMethod();
         Mockito.when(historydbIO.getBaseEntityType(anyInt())).thenCallRealMethod();
     }
@@ -78,9 +77,9 @@ public class LiveStatsAggregatorTest {
      * commodities are present after each chunk is processed.</p>
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       on db exception
+     * @throws DataAccessException       on db exception
      */
-    private void setupTopologyAndTestPendingBoughtCommodities() throws InterruptedException, VmtDbException {
+    private void setupTopologyAndTestPendingBoughtCommodities() throws InterruptedException, DataAccessException {
         final TopologyEntityDTO vm1 = StatsTestUtils.vm(10, 30); // buys from pm1
         final TopologyEntityDTO vm2 = StatsTestUtils.vm(20, 40); // buys from pm2
         final TopologyEntityDTO vm3 = StatsTestUtils.vm(25, 50, 100, 100); // buys flow from pm3
@@ -146,11 +145,11 @@ public class LiveStatsAggregatorTest {
     /**
      * Verify counts of various subsets of the records inserted during topology processing.
      *
-     * @throws VmtDbException       should not happen
+     * @throws DataAccessException       should not happen
      * @throws InterruptedException if interrupted
      */
     @Test
-    public void testRecords() throws InterruptedException, VmtDbException {
+    public void testRecords() throws InterruptedException, DataAccessException {
         setupTopologyAndTestPendingBoughtCommodities();
         // total records inserted
         // 4 PM attribute + 3 PM cpu sold + 2 PM flow sold = 9
@@ -188,11 +187,11 @@ public class LiveStatsAggregatorTest {
     /**
      * Verify properties of the capacity cache.
      *
-     * @throws VmtDbException       on db error
+     * @throws DataAccessException       on db error
      * @throws InterruptedException if interrupted
      */
     @Test
-    public void testCapacities() throws VmtDbException, InterruptedException {
+    public void testCapacities() throws DataAccessException, InterruptedException {
         setupTopologyAndTestPendingBoughtCommodities();
         Object[] capacities = aggregator.capacities().getAllEntityCapacities().values().toArray();
         // 4 entities with commodities sold (the 4 PMs), each should have cached capacities

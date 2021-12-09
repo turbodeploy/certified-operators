@@ -11,12 +11,12 @@ import com.google.common.collect.Collections2;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
@@ -61,7 +61,7 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implem
             this.currentPriceIndexRecord = buildPriceIndexRecord(scenarioInfo, "currentPriceIndex");
             this.projectedPriceIndexRecord = buildPriceIndexRecord(scenarioInfo, "priceIndex");
             this.aggregator = new PlanStatsAggregator(state.getLoaders(), historydbIO, topologyInfo, false);
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             throw new IllegalStateException("Failed to prepare for projected plan ingestion", e);
         }
     }
@@ -88,9 +88,9 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implem
         aggregator.writeAggregates();
         if (entityCount != 0 && numOriginalPriceIndex != 0) {
             // add the priceIndex current and projected values
-            currentPriceIndexRecord.setAvgValue(historydbIO.clipValue(currentPriceIndexRecord.getCapacity()
+            currentPriceIndexRecord.setAvgValue(HistorydbIO.clipValue(currentPriceIndexRecord.getCapacity()
                 / numOriginalPriceIndex));
-            projectedPriceIndexRecord.setAvgValue(historydbIO.clipValue(projectedPriceIndexRecord.getCapacity()
+            projectedPriceIndexRecord.setAvgValue(HistorydbIO.clipValue(projectedPriceIndexRecord.getCapacity()
                 / entityCount));
             final BulkLoader<MktSnapshotsStatsRecord> loader
                     = state.getLoaders().getLoader(MktSnapshotsStats.MKT_SNAPSHOTS_STATS);
@@ -134,9 +134,11 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implem
      * @param value            the value to update with
      */
     private void tabulateCapacityMinMax(MktSnapshotsStatsRecord priceIndexRecord, double value) {
-        priceIndexRecord.setCapacity(historydbIO.clipValue(priceIndexRecord.getCapacity() + value));
-        priceIndexRecord.setMinValue(historydbIO.clipValue(Math.min(priceIndexRecord.getMinValue(), value)));
-        priceIndexRecord.setMaxValue(historydbIO.clipValue(Math.max(priceIndexRecord.getMaxValue(), value)));
+        priceIndexRecord.setCapacity(HistorydbIO.clipValue(priceIndexRecord.getCapacity() + value));
+        priceIndexRecord.setMinValue(
+                HistorydbIO.clipValue(Math.min(priceIndexRecord.getMinValue(), value)));
+        priceIndexRecord.setMaxValue(
+                HistorydbIO.clipValue(Math.max(priceIndexRecord.getMaxValue(), value)));
     }
 
     /**

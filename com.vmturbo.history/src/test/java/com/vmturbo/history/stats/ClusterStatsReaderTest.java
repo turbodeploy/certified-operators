@@ -26,9 +26,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import java.sql.Connection;
 import java.sql.Date;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
@@ -49,19 +47,17 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
@@ -79,42 +75,31 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.SchemaUtil;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.HistoryVariety;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
 import com.vmturbo.history.stats.ClusterStatsReader.ClusterStatsRecordReader;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ComputedPropertiesProcessorFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit test for {@link ClusterStatsReader}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {DbTestConfig.class})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 public class ClusterStatsReaderTest {
 
     private static final long ONE_DAY_IN_MILLIS = 86_400_000;
 
     private static final String NUM_VMS = PropertySubType.NumVms.getApiParameterName();
     private static final String HEADROOM_VMS = PropertySubType.HeadroomVms.getApiParameterName();
-    @Autowired
-    private DbTestConfig dbTestConfig;
-
-    private static String testDbName;
-
-    private static HistorydbIO historydbIO;
 
     private ClusterStatsReader clusterStatsReader;
-
-    private TimeFrameCalculator timeFrameCalculator;
 
     private static final String CLUSTER_ID_1 = "1234567890";
     private static final String CLUSTER_ID_2 = "3333333333";
@@ -133,14 +118,29 @@ public class ClusterStatsReaderTest {
         Timestamp.valueOf("2020-01-03 17:51:00");
 
     private static final Timestamp HOUR_TIMESTAMP1 =
-        Timestamp.valueOf("2020-01-03 18:00:00");
+            Timestamp.valueOf("2020-01-03 18:00:00");
     private static final Timestamp HOUR_TIMESTAMP2 =
-        Timestamp.valueOf("2020-01-03 17:00:00");
+            Timestamp.valueOf("2020-01-03 17:00:00");
 
     private static final Timestamp DAY_TIMESTAMP1 =
-        Timestamp.valueOf("2020-01-02 00:00:00");
+            Timestamp.valueOf("2020-01-02 00:00:00");
     private static final Timestamp DAY_TIMESTAMP2 =
-        Timestamp.valueOf("2020-01-01 00:00:00");
+            Timestamp.valueOf("2020-01-01 00:00:00");
+
+    /**
+     * Provision and provide access to a test database.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /**
+     * Clean up tables in the test database before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private final DSLContext dsl = dbConfig.getDslContext();
+    private final HistorydbIO historydbIO = new HistorydbIO(dsl, dsl);
 
     /**
      * Set up and populate live database for tests, and create required mocks.
@@ -149,68 +149,44 @@ public class ClusterStatsReaderTest {
      */
     @Before
     public void setup() throws Exception {
-        testDbName = dbTestConfig.testDbName();
-        historydbIO = dbTestConfig.historydbIO();
-
         final Clock clock = mock(Clock.class);
         final RetentionPeriodFetcher retentionPeriodFetcher =
-            mock(RetentionPeriodFetcher.class);
+                mock(RetentionPeriodFetcher.class);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(NOW.getTime()));
         Mockito.when(retentionPeriodFetcher.getRetentionPeriods())
-            .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
-        timeFrameCalculator = new TimeFrameCalculator(clock, retentionPeriodFetcher);
+                .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+        TimeFrameCalculator timeFrameCalculator = new TimeFrameCalculator(clock,
+                retentionPeriodFetcher);
 
         final ClusterTimeRangeFactory clusterTimeRangeFactory = new ClusterTimeRangeFactory(
-                historydbIO, timeFrameCalculator);
+                historydbIO, dsl, timeFrameCalculator);
         final DefaultTimeRangeFactory defaultTimeRangeFactory = new DefaultTimeRangeFactory(
-            historydbIO, timeFrameCalculator, 15, TimeUnit.MINUTES);
+                historydbIO, timeFrameCalculator, 15, TimeUnit.MINUTES);
 
         final ComputedPropertiesProcessorFactory computedPropertiesFactory =
                 ComputedPropertiesProcessor::new;
-        clusterStatsReader = new ClusterStatsReader(historydbIO, clusterTimeRangeFactory,
+        clusterStatsReader = new ClusterStatsReader(dsl, clusterTimeRangeFactory,
                 defaultTimeRangeFactory, computedPropertiesFactory, 500);
-        System.out.println("Initializing DB - " + testDbName);
-        HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.setSchemaForTests(testDbName);
-        // we don't need to recreate the database for each test
-        historydbIO.init(false, null, testDbName, Optional.empty());
     }
 
     /**
      * Performed after each unit test, to clean up data to avoid conflict with other tests.
      *
-     * @throws SQLException db error
-     * @throws VmtDbException db error
+     * @throws DataAccessException db error
      */
     @After
-    public void after() throws SQLException, VmtDbException {
+    public void after() throws DataAccessException {
         // clear data in cluster tables before each test so it doesn't affect each other
-        clearClusterTableStats();
-    }
-
-    /**
-     * Tear down our database when tests are complete.
-     *
-     * @throws Throwable if there's a problem
-     */
-    @AfterClass
-    public static void afterClass() throws Throwable {
-        DBConnectionPool.instance.getInternalPool().close();
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        } catch (VmtDbException e) {
-            System.out.println("Problem dropping db: " + testDbName);
-        }
+        Stream.of(CLUSTER_STATS_BY_MONTH, CLUSTER_STATS_BY_DAY, CLUSTER_STATS_BY_HOUR,
+                CLUSTER_STATS_LATEST).forEach(table -> dsl.truncateTable(table).execute());
     }
 
     /**
      * Populate data for test cases: minimal DB with two clusters.
      *
-     * @throws VmtDbException       if there's a problem
      * @throws InterruptedException if interrupted
      */
-    private void populateTestDataSmall() throws VmtDbException, InterruptedException {
+    private void populateTestDataSmall() throws InterruptedException {
         final Timestamp[] latestTimes = {Timestamp.valueOf("2017-12-15 01:23:53"),
                                          Timestamp.valueOf("2017-12-15 01:33:53")};
         final Timestamp[] datesByDay = {Timestamp.valueOf("2017-12-15 00:00:00"),
@@ -221,7 +197,7 @@ public class ClusterStatsReaderTest {
         final ImmutableBulkInserterConfig config = ImmutableBulkInserterConfig.builder()
                 .batchSize(10).maxPendingBatches(1).maxBatchRetries(1).maxRetryBackoffMsec(100)
                 .build();
-        try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(historydbIO, config,
+        try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(dsl, config,
                 Executors.newSingleThreadExecutor())) {
             for (final Timestamp time : latestTimes) {
                 for (final String propertyType : propertyTypes) {
@@ -260,27 +236,38 @@ public class ClusterStatsReaderTest {
         final ImmutableBulkInserterConfig config = ImmutableBulkInserterConfig.builder()
                 .batchSize(10).maxPendingBatches(1).maxBatchRetries(1).maxRetryBackoffMsec(100)
                 .build();
-        try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(historydbIO, config,
+        try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(dsl, config,
                 Executors.newSingleThreadExecutor())) {
 
             if (insertLatest) {
-                insertTimeStampRecord(loaders, TimeFrame.LATEST, LATEST_TIMESTAMP1, Timestamp.valueOf("2020-01-03 21:00:00"));
-                insertTimeStampRecord(loaders, TimeFrame.LATEST, LATEST_TIMESTAMP2, Timestamp.valueOf("2020-01-03 21:00:00"));
+                insertTimeStampRecord(loaders, TimeFrame.LATEST, LATEST_TIMESTAMP1,
+                        Timestamp.valueOf("2020-01-03 21:00:00"));
+                insertTimeStampRecord(loaders, TimeFrame.LATEST, LATEST_TIMESTAMP2,
+                        Timestamp.valueOf("2020-01-03 21:00:00"));
 
                 // cluster_stats_latest
                 // Mem used and Mem capacity records in "cluster_stats_latest"
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, MEM, USED, 10.0);
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, MEM, CAPACITY, 20.0);
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, MEM, USED, 100.0);
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, MEM, CAPACITY, 300.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3,
+                        MEM, USED, 10.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3,
+                        MEM, CAPACITY, 20.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4,
+                        MEM, USED, 100.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4,
+                        MEM, CAPACITY, 300.0);
 
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, MEM, USED, 100.0);
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, MEM, CAPACITY, 200.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3,
+                        MEM, USED, 100.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3,
+                        MEM, CAPACITY, 200.0);
 
                 // numVMs and numHosts records in "cluster_stats_latest"
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 8.0);
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 1.0);
-                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, NUM_VMS, NUM_VMS, 6.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3,
+                        NUM_VMS, NUM_VMS, 8.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3,
+                        NUM_HOSTS, NUM_HOSTS, 1.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4,
+                        NUM_VMS, NUM_VMS, 6.0);
                 insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, NUM_HOSTS, NUM_HOSTS, 1.0);
 
                 insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 80.0);
@@ -429,10 +416,9 @@ public class ClusterStatsReaderTest {
      * This method may disable the test, if the test is executed too close to an end of date.
      *
      * @return false means the test should be disabled
-     * @throws VmtDbException if there's a DB problem
      * @throws InterruptedException if the connection to the DB is interrupted
      */
-    private boolean populateTestDataNow() throws VmtDbException, InterruptedException {
+    private boolean populateTestDataNow() throws InterruptedException {
         // This test depends on the condition: yesterday < today < now < tomorrow
         // If now is too close to the next change of date
         // or in the unlikely case that now is exactly equal to a change of date,
@@ -447,7 +433,7 @@ public class ClusterStatsReaderTest {
         final ImmutableBulkInserterConfig config = ImmutableBulkInserterConfig.builder()
                 .batchSize(10).maxPendingBatches(1).maxBatchRetries(1).maxRetryBackoffMsec(100)
                 .build();
-        try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(historydbIO, config,
+        try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(dsl, config,
                 Executors.newSingleThreadExecutor())) {
             insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, yesterday, CLUSTER_ID_3,
                     CPU_HEADROOM, USED, 20.0);
@@ -483,19 +469,6 @@ public class ClusterStatsReaderTest {
         record.setValue(AVAILABLE_TIMESTAMPS.field("time_stamp", Timestamp.class), timestamp);
         record.setValue(AVAILABLE_TIMESTAMPS.field("expires_at", Timestamp.class), expiresAt);
         loaders.getLoader(AVAILABLE_TIMESTAMPS).insert(record);
-    }
-
-    /**
-     * Clear all cluster stats tables.
-     *
-     * @throws SQLException sql error
-     * @throws VmtDbException db error
-     */
-    private void clearClusterTableStats() throws SQLException, VmtDbException {
-        try (Connection conn = historydbIO.connection()) {
-            Stream.of(CLUSTER_STATS_BY_MONTH, CLUSTER_STATS_BY_DAY, CLUSTER_STATS_BY_HOUR,
-                    CLUSTER_STATS_LATEST).forEach(table -> historydbIO.using(conn).truncateTable(table).execute());
-        }
     }
 
     /**
@@ -1060,7 +1033,7 @@ public class ClusterStatsReaderTest {
         populateTestDataBig(true);
         final List<ClusterStatsResponse> response =
             clusterStatsReader.getStatsRecords(ClusterStatsRequest.newBuilder()
-                .addClusterIds(Long.valueOf(CLUSTER_ID_3))
+                .addClusterIds(Long.parseLong(CLUSTER_ID_3))
                 .build());
         final List<EntityStats> entityStats = new ArrayList<>();
         for (ClusterStatsResponse responseChunk : response) {

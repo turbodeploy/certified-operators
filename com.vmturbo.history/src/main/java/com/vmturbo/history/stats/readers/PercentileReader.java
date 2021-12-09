@@ -18,7 +18,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk.Builder;
 import com.vmturbo.history.SharedMetrics;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.PercentileBlobs;
 import com.vmturbo.history.schema.abstraction.tables.records.PercentileBlobsRecord;
 
@@ -38,11 +37,11 @@ public class PercentileReader extends AbstractBlobsReader<GetPercentileCountsReq
      *                 send accept next chunk for sending over the network.
      * @param grpcTimeoutMs GRPC interaction timeout in milliseconds
      * @param clock provides information about current time.
-     * @param historydbIO provides connection to database.
+     * @param dsl provides connection to database.
      */
     public PercentileReader(int timeToWaitNetworkReadinessMs, long grpcTimeoutMs,
-                    @Nonnull Clock clock, @Nonnull HistorydbIO historydbIO) {
-        super(timeToWaitNetworkReadinessMs, grpcTimeoutMs, clock, historydbIO,
+                    @Nonnull Clock clock, @Nonnull DSLContext dsl) {
+        super(timeToWaitNetworkReadinessMs, grpcTimeoutMs, clock, dsl,
                 SharedMetrics.PERCENTILE_READING, PERCENTILE_BLOBS_TABLE,
                 PercentileBlobsRecord.class.getSimpleName());
     }

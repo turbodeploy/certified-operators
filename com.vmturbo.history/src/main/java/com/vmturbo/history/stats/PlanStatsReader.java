@@ -13,14 +13,13 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Lists;
 
 import org.jooq.Condition;
-import org.jooq.Result;
+import org.jooq.DSLContext;
 import org.jooq.SelectConditionStep;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 
 /**
@@ -28,10 +27,10 @@ import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRe
  **/
 public class PlanStatsReader {
 
-    private final HistorydbIO historydbIO;
+    private final DSLContext dsl;
 
-    public PlanStatsReader(HistorydbIO historydbIO) {
-        this.historydbIO = historydbIO;
+    public PlanStatsReader(DSLContext dsl) {
+        this.dsl = dsl;
     }
 
     /**
@@ -41,19 +40,19 @@ public class PlanStatsReader {
      * @param commodityRequests a list of named commodities that have been requested
      * @param globalFilter the global filter to apply to all returned stats
      * @return a list of of Market Snapshot Stats Records containing the result
-     * @throws VmtDbException when an error occurs while executing the query
+     * @throws DataAccessException when an error occurs while executing the query
      */
     public @Nonnull List<MktSnapshotsStatsRecord> getStatsRecords(
             long topologyContextId,
             @Nonnull List<CommodityRequest> commodityRequests,
-            @Nonnull GlobalFilter globalFilter) throws VmtDbException {
-        SelectConditionStep<MktSnapshotsStatsRecord> queryBuilder = historydbIO.JooqBuilder()
-            .selectFrom(MKT_SNAPSHOTS_STATS)
-            .where(MKT_SNAPSHOTS_STATS.MKT_SNAPSHOT_ID.equal(topologyContextId));
+            @Nonnull GlobalFilter globalFilter) throws DataAccessException {
+        SelectConditionStep<MktSnapshotsStatsRecord> queryBuilder =
+                dsl.selectFrom(MKT_SNAPSHOTS_STATS)
+                        .where(MKT_SNAPSHOTS_STATS.MKT_SNAPSHOT_ID.equal(topologyContextId));
 
         List<CommodityRequest> namedCommodityRequests = commodityRequests.stream()
-            .filter(CommodityRequest::hasCommodityName)
-            .collect(Collectors.toList());
+                .filter(CommodityRequest::hasCommodityName)
+                .collect(Collectors.toList());
         // If there are any named commodities, then we consider only the named commodities.
         // Otherwise, we do a search for all commodity names but possibly still filtered by related
         // entity type.
@@ -80,7 +79,7 @@ public class PlanStatsReader {
             if (!relatedEntityTypes.isEmpty()) {
                 queryBuilder = queryBuilder.and(MKT_SNAPSHOTS_STATS.ENTITY_TYPE.in(relatedEntityTypes));
             }
-            return (Result<MktSnapshotsStatsRecord>)historydbIO.execute(queryBuilder);
+            return dsl.fetch(queryBuilder);
         }
         // A non-empty list means we're looking for specific ones.
         List<String> remainingCommodityNames = Lists.newArrayList();
@@ -118,6 +117,6 @@ public class PlanStatsReader {
         }
 
         queryBuilder = queryBuilder.and(compoundCommodityCondition);
-        return (Result<MktSnapshotsStatsRecord>)historydbIO.execute(queryBuilder);
+        return dsl.fetch(queryBuilder);
     }
 }

@@ -6,8 +6,6 @@ package com.vmturbo.history.stats.readers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -31,8 +29,6 @@ import org.jooq.Result;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.RequestBasedReader;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -51,31 +47,32 @@ public abstract class AbstractBlobsReader<Q, C, R extends Record> implements Req
     private final int timeToWaitNetworkReadinessMs;
     private final long grpcTimeoutMs;
     private final Clock clock;
-    private final HistorydbIO historydbIO;
     private final DataMetricSummary metric;
     private final Table<R> blobsTable;
     private final String recordClassName;
+    private final DSLContext dsl;
 
     /**
      * Creates {@link AbstractBlobsReader} instance.
      *
-     * @param timeToWaitNetworkReadinessMs time to wait network buffer readiness to send accept
-     *                                     next chunk for sending over the network.
+     * @param timeToWaitNetworkReadinessMs time to wait network buffer readiness to send
+     *         accept
+     *         next chunk for sending over the network.
      * @param grpcTimeoutMs GRPC interaction timeout in milliseconds
      * @param clock provides information about current time.
-     * @param historydbIO provides connection to database.
+     * @param dsl provides connection to database.
      * @param metric the {@link DataMetricSummary} recording the performance.
      * @param blobsTable the database table storing the data blobs.
      * @param recordClassName the simple class name that represents the database records.
      */
     public AbstractBlobsReader(int timeToWaitNetworkReadinessMs, long grpcTimeoutMs,
-            @Nonnull Clock clock, @Nonnull HistorydbIO historydbIO,
+            @Nonnull Clock clock, @Nonnull DSLContext dsl,
             @Nonnull DataMetricSummary metric, @Nonnull Table<R> blobsTable,
             @Nonnull String recordClassName) {
         this.timeToWaitNetworkReadinessMs = timeToWaitNetworkReadinessMs;
         this.grpcTimeoutMs = grpcTimeoutMs;
         this.clock = Objects.requireNonNull(clock, "Clock cannot be null");
-        this.historydbIO = Objects.requireNonNull(historydbIO, "HistorydbIO cannot be null");
+        this.dsl = Objects.requireNonNull(dsl, "DSLContext cannot be null");
         this.metric = Objects.requireNonNull(metric, "DataMetricSummary cannot be null");
         this.blobsTable = Objects.requireNonNull(blobsTable, "Blobs table cannot be null");
         this.recordClassName = Objects.requireNonNull(recordClassName, "Record class name cannot be null");
@@ -84,31 +81,35 @@ public abstract class AbstractBlobsReader<Q, C, R extends Record> implements Req
     @Override
     public void processRequest(@Nonnull Q request, @Nonnull StreamObserver<C> responseObserver) {
         try (DataMetricTimer dataMetricTimer = metric.startTimer()) {
-            try (Connection connection = historydbIO.transConnection();
-                            DSLContext context = historydbIO.using(connection)) {
-                final Stopwatch dbReading = Stopwatch.createStarted();
-                final Result<R> blobsRecords = queryData(context, request);
-                LOGGER.debug("Read '{}' '{}s' for '{}' in '{}'", blobsRecords::size,
-                        () -> recordClassName, () -> getRequestInfo(request), dbReading::stop);
-                final int amountOfRecords = blobsRecords.size();
-                if (amountOfRecords < 1) {
-                    LOGGER.warn("There is no {} information for '{}'", recordClassName, getRequestInfo(request));
+            try {
+                dsl.transaction(trans -> {
+                    final Stopwatch dbReading = Stopwatch.createStarted();
+                    final Result<R> blobsRecords = queryData(trans.dsl(), request);
+                    LOGGER.debug("Read '{}' '{}s' for '{}' in '{}'", blobsRecords::size,
+                            () -> recordClassName, () -> getRequestInfo(request), dbReading::stop);
+                    final int amountOfRecords = blobsRecords.size();
+                    if (amountOfRecords < 1) {
+                        LOGGER.warn("There is no {} information for '{}'", recordClassName,
+                                getRequestInfo(request));
+                        responseObserver.onCompleted();
+                        return;
+                    }
+                    final ServerCallStreamObserver<C> serverObserver =
+                            (ServerCallStreamObserver<C>)responseObserver;
+                    final long totalProcessed = readData(blobsRecords, serverObserver,
+                            getRequestChunkSize(request));
+                    LOGGER.debug(
+                            "{} data read '{}' bytes from database for '{}' in '{}' seconds from '{}' records",
+                            () -> recordClassName, () -> totalProcessed,
+                            () -> getRequestInfo(request), dataMetricTimer::getTimeElapsedSecs,
+                            blobsRecords::size);
                     responseObserver.onCompleted();
-                    return;
-                }
-                final ServerCallStreamObserver<C> serverObserver =
-                                (ServerCallStreamObserver<C>)responseObserver;
-                final long totalProcessed = readData(blobsRecords, serverObserver, getRequestChunkSize(request));
-                LOGGER.debug("{} data read '{}' bytes from database for '{}' in '{}' seconds from '{}' records",
-                        () -> recordClassName, () -> totalProcessed,
-                        () -> getRequestInfo(request), dataMetricTimer::getTimeElapsedSecs,
-                        blobsRecords::size);
-                responseObserver.onCompleted();
-            } catch (VmtDbException | SQLException | DataAccessException ex) {
+                });
+            } catch (DataAccessException ex) {
                 LOGGER.error("Cannot extract data from database table {} for '{}'",
                         blobsTable.getName(), getRequestInfo(request), ex);
                 responseObserver.onError(
-                                Status.INTERNAL.withDescription(ex.getMessage()).asException());
+                        Status.INTERNAL.withDescription(ex.getMessage()).asException());
             }
         }
     }

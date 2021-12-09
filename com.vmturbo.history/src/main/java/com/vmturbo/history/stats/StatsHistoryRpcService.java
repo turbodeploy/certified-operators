@@ -5,7 +5,6 @@ import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CL
 import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
 
 import java.sql.Date;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -27,6 +26,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
@@ -115,7 +115,6 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.ingesters.live.writers.VolumeAttachmentHistoryWriter;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
@@ -167,21 +166,22 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     // Cluster commodities for which to create projected headroom.
     private static final Set<String> CLUSTER_COMMODITY_STATS = ImmutableSet.of(
-        StringConstants.CPU_HEADROOM,
-        StringConstants.MEM_HEADROOM,
-        StringConstants.STORAGE_HEADROOM,
-        StringConstants.TOTAL_HEADROOM);
+            StringConstants.CPU_HEADROOM,
+            StringConstants.MEM_HEADROOM,
+            StringConstants.STORAGE_HEADROOM,
+            StringConstants.TOTAL_HEADROOM);
 
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
-        .name("history_get_stats_snapshot_duration_seconds")
-        .help("Duration in seconds it takes the history component to get a stats snapshot for a group or entity.")
-        .labelNames("context_type")
-        .register();
+            .name("history_get_stats_snapshot_duration_seconds")
+            .help("Duration in seconds it takes the history component to get a stats snapshot for a group or entity.")
+            .labelNames("context_type")
+            .register();
 
     private static final Summary GET_ENTITY_STATS_DURATION_SUMMARY = Summary.build()
-        .name("history_get_entity_stats_duration_seconds")
-        .help("Duration in seconds it takes the history component to retrieve per-entity stats.")
-        .register();
+            .name("history_get_entity_stats_duration_seconds")
+            .help("Duration in seconds it takes the history component to retrieve per-entity stats.")
+            .register();
+    private final DataSource dataSource;
 
     StatsHistoryRpcService(final long realtimeContextId,
             @Nonnull final LiveStatsReader liveStatsReader,
@@ -189,6 +189,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             @Nonnull final ClusterStatsReader clusterStatsReader,
             @Nonnull final BulkLoader<ClusterStatsByDayRecord> clusterStatsByDayLoader,
             @Nonnull final HistorydbIO historydbIO,
+            @Nonnull final DataSource dataSource,
             @Nonnull final ProjectedStatsStore projectedStatsStore,
             @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
             @Nonnull final StatSnapshotCreator statSnapshotCreator,
@@ -204,6 +205,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.clusterStatsReader = Objects.requireNonNull(clusterStatsReader);
         this.clusterStatsByDayLoader = Objects.requireNonNull(clusterStatsByDayLoader);
         this.historydbIO = Objects.requireNonNull(historydbIO);
+        this.dataSource = Objects.requireNonNull(dataSource);
         this.projectedStatsStore = Objects.requireNonNull(projectedStatsStore);
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
         this.statSnapshotCreator = Objects.requireNonNull(statSnapshotCreator);
@@ -226,12 +228,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     public void getProjectedStats(@Nonnull final ProjectedStatsRequest request,
                 @Nonnull final StreamObserver<ProjectedStatsResponse> responseObserver) {
         final ProjectedStatsResponse.Builder builder = ProjectedStatsResponse.newBuilder();
-        Map<String, Set<String>> commodityNamesToGroupBys =  request.getFilterList().stream().collect(Collectors.toMap
-                (CommodityRequest::getCommodityName, filter -> new HashSet<>(filter.getGroupByList())));
+        Map<String, Set<String>> commodityNamesToGroupBys =
+                request.getFilterList().stream().collect(
+                        Collectors.toMap(CommodityRequest::getCommodityName,
+                                filter -> new HashSet<>(filter.getGroupByList())));
         projectedStatsStore.getStatSnapshotForEntities(
-                new HashSet<>(request.getEntitiesList()),
-                commodityNamesToGroupBys,
-                new HashSet<>(request.getProvidersList()))
+                        new HashSet<>(request.getEntitiesList()),
+                        commodityNamesToGroupBys,
+                        new HashSet<>(request.getProvidersList()))
                 .ifPresent(builder::setSnapshot);
         responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
@@ -259,26 +263,28 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 break;
             case ENTITY_GROUP_LIST:
                 seedEntityToDerivedEntities = scope.getEntityGroupList().getGroupsList().stream()
-                .collect(Collectors.toMap(EntityGroup::getSeedEntity,
-                    entityGroup -> entityGroup.getEntitiesCount() == 0
-                        ? Collections.singleton(entityGroup.getSeedEntity())
-                        : new HashSet<>(entityGroup.getEntitiesList())));
+                        .collect(Collectors.toMap(EntityGroup::getSeedEntity,
+                                entityGroup -> entityGroup.getEntitiesCount() == 0
+                                               ? Collections.singleton(entityGroup.getSeedEntity())
+                                               : new HashSet<>(entityGroup.getEntitiesList())));
                 break;
             default:
                 logger.warn("Scope case {} is not supported, returning empty stats",
-                    scope.getScopeCase());
-                responseObserver.onError(new UnsupportedOperationException("Scope case: " +
-                    scope.getScopeCase() + " is not supported, returning empty stats."));
+                        scope.getScopeCase());
+                responseObserver.onError(new UnsupportedOperationException("Scope case: "
+                        + scope.getScopeCase() + " is not supported, returning empty stats."));
                 responseObserver.onCompleted();
                 return;
         }
-        Map<String, Set<String>> commodityNamesToGroupBys =  request.getFilterList().stream().collect(Collectors.toMap
-                (CommodityRequest::getCommodityName, filter -> new HashSet<>(filter.getGroupByList())));
+        Map<String, Set<String>> commodityNamesToGroupBys =
+                request.getFilterList().stream().collect(
+                        Collectors.toMap(CommodityRequest::getCommodityName,
+                                filter -> new HashSet<>(filter.getGroupByList())));
         responseObserver.onNext(projectedStatsStore.getEntityStats(
-            seedEntityToDerivedEntities,
-            commodityNamesToGroupBys,
-            new HashSet<>(request.getProvidersList()),
-            paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
+                seedEntityToDerivedEntities,
+                commodityNamesToGroupBys,
+                new HashSet<>(request.getProvidersList()),
+                paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
         responseObserver.onCompleted();
     }
 
@@ -315,9 +321,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     && historydbIO.entityIdIsPlan(entitiesList.get(0));
 
             final Summary.Timer timer = GET_STATS_SNAPSHOT_DURATION_SUMMARY
-                .labels(isPlan ?
-                        SharedMetrics.PLAN_CONTEXT_TYPE_LABEL :
-                        SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
+                    .labels(isPlan
+                            ? SharedMetrics.PLAN_CONTEXT_TYPE_LABEL
+                            : SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
                 .startTimer();
 
             if (isPlan) {
@@ -406,16 +412,17 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     public void getEntityStats(@Nonnull GetEntityStatsRequest request,
                                @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
         final EntityStatsScope scope = request.getScope();
-        if (scope.hasEntityList() &&
-                scope.getEntityList().getEntitiesList().isEmpty()) {
+        if (scope.hasEntityList()
+                && scope.getEntityList().getEntitiesList().isEmpty()) {
             // It's not an error to request stats for "no" entities, but you will get no results :)
             responseObserver.onNext(GetEntityStatsResponse.getDefaultInstance());
             responseObserver.onCompleted();
             return;
-        } else if (!(scope.hasEntityList() || scope.hasEntityType() || scope.hasEntityGroupList())) {
+        } else if (!(scope.hasEntityList() || scope.hasEntityType()
+                || scope.hasEntityGroupList())) {
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
-                "Scope must have either an entity type, a list of entity IDs or a list of " +
-                    "entity groups.").asException());
+                    "Scope must have either an entity type, a list of entity IDs or a list of "
+                            + "entity groups.").asException());
         }
         try {
             final Timer timer = GET_ENTITY_STATS_DURATION_SUMMARY.startTimer();
@@ -455,14 +462,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             }
 
             timer.observeDuration();
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL
                     .withDescription("DB Error fetching stats for " + scopeErrorDescription(scope))
                     .withCause(e)
                     .asException());
         } catch (IllegalArgumentException e) {
-            final String errorMessage = "Invalid stats query: " + scopeErrorDescription(scope) +
-                    ", " + e.getMessage();
+            final String errorMessage = "Invalid stats query: " + scopeErrorDescription(scope)
+                    + ", " + e.getMessage();
             logger.error(errorMessage);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(errorMessage)
@@ -492,14 +499,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param statsFilter          the requested stats names and filters
      * @param paginationParameters pagination parameters
      * @param responseObserver     the chunking channel on which the response should be returned
-     * @throws VmtDbException if there is an error interacting with the database
+     * @throws DataAccessException if there is an error interacting with the database
      */
     @VisibleForTesting
     protected void returnStatsForEntityGroups(@Nonnull EntityGroupList entityGroupList,
                                             @Nonnull StatsFilter statsFilter,
                                             @Nonnull Optional<PaginationParameters> paginationParameters,
                                             @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver)
-            throws VmtDbException {
+            throws DataAccessException {
         final List<EntityGroup> entityGroups = entityGroupList.getGroupsList();
         final List<EntityStats> entityStatsList = new ArrayList<>(entityGroups.size());
         // get stats for all aggregated entities
@@ -593,10 +600,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param timeFrame timeframe to use for query
      * @return retrieved records
      * @throws StatusException for specifically crafted errors to be sent to requester
-     * @throws VmtDbException if a DB error occurs
+     * @throws DataAccessException if a DB error occurs
      */
     private List<ClusterStatsRecordReader> getClusterStats(long clusterId, StatsFilter filter, TimeFrame timeFrame)
-            throws StatusException, VmtDbException {
+            throws StatusException, DataAccessException {
 
         long now = System.currentTimeMillis();
         long startDate = (filter.hasStartDate()) ? filter.getStartDate() : now;
@@ -665,7 +672,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             // a map that may contain counts of unexpected records by property type + subtype. For
             // error tracking
-            final Map<String, AtomicInteger> unexpectedRecordCounts = new HashMap();
+            final Map<String, AtomicInteger> unexpectedRecordCounts = new HashMap<>();
 
             // consolidate each db record list into a single stat record.
             recordsByPropertyType.forEach((key, records) -> {
@@ -710,7 +717,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                         propertyType,
                         propertySubtype,
                         capacity,
-                        (Float)null,
+                        null,
                         null,
                         null,
                         value != null ? StatsAccumulator.singleStatValue(value) : null,
@@ -743,9 +750,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             // if we encountered any unexpected records, log them.
             if (!CollectionUtils.isEmpty(unexpectedRecordCounts)) {
                 StringBuilder sb = new StringBuilder("Unexpected cluster stat records: ");
-                unexpectedRecordCounts.forEach((recordKey, count) -> {
-                    sb.append(recordKey).append("(").append(count).append(") ");
-                });
+                unexpectedRecordCounts.forEach((recordKey, count) ->
+                        sb.append(recordKey).append("(").append(count).append(") "));
                 logger.warn(sb.toString());
             }
 
@@ -769,7 +775,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      */
     private boolean isUseMonthlyData(@Nullable Long startDate, @Nullable Long endDate) {
         if (startDate != null && endDate != null) {
-            final float numberOfDaysInDateRange = (endDate - startDate) / MILLIS_PER_DAY;
+            final float numberOfDaysInDateRange =
+                    (endDate.floatValue() - startDate.floatValue()) / MILLIS_PER_DAY;
             return numberOfDaysInDateRange > 40;
         }
         return false;
@@ -796,22 +803,24 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         final StatsFilter filter = request.getStats();
         final long startDate;
         final long endDate;
-        if (latestStatRecords.isEmpty() || !filter.hasStartDate() || !filter.hasEndDate() ||
-            (startDate = filter.getStartDate()) >= (endDate = filter.getEndDate()) ||
-            latestRecordDate >= endDate) {
+        if (latestStatRecords.isEmpty() || !filter.hasStartDate() || !filter.hasEndDate()
+                || (startDate = filter.getStartDate()) >= (endDate = filter.getEndDate())
+                || latestRecordDate >= endDate) {
             return;
         }
 
         // Get latest headroom stats.
-        final List<StatRecord> headroomCommodityRecords = latestStatRecords.stream().filter(record ->
-            CLUSTER_COMMODITY_STATS.contains(record.getName())).collect(Collectors.toList());
+        final List<StatRecord> headroomCommodityRecords = latestStatRecords.stream().filter(
+                record ->
+                        CLUSTER_COMMODITY_STATS.contains(record.getName())).collect(
+                Collectors.toList());
         if (!headroomCommodityRecords.isEmpty()) {
             // Copy snapshot as current snapshot.
             responseObserver.onNext(StatSnapshot.newBuilder()
-                .setSnapshotDate(System.currentTimeMillis())
-                .setStatEpoch(StatEpoch.CURRENT)
-                .addAllStatRecords(headroomCommodityRecords)
-                .build());
+                    .setSnapshotDate(System.currentTimeMillis())
+                    .setStatEpoch(StatEpoch.CURRENT)
+                    .addAllStatRecords(headroomCommodityRecords)
+                    .build());
 
             // Get monthly vm growth.
             final long clusterId = request.getClusterId();
@@ -820,7 +829,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 // retrieve records, using timeframe computed from parameters
                 statDBRecords = clusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(clusterId,
                     startDate, endDate, Optional.empty(), Collections.singleton(StringConstants.VM_GROWTH));
-            } catch (VmtDbException e) {
+            } catch (DataAccessException e) {
                 responseObserver.onError(Status.INTERNAL
                         .withDescription("DB Error fetching stats for cluster " + clusterId)
                         .withCause(e)
@@ -862,9 +871,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     responseObserver.onNext(statSnapshotBuilder.build());
                 }
             } else {
-                logger.warn("No VM growth record found between start date {} and end data {}" +
-                        "in cluster {} table.", startDate, endDate,
-                    isUseMonthlyData(startDate, endDate) ? "monthly" : "daily");
+                logger.warn("No VM growth record found between start date {} and end data {}"
+                                + "in cluster {} table.", startDate, endDate,
+                        isUseMonthlyData(startDate, endDate) ? "monthly" : "daily");
             }
         }
     }
@@ -890,40 +899,41 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 HashBasedTable.create();
 
             headroomData.put(StringConstants.HEADROOM_VMS, StringConstants.HEADROOM_VMS,
-                (double) headroomInfo.getHeadroom());
+                    (double)headroomInfo.getHeadroom());
             headroomData.put(StringConstants.VM_GROWTH, StringConstants.VM_GROWTH,
-                (double) headroomInfo.getMonthlyVMGrowth());
+                    (double)headroomInfo.getMonthlyVMGrowth());
 
             // CPU related headroom stats.
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.USED,
-                (double) headroomInfo.getCpuHeadroomInfo().getHeadroom());
+                    (double)headroomInfo.getCpuHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.CAPACITY,
-                (double) headroomInfo.getCpuHeadroomInfo().getCapacity());
+                    (double)headroomInfo.getCpuHeadroomInfo().getCapacity());
             // Don't save days to exhaustion when headroom capacity is 0,
             // because it doesn't make sense to have days to exhaustion in this case.
             if (headroomInfo.getCpuHeadroomInfo().getCapacity() != 0) {
                 headroomData.put(StringConstants.CPU_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                    (double) headroomInfo.getCpuHeadroomInfo().getDaysToExhaustion());
+                        (double)headroomInfo.getCpuHeadroomInfo().getDaysToExhaustion());
             }
 
             // Memory related headroom stats.
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.USED,
-                (double) headroomInfo.getMemHeadroomInfo().getHeadroom());
+                    (double)headroomInfo.getMemHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.CAPACITY,
-                (double) headroomInfo.getMemHeadroomInfo().getCapacity());
+                    (double)headroomInfo.getMemHeadroomInfo().getCapacity());
             if (headroomInfo.getMemHeadroomInfo().getCapacity() != 0) {
                 headroomData.put(StringConstants.MEM_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                    (double) headroomInfo.getMemHeadroomInfo().getDaysToExhaustion());
+                        (double)headroomInfo.getMemHeadroomInfo().getDaysToExhaustion());
             }
 
             // Storage related headroom stats.
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.USED,
-                (double) headroomInfo.getStorageHeadroomInfo().getHeadroom());
+                    (double)headroomInfo.getStorageHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.CAPACITY,
-                (double) headroomInfo.getStorageHeadroomInfo().getCapacity());
+                    (double)headroomInfo.getStorageHeadroomInfo().getCapacity());
             if (headroomInfo.getStorageHeadroomInfo().getCapacity() != 0) {
-                headroomData.put(StringConstants.STORAGE_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                    (double) headroomInfo.getStorageHeadroomInfo().getDaysToExhaustion());
+                headroomData.put(StringConstants.STORAGE_EXHAUSTION,
+                        StringConstants.EXHAUSTION_DAYS,
+                        (double)headroomInfo.getStorageHeadroomInfo().getDaysToExhaustion());
             }
 
 
@@ -981,8 +991,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             dbSnapshotStatsRecords = planStatsReader.getStatsRecords(
                     topologyContextId, commodityRequests, globalFilter);
-        } catch (VmtDbException e) {
-            throw new RuntimeException("Error fetching plan market stats for "
+        } catch (DataAccessException e) {
+            throw new DataAccessException("Error fetching plan market stats for "
                     + topologyContextId, e);
         }
         for (MktSnapshotsStatsRecord statsDBRecord : dbSnapshotStatsRecords) {
@@ -1059,12 +1069,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param globalFilter The global filter to apply to all commodities requested by the filter.
      * @param derivedEntityTypes related entity types for which scope expansion was attempted.
      * @return stream of StatSnapshots from live market
-     * @throws VmtDbException if error writing to the db.
+     * @throws DataAccessException if error writing to the db.
      */
     private Stream<StatSnapshot> getLiveMarketStats(@Nonnull final StatsFilter statsFilter,
                                                     @Nonnull Collection<Long> entities,
                                                     @Nonnull GlobalFilter globalFilter,
-                                                    @Nonnull List<Integer> derivedEntityTypes) throws VmtDbException {
+                                                    @Nonnull List<Integer> derivedEntityTypes) throws DataAccessException {
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
         final boolean fullMarket = entities.isEmpty();
@@ -1110,14 +1120,13 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         }
 
         try {
-            final DeletePlanStatsResponse.Builder responseBuilder = DeletePlanStatsResponse.newBuilder();
+            final DeletePlanStatsResponse.Builder responseBuilder =
+                    DeletePlanStatsResponse.newBuilder();
             historydbIO.deletePlanStats(request.getTopologyContextId());
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
-        } catch (VmtDbException e) {
-            responseObserver.onError(Status.INTERNAL.withDescription("Error deleting plan stats with id: " + request.getTopologyContextId())
-                    .withCause(e)
-                    .asException());
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL.withCause(e).asException());
         }
     }
 
@@ -1133,7 +1142,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             historydbIO.getStatsRetentionSettings()
                 .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
-        } catch (DataAccessException | VmtDbException e) {
+        } catch (DataAccessException e) {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
@@ -1147,33 +1156,31 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     SetStatsDataRetentionSettingRequest request,
                     StreamObserver<SetStatsDataRetentionSettingResponse> responseObserver) {
 
-        try {
-            SetStatsDataRetentionSettingResponse.Builder response =
-                    SetStatsDataRetentionSettingResponse.newBuilder();
-            if (!request.hasRetentionSettingName() || !request.hasRetentionSettingValue()) {
-                responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Missing arguments. Expecting both retentionSettingName" +
-                        "and retentionSettingValue")
+        SetStatsDataRetentionSettingResponse.Builder response =
+                SetStatsDataRetentionSettingResponse.newBuilder();
+        if (!request.hasRetentionSettingName() || !request.hasRetentionSettingValue()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Missing arguments. Expecting both retentionSettingName"
+                            + "and retentionSettingValue")
                     .asException());
-                return;
-            }
+            return;
+        }
 
+        try {
             Optional<Setting> result =
-                historydbIO.setStatsDataRetentionSetting(
-                                request.getRetentionSettingName(),
-                                request.getRetentionSettingValue());
-
+                    historydbIO.setStatsDataRetentionSetting(
+                            request.getRetentionSettingName(),
+                            request.getRetentionSettingValue());
             if (result.isPresent()) {
                 responseObserver.onNext(
-                    response.setNewSetting(result.get())
-                        .build());
+                        response.setNewSetting(result.get())
+                                .build());
             } else {
                 responseObserver.onNext(response.build());
             }
             responseObserver.onCompleted();
-        } catch (VmtDbException e) {
-            responseObserver.onError(
-                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL.withCause(e).asException());
         }
     }
 
@@ -1192,7 +1199,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (DataAccessException | VmtDbException e) {
+        } catch (DataAccessException e) {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
@@ -1206,33 +1213,32 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     SetAuditLogDataRetentionSettingRequest request,
                     StreamObserver<SetAuditLogDataRetentionSettingResponse> responseObserver) {
 
-        try {
-            SetAuditLogDataRetentionSettingResponse.Builder response =
-                    SetAuditLogDataRetentionSettingResponse.newBuilder();
-            if (!request.hasRetentionSettingValue()) {
-                responseObserver.onError(Status.INVALID_ARGUMENT
+        SetAuditLogDataRetentionSettingResponse.Builder response =
+                SetAuditLogDataRetentionSettingResponse.newBuilder();
+        if (!request.hasRetentionSettingValue()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Missing retention value argument")
                     .asException());
-                return;
-            }
+            return;
+        }
 
+        try {
             Optional<Setting> result =
-                historydbIO.setAuditLogRetentionSetting(
-                                request.getRetentionSettingValue());
+                    historydbIO.setAuditLogRetentionSetting(
+                            request.getRetentionSettingValue());
 
             if (result.isPresent()) {
                 responseObserver.onNext(
-                    response.setNewSetting(result.get())
-                        .build());
+                        response.setNewSetting(result.get())
+                                .build());
                 responseObserver.onCompleted();
             } else {
                 responseObserver.onError(Status.INTERNAL
-                    .withDescription("Failed to set the retention value")
-                    .asException());
+                        .withDescription("Failed to set the retention value")
+                        .asException());
             }
-        } catch (VmtDbException e) {
-            responseObserver.onError(
-                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL.withCause(e).asException());
         }
     }
 
@@ -1244,22 +1250,27 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     GetEntityCommoditiesMaxValuesRequest request,
                     StreamObserver<EntityCommoditiesMaxValues> responseObserver) {
         try {
-            if (request.getEntityType() < 0 || EntityDTO.EntityType.forNumber(request.getEntityType()) == null) {
-                logger.error("Invalid entity type in getEntityCommoditiesMaxValues request for entity {}",
-                    request.getEntityType());
+            if (request.getEntityType() < 0 || EntityDTO.EntityType.forNumber(
+                    request.getEntityType())
+                    == null) {
+                logger.error(
+                        "Invalid entity type in getEntityCommoditiesMaxValues request for entity {}",
+                        request.getEntityType());
                 responseObserver.onCompleted();
                 return;
             }
             if (request.getCommodityTypesCount() <= 0) {
-                logger.error("Invalid commodities count {} in getEntityCommoditiesMaxValues request for entity {}",
-                    request.getCommodityTypesCount(), request.getEntityType());
+                logger.error(
+                        "Invalid commodities count {} in getEntityCommoditiesMaxValues request for entity {}",
+                        request.getCommodityTypesCount(), request.getEntityType());
                 responseObserver.onCompleted();
                 return;
             }
             if (request.getCommodityTypesList().stream().anyMatch(commNum ->
-                CommodityDTO.CommodityType.forNumber(commNum) == null)) {
-                logger.error("Invalid commodities {} in getEntityCommoditiesMaxValues request for entity {}",
-                    request.getCommodityTypesList(), request.getEntityType());
+                    CommodityDTO.CommodityType.forNumber(commNum) == null)) {
+                logger.error(
+                        "Invalid commodities {} in getEntityCommoditiesMaxValues request for entity {}",
+                        request.getCommodityTypesList(), request.getEntityType());
                 responseObserver.onCompleted();
                 return;
             }
@@ -1272,7 +1283,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             && request.getUseHistoricalCommBoughtLookbackDays()
             ).forEach(responseObserver::onNext);
             responseObserver.onCompleted();
-        } catch (VmtDbException | SQLException e) {
+        } catch (DataAccessException e) {
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
@@ -1288,17 +1299,18 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     public void getEntityCommoditiesCapacityValues( GetEntityCommoditiesCapacityValuesRequest request,
             StreamObserver<GetEntityCommoditiesCapacityValuesResponse> responseObserver) {
         final Map<Integer, List<Integer>> commsByType = new HashMap<>();
-        request.getTargetCommsList().forEach(entityAndComms -> {
-            commsByType.put(entityAndComms.getEntityType(), entityAndComms.getCommodityTypeList());
-        });
+        request.getTargetCommsList().forEach(entityAndComms ->
+                commsByType.put(entityAndComms.getEntityType(), entityAndComms.getCommodityTypeList()));
 
         commsByType.forEach((entityType, commsToGet) -> {
             // Get data from the daily table. Daily table rollups happen hourly.
             try {
-                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityDayValues
-                    = historydbIO.getEntityCommoditiesCapacityValues(entityType, commsToGet, TimeUnit.DAYS);
+                final List<GetEntityCommoditiesCapacityValuesResponse>
+                        entityCommoditiesCapacityDayValues
+                        = historydbIO.getEntityCommoditiesCapacityValues(entityType, commsToGet,
+                        TimeUnit.DAYS);
                 entityCommoditiesCapacityDayValues.forEach(responseObserver::onNext);
-            } catch (VmtDbException | SQLException e) {
+            } catch (DataAccessException e) {
                 responseObserver.onError(
                         Status.INTERNAL.withDescription(e.getMessage()).asException());
             }
@@ -1311,7 +1323,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     StreamObserver<PercentileChunk> responseObserver) {
         try {
             percentileReader.processRequest(request, responseObserver);
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to retrieve percentile counts for timestamp "
                     + request.getStartTimestamp() + " with chunk size " + request.getChunkSize(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
@@ -1321,7 +1333,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public StreamObserver<PercentileChunk> setPercentileCounts(
                     StreamObserver<SetPercentileCountsResponse> responseObserver) {
-        return new PercentileWriter(responseObserver, historydbIO);
+        return new PercentileWriter(responseObserver, dataSource);
     }
 
     /**
@@ -1408,7 +1420,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
@@ -1467,7 +1479,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error("Cannot get the percentile timestamps in range " + request, e);
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
@@ -1479,7 +1491,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             StreamObserver<MovingStatisticsChunk> responseObserver) {
         try {
             movingStatisticsReader.processRequest(request, responseObserver);
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to retrieve moving statistics with chunk size "
                     + request.getChunkSize(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
@@ -1489,6 +1501,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public StreamObserver<MovingStatisticsChunk> setMovingStatistics(
             StreamObserver<SetMovingStatisticsResponse> responseObserver) {
-        return new MovingStatisticsWriter(responseObserver, historydbIO);
+        return new MovingStatisticsWriter(responseObserver, dataSource);
     }
 }

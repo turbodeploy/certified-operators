@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 
+import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -38,7 +40,6 @@ import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPerio
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRangeFactory;
@@ -47,15 +48,16 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRang
 public class TimeRangeTest {
 
     private static final long LATEST_TABLE_TIME_WINDOW_MS = 1;
-    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE).get();
+    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE)
+            .get();
 
     private HistorydbIO historydbIO = mock(HistorydbIO.class);
 
     private final Clock clock = mock(Clock.class);
     private final RetentionPeriodFetcher retentionPeriodFetcher =
-                    mock(RetentionPeriodFetcher.class);
+            mock(RetentionPeriodFetcher.class);
     private TimeFrameCalculator timeFrameCalculator = spy(new TimeFrameCalculator(clock,
-                    retentionPeriodFetcher));
+            retentionPeriodFetcher));
 
     private final TimeRangeFactory timeRangeFactory =
             new DefaultTimeRangeFactory(historydbIO,
@@ -64,46 +66,52 @@ public class TimeRangeTest {
                     TimeUnit.NANOSECONDS);
 
     private final TimeRangeFactory clusterTimeRangeFactory =
-            new ClusterTimeRangeFactory(historydbIO,
-                    timeFrameCalculator);
+            new ClusterTimeRangeFactory(historydbIO, mock(DSLContext.class), timeFrameCalculator);
 
     @Test(expected = IllegalArgumentException.class)
-    public void testFactoryStartDateSetEndDateNotSet() throws VmtDbException {
+    public void testFactoryStartDateSetEndDateNotSet() throws DataAccessException {
         timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
                 .setStartDate(1L)
                 .build(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testFactoryStartDateNotSetEndDateSet() throws VmtDbException {
+    public void testFactoryStartDateNotSetEndDateSet() throws DataAccessException {
         timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
                 .setEndDate(1L)
                 .build(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
 
-    @Test(expected=IllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testFactoryDefaultTimeRangeWithStartDateGreaterThanEndDate()
-            throws IllegalArgumentException, VmtDbException {
-        final StatsFilter statsFilter = StatsFilter.newBuilder().setStartDate(2L).setEndDate(1L).build();
+            throws IllegalArgumentException, DataAccessException {
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .setStartDate(2L)
+                .setEndDate(1L)
+                .build();
         timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty()).get();
     }
 
-    @Test(expected=IllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testFactoryClusterTimeRangeWithStartDateGreaterThanEndDate()
-            throws IllegalArgumentException, VmtDbException {
-        final StatsFilter statsFilter = StatsFilter.newBuilder().setStartDate(2L).setEndDate(1L).build();
+            throws IllegalArgumentException, DataAccessException {
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .setStartDate(2L)
+                .setEndDate(1L)
+                .build();
         clusterTimeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty()).get();
     }
 
     @Test
-    public void testFactoryDefaultTimeRangeUseRecentTimestamp() throws VmtDbException {
+    public void testFactoryDefaultTimeRangeUseRecentTimestamp() throws DataAccessException {
 
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
 
         final Timestamp timestamp = new Timestamp(1L);
-        when(historydbIO.getClosestTimestampBefore(Optional.empty(), Optional.empty(), HistoryVariety.ENTITY_STATS))
+        when(historydbIO.getClosestTimestampBefore(Optional.empty(), Optional.empty(),
+                HistoryVariety.ENTITY_STATS))
                 .thenReturn(Optional.of(timestamp));
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(1L);
 
@@ -118,18 +126,20 @@ public class TimeRangeTest {
     }
 
     @Test
-    public void testFactoryDefaultTimeRangeWithTimeFrame() throws VmtDbException {
+    public void testFactoryDefaultTimeRangeWithTimeFrame() throws DataAccessException {
 
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
 
         final Timestamp timestamp = new Timestamp(1L);
-        when(historydbIO.getClosestTimestampBefore(Optional.empty(), Optional.of(TimeFrame.DAY), HistoryVariety.ENTITY_STATS))
+        when(historydbIO.getClosestTimestampBefore(Optional.empty(), Optional.of(TimeFrame.DAY),
+                HistoryVariety.ENTITY_STATS))
                 .thenReturn(Optional.of(timestamp));
 
         final TimeRange timeRange =
                 timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.of(TimeFrame.DAY)).get();
-        verify(historydbIO).getClosestTimestampBefore(any(), eq(Optional.of(TimeFrame.DAY)), eq(HistoryVariety.ENTITY_STATS));
+        verify(historydbIO).getClosestTimestampBefore(any(), eq(Optional.of(TimeFrame.DAY)),
+                eq(HistoryVariety.ENTITY_STATS));
         verify(timeFrameCalculator, never()).millis2TimeFrame(1L);
         assertThat(timeRange.getStartTime(), is(1L));
         assertThat(timeRange.getEndTime(), is(1L));
@@ -139,10 +149,10 @@ public class TimeRangeTest {
     }
 
     @Test
-    public void testFactoryDefaultTimeRangeNoRecentTimestamp() throws VmtDbException {
+    public void testFactoryDefaultTimeRangeNoRecentTimestamp() throws DataAccessException {
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
         when(historydbIO.getClosestTimestampBefore(Optional.empty(), Optional.empty(),
-            HistoryVariety.ENTITY_STATS))
+                HistoryVariety.ENTITY_STATS))
                 .thenReturn(Optional.empty());
         final Optional<TimeRange> timeRangeOpt =
                 timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(),
@@ -151,7 +161,7 @@ public class TimeRangeTest {
     }
 
     @Test
-    public void testFactoryExpandLatestTimeWindow() throws VmtDbException {
+    public void testFactoryExpandLatestTimeWindow() throws DataAccessException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startAndEndTime = 10L;
         StatsFilter statsFilter = StatsFilter.newBuilder()
@@ -160,7 +170,7 @@ public class TimeRangeTest {
                 .build();
         // Window expansion should only apply when time frame is latest.
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startAndEndTime);
-        when(historydbIO.getClosestTimestampBefore( any(), any(), any()))
+        when(historydbIO.getClosestTimestampBefore(any(), any(), any()))
                 .thenReturn(Optional.of(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
@@ -174,11 +184,10 @@ public class TimeRangeTest {
         assertThat(timeRange.getMostRecentSnapshotTime(), is(timestamp));
         assertThat(timeRange.getTimeFrame(), is(TimeFrame.LATEST));
         assertThat(timeRange.getSnapshotTimesInRange(), containsInAnyOrder(timestamp));
-
     }
 
     @Test
-    public void testFactoryExpandLatestTimeWindowWithTimeFrame() throws VmtDbException {
+    public void testFactoryExpandLatestTimeWindowWithTimeFrame() throws DataAccessException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startAndEndTime = 10L;
         StatsFilter statsFilter = StatsFilter.newBuilder()
@@ -198,11 +207,10 @@ public class TimeRangeTest {
         assertThat(timeRange.getMostRecentSnapshotTime(), is(timestamp));
         assertThat(timeRange.getTimeFrame(), is(TimeFrame.HOUR));
         assertThat(timeRange.getSnapshotTimesInRange(), containsInAnyOrder(timestamp));
-
     }
 
     @Test
-    public void testFactoryNoExpandLatestTimeWindowBecauseUnequalStartEnd() throws VmtDbException {
+    public void testFactoryNoExpandLatestTimeWindowBecauseUnequalStartEnd() throws DataAccessException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startTime = 10L;
         final long endTime = 15L;
@@ -214,9 +222,10 @@ public class TimeRangeTest {
 
         final Optional<TimeRange> timeRangeOpt =
                 timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
-                        .setStartDate(startTime)
-                        .setEndDate(endTime)
-                        .build(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                                .setStartDate(startTime)
+                                .setEndDate(endTime)
+                                .build(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty());
         verify(timeFrameCalculator).millis2TimeFrame(startTime);
         verify(historydbIO).getTimestampsInRange(TimeFrame.LATEST,
                 startTime, endTime, Optional.empty(), Optional.empty());
@@ -230,7 +239,8 @@ public class TimeRangeTest {
     }
 
     @Test
-    public void testFactoryNoExpandLatestTimeWindowUnequalStartEndWithTimeFrame() throws VmtDbException {
+    public void testFactoryNoExpandLatestTimeWindowUnequalStartEndWithTimeFrame()
+            throws DataAccessException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startTime = 10L;
         final long endTime = 1589428799000L;   // 2020-05-13 23:59:59
@@ -260,7 +270,8 @@ public class TimeRangeTest {
     }
 
     @Test
-    public void testFactoryNoExpandLatestTimeWindowBecauseNotLatestTimeFrame() throws VmtDbException {
+    public void testFactoryNoExpandLatestTimeWindowBecauseNotLatestTimeFrame()
+            throws DataAccessException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startTime = 10L;
         final long endTime = 15L;
@@ -272,9 +283,10 @@ public class TimeRangeTest {
 
         final Optional<TimeRange> timeRangeOpt =
                 timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
-                        .setStartDate(startTime)
-                        .setEndDate(endTime)
-                        .build(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                                .setStartDate(startTime)
+                                .setEndDate(endTime)
+                                .build(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty());
         verify(timeFrameCalculator).millis2TimeFrame(startTime);
         verify(historydbIO).getTimestampsInRange(TimeFrame.DAY,
                 startTime, endTime, Optional.empty(), Optional.empty());
@@ -288,53 +300,56 @@ public class TimeRangeTest {
     }
 
     @Test
-    public void testFactoryNoTimestampsInRange() throws VmtDbException {
+    public void testFactoryNoTimestampsInRange() throws DataAccessException {
         final long startTime = 10L;
         final long endTime = 15L;
         // Window expansion should only apply when time frame is latest.
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startTime);
         when(historydbIO.getTimestampsInRange(TimeFrame.LATEST,
                 startTime, endTime, Optional.empty(), Optional.empty()))
-            .thenReturn(Collections.emptyList());
+                .thenReturn(Collections.emptyList());
 
         final Optional<TimeRange> timeRangeOpt =
                 timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
-                        .setStartDate(startTime)
-                        .setEndDate(endTime)
-                        .build(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                                .setStartDate(startTime)
+                                .setEndDate(endTime)
+                                .build(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty());
         assertFalse(timeRangeOpt.isPresent());
     }
 
     @Test
-    public void testResolveTimeWithMixedCommInStatsFilter() throws VmtDbException {
+    public void testResolveTimeWithMixedCommInStatsFilter() throws DataAccessException {
         final long startTime = 10L;
         final long endTime = 10L;
         final Timestamp cpuTimestamp = new Timestamp(9L);
         StatsFilter filterWithMixedComm = StatsFilter.newBuilder().setStartDate(startTime)
-                        .setEndDate(endTime).addCommodityRequests(CommodityRequest.newBuilder()
-                                .setCommodityName(StringConstants.PRICE_INDEX))
-                        .addCommodityRequests(CommodityRequest.newBuilder()
-                                .setCommodityName(StringConstants.CPU))
-                        .build();
+                .setEndDate(endTime).addCommodityRequests(CommodityRequest.newBuilder()
+                        .setCommodityName(StringConstants.PRICE_INDEX))
+                .addCommodityRequests(CommodityRequest.newBuilder()
+                        .setCommodityName(StringConstants.CPU))
+                .build();
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startTime);
         when(historydbIO.getClosestTimestampBefore(eq(Optional.of(startTime)), any(), any()))
                 .thenReturn(Optional.of(cpuTimestamp));
 
-        final Optional<TimeRange> timeRangeOpt1 = timeRangeFactory.resolveTimeRange(filterWithMixedComm,
+        final Optional<TimeRange> timeRangeOpt1 = timeRangeFactory.resolveTimeRange(
+                filterWithMixedComm,
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         assertTrue(timeRangeOpt1.isPresent());
-        assertTrue(timeRangeOpt1.get().getMostRecentSnapshotTime().getTime() == cpuTimestamp.getTime());
+        assertTrue(timeRangeOpt1.get().getMostRecentSnapshotTime().getTime()
+                == cpuTimestamp.getTime());
     }
 
     /**
      * Checks that rollup period takes precedence calculated timeframe from start/end time
      * difference.
      *
-     * @throws VmtDbException in case of error while doing request to DB to get
-     *                 timestamps in range.
+     * @throws DataAccessException in case of error while doing request to DB to get
+     *         timestamps in range.
      */
     @Test
-    public void testRollupPeriodTakesPrecedenceAsTimeFrame() throws VmtDbException {
+    public void testRollupPeriodTakesPrecedenceAsTimeFrame() throws DataAccessException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startTime = 10L;
         final long endTime = 1589428799000L;  // 2020-05-13 23:59:59
@@ -342,24 +357,24 @@ public class TimeRangeTest {
         // Time frame not latest.
         doReturn(TimeFrame.DAY).when(timeFrameCalculator).millis2TimeFrame(startTime);
         doReturn(TimeFrame.MONTH).when(timeFrameCalculator)
-            .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+                .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         // Expected endTime is the last day of the month of the endTime value.
         final long expectedEndTime = 1590897599000L; // 2020-05-31 23:59:59
         Mockito.when(historydbIO.getTimestampsInRange(TimeFrame.MONTH,
-            startTime, expectedEndTime, Optional.empty(), Optional.empty()))
-            .thenReturn(Collections.singletonList(timestamp));
+                        startTime, expectedEndTime, Optional.empty(), Optional.empty()))
+                .thenReturn(Collections.singletonList(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
-            timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
-                    .setStartDate(startTime)
-                    .setEndDate(endTime)
-                    .setRollupPeriod(rollupPeriod)
-                    .build(),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
+                                .setStartDate(startTime)
+                                .setEndDate(endTime)
+                                .setRollupPeriod(rollupPeriod)
+                                .build(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         Mockito.verify(timeFrameCalculator)
-            .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+                .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         Mockito.verify(historydbIO).getTimestampsInRange(TimeFrame.MONTH,
-            startTime, expectedEndTime, Optional.empty(), Optional.empty());
+                startTime, expectedEndTime, Optional.empty(), Optional.empty());
 
         final TimeRange timeRange = timeRangeOpt.get();
         Assert.assertThat(timeRange.getStartTime(), is(startTime));
@@ -370,7 +385,7 @@ public class TimeRangeTest {
     }
 
     @Test
-    public void testResolveTimeRangeSpecificEntityType() throws VmtDbException {
+    public void testResolveTimeRangeSpecificEntityType() throws DataAccessException {
 
         final String specificEntityOid = "1";
         final EntityType vmType = VIRTUAL_MACHINE_ENTITY_TYPE;
@@ -378,16 +393,18 @@ public class TimeRangeTest {
 
         Mockito.when(clock.instant()).thenReturn(Instant.now());
         Mockito.when(retentionPeriodFetcher.getRetentionPeriods())
-            .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+                .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);
 
         // when there is no start/end date
         final StatsFilter statsFilterNoDate = StatsFilter.newBuilder().build();
 
-        when(historydbIO.getClosestTimestampBefore(Optional.empty(), Optional.empty(), HistoryVariety.ENTITY_STATS)).thenReturn(Optional.of(vmTimestamp));
+        when(historydbIO.getClosestTimestampBefore(Optional.empty(), Optional.empty(),
+                HistoryVariety.ENTITY_STATS)).thenReturn(Optional.of(vmTimestamp));
 
         Optional<TimeRange> vmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterNoDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType), Optional.empty(), Optional.empty());
+                Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType),
+                Optional.empty(), Optional.empty());
 
         assertThat(vmTimeRange.get().getMostRecentSnapshotTime(), is(vmTimestamp));
 
@@ -395,16 +412,17 @@ public class TimeRangeTest {
         final long start = 5L;
         final long end = 10L;
         final StatsFilter statsFilterWithDate = StatsFilter.newBuilder()
-            .setStartDate(start)
-            .setEndDate(end)
-            .build();
+                .setStartDate(start)
+                .setEndDate(end)
+                .build();
 
-        when(historydbIO.getTimestampsInRange(TimeFrame.LATEST, start, end, Optional.of(vmType), Optional.of(specificEntityOid)))
-            .thenReturn(ImmutableList.of(vmTimestamp));
+        when(historydbIO.getTimestampsInRange(TimeFrame.LATEST, start, end, Optional.of(vmType),
+                Optional.of(specificEntityOid)))
+                .thenReturn(ImmutableList.of(vmTimestamp));
 
         vmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterWithDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType), Optional.empty(), Optional.empty());
-
+                Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType),
+                Optional.empty(), Optional.empty());
 
         assertThat(vmTimeRange.get().getMostRecentSnapshotTime(), is(vmTimestamp));
     }

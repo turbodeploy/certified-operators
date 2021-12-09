@@ -17,6 +17,7 @@ import com.google.common.base.Functions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -26,7 +27,6 @@ import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.RetentionPolicy;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
@@ -105,7 +105,7 @@ public class EntityStatsWriter extends TopologyWriterBase implements MemReporter
                 getAggregator().writeFinalStats();
                 getAggregator().logShortenedCommodityKeys();
                 liveStatsStore.updateCommodityCache(aggregator.getCommodityCache());
-            } catch (VmtDbException e) {
+            } catch (DataAccessException e) {
                 logger.warn("EntityStatsWriter failed to record final stats for topology {}",
                     infoSummary);
             }

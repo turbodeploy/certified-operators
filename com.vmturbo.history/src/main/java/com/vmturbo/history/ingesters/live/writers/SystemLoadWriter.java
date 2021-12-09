@@ -3,7 +3,6 @@ package com.vmturbo.history.ingesters.live.writers;
 import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
 
 import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -49,9 +48,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.utils.MemReporter;
-import com.vmturbo.history.db.BasedbIO;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
@@ -78,7 +74,6 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
      * before we know we'll be keeping them.
      */
     private final BulkLoader<SystemLoadRecord> transientLoader;
-    private final BasedbIO basedbIO;
     private final Timestamp snapshotTime;
     private final Timestamp startOfDay;
     private final Timestamp endOfDay;
@@ -109,37 +104,38 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
      * <p>Form is identical to {@link #sliceCapacities} above.</p>
      */
     private final Long2ObjectMap<double[]> sliceUsages = new Long2ObjectOpenHashMap<>();
+    private final DSLContext dsl;
+    private final DSLContext unpooledDsl;
 
     /**
      * Create a new instance.
      *
-     * @param groupService     group service endpoint
-     * @param basedbIO         access to DB stuff
-     * @param state            ingester shared state
-     * @param info             info about the topology being processed
-     * @throws SQLException           if there's a database exception
+     * @param groupService group service endpoint
+     * @param dsl          access to DB stuff
+     * @param unpooledDsl  db access for long-running queries
+     * @param state        ingester shared state
+     * @param info         info about the topology being processed
+     * @throws DataAccessException    if there's a database exception
      * @throws InstantiationException if we can't create a new transient table
-     * @throws VmtDbException         if there's a problem getting a DB connection
      * @throws IllegalAccessException if we can't create a transient table
      */
     SystemLoadWriter(GroupServiceBlockingStub groupService,
-            BasedbIO basedbIO,
+            DSLContext dsl,
+            DSLContext unpooledDsl,
             IngesterState state,
-            TopologyInfo info) throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
+            TopologyInfo info)
+            throws InstantiationException, IllegalAccessException, DataAccessException {
+        this.dsl = dsl;
+        this.unpooledDsl = unpooledDsl;
         this.hostToSliceMap = loadClusterInfo(groupService);
         this.sliceSet = new LongOpenHashSet(hostToSliceMap.values());
-        this.basedbIO = basedbIO;
         this.loader = state.getLoaders().getLoader(SYSTEM_LOAD);
         try {
-            this.transientLoader = state.getLoaders().getTransientLoader(SYSTEM_LOAD, table -> {
-                try (Connection conn = basedbIO.connection()) {
-                    basedbIO.using(conn)
-                            .createIndex(table.getName() + "_slice")
+            this.transientLoader = state.getLoaders().getTransientLoader(SYSTEM_LOAD,
+                    table -> dsl.createIndex(table.getName() + "_slice")
                             .on(table, SYSTEM_LOAD.SLICE)
-                            .execute();
-                }
-            });
-        } catch (IllegalAccessException | SQLException | InstantiationException | VmtDbException e) {
+                            .execute());
+        } catch (IllegalAccessException | DataAccessException | InstantiationException e) {
             logger.error("Failed to instantiate transient table based on {}; "
                     + "cannot produce system load data", SYSTEM_LOAD.getName(), e);
             throw e;
@@ -514,37 +510,47 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
      * @return true if the slice was updated in the database
      */
     private boolean writeSystemLoadDataIfNewHigh(final long slice) {
-        try (Connection conn = basedbIO.unpooledTransConnection()) {
-            conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
-            DSLContext dsl = basedbIO.using(conn);
-            // obtain this slice's current high-water for this day, if any
-            Optional<Double> priorLoad = getPriorSystemLoad(slice, dsl);
-            double currentLoad = calculateSystemLoad(slice);
-            // replace with current data if this is first for the day or we hit a new high
-            if (priorLoad.map(prior -> prior < currentLoad).orElse(true)) {
-                // remove all current data for this slice from database
-                deleteCurrentRecords(slice, dsl);
-                // copy VM bought/sold commodity records from the transient data
-                copyTransientRecords(slice, dsl);
-                // create records with aggregated capacity and usage values for all SystemLoadCommodity
-                // types for this slice
-                if (!sliceCapacities.containsKey(slice)) {
-                    logger.warn("Did not accumulate any slice capacities for cluster {}; using zeros", slice);
+        try {
+            return unpooledDsl.transactionResult(trans -> {
+                trans.dsl().connection(conn ->
+                        conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE)
+                );
+                // obtain this slice's current high-water for this day, if any
+                Optional<Double> priorLoad = getPriorSystemLoad(slice, trans.dsl());
+                double currentLoad = calculateSystemLoad(slice);
+                // replace with current data if this is first for the day or we hit a new high
+                if (priorLoad.map(prior -> prior < currentLoad).orElse(true)) {
+                    // remove all current data for this slice from database
+                    deleteCurrentRecords(slice, trans.dsl());
+                    // copy VM bought/sold commodity records from the transient data
+                    copyTransientRecords(slice, trans.dsl());
+                    // create records with aggregated capacity and usage values for all SystemLoadCommodity
+                    // types for this slice
+                    if (!sliceCapacities.containsKey(slice)) {
+                        logger.warn(
+                                "Did not accumulate any slice capacities for cluster {}; using zeros",
+                                slice);
+                    }
+                    if (!sliceUsages.containsKey(slice)) {
+                        logger.warn(
+                                "Did not accumulate any slice usages for cluster {}; using zeros",
+                                slice);
+                    }
+                    final double[] capacities = sliceCapacities.containsKey(slice)
+                                                ? sliceCapacities.get(slice)
+                                                : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
+                    final double[] usages = sliceUsages.containsKey(slice)
+                                            ? sliceUsages.get(slice)
+                                            : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
+                    writeUtilizationRecords(capacities, usages, slice, trans.dsl());
+                    // and one last record for the overall system load value for this slice
+                    writeSystemLoadRecords(slice, currentLoad, trans.dsl());
+                    return true;
+                } else {
+                    return false;
                 }
-                if (!sliceUsages.containsKey(slice)) {
-                    logger.warn("Did not accumulate any slice usages for cluster {}; using zeros", slice);
-                }
-                final double[] capacities = sliceCapacities.containsKey(slice)
-                        ? sliceCapacities.get(slice) : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
-                final double[] usages = sliceUsages.containsKey(slice)
-                        ? sliceUsages.get(slice) : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
-                writeUtilizationRecords(capacities, usages, slice, dsl);
-                // and one last record for the overall system load value for this slice
-                writeSystemLoadRecords(slice, currentLoad, dsl);
-                conn.commit();
-                return true;
-            }
-        } catch (SQLException | DataAccessException e) {
+            });
+        } catch (DataAccessException e) {
             logger.error("Failed to write system load data", e);
         }
         return false;
@@ -696,17 +702,21 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
         private static final Logger logger = LogManager.getLogger();
 
         private final GroupServiceBlockingStub groupService;
-        private final HistorydbIO historydbIO;
+        private final DSLContext dsl;
+        private final DSLContext unpooledDsl;
 
         /**
          * Create a new factory instance.
          *
          * @param groupService group service endpoint
-         * @param historydbIO  access to history DB helpers
+         * @param dsl          DB access
+         * @param unpooledDsl  DB access for potentially long-running operations
          */
-        public Factory(GroupServiceBlockingStub groupService, HistorydbIO historydbIO) {
+        public Factory(GroupServiceBlockingStub groupService, DSLContext dsl,
+                DSLContext unpooledDsl) {
             this.groupService = groupService;
-            this.historydbIO = historydbIO;
+            this.dsl = dsl;
+            this.unpooledDsl = unpooledDsl;
         }
 
         @Override
@@ -714,8 +724,8 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
                 final TopologyInfo topologyInfo, final IngesterState state) {
             try {
                 return Optional.of(
-                        new SystemLoadWriter(groupService, historydbIO, state, topologyInfo));
-            } catch (SQLException | InstantiationException | VmtDbException | IllegalAccessException e) {
+                        new SystemLoadWriter(groupService, dsl, unpooledDsl, state, topologyInfo));
+            } catch (InstantiationException | DataAccessException | IllegalAccessException e) {
                 // the non-DB exceptions can happen if the reflective table instance creation required
                 // for the transient record loader fails
                 logger.error("Failed to instantiate {} instance to process topology",

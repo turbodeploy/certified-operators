@@ -8,7 +8,7 @@ import javax.annotation.Nonnull;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.history.db.VmtDbException;
+import org.jooq.exception.DataAccessException;
 
 /**
  * {@link RequestBasedReader} reader that will be used to process API requests of a single type.
@@ -24,9 +24,9 @@ public interface RequestBasedReader<Q, C> {
      *
      * @param request that will be processed
      * @param responseObserver sends response/error to the client.
-     * @throws VmtDbException in case of error while retrieving requested data from
+     * @throws DataAccessException in case of error while retrieving requested data from
      *                 DB.
      */
     void processRequest(@Nonnull Q request, @Nonnull StreamObserver<C> responseObserver)
-                    throws VmtDbException;
+                    throws DataAccessException;
 }

@@ -7,9 +7,9 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector.PlanGarbageCollector;
 
 /**
@@ -39,7 +39,7 @@ public class HistoryPlanGarbageCollector implements PlanGarbageCollector {
     public void deletePlanData(final long planId) {
         try {
             historydbIO.deletePlanStats(planId);
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to delete plan stats for " + planId, e);
         }
     }

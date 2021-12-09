@@ -21,12 +21,12 @@ import com.vmturbo.testbases.dropdead.DeadDbObjectTestBase;
  * Scan for dead DB objects in history component.
  *
  * <p>The single test is @Ignored, but the class configured to use a custom test runner that will
- * run ignored tests if `RUN_IGNORED_TESTS` env var or system property is defined. So tests based on
- * this class</p>
+ * run ignored tests if `RUN_IGNORED_TESTS` env var or system property is defined. (In case you're
+ * wondering, our test is defined in the base class, not directly in this class.)</p>
  *
  * <p>The test itself prints DB statements that can be collected into a migration to remove dead
  * objects, but the list should be carefully scrutinized and tested due to the possibility of false
- * positives. In particular, objects named with no underscores are not subjected to liveness tests
+ * positives. In particular, objects named with no underscores are not subjected to likeness tests
  * involving their appearance in non-jOOQ-generated SQL, either in Java code or in the definitions
  * of other live DB objects. This is due to the high likelihood of such names appearing in code for
  * other reasons. Another reason for false positives is that the process of collecting all classes

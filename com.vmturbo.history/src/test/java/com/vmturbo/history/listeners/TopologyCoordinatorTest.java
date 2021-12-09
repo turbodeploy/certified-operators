@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,7 +20,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
@@ -53,7 +53,7 @@ public class TopologyCoordinatorTest extends Assert {
      */
     @Before
     public void before() {
-        HistorydbIO historydbIo = mock(HistorydbIO.class);
+        DSLContext dsl = mock(DSLContext.class);
         final ImmutableTopologyCoordinatorConfig config =
                 ImmutableTopologyCoordinatorConfig.builder()
                         .topologyRetentionSecs((int)TimeUnit.HOURS.toSeconds(3))
@@ -63,7 +63,7 @@ public class TopologyCoordinatorTest extends Assert {
                         .processingLoopMaxSleepSecs(60)
                         .build();
         // we need a real processing status object, but we need to prevent stub out its load method
-        processingStatus = Mockito.spy(new ProcessingStatus(config, historydbIo));
+        processingStatus = Mockito.spy(new ProcessingStatus(config, dsl));
         doNothing().when(processingStatus).load();
         topologyCoordinator = new TopologyCoordinator(
                 mock(SourceRealtimeTopologyIngester.class),
@@ -74,7 +74,7 @@ public class TopologyCoordinatorTest extends Assert {
                 processingStatus,
                 new Thread(),
                 mock(StatsAvailabilityTracker.class),
-                historydbIo,
+                dsl,
                 config);
         topologyCoordinator.startup();
     }

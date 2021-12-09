@@ -41,6 +41,7 @@
  import java.util.stream.Stream;
 
  import javax.annotation.Nonnull;
+ import javax.sql.DataSource;
 
  import com.google.common.collect.ImmutableMap;
  import com.google.common.collect.Lists;
@@ -52,12 +53,15 @@
 
  import org.jooq.Record;
  import org.jooq.Record3;
+ import org.jooq.exception.DataAccessException;
  import org.junit.Assert;
  import org.junit.Before;
  import org.junit.Rule;
  import org.junit.Test;
  import org.mockito.ArgumentCaptor;
  import org.mockito.Mockito;
+
+ import junit.framework.TestCase;
 
  import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
  import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -111,7 +115,6 @@
  import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
  import com.vmturbo.components.common.setting.SettingDTOUtil;
  import com.vmturbo.history.db.HistorydbIO;
- import com.vmturbo.history.db.VmtDbException;
  import com.vmturbo.history.db.bulk.BulkLoader;
  import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
  import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
@@ -139,45 +142,45 @@ public class StatsHistoryRpcServiceTest {
     private static final String UTILIZATION = PropertySubType.Utilization.getApiParameterName();
     private final long topologyContextId = 8L;
 
-    private LiveStatsReader mockLivestatsreader = mock(LiveStatsReader.class);
+    private final LiveStatsReader mockLivestatsreader = mock(LiveStatsReader.class);
 
-    private PlanStatsReader mockPlanStatsReader = mock(PlanStatsReader.class);
+    private final PlanStatsReader mockPlanStatsReader = mock(PlanStatsReader.class);
 
-    private ClusterStatsReader mockClusterStatsReader = mock(ClusterStatsReader.class);
+    private final ClusterStatsReader mockClusterStatsReader = mock(ClusterStatsReader.class);
 
-    private BulkLoader<ClusterStatsByDayRecord> mockLoader = mock(BulkLoader.class);
+    private final BulkLoader<ClusterStatsByDayRecord> mockLoader = mock(BulkLoader.class);
 
-    private HistorydbIO historyDbio = mock(HistorydbIO.class);
+    private final HistorydbIO historyDbio = mock(HistorydbIO.class);
 
-    private ProjectedStatsStore mockProjectedStatsStore = mock(ProjectedStatsStore.class);
+    private final ProjectedStatsStore mockProjectedStatsStore = mock(ProjectedStatsStore.class);
 
-    private EntityStatsPaginationParamsFactory paginationParamsFactory =
+    private final EntityStatsPaginationParamsFactory paginationParamsFactory =
             mock(EntityStatsPaginationParamsFactory.class);
-    private StatRecordBuilder statRecordBuilderSpy =
+    private final StatRecordBuilder statRecordBuilderSpy =
                     Mockito.spy(StatsConfig.createStatRecordBuilder(mockLivestatsreader));
 
-    private StatSnapshotCreator statSnapshotCreatorSpy =
+    private final StatSnapshotCreator statSnapshotCreatorSpy =
                     Mockito.spy(StatsConfig.createStatSnapshotCreator(mockLivestatsreader));
 
-    private SystemLoadReader systemLoadReader = mock(SystemLoadReader.class);
+    private final SystemLoadReader systemLoadReader = mock(SystemLoadReader.class);
 
-    private GetEntityStatsResponseStreamObserver getEntityStatsResponseStreamObserver =
+    private final GetEntityStatsResponseStreamObserver getEntityStatsResponseStreamObserver =
             new GetEntityStatsResponseStreamObserver();
 
-    private RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader
+    private final RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader
             = mock(RequestBasedReader.class);
 
-    private RequestBasedReader<GetMovingStatisticsRequest, MovingStatisticsChunk> movingStatisticsReader
+    private final RequestBasedReader<GetMovingStatisticsRequest, MovingStatisticsChunk> movingStatisticsReader
             = mock(RequestBasedReader.class);
 
-    private VolumeAttachmentHistoryReader volumeAttachmentHistoryReader =
+    private final VolumeAttachmentHistoryReader volumeAttachmentHistoryReader =
         mock(VolumeAttachmentHistoryReader.class);
 
-    private StatsHistoryRpcService statsHistoryRpcService =
+    private final StatsHistoryRpcService statsHistoryRpcService =
             Mockito.spy(new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
                     mockLivestatsreader, mockPlanStatsReader,
                     mockClusterStatsReader, mockLoader,
-                    historyDbio, mockProjectedStatsStore,
+                    historyDbio, mock(DataSource.class), mockProjectedStatsStore,
                     paginationParamsFactory,
                     statSnapshotCreatorSpy,
                     statRecordBuilderSpy,
@@ -200,7 +203,7 @@ public class StatsHistoryRpcServiceTest {
      * Test the generated count statistics.
      */
     @Test
-    public void testGetStatsCounts() throws Exception {
+    public void testGetStatsCounts() {
         // Arrange
         List<Long> entities = Arrays.asList(1L, 2L, 3L);
 
@@ -271,11 +274,9 @@ public class StatsHistoryRpcServiceTest {
 
     /**
      * Test stats request with uuid == "Market" -> live market stats query.
-     *
-     * @throws Exception not expected
      */
     @Test
-    public void testMarketStats() throws Exception {
+    public void testMarketStats() {
         // arrange
         long startDate = System.currentTimeMillis();
         long endDate = startDate + Duration.ofSeconds(1).toMillis();
@@ -320,10 +321,9 @@ public class StatsHistoryRpcServiceTest {
      * Test stats request where the UUID is not the special "Market" uuid, but
      * is known as a valid scenario, i.e. a plan ID.
      *
-     * @throws Exception not expected
      */
     @Test
-    public void testPlanStats() throws Exception {
+    public void testPlanStats() {
         // arrange
         when(historyDbio.entityIdIsPlan(PLAN_UUID)).thenReturn(true);
         ScenariosRecord scenariosRecord = new ScenariosRecord();
@@ -356,7 +356,7 @@ public class StatsHistoryRpcServiceTest {
      * are specified.
      */
     @Test
-    public void testEntityStatsWithTimeRange() throws Exception {
+    public void testEntityStatsWithTimeRange() {
         // arrange
         when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
         ScenariosRecord scenariosRecord = new ScenariosRecord();
@@ -398,10 +398,9 @@ public class StatsHistoryRpcServiceTest {
      * Test the min, max, avg, capacity calculations over a number of DB Stats Rows.
      * The test data has 3 rows for the same stat type/subtype, with value 1, 2, 3 respectively.
      *
-     * @throws Exception if there's a DB exception - should not happen
      */
     @Test
-    public void testAveragedStats() throws Exception {
+    public void testAveragedStats() {
         // arrange
         when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
         ScenariosRecord scenariosRecord = new ScenariosRecord();
@@ -466,7 +465,7 @@ public class StatsHistoryRpcServiceTest {
 
 
     @Test
-    public void testDeletePlanStats() throws VmtDbException {
+    public void testDeletePlanStats() {
         clientStub.deletePlanStats(
                 createDeletePlanStatsRequest(topologyContextId));
         verify(historyDbio).deletePlanStats(topologyContextId);
@@ -483,9 +482,8 @@ public class StatsHistoryRpcServiceTest {
     }
 
     @Test
-    public void testDeletePlanStatsFailure() throws Exception {
-        VmtDbException dbException = new VmtDbException(
-            VmtDbException.DELETE_ERR, "Error deleting plan");
+    public void testDeletePlanStatsFailure() {
+        Exception dbException = new DataAccessException("Error deleting plan");
 
         doThrow(dbException).when(historyDbio)
             .deletePlanStats(topologyContextId);
@@ -635,7 +633,7 @@ public class StatsHistoryRpcServiceTest {
     }
 
     /**
-     * Test that the {@link StatsHistoryRpcService#getClusterStats}
+     * Test that the {@link StatsHistoryRpcService#getClusterStats(ClusterStatsRequest, StreamObserver)}
      * behaves as expected: delegates the call to {@link ClusterStatsReader}.
      *
      * @throws Exception should not happen
@@ -729,7 +727,7 @@ public class StatsHistoryRpcServiceTest {
     }
 
     @Test
-    public void testGetEntityStats() throws VmtDbException {
+    public void testGetEntityStats() throws DataAccessException {
         final EntityStatsScope scope = EntityStatsScope.newBuilder()
                 .setEntityList(EntityList.newBuilder()
                         .addEntities(1L))
@@ -795,7 +793,7 @@ public class StatsHistoryRpcServiceTest {
                 record.setInternalName(clusterId);
                 record.setPropertyType(commodityName);
                 record.setPropertySubtype(commodityName);
-                record.setValue(Double.valueOf(value));
+                record.setValue((double)value);
                 results.add(record);
             }
         }
@@ -803,16 +801,16 @@ public class StatsHistoryRpcServiceTest {
     }
 
     @Test
-    public void testGetStatsDataRetentionSettings() throws VmtDbException {
+    public void testGetStatsDataRetentionSettings() throws DataAccessException {
 
         String retentionSettingName = "numRetainedHours";
         int retentionPeriod = 10;
         Setting expectedSetting =
-            Setting.newBuilder()
-                .setSettingSpecName(retentionSettingName)
-                .setNumericSettingValue(
-                    SettingDTOUtil.createNumericSettingValue(retentionPeriod))
-                .build();
+                Setting.newBuilder()
+                        .setSettingSpecName(retentionSettingName)
+                        .setNumericSettingValue(
+                                SettingDTOUtil.createNumericSettingValue(retentionPeriod))
+                        .build();
         when(historyDbio.getStatsRetentionSettings())
                 .thenReturn(Collections.singletonList(expectedSetting));
         final List<Setting> responseSettings = new ArrayList<>();
@@ -825,7 +823,7 @@ public class StatsHistoryRpcServiceTest {
     }
 
     @Test
-    public void testSetStatsDataRetentionSetting() throws VmtDbException {
+    public void testSetStatsDataRetentionSetting() {
 
         // Setup
         String retentionSettingName = "numRetainedHours";
@@ -865,11 +863,10 @@ public class StatsHistoryRpcServiceTest {
     }
 
     @Test
-    public void testSetStatsDataRetentionSettingFailure() throws Exception {
+    public void testSetStatsDataRetentionSettingFailure() {
         String retentionSettingName = "numRetainedHours";
         int retentionPeriod = 10;
-        VmtDbException dbException = new VmtDbException(
-            VmtDbException.UPDATE_ERR, "Error updating db");
+        Exception dbException = new DataAccessException("Error updating db");
 
         doThrow(dbException).when(historyDbio).setStatsDataRetentionSetting(
                 retentionSettingName, retentionPeriod);
@@ -886,16 +883,16 @@ public class StatsHistoryRpcServiceTest {
     }
 
     @Test
-    public void testGetAuditLogDataRetentionSetting() throws VmtDbException {
+    public void testGetAuditLogDataRetentionSetting() throws DataAccessException {
 
         String retentionSettingName = "retained_days";
         int retentionPeriod = 10;
         Setting expectedSetting =
-            Setting.newBuilder()
-                .setSettingSpecName(retentionSettingName)
-                .setNumericSettingValue(
-                    SettingDTOUtil.createNumericSettingValue(retentionPeriod))
-                .build();
+                Setting.newBuilder()
+                        .setSettingSpecName(retentionSettingName)
+                        .setNumericSettingValue(
+                                SettingDTOUtil.createNumericSettingValue(retentionPeriod))
+                        .build();
         when(historyDbio.getAuditLogRetentionSetting())
                 .thenReturn(expectedSetting);
         final GetAuditLogDataRetentionSettingResponse response =
@@ -917,10 +914,9 @@ public class StatsHistoryRpcServiceTest {
     }
 
     @Test
-    public void testAuditLogDataRetentionSettingFailure() throws Exception {
+    public void testAuditLogDataRetentionSettingFailure() {
         int retentionPeriod = 10;
-        VmtDbException dbException = new VmtDbException(
-            VmtDbException.UPDATE_ERR, "Error updating db");
+        Exception dbException = new DataAccessException("Error updating db");
 
         doThrow(dbException).when(historyDbio)
             .setAuditLogRetentionSetting(retentionPeriod);
@@ -997,25 +993,30 @@ public class StatsHistoryRpcServiceTest {
     /**
      * Tests returnStatsForEntityGroups setting {@link PaginationResponse} totalRecordCount.
      *
-     * @throws VmtDbException if database errors occurs
+     * @throws DataAccessException if database errors occurs
      */
     @Test
     public void testReturnStatsForEntityGroupsSettingTotalRecordCountInPaginationResponse()
-            throws VmtDbException {
+            throws DataAccessException {
         //WHEN
         EntityGroup eGroup1 = EntityGroup.newBuilder().setSeedEntity(1).build();
         EntityGroup eGroup2 = EntityGroup.newBuilder().setSeedEntity(2).build();
-        EntityGroupList entityGroupList  = EntityGroupList.newBuilder().addGroups(eGroup1).addGroups(eGroup2).build();
+        EntityGroupList entityGroupList = EntityGroupList.newBuilder().addGroups(eGroup1).addGroups(
+                eGroup2).build();
         StatsFilter statsFilter = StatsFilter.newBuilder().build();
         PaginationParameters paginationParameters = PaginationParameters.newBuilder().build();
 
         //GIVEN
-        statsHistoryRpcService.returnStatsForEntityGroups(entityGroupList, statsFilter, Optional.of(paginationParameters), this.getEntityStatsResponseStreamObserver);
+        statsHistoryRpcService.returnStatsForEntityGroups(entityGroupList, statsFilter,
+                Optional.of(paginationParameters), this.getEntityStatsResponseStreamObserver);
 
         //THEN
         assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse());
         assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse());
-        assertTrue(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse().getTotalRecordCount() == 2);
+        TestCase.assertEquals(2,
+                this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse()
+                        .getPaginationResponse()
+                        .getTotalRecordCount());
     }
 
     private static final long VOLUME_ID_1 = 11111L;
