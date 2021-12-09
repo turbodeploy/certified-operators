@@ -58,6 +58,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionInputUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.cost.CostStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
@@ -138,11 +139,14 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -208,6 +212,8 @@ public class EntitiesService implements IEntitiesService {
 
     private final EntityCustomTagsServiceBlockingStub entityCustomTagsService;
 
+    private final CostStatsQueryExecutor costStatsQueryExecutor;
+
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
@@ -272,7 +278,8 @@ public class EntitiesService implements IEntitiesService {
         @Nonnull final PaginationMapper paginationMapper,
         @Nonnull final ServiceEntityMapper serviceEntityMapper,
         final SettingsManagerMapping settingsManagerMapping,
-        @Nonnull final EntityCustomTagsServiceBlockingStub entityCustomTagsService) {
+        @Nonnull final EntityCustomTagsServiceBlockingStub entityCustomTagsService,
+        @Nonnull final CostStatsQueryExecutor costStatsQueryExecutor) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -297,6 +304,7 @@ public class EntitiesService implements IEntitiesService {
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.settingsManagerMapping = settingsManagerMapping;
         this.entityCustomTagsService = entityCustomTagsService;
+        this.costStatsQueryExecutor = Objects.requireNonNull(costStatsQueryExecutor);
     }
 
     @Override
@@ -1341,7 +1349,6 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull Consumer<List<BaseApiDTO>> code)
             throws StatusRuntimeException {
         final Stream<MinimalEntity> neighbors = repositoryApi.newSearchRequest(
-
             SearchProtoUtil.neighbors(oid, traversalDirection)).getMinimalEntities();
         code.accept(neighbors.map(ServiceEntityMapper::toBaseServiceEntityApiDTO)
                 .collect(Collectors.toList()));
@@ -1419,15 +1426,19 @@ public class EntitiesService implements IEntitiesService {
      * @param cloudEntityUuid uuid of a cloud entity
      * @param costInputApiDTO Filters and groupings applied to cost statistic
      * @return List of {@link StatSnapshotApiDTO} containing cloud cost data
-     * @throws Exception //TODO add futher description with Jira OM-76838
      */
     @Override
-    public List<StatSnapshotApiDTO> getEntityCloudCostStats(@Nonnull String cloudEntityUuid,
-                                                @Nullable CostInputApiDTO costInputApiDTO)
-                    throws Exception {
-        //TODO: Planned implementation Jira OM-76838
-        return Collections.emptyList();
+    public List<StatSnapshotApiDTO> getEntityCloudCostStats(
+            @Nonnull final String cloudEntityUuid,
+            @Nullable final CostInputApiDTO costInputApiDTO)
+            throws OperationFailedException, UnknownObjectException {
+        final long entityOid = getEntityOidFromString(cloudEntityUuid);
+        final EntityDTO.EntityType entityType = repositoryApi.entityRequest(entityOid)
+                .getEntity()
+                .map(ApiPartialEntity::getEntityType)
+                .map(EntityType::forNumber)
+                .orElseThrow(() -> new UnknownObjectException(cloudEntityUuid));
+        return costStatsQueryExecutor.getEntityCostStats(
+                entityOid, entityType, costInputApiDTO);
     }
 }
-
-

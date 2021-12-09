@@ -2256,12 +2256,14 @@ public class MarketsService implements IMarketsService {
      * @param marketUuid uuid of a market who's cloud entities will be considered
      * @param costInputApiDTO Filters and groupings applied to cost statistic
      * @return List of {@link StatSnapshotApiDTO} containing cloud cost data
-     * @throws Exception //TODO add futher description with Jira OM-76838
+     * @throws OperationFailedException In case when cannot resolve Market UUID.
+     * @throws UnsupportedOperationException In case when market UUID doesn't refer to realtime Market.
      */
     @Override
-    public List<StatSnapshotApiDTO> getMarketCloudCostStats(@Nonnull String marketUuid,
-                                                       @Nullable CostInputApiDTO costInputApiDTO)
-                    throws Exception {
+    public List<StatSnapshotApiDTO> getMarketCloudCostStats(
+            @Nonnull String marketUuid,
+            @Nullable CostInputApiDTO costInputApiDTO)
+            throws OperationFailedException, UnsupportedOperationException {
         final ApiId marketId = uuidMapper.fromUuid(marketUuid);
         if (!marketId.isRealtimeMarket()) {
             throw new UnsupportedOperationException(String.format("Not supported - %s is not a real-time market.", marketUuid));

@@ -60,6 +60,8 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot;
+import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot.StatRecord.TagKeyValuePair;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
@@ -90,6 +92,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class StatsMapperTest {
 
+    private static final double DELTA = 0.0001;
     private static final long START_DATE = 1234L;
     private static final String START_DATE_STR = DateTimeUtil.toString(1234L);
     private static final long END_DATE = 5678L;
@@ -210,6 +213,76 @@ public class StatsMapperTest {
         Assert.assertEquals(statRecord.getUsed().getAvg() * 8, dto.getValues().getAvg(), epsilon);
         Assert.assertEquals(statRecord.getUsed().getMin() * 8, dto.getValues().getMin(), epsilon);
         Assert.assertEquals(statRecord.getUsed().getTotal() * 8, dto.getValues().getTotal(), epsilon);
+    }
+
+    /**
+     * Test Conversion of gRPC cost stats call result to the ApiDTO to return for the REST API caller.
+     */
+    @Test
+    public void testToCostStatSnapshotApiDTO() {
+        // ARRANGE
+        final String tagKey1 = "tagKey1";
+        final String tagValue1 = "tagValue1";
+        final String tagKey2 = "tagKey2";
+        final String tagValue2 = "tagValue2";
+        final CostStatsSnapshot snapshot = CostStatsSnapshot.newBuilder()
+                .setSnapshotDate(START_DATE)
+                .addStatRecords(CostStatsSnapshot.StatRecord.newBuilder()
+                        .addTag(TagKeyValuePair.newBuilder()
+                                .setKey(tagKey1)
+                                .setValue(tagValue1)
+                                .build())
+                        .setValue(Cost.StatValue.newBuilder()
+                                .setTotal(1)
+                                .setAvg(2)
+                                .setMin(3)
+                                .setMax(4)
+                                .build())
+                        .build())
+                .addStatRecords(CostStatsSnapshot.StatRecord.newBuilder()
+                        .addTag(TagKeyValuePair.newBuilder()
+                                .setKey(tagKey2)
+                                .setValue(tagValue2)
+                                .build())
+                        .setValue(Cost.StatValue.newBuilder()
+                                .setTotal(5)
+                                .setAvg(6)
+                                .setMin(7)
+                                .setMax(8)
+                                .build())
+                        .build())
+                .build();
+
+        // ACT
+        final StatSnapshotApiDTO result = statsMapper.toCostStatSnapshotApiDTO(snapshot);
+
+        // ASSERT
+        assertEquals(DateTimeUtil.toString(snapshot.getSnapshotDate()), result.getDate());
+        assertEquals(2, snapshot.getStatRecordsCount());
+        final StatApiDTO stat1 = result.getStatistics().get(0);
+        assertEquals(2, stat1.getFilters().size());
+        final StatFilterApiDTO filter11 = stat1.getFilters().get(0);
+        assertEquals(StatsMapper.TAG_KEY, filter11.getType());
+        assertEquals(tagKey1, filter11.getValue());
+        final StatFilterApiDTO filter12 = stat1.getFilters().get(1);
+        assertEquals(StatsMapper.TAG_VALUE, filter12.getType());
+        assertEquals(tagValue1, filter12.getValue());
+        assertEquals(1, stat1.getValues().getTotal(), DELTA);
+        assertEquals(2, stat1.getValues().getAvg(), DELTA);
+        assertEquals(3, stat1.getValues().getMin(), DELTA);
+        assertEquals(4, stat1.getValues().getMax(), DELTA);
+        final StatApiDTO stat2 = result.getStatistics().get(1);
+        assertEquals(2, stat2.getFilters().size());
+        final StatFilterApiDTO filter21 = stat2.getFilters().get(0);
+        assertEquals(StatsMapper.TAG_KEY, filter21.getType());
+        assertEquals(tagKey2, filter21.getValue());
+        final StatFilterApiDTO filter22 = stat2.getFilters().get(1);
+        assertEquals(StatsMapper.TAG_VALUE, filter22.getType());
+        assertEquals(tagValue2, filter22.getValue());
+        assertEquals(5, stat2.getValues().getTotal(), DELTA);
+        assertEquals(6, stat2.getValues().getAvg(), DELTA);
+        assertEquals(7, stat2.getValues().getMin(), DELTA);
+        assertEquals(8, stat2.getValues().getMax(), DELTA);
     }
 
     @Test

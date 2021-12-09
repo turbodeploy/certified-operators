@@ -397,7 +397,8 @@ public class ServiceConfig {
                 mapperConfig.paginationMapper(),
                 communicationConfig.serviceEntityMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                communicationConfig.entityCustomTagsServiceBlockingStub());
+                communicationConfig.entityCustomTagsServiceBlockingStub(),
+                costStatsQueryExecutor());
     }
 
     @Bean
@@ -1114,6 +1115,8 @@ public class ServiceConfig {
 
     @Bean
     public CostStatsQueryExecutor costStatsQueryExecutor() {
-        return new CostStatsQueryExecutor(communicationConfig.costServiceBlockingStub());
+        return new CostStatsQueryExecutor(
+                communicationConfig.costServiceBlockingStub(),
+                mapperConfig.statsMapper());
     }
 }
