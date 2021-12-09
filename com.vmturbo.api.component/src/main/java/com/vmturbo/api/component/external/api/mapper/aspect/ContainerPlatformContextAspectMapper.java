@@ -144,15 +144,16 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
         private final SupplyChainServiceBlockingStub supplyChainRpcService;
         private final RepositoryApi repositoryApi;
 
-        private static final Set<Integer> CLOUD_NATIVE_ENTITY_CONNECTIONS
-            = ImmutableSet.of(EntityType.NAMESPACE_VALUE, EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE);
+        static final Set<Integer> CLOUD_NATIVE_ENTITY_CONNECTIONS
+            = ImmutableSet.of(EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE,
+                EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE);
 
         private static final Map<Integer, Set<Integer>> ENTITY_TYPE_TO_CONNECTIONS
             = ImmutableMap.<Integer, Set<Integer>>builder()
             .put(EntityType.CONTAINER_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
             .put(EntityType.CONTAINER_POD_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
             .put(EntityType.CONTAINER_SPEC_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
-            .put(EntityType.WORKLOAD_CONTROLLER_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
+            .put(EntityType.WORKLOAD_CONTROLLER_VALUE, ImmutableSet.of(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE, EntityType.NAMESPACE_VALUE))
             .put(EntityType.NAMESPACE_VALUE, ImmutableSet.of(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
             .put(EntityType.SERVICE_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
             //VM's don't actually belong to a specific namespace so only fetch cluster name
@@ -284,6 +285,8 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
                             } else if (minimalEntity.getEntityType() == EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE) {
                                 aspect.setContainerPlatformCluster(minimalEntity.getDisplayName());
                                 aspect.setContainerClusterEntity(ServiceEntityMapper.toBaseApiDTO(minimalEntity));
+                            } else if (minimalEntity.getEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE) {
+                                aspect.setWorkloadControllerEntity(ServiceEntityMapper.toBaseApiDTO(minimalEntity));
                             }
                         }
                     }
