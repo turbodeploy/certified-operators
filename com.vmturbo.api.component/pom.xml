@@ -681,6 +681,12 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-test-utils</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-validator</artifactId>
+        </dependency>
+
         <!-- test dependencies -->
         <dependency>
             <groupId>com.vmturbo</groupId>

@@ -187,6 +187,7 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
     public DevFreemiumInterceptor devFreemiumInterceptor() {
         return new DevFreemiumInterceptor(licenseCheckClientConfig.licenseCheckClient());
     }
+
     /**
      * Implement the {@link IAppVersionInfo} to provide version info to the {@link TelemetryInterceptor}.
      */

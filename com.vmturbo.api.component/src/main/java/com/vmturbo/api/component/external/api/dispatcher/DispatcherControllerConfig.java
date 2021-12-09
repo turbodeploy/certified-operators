@@ -1,11 +1,15 @@
 package com.vmturbo.api.component.external.api.dispatcher;
 
+import javax.validation.Validation;
+
+import org.hibernate.validator.messageinterpolation.ParameterMessageInterpolator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
@@ -268,6 +272,25 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public BusinessUnitsController businessUnitsController() {
         return new BusinessUnitsController();
+    }
+
+    /**
+     * Returns the validation post processor spring applies to all controllers.
+     *
+     * @return the validation post processor spring applies to all controllers.
+     */
+    @Bean
+    public MethodValidationPostProcessor methodValidationPostProcessor() {
+        MethodValidationPostProcessor bean = new MethodValidationPostProcessor();
+        bean.setValidator(Validation.byDefaultProvider()
+                .configure()
+                // We must use ParameterMessageInterpolator so that we do not need to add a dependency
+                // on Java Expression Language which is a potential security vulnerability.
+                // See https://securitylab.github.com/research/bean-validation-RCE/ for more info.
+                .messageInterpolator(new ParameterMessageInterpolator())
+                .buildValidatorFactory()
+                .getValidator());
+        return bean;
     }
 
     @Bean
