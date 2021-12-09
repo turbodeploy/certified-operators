@@ -92,7 +92,7 @@ services:
       - mysql_var:/var/run
     ports:
       - "${DB_PORT}"
-    mem_limit: ${DB_MEM_LIMIT_MB}M
+    mem_limit: ${DB_MEM_LIMIT_BYTE}
     depends_on:
       - rsyslog
 
@@ -102,7 +102,7 @@ services:
       service: dev-component
     image: turbonomic/zookeeper:${XL_VERSION}
     restart: always
-    mem_limit: ${ZOOKEEPER_MEM_LIMIT}M
+    mem_limit: ${ZOOKEEPER_MEM_LIMIT_BYTE}
     environment:
       ZOO_MY_ID: 1
       ZOO_SERVERS: zoo1
@@ -114,7 +114,7 @@ services:
       file: common-services.yml
       service: dev-component
     image: turbonomic/kafka:${XL_VERSION}
-    mem_limit: ${KAFKA_MEM_LIMIT}M
+    mem_limit: ${KAFKA_MEM_LIMIT_BYTE}
     environment:
       BROKER_ID: 1
       ZOOKEEPER_HOSTS: ${ZOOKEEPER_SERVERS}
@@ -173,7 +173,7 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - auth:/home/turbonomic/data
-    mem_limit: ${AUTH_MEM_LIMIT_MB}M
+    mem_limit: ${AUTH_MEM_LIMIT_BYTE}
 
   clustermgr:
     extends:
@@ -204,7 +204,7 @@ services:
       kafkaServers: ${KAFKA_SERVERS}
     volumes:
       - clustermgr:/home/turbonomic/data
-    mem_limit: ${CLUSTERMGR_MEM_LIMIT_MB}M
+    mem_limit: ${CLUSTERMGR_MEM_LIMIT_BYTE}
 
   api:
     extends:
@@ -236,7 +236,7 @@ services:
       - /tmp/certs:/tmp/certs
 # customize this line to mount your ux development folder directly on the /www folder in the api
 #      - /Users/...user.../...path-to-ux-app-folder.../ux-app/.tmp:/www:ro
-    mem_limit: ${API_MEM_LIMIT_MB}M
+    mem_limit: ${API_MEM_LIMIT_BYTE}
 
   nginx:
     extends:
@@ -281,7 +281,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MARKET_MEM_LIMIT_MB}M
+    mem_limit: ${MARKET_MEM_LIMIT_BYTE}
 
   action-orchestrator:
     extends:
@@ -308,7 +308,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${ACTION_ORCHESTRATOR_MEM_LIMIT_MB}M
+    mem_limit: ${ACTION_ORCHESTRATOR_MEM_LIMIT_BYTE}
 
   topology-processor:
     extends:
@@ -338,7 +338,7 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - topology-processor:/home/turbonomic/data
-    mem_limit: ${TOPOLOGY_PROCESSOR_MEM_LIMIT_MB}M
+    mem_limit: ${TOPOLOGY_PROCESSOR_MEM_LIMIT_BYTE}
 
   sample:
     extends:
@@ -388,7 +388,7 @@ services:
       - arangodb:/var/lib/arangodb3
       - arangodb-apps:/var/lib/arangodb3-apps
       - arangodb-dump:/home/arangodb/arangodb-dump
-    mem_limit: ${ARANGODB_MEM_LIMIT_MB}M
+    mem_limit: ${ARANGODB_MEM_LIMIT_BYTE}
 
   influxdb:
     extends:
@@ -406,7 +406,7 @@ services:
     volumes:
       - influxdb:/var/lib/influxdb
       - influxdb-dump:/home/influxdb/influxdb-dump
-    mem_limit: ${INFLUXDB_MEM_LIMIT_MB}M
+    mem_limit: ${INFLUXDB_MEM_LIMIT_BYTE}
 
   ml-datastore:
     extends:
@@ -434,7 +434,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${ML_DATASTORE_MEM_LIMIT_MB}M
+    mem_limit: ${ML_DATASTORE_MEM_LIMIT_BYTE}
 
   repository:
     extends:
@@ -462,7 +462,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${REPOSITORY_MEM_LIMIT_MB}M
+    mem_limit: ${REPOSITORY_MEM_LIMIT_BYTE}
 
   group:
     extends:
@@ -489,7 +489,7 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
-    mem_limit: ${GROUP_MEM_LIMIT_MB}M
+    mem_limit: ${GROUP_MEM_LIMIT_BYTE}
 
   history:
     extends:
@@ -517,7 +517,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${HISTORY_MEM_LIMIT_MB}M
+    mem_limit: ${HISTORY_MEM_LIMIT_BYTE}
 
   plan-orchestrator:
     extends:
@@ -544,7 +544,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_MB}M
+    mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_BYTE}
 
   reporting:
     extends:
@@ -573,7 +573,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${REPORTING_MEM_LIMIT_MB}M
+    mem_limit: ${REPORTING_MEM_LIMIT_BYTE}
 
   cost:
     extends:
@@ -601,7 +601,7 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
-    mem_limit: ${COST_MEM_LIMIT_MB}M
+    mem_limit: ${COST_MEM_LIMIT_BYTE}
 
   extractor:
     extends:
@@ -633,7 +633,7 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
-    mem_limit: ${EXTRACTOR_MEM_LIMIT_MB}M
+    mem_limit: ${EXTRACTOR_MEM_LIMIT_BYTE}
 
   timescaledb:
     image: timescale/timescaledb:2.0.1-pg12
@@ -644,7 +644,7 @@ services:
       - timescale-data:/var/lib/postresql/data
     ports:
       - 5432:5432
-    mem_limit: ${TIMESCALE_MEM_LIMIT_MB}M
+    mem_limit: ${TIMESCALE_MEM_LIMIT_BYTE}
 
   grafana:
     extends:
@@ -707,7 +707,7 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
-    mem_limit: ${INTEGRATION_INTERSIGHT_MEM_LIMIT_MB}M
+    mem_limit: ${INTEGRATION_INTERSIGHT_MEM_LIMIT_BYTE}
 
   mediation-vcenter:
     extends:
@@ -729,7 +729,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_BYTE}
 
   mediation-udt:
     extends:
@@ -751,7 +751,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_UDT_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_UDT_MEM_LIMIT_BYTE}
 
   mediation-vcenter-browsing:
     extends:
@@ -773,7 +773,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_VCENTER_BROWSING_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_VCENTER_BROWSING_MEM_LIMIT_BYTE}
 
   mediation-stressprobe:
     extends:
@@ -800,7 +800,7 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
       kvStoreTimeoutSeconds : 120
-    mem_limit: ${MEDIATION_STRESSPROBE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_STRESSPROBE_MEM_LIMIT_BYTE}
 
   mediation-storagestressprobe:
     extends:
@@ -827,7 +827,7 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
       kvStoreTimeoutSeconds : 120
-    mem_limit: ${MEDIATION_STORAGESTRESSPROBE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_STORAGESTRESSPROBE_MEM_LIMIT_BYTE}
 
   mediation-delegatingprobe:
     extends:
@@ -850,7 +850,7 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
       kvStoreTimeoutSeconds : 120
-    mem_limit: ${MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_DELEGATINGPROBE_MEM_LIMIT_BYTE}
 
   mediation-hyperv:
     extends:
@@ -872,7 +872,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_HYPERV_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_HYPERV_MEM_LIMIT_BYTE}
 
   mediation-netapp:
     extends:
@@ -894,7 +894,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_NETAPP_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_NETAPP_MEM_LIMIT_BYTE}
 
   mediation-nutanix:
     extends:
@@ -916,7 +916,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_NUTANIX_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_NUTANIX_MEM_LIMIT_BYTE}
 
   mediation-ucs:
     extends:
@@ -938,7 +938,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_UCS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_UCS_MEM_LIMIT_BYTE}
 
   mediation-aix:
     extends:
@@ -960,7 +960,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_AIX_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AIX_MEM_LIMIT_BYTE}
 
   mediation-vmax:
     extends:
@@ -982,7 +982,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_VMAX_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_VMAX_MEM_LIMIT_BYTE}
 
   mediation-vmm:
     extends:
@@ -1004,7 +1004,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_VMM_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_VMM_MEM_LIMIT_BYTE}
 
   mediation-hpe3par:
     extends:
@@ -1026,7 +1026,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_HPE3PAR_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_HPE3PAR_MEM_LIMIT_BYTE}
 
   mediation-pure:
     extends:
@@ -1048,7 +1048,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_PURE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_PURE_MEM_LIMIT_BYTE}
 
   mediation-scaleio:
     extends:
@@ -1070,7 +1070,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_SCALEIO_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_SCALEIO_MEM_LIMIT_BYTE}
 
   mediation-servicenow:
     extends:
@@ -1092,7 +1092,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_SERVICENOW_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_SERVICENOW_MEM_LIMIT_BYTE}
 
   mediation-hds:
     extends:
@@ -1114,7 +1114,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_HDS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_HDS_MEM_LIMIT_BYTE}
 
   mediation-compellent:
     extends:
@@ -1136,7 +1136,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_COMPELLENT_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_COMPELLENT_MEM_LIMIT_BYTE}
 
   mediation-xtremio:
     extends:
@@ -1158,7 +1158,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_XTREMIO_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_XTREMIO_MEM_LIMIT_BYTE}
 
   mediation-vplex:
     extends:
@@ -1180,7 +1180,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_VPLEX_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_VPLEX_MEM_LIMIT_BYTE}
 
   mediation-rhv:
     extends:
@@ -1202,7 +1202,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_RHV_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_RHV_MEM_LIMIT_BYTE}
 
   mediation-ucsdirector:
     extends:
@@ -1224,7 +1224,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_UCSDIRECTOR_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_UCSDIRECTOR_MEM_LIMIT_BYTE}
 
   mediation-aws:
     extends:
@@ -1251,7 +1251,7 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-aws:/home/turbonomic/data
-    mem_limit: ${MEDIATION_AWS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AWS_MEM_LIMIT_BYTE}
 
   mediation-awsbilling:
     extends:
@@ -1278,7 +1278,7 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-awsbilling:/home/turbonomic/data
-    mem_limit: ${MEDIATION_AWSBILLING_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AWSBILLING_MEM_LIMIT_BYTE}
 
   mediation-awscost:
     extends:
@@ -1305,7 +1305,7 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-awscost:/home/turbonomic/data
-    mem_limit: ${MEDIATION_AWSCOST_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AWSCOST_MEM_LIMIT_BYTE}
 
   mediation-datadog:
     extends:
@@ -1330,7 +1330,7 @@ services:
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    mem_limit: ${MEDIATION_DATADOG_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_DATADOG_MEM_LIMIT_BYTE}
 
   mediation-azure:
     extends:
@@ -1357,7 +1357,7 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-azure:/home/turbonomic/data
-    mem_limit: ${MEDIATION_AZURE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AZURE_MEM_LIMIT_BYTE}
 
   mediation-azurecost:
     extends:
@@ -1384,7 +1384,7 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-azurecost:/home/turbonomic/data
-    mem_limit: ${MEDIATION_AZURECOST_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AZURECOST_MEM_LIMIT_BYTE}
 
   mediation-azureea:
     extends:
@@ -1409,7 +1409,7 @@ services:
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    mem_limit: ${MEDIATION_AZUREEA_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AZUREEA_MEM_LIMIT_BYTE}
 
   mediation-azuresp:
     extends:
@@ -1434,7 +1434,7 @@ services:
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    mem_limit: ${MEDIATION_AZURESP_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AZURESP_MEM_LIMIT_BYTE}
 
   mediation-azure-volumes:
     extends:
@@ -1459,7 +1459,7 @@ services:
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    mem_limit: ${MEDIATION_AZURE_VOLUMES_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_AZURE_VOLUMES_MEM_LIMIT_BYTE}
 
   mediation-gcpproject:
     extends:
@@ -1484,7 +1484,7 @@ services:
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    mem_limit: ${MEDIATION_GCPPROJECT_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_GCPPROJECT_MEM_LIMIT_BYTE}
 
   mediation-gcpbilling:
     extends:
@@ -1509,7 +1509,7 @@ services:
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-    mem_limit: ${MEDIATION_GCPBILLING_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_GCPBILLING_MEM_LIMIT_BYTE}
 
   mediation-baremetal:
     extends:
@@ -1531,7 +1531,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_BAREMETAL_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_BAREMETAL_MEM_LIMIT_BYTE}
 
   mediation-oneview:
     extends:
@@ -1553,7 +1553,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_BYTE}
 
   mediation-mssql:
     extends:
@@ -1575,7 +1575,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_MSSQL_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_MSSQL_MEM_LIMIT_BYTE}
 
   mediation-mysql:
     extends:
@@ -1597,7 +1597,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_MYSQL_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_MYSQL_MEM_LIMIT_BYTE}
 
   mediation-oracle:
     extends:
@@ -1619,7 +1619,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ORACLE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_ORACLE_MEM_LIMIT_BYTE}
 
   mediation-tomcat:
     extends:
@@ -1641,7 +1641,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_TOMCAT_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_TOMCAT_MEM_LIMIT_BYTE}
 
   mediation-webhook:
     extends:
@@ -1663,7 +1663,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_WEBHOOK_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_WEBHOOK_MEM_LIMIT_BYTE}
 
   mediation-websphere:
     extends:
@@ -1685,7 +1685,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_WEBSPHERE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_WEBSPHERE_MEM_LIMIT_BYTE}
 
   mediation-weblogic:
     extends:
@@ -1707,7 +1707,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_WEBLOGIC_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_WEBLOGIC_MEM_LIMIT_BYTE}
 
   mediation-jboss:
     extends:
@@ -1729,7 +1729,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_JBOSS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_JBOSS_MEM_LIMIT_BYTE}
 
   mediation-instana:
     extends:
@@ -1751,7 +1751,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_INSTANA_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_INSTANA_MEM_LIMIT_BYTE}
 
   mediation-jvm:
     extends:
@@ -1773,7 +1773,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_JVM_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_JVM_MEM_LIMIT_BYTE}
 
   mediation-actionscript:
     extends:
@@ -1795,7 +1795,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_BYTE}
 
   mediation-acims:
     extends:
@@ -1817,7 +1817,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ACIMS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_ACIMS_MEM_LIMIT_BYTE}
 
   mediation-apic:
     extends:
@@ -1839,7 +1839,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_APIC_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_APIC_MEM_LIMIT_BYTE}
 
   mediation-wmi:
     extends:
@@ -1861,7 +1861,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_WMI_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_WMI_MEM_LIMIT_BYTE}
 
   mediation-snmp:
     extends:
@@ -1883,7 +1883,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_SNMP_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_SNMP_MEM_LIMIT_BYTE}
 
   mediation-appdynamics:
     extends:
@@ -1905,7 +1905,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_APPDYNAMICS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_APPDYNAMICS_MEM_LIMIT_BYTE}
 
   mediation-newrelic:
     extends:
@@ -1927,7 +1927,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_NEWRELIC_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_NEWRELIC_MEM_LIMIT_BYTE}
 
   mediation-appinsights:
     extends:
@@ -1949,7 +1949,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_APPINSIGHTS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_APPINSIGHTS_MEM_LIMIT_BYTE}
 
   mediation-dynatrace:
     extends:
@@ -1971,7 +1971,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_BYTE}
 
   mediation-pivotal:
     extends:
@@ -1993,7 +1993,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_PIVOTAL_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_PIVOTAL_MEM_LIMIT_BYTE}
 
   mediation-cloudfoundry:
     extends:
@@ -2015,7 +2015,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_CLOUDFOUNDRY_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_CLOUDFOUNDRY_MEM_LIMIT_BYTE}
 
   mediation-istio:
     extends:
@@ -2037,7 +2037,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ISTIO_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_ISTIO_MEM_LIMIT_BYTE}
 
   mediation-netflow:
     extends:
@@ -2059,7 +2059,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_NETFLOW_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_NETFLOW_MEM_LIMIT_BYTE}
 
   mediation-tetration:
     extends:
@@ -2081,7 +2081,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_TETRATION_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_TETRATION_MEM_LIMIT_BYTE}
 
   mediation-hyperflex:
     extends:
@@ -2103,7 +2103,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_HYPERFLEX_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_HYPERFLEX_MEM_LIMIT_BYTE}
 
   mediation-horizon:
     extends:
@@ -2125,7 +2125,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_HORIZON_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_HORIZON_MEM_LIMIT_BYTE}
 
   mediation-intersight-hyperflex:
     extends:
@@ -2147,7 +2147,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_INTERSIGHT_HYPERFLEX_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_INTERSIGHT_HYPERFLEX_MEM_LIMIT_BYTE}
 
   mediation-intersight-ucs:
     extends:
@@ -2169,7 +2169,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_INTERSIGHT_UCS_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_INTERSIGHT_UCS_MEM_LIMIT_BYTE}
 
   mediation-intersight-server:
     extends:
@@ -2191,7 +2191,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_INTERSIGHT_SERVER_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_INTERSIGHT_SERVER_MEM_LIMIT_BYTE}
 
   mediation-actionstream-kafka:
     extends:
@@ -2213,7 +2213,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ACTIONSTREAM_KAFKA_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_ACTIONSTREAM_KAFKA_MEM_LIMIT_BYTE}
 
   mediation-gcpsa:
     extends:
@@ -2235,7 +2235,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_GCPSA_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_GCPSA_MEM_LIMIT_BYTE}
 
   mediation:
     extends:
@@ -2249,7 +2249,7 @@ services:
     environment:
       component_type: mediation
       instance_id: mediation-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} -Xmx${MEDIATION_COMPONENT_XMX_MB}M ${MEDIATION_COMPONENT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} -Xmx${MEDIATION_COMPONENT_XMX_BYTE} ${MEDIATION_COMPONENT_SYSTEM_PROPERTIES}"
       JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
       JAVA_DEBUG: "${MEDIATION_COMPONENT_DEBUG}${DEBUG_ALL}"
       JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
@@ -2257,7 +2257,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_COMPONENT_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_COMPONENT_MEM_LIMIT_BYTE}
 
   mediation-xen:
     extends:
@@ -2279,7 +2279,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_XEN_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_XEN_MEM_LIMIT_BYTE}
 
   mediation-gcpcost:
     extends:
@@ -2301,7 +2301,7 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_GCPCOST_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_GCPCOST_MEM_LIMIT_BYTE}
 
   mediation-ibmstorage-flashsystem:
     extends:
@@ -2323,4 +2323,4 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_IBMSTORAGE_FLASHSYSTEM_MEM_LIMIT_MB}M
+    mem_limit: ${MEDIATION_IBMSTORAGE_FLASHSYSTEM_MEM_LIMIT_BYTE}
