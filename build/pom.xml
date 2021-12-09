@@ -204,6 +204,10 @@
 
         <!-- Kafka test library -->
         <kafka-test.version>3.2.3</kafka-test.version>
+
+        <!-- Owasp files downloaded from nexus -->
+        <turbo-cveurl>http://build.vmturbo.com:8081/nexus/content/repositories/thirdparty/owasp-downloads/nvdcve/1.1</turbo-cveurl>
+        <turbo-cveyear>2021</turbo-cveyear>
     </properties>
 
     <prerequisites>
@@ -1476,9 +1480,14 @@
                         <groupId>org.owasp</groupId>
                         <artifactId>dependency-check-maven</artifactId>
                         <version>${owasp.version}</version>
-                        <!--configuration>
-                          <suppressionFiles>${basedir}/suppressed.xml</suppressionFiles>
-                        </configuration-->
+                        <configuration>
+                          <cveUrlModified>
+                             ${turbo-cveurl}/nvdcve-1.1-modified.json.gz
+                          </cveUrlModified>
+                          <cveUrlBase>
+                             ${turbo-cveurl}/nvdcve-1.1-${turbo-cveyear}.json.gz
+                          </cveUrlBase>
+                        </configuration>
                         <executions>
                             <execution>
                                 <goals>
