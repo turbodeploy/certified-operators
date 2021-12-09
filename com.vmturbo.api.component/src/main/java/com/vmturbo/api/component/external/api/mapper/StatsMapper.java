@@ -18,6 +18,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
@@ -48,8 +49,11 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot;
+import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot.StatRecord.TagKeyValuePair;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
@@ -160,6 +164,9 @@ public class StatsMapper {
         StringConstants.CLUSTER, ApiEntityType.PHYSICAL_MACHINE.apiStr()
     );
 
+    public static final String TAG_KEY = "tagKey";
+    public static final String TAG_VALUE = "tagValue";
+
     private final PaginationMapper paginationMapper;
 
     public StatsMapper(@Nonnull final PaginationMapper paginationMapper) {
@@ -191,6 +198,17 @@ public class StatsMapper {
         }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
                 .map(this::toStatApiDto)
+                .collect(Collectors.toList()));
+        return dto;
+    }
+
+    public StatSnapshotApiDTO toCostStatSnapshotApiDTO(CostStatsSnapshot costStatsSnapshot) {
+        final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
+        if (costStatsSnapshot.hasSnapshotDate()) {
+            dto.setDate(DateTimeUtil.toString(costStatsSnapshot.getSnapshotDate()));
+        }
+        dto.setStatistics(costStatsSnapshot.getStatRecordsList().stream()
+                .map(this::toCostStatApiDto)
                 .collect(Collectors.toList()));
         return dto;
     }
@@ -459,6 +477,41 @@ public class StatsMapper {
     }
 
     @Nonnull
+    private StatApiDTO toCostStatApiDto(CostStatsSnapshot.StatRecord statRecord) {
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        if (statRecord.hasName()) {
+            statApiDTO.setName(statRecord.getName());
+        }
+        if (statRecord.hasValue()) {
+            statApiDTO.setValues(toStatValueApiDTO(statRecord.getValue()));
+        }
+        statApiDTO.setFilters(statRecord.getTagList().stream()
+                .map(StatsMapper::toFilterList)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList()));
+        return statApiDTO;
+    }
+
+    private StatValueApiDTO toStatValueApiDTO(Cost.StatValue statValue) {
+        final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+        statValueApiDTO.setTotal(statValue.getTotal());
+        statValueApiDTO.setAvg(statValue.getAvg());
+        statValueApiDTO.setMax(statValue.getMax());
+        statValueApiDTO.setMin(statValue.getMin());
+        return statValueApiDTO;
+    }
+
+    @Nonnull
+    private static List<StatFilterApiDTO> toFilterList(TagKeyValuePair tag) {
+        final StatFilterApiDTO tagKeyDto = new StatFilterApiDTO();
+        tagKeyDto.setType(TAG_KEY);
+        tagKeyDto.setValue(tag.getKey());
+        final StatFilterApiDTO tagValueDto = new StatFilterApiDTO();
+        tagValueDto.setType(TAG_VALUE);
+        tagValueDto.setValue(tag.getValue());
+        return ImmutableList.of(tagKeyDto, tagValueDto);
+    }
+
     private static StatPercentileApiDTO createPercentileApiDto(@Nullable Float percentileUtilization) {
         final StatPercentileApiDTO result = new StatPercentileApiDTO();
         result.setPercentileUtilization(percentileUtilization);

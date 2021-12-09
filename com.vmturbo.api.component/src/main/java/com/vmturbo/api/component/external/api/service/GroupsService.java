@@ -2113,19 +2113,16 @@ public class GroupsService implements IGroupsService {
      * @param groupUuid uuid of the group.  Groups cloud entities will be considered.
      * @param costInputApiDTO Filters and groupings applied to cost statistic
      * @return List of {@link StatSnapshotApiDTO} containing cloud cost data
-     * @throws Exception
+     * @throws IllegalArgumentException If group cannot be found by UUID.
      */
     @Override
     public List<StatSnapshotApiDTO> getGroupCloudCostStats(@Nonnull String groupUuid,
-            @Nullable CostInputApiDTO costInputApiDTO) throws Exception {
+            @Nullable CostInputApiDTO costInputApiDTO) throws IllegalArgumentException {
         final Optional<Grouping> group = groupExpander.getGroup(groupUuid);
         if (!group.isPresent()) {
             throw new IllegalArgumentException(String.format(ILLEGAL_GROUP_UUID_MESSAGE, groupUuid));
         }
-        GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(group.get());
-        if (groupAndMembers == null) {
-            throw new UnknownObjectException("Group not found " + groupUuid);
-        }
+        final GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(group.get());
         return costStatsQueryExecutor.getGroupCostStats(groupUuid, groupAndMembers, costInputApiDTO);
     }
 }

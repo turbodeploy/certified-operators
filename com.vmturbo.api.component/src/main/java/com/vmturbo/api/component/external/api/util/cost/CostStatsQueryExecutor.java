@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util.cost;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -14,23 +13,19 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.external.api.mapper.CostGroupByMapper;
+import com.vmturbo.api.component.external.api.mapper.StatsMapper;
+import com.vmturbo.api.component.external.api.mapper.TagsMapper;
 import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.CostGroupBy;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
-import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot.StatRecord.TagKeyValuePair;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest.Market;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest.TagFilter;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -43,17 +38,37 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class CostStatsQueryExecutor {
     private static final Logger logger = LogManager.getLogger();
     private final CostServiceBlockingStub costServiceRpc;
-
-    private static final String TAG_KEY = "tagKey";
-    private static final String TAG_VALUE = "tagValue";
+    private final StatsMapper statsMapper;
 
     /**
      * Constructor for CostStatsQueryExecutor with cost service.
      *
      * @param costServiceRpc cost service
+     * @param statsMapper    Statistics mapper.
      */
-    public CostStatsQueryExecutor(@Nonnull CostServiceBlockingStub costServiceRpc) {
+    public CostStatsQueryExecutor(
+            @Nonnull final CostServiceBlockingStub costServiceRpc,
+            @Nonnull final StatsMapper statsMapper) {
         this.costServiceRpc = costServiceRpc;
+        this.statsMapper = statsMapper;
+    }
+
+    /**
+     * Get billed costs stats for an entity.
+     *
+     * @param entityOid Entity OID.
+     * @param entityType Entity type.
+     * @param costInputApiDTO Optional {@link CostInputApiDTO} object.
+     * @return List of statistics.
+     */
+    @Nonnull
+    public List<StatSnapshotApiDTO> getEntityCostStats(
+            final long entityOid,
+            @Nonnull final EntityType entityType,
+            @Nullable final CostInputApiDTO costInputApiDTO) {
+        final GetCloudBilledStatsRequest request = buildGetCloudBilledStatsRequest(
+                costInputApiDTO, entityType, Collections.singletonList(entityOid));
+        return queryCostServiceAndConvert(request);
     }
 
     /**
@@ -69,33 +84,26 @@ public class CostStatsQueryExecutor {
                                                       @Nonnull GroupAndMembers groupAndMembers,
                                                       @Nullable CostInputApiDTO costInputApiDTO) {
         final Grouping grouping = groupAndMembers.group();
-        if (grouping == null || grouping.getExpectedTypesList() == null) {
+        if (grouping == null) {
             logger.error("Couldn't find valid grouping for queried group {}", groupUuid);
             return Collections.emptyList();
         }
-        final Integer entityMemberType = grouping.getExpectedTypesList().stream()
-                .filter(t -> t.hasEntity()).map(MemberType::getEntity).findFirst().orElse(null);
-        final GetCloudBilledStatsRequest.Builder requestBuilder = buildGetCloudBilledStatsRequest(costInputApiDTO);
-        final Collection<Long> leafMembers = groupAndMembers.entities();
-        if (entityMemberType != null) {
-            // Supported group type:
-            // 1. a ResourceGroup, a BillingFamily
-            // 2. a group of VMs/DBs/DBSs/Volumes/regions/accounts/ResourceGroups/BillingFamilies
-            switch (entityMemberType) {
-                case EntityType.REGION_VALUE:
-                    requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(leafMembers).build());
-                    break;
-                case EntityType.BUSINESS_ACCOUNT_VALUE:
-                    requestBuilder.setAccountFilter(AccountFilter.newBuilder().addAllAccountId(leafMembers).build());
-                    break;
-                default:
-                    requestBuilder.setEntityFilter(EntityFilter.newBuilder().addAllEntityId(leafMembers).build());
-            }
-        } else {
+        final EntityType entityMemberType = grouping.getExpectedTypesList().stream()
+                .filter(MemberType::hasEntity)
+                .map(MemberType::getEntity)
+                .map(EntityType::forNumber)
+                .findFirst().orElse(null);
+        if (entityMemberType == null) {
             logger.error("No valid entity member type found in group {}", groupUuid);
             return Collections.emptyList();
         }
-        return queryCostServiceAndConvert(requestBuilder.build());
+        final Collection<Long> leafMembers = groupAndMembers.entities();
+        // Supported group type:
+        // 1. a ResourceGroup, a BillingFamily
+        // 2. a group of VMs/DBs/DBSs/Volumes/regions/accounts/ResourceGroups/BillingFamilies
+        final GetCloudBilledStatsRequest request = buildGetCloudBilledStatsRequest(costInputApiDTO,
+                entityMemberType, leafMembers);
+        return queryCostServiceAndConvert(request);
     }
 
     /**
@@ -106,45 +114,44 @@ public class CostStatsQueryExecutor {
      */
     @Nonnull
     public List<StatSnapshotApiDTO> getGlobalCostStats(@Nullable CostInputApiDTO costInputApiDTO) {
-        final GetCloudBilledStatsRequest.Builder requestBuilder = buildGetCloudBilledStatsRequest(costInputApiDTO);
-        requestBuilder.setMarket(Market.newBuilder().build());
-        return queryCostServiceAndConvert(requestBuilder.build());
+        final GetCloudBilledStatsRequest request =
+                buildGetCloudBilledStatsRequest(costInputApiDTO)
+                        .setMarket(Market.newBuilder().build())
+                        .build();
+        return queryCostServiceAndConvert(request);
     }
 
     @VisibleForTesting
     protected List<StatSnapshotApiDTO> queryCostServiceAndConvert(GetCloudBilledStatsRequest request) {
-        final List<StatSnapshotApiDTO> res = new ArrayList<>();
-        final GetCloudBilledStatsResponse response = costServiceRpc.getCloudBilledStats(request);
-        response.getBilledStatRecordList().forEach(record -> {
-            final StatSnapshotApiDTO statDTO = new StatSnapshotApiDTO();
-            if (record.hasSnapshotDate()) {
-                statDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
-            }
-            List<StatApiDTO> costStats = record.getStatRecordsList().stream()
-                    .map(r -> {
-                        final StatApiDTO statApiDTO = new StatApiDTO();
-                        if (r.hasName()) {
-                            statApiDTO.setName(r.getName());
-                        }
-                        for (TagKeyValuePair tagKeyValuePair : r.getTagList()) {
-                            statApiDTO.addFilter(TAG_KEY, tagKeyValuePair.getKey());
-                            statApiDTO.addFilter(TAG_VALUE, tagKeyValuePair.getValue());
-                        }
-                        if (r.hasValue()) {
-                            final StatValue statValue = r.getValue();
-                            StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-                            statValueApiDTO.setMax(statValue.getMax());
-                            statValueApiDTO.setMin(statValue.getMin());
-                            statValueApiDTO.setAvg(statValue.getAvg());
-                            statValueApiDTO.setTotal(statValue.getTotal());
-                            statApiDTO.setValues(statValueApiDTO);
-                        }
-                        return statApiDTO;
-                    }).collect(Collectors.toList());
-            statDTO.setStatistics(costStats);
-            res.add(statDTO);
-        });
-        return res;
+        return costServiceRpc.getCloudBilledStats(request)
+                .getBilledStatRecordList().stream()
+                .map(statsMapper::toCostStatSnapshotApiDTO)
+                .collect(Collectors.toList());
+    }
+
+    @VisibleForTesting
+    protected GetCloudBilledStatsRequest buildGetCloudBilledStatsRequest(
+            @Nullable final CostInputApiDTO costInputApiDTO,
+            @Nonnull final EntityType entityType,
+            @Nonnull Collection<Long> entityOids) {
+        final GetCloudBilledStatsRequest.Builder requestBuilder = buildGetCloudBilledStatsRequest(costInputApiDTO);
+        switch (entityType) {
+            case REGION:
+                requestBuilder.setRegionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(entityOids)
+                        .build());
+                break;
+            case BUSINESS_ACCOUNT:
+                requestBuilder.setAccountFilter(AccountFilter.newBuilder()
+                        .addAllAccountId(entityOids)
+                        .build());
+                break;
+            default:
+                requestBuilder.setEntityFilter(EntityFilter.newBuilder()
+                        .addAllEntityId(entityOids)
+                        .build());
+        }
+        return requestBuilder.build();
     }
 
     @VisibleForTesting
@@ -164,32 +171,19 @@ public class CostStatsQueryExecutor {
             if (requestedTags.size() > 1) {
                 throw new UnsupportedOperationException("Currently only support one tagFilter!");
             }
-            for (TagApiDTO tagApiDTO : requestedTags) {
-                if (tagApiDTO.getKey() != null) {
-                    final TagFilter.Builder tagFilter = TagFilter.newBuilder().setTagKey(tagApiDTO.getKey());
-                    if (tagApiDTO.getValues() != null) {
-                        tagFilter.addAllTagValue(tagApiDTO.getValues());
-                    }
-                    requestBuilder.addTagFilter(tagFilter.build());
-                }
-            }
+            requestBuilder.addAllTagFilter(requestedTags.stream()
+                    .map(TagsMapper::convertTagToTagFilter)
+                    .collect(Collectors.toList()));
         }
         final List<CostGroupBy> costGroupBys = costInputApiDTO.getCostGroupBys();
         if (costGroupBys != null) {
             if (costGroupBys.size() != 1) {
                 throw new UnsupportedOperationException("Currently only support one group by!");
             }
-            costGroupBys.forEach(c -> requestBuilder.addGroupBy(convertCostGroupBy(c)));
+            requestBuilder.addAllGroupBy(costGroupBys.stream()
+                    .map(CostGroupByMapper::toGroupByType)
+                    .collect(Collectors.toList()));
         }
         return requestBuilder;
-    }
-
-    private GroupByType convertCostGroupBy(@Nonnull CostGroupBy costGroupBy) {
-        switch (costGroupBy) {
-            case TAG:
-                return GroupByType.TAG;
-            default:
-                throw new UnsupportedOperationException(String.format("GroupBy % is not supported", costGroupBy));
-        }
     }
 }

@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.entity.TagApiDTO;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest.TagFilter;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 
 /**
@@ -42,5 +43,19 @@ public class TagsMapper {
             tags.entrySet().stream()
                 .map(e -> convertTagToApi(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert {@link TagApiDTO} object to {@link TagFilter} used by Cost component service to
+     * retrieve cloud billed stats.
+     *
+     * @param tag Tag DTO.
+     * @return Tag filter instance.
+     */
+    public static TagFilter convertTagToTagFilter(@Nonnull final TagApiDTO tag) {
+        return TagFilter.newBuilder()
+                .setTagKey(tag.getKey())
+                .addAllTagValue(tag.getValues())
+                .build();
     }
 }

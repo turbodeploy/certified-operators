@@ -18,7 +18,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -50,6 +49,7 @@ import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.cost.CostStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -72,13 +72,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.Actio
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsMoles.EntityCustomTagsServiceMole;
-import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
-import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
-import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsRequest;
-import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.DeleteEntityCustomTagsResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
@@ -139,16 +140,17 @@ public class EntitiesServiceTest {
             mock(SupplyChainFetcherFactory.class);
     private final PolicyServiceMole policyService = spy(new PolicyServiceMole());
     private final EntityCustomTagsServiceMole entityCustomTagsService = spy(new EntityCustomTagsServiceMole());
+    private final CostServiceMole costService = spy(new CostServiceMole());
 
-    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+    private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
-    private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
+    private final EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
 
     private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
-    private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+    private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
-    private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
+    private final SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
 
     /**
      * Exception checker.
@@ -160,14 +162,12 @@ public class EntitiesServiceTest {
     @Rule
     public final GrpcTestServer grpcServer =
         GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService,
-            repositoryService, policyService, entityCustomTagsService);
+            repositoryService, policyService, entityCustomTagsService, costService);
     private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
     private static final String UI_REAL_TIME_MARKET = "Market";
-    private static final String MARKET_DISPLAY_NAME = "ST";
-    private static final EntityState MARKET_STATE = EntityState.POWERED_ON;
     private static final long TARGET_ID = 7L;
     private static final String TARGET_DISPLAY_NAME = "target";
     private static final long PROBE_ID = 70L;
@@ -277,7 +277,8 @@ public class EntitiesServiceTest {
                 paginationMapper,
                 serviceEntityMapper,
                 settingsManagerMapping,
-                EntityCustomTagsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                EntityCustomTagsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                mock(CostStatsQueryExecutor.class));
     }
 
     /**
