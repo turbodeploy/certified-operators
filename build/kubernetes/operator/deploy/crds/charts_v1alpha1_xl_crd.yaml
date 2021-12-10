@@ -267,9 +267,6 @@ spec:
                       description: component image pull policy
                       type: string
                   type: object
-                flat:
-                  description: configuration for the flat collector
-                  type: object
                 graph:
                   description: configuration for the graph collector
                   type: object
