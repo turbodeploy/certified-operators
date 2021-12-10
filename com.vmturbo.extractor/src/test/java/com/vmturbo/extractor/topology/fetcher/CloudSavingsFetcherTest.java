@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
@@ -68,10 +67,10 @@ public class CloudSavingsFetcherTest {
     private CloudSavingsFetcher savingsFetcher;
 
     /**
-     * Rule to initialize FeatureFlags.POSTGRES_PRIMARY_DB store.
+     * Rule to initialize FeatureFlags store.
      **/
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.POSTGRES_PRIMARY_DB);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * GRPC cost service test server.
