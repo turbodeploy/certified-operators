@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
@@ -51,6 +52,16 @@ public interface QualifiedJournalEntry<ENTITY_CLASS> extends Comparable {
      */
     @Nonnull
     CostCategory getCostCategory();
+
+    /**
+     * Get the commodity type associated with the journal entry.
+     *
+     * @return An optional field representing the commodity type.
+     */
+    @Nonnull
+    default Optional<CommodityType> commodityType() {
+        return Optional.empty();
+    }
 
     @Override
     default int compareTo(Object o) {

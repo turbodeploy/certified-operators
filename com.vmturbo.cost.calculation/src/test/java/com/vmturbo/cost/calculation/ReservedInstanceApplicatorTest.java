@@ -73,7 +73,7 @@ public class ReservedInstanceApplicatorTest {
             ReservedInstanceApplicator.newFactory();
 
     private final ComputeConfig computeConfig = new ComputeConfig(OSType.WINDOWS, Tenancy.DEFAULT,
-            VMBillingType.RESERVED, 4, LicenseModel.LICENSE_INCLUDED);
+            VMBillingType.RESERVED, 4, LicenseModel.LICENSE_INCLUDED, null);
 
     private static final int ENTITY_ID = 7;
 

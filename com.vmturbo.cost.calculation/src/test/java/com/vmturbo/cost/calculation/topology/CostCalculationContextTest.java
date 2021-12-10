@@ -2,6 +2,7 @@ package com.vmturbo.cost.calculation.topology;
 
 import static org.mockito.Mockito.mock;
 
+import java.util.HashMap;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -76,7 +77,7 @@ public class CostCalculationContextTest {
         TestEntityClass testEntity = TestEntityClass.newBuilder(10)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setComputeConfig(new EntityInfoExtractor.ComputeConfig(OSType.WINDOWS, Tenancy.DEFAULT,
-                        VMBillingType.ONDEMAND, 4, EntityDTO.LicenseModel.AHUB))
+                        VMBillingType.ONDEMAND, 4, EntityDTO.LicenseModel.AHUB, null))
                 .build(infoExtractor);
         Optional<OnDemandPriceTable> onDemandPriceTable = Optional.of(accountPricingData.getPriceTable()
                 .getOnDemandPriceByRegionIdMap().get(REGION_ID));

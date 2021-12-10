@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
+import com.vmturbo.common.protobuf.market.InitialPlacement;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -63,6 +64,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Red
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList;
@@ -359,7 +361,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 // This won't be null because we check if collection is null/empty.
                 Objects.requireNonNull(price),
                 // No RI, so we are buying "100%" of the storage for on-demand prices.
-                FULL);
+                FULL,
+                Optional.empty());
         }
     }
 
@@ -443,7 +446,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
                     storageTier,
                     price,
-                    amount));
+                    amount,
+                    Optional.empty()));
         }
     }
 
@@ -512,7 +516,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         // powered off, the bought amount is 0. Note: This cost is purely
                         // on demand and does not include any RI related costs.
                         final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
-                        recordOnDemandVmCost(journal, computeBillableAmount, basePrice, computeTier);
+                        recordOnDemandVmCost(journal, computeBillableAmount, basePrice, computeTier, computeConfig, entity);
                         recordOnDemandVMLicenseCost(journal, computeTier, computeConfig, computeBillableAmount, licensePrice);
                     } else if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
                         recordVMSpotInstanceCost(computeTier, journal, context);
@@ -560,7 +564,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
                         Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
                                 .setAmount(licensePrice.getImplicitOnDemandLicensePrice()).build())
-                                .build(), unitsBought);
+                                .build(), unitsBought, Optional.empty());
             }
 
             // Recording the license price according to os and number of cores (used for explicit cases).
@@ -568,23 +572,47 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
                         Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
                                 .setAmount(licensePrice.getExplicitOnDemandLicensePrice()).build())
-                                .build(), trax(unitsBought.getValue(), "explicit license"));
+                                .build(), trax(unitsBought.getValue(), "explicit license"), Optional.empty());
             }
         } else {
             // The VM is "Bring Your Own License" - set the license price to 0.
             journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
                     Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
-                            .setAmount(0).build()).build(), trax(0, "bring-your-own-license price"));
+                            .setAmount(0).build()).build(), trax(0, "bring-your-own-license price"), Optional.empty());
         }
 
     }
 
     private void recordOnDemandVmCost(CostJournal.Builder<ENTITY_CLASS> journal, TraxNumber unitsBought,
-                                      ComputeTierConfigPrice basePrice, ENTITY_CLASS computeTier) {
-        journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
-            basePrice.getPricesList().get(0), unitsBought);
-    }
+                                      ComputeTierConfigPrice basePrice, ENTITY_CLASS computeTier, ComputeConfig computeConfig,
+                                      ENTITY_CLASS entity) {
+        if (basePrice.getConsumerCommodityPricesList().size() > 0) {
+            for (Entry<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> entry : computeConfig.getPricedCommoditiesBought().entrySet()) {
+                com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType = entry.getKey();
+                List<Price> unitPriceList = basePrice.getConsumerCommodityPricesList().stream()
+                        .filter(c -> c.getCommodityType().getNumber() == commodityType.getType())
+                        .map(c -> c.getPrice())
+                        .collect(Collectors.toList());
+                if (unitPriceList.size() != 1) {
+                    String typeName = commodityType.getType() == CommodityType.NUM_VCORE_VALUE ? "NUM_VCORE" :
+                            commodityType.getType() == CommodityType.MEM_PROVISIONED_VALUE ? "MEM_PROVISIONED" :
+                                                                                            commodityType.getKey();
+                    logger.error("Can't find commodity price for commodity type name: {}, type value: {} " +
+                            "(entity name: {} with ID {} with compute tier {} with ID {})",
+                            typeName, commodityType.getType(), entityInfoExtractor.getName(entity), entityInfoExtractor.getId(entity),
+                            entityInfoExtractor.getName(computeTier), entityInfoExtractor.getId(computeTier));
+                    break;
+                }
+                journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
+                        unitPriceList.get(0), trax(entry.getValue(), "Commodities billed amount"),
+                        Optional.of(commodityType));
+            }
+        } else {
+            journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
+                    basePrice.getPricesList().get(0), unitsBought, Optional.empty());
 
+        }
+    }
 
 
     /**
@@ -626,7 +654,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         recordPriceRangeEntries(numElasticIps,
                             ipPriceList.getPricesList(),
                             (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
-                                service.get(), price, amountBought));
+                                service.get(), price, amountBought, Optional.empty()));
                     });
             } else {
                 logger.debug("Connected service is not available to calculate IP price for" +
@@ -679,7 +707,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             return;
         }
         final TraxNumber unitsBought = trax(1, "units bought at spot price");
-        journal.recordOnDemandCost(CostCategory.SPOT, computeTier, spotPrice.get(), unitsBought);
+        journal.recordOnDemandCost(CostCategory.SPOT, computeTier, spotPrice.get(), unitsBought, Optional.empty());
     }
 
     private void calculateDatabaseCost(CostCalculationContext<ENTITY_CLASS> context) {
@@ -791,19 +819,19 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
 
         journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, databaseTier,
-                basePrice.getPricesList().get(0), computeBillableAmount);
+                basePrice.getPricesList().get(0), computeBillableAmount, Optional.empty());
         dbPriceList.getConfigurationPriceAdjustmentsList().stream()
                 .filter(databaseConfig::matchesPriceTableConfig)
                 .findAny()
                 .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
                         CostCategory.ON_DEMAND_LICENSE,
                         databaseTier,
-                        priceAdjustmentConfig.getPricesList().get(0), computeBillableAmount));
+                        priceAdjustmentConfig.getPricesList().get(0), computeBillableAmount, Optional.empty()));
         if (!dbPriceList.getDependentPricesList().isEmpty()) {
             //add storage price
             journal.recordOnDemandCost(CostCategory.STORAGE, databaseTier,
                     calculateRDBStorageCost(storagePrices, entity, CommodityType.STORAGE_AMOUNT),
-                    FULL);
+                    FULL, Optional.empty());
         }
     }
 
@@ -827,7 +855,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     serverConfigPrice.getDatabaseTierConfigPrice();
             if (databaseConfig.matchesPriceTableConfig(configPrice)) {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, dbsTier,
-                        configPrice.getPricesList().get(0), computeBillableAmount);
+                        configPrice.getPricesList().get(0), computeBillableAmount, Optional.empty());
                 final Multimap<CommodityType, Price> storagePrices = ArrayListMultimap.create();
                 final Map<Price.Unit, List<Price>> ioRequestsPrice = Maps.newHashMap();
                 //we support only Storage Amount and IOPS cost, other will be ignored
@@ -849,7 +877,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 for (Entry<CommodityType, Collection<Price>> entry : storagePrices.asMap().entrySet()){
                     journal.recordOnDemandCost(CostCategory.STORAGE, dbsTier,
                             calculateRDBStorageCost(entry.getValue(), entity,
-                                    entry.getKey()), FULL);
+                                    entry.getKey()), FULL, Optional.empty());
                 }
                 Double hourlyBilledOpsValue = databaseConfig.getHourlyBilledOps();
                 if (!ioRequestsPrice.isEmpty() && Objects.nonNull(hourlyBilledOpsValue)) {

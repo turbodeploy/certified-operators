@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Preconditions;
@@ -17,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.journal.CostItem;
@@ -57,6 +59,8 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
 
     private final CostCategory costCategory;
 
+    private final CommodityType commodityType;
+
     /**
      * Constructor.
      * @param payee the payee
@@ -64,19 +68,22 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
      * @param unitsBought the number of units of the item that the buyer is buying from the payee
      * @param costCategory the cost category
      * @param costSource the cost source
+     * @param commodityType the commodity type
      */
     public OnDemandJournalEntry(
             @Nonnull final E payee,
             @Nonnull final Price price,
             @Nonnull final TraxNumber unitsBought,
             @Nonnull final CostCategory costCategory,
-            @Nonnull final Optional<CostSource> costSource) {
+            @Nonnull final Optional<CostSource> costSource,
+            @Nullable final CommodityType commodityType) {
         Preconditions.checkArgument(unitsBought.getValue() >= 0);
         this.payee = payee;
         this.price = price;
         this.unitsBought = unitsBought;
         this.costCategory = costCategory;
         this.costSource = costSource;
+        this.commodityType = commodityType;
     }
 
     @Override
@@ -141,6 +148,12 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
         return costCategory;
     }
 
+    @Nonnull
+    @Override
+    public Optional<CommodityType> commodityType() {
+        return Optional.of(commodityType);
+    }
+
     public E getPayee() {
         return payee;
     }
@@ -176,6 +189,5 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
                     .build();
         }
     }
-
 
 }
