@@ -12,14 +12,14 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
-import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.flywaydb.core.api.callback.FlywayCallback;
+import org.jooq.DSLContext;
+import org.jooq.impl.DefaultDSLContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
@@ -91,37 +91,6 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     @Value("${bulk.maxPendingBatches:10}")
     private int maxPendingBatches;
 
-    @Value("${conPoolMaxActive:25}")
-    private int conPoolMaxActive;
-
-    @Value("${conPoolInitialSize:5}")
-    private int conPoolInitialSize;
-
-    @Value("${conPoolMinIdle:5}")
-    private int conPoolMinIdle;
-
-    @Value("${conPoolMaxIdle:10}")
-    private int conPoolMaxIdle;
-
-    /**
-     * Provide key parameters, surfaced as spring-configurable values, to be used when creating
-     * the history component connection pool.
-     *
-     * <p>The {@link PoolProperties} structure created here is augmented during pool creation with
-     * additional properties required for pool operation.</p>
-     *
-     * @return A {@link PoolProperties} structure including the configured properties
-     */
-    @Bean
-    PoolProperties connectionPoolProperties() {
-        PoolProperties p = new PoolProperties();
-        p.setMaxActive(conPoolMaxActive);
-        p.setInitialSize(conPoolInitialSize);
-        p.setMinIdle(conPoolMinIdle);
-        p.setMaxIdle(conPoolMaxIdle);
-        return p;
-    }
-
     /**
      * Default config for bulk inserter/loader instances.
      * @return bulk inserter config
@@ -156,20 +125,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
      */
     @Bean
     public HistorydbIO historyDbIO() {
-        final HistorydbIO dbIO
-                = new HistorydbIO(dbPasswordUtil(), getSQLConfigObject(), connectionPoolProperties());
-        HistorydbIO.setSharedInstance(dbIO);
-        return dbIO;
-    }
-
-    /**
-     * Get an instance of {@link DBPasswordUtil} from which we can get needed DB credentials.
-     *
-     * @return the instance
-     */
-    @Bean
-    public DBPasswordUtil dbPasswordUtil() {
-        return new DBPasswordUtil(authHost, authPort, authRoute, authRetryDelaySecs);
+        return new HistorydbIO(dsl(), unpooledDsl());
     }
 
     @Bean
@@ -177,6 +133,31 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     public DataSource dataSource() {
         return getDataSource(dbSchemaName, historyDbUsername, Optional.ofNullable(
                 !Strings.isEmpty(historyDbPassword) ? historyDbPassword : null));
+    }
+
+    /**
+     * Get a {@link DataSource} that will produce connections that are not part of the connection
+     * pool. This may be advisable for connections that will be used for potentially long-running
+     * operations, to avoid tying up limited pool connections.
+     *
+     * @return unpooled datasource
+     */
+    @Bean
+    public DataSource unpooledDataSource() {
+        return getUnpooledDataSource(dbSchemaName, historyDbUsername, Optional.ofNullable(
+                !Strings.isEmpty(historyDbPassword) ? historyDbPassword : null));
+    }
+
+    /**
+     * Get a {@link DSLContext} that uses unpooled connections to perform database operations.
+     * This may be advisable when performing potentially long-running DB operaitions to avoid
+     * tying up limited pool connections.
+     *
+     * @return DSLContext that uses unpooled connections
+     */
+    @Bean
+    public DSLContext unpooledDsl() {
+        return new DefaultDSLContext(unpooledDataSource(), sqlDialect);
     }
 
     @Override

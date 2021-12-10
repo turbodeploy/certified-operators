@@ -30,7 +30,7 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
      */
     @Test
     public void testVmStatsQuery() {
-        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH, Lists.newArrayList("vCPU"), 90).getQuery();
+        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH, Lists.newArrayList("vCPU"), 90, dsl).getQuery();
         getQueryChecker(VM_STATS_BY_MONTH).check(query);
     }
 
@@ -42,7 +42,7 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
      */
     @Test
     public void testPmStatsQuery() {
-        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(PM_STATS_BY_MONTH, Lists.newArrayList("CPU"), 90).getQuery();
+        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(PM_STATS_BY_MONTH, Lists.newArrayList("CPU"), 90, dsl).getQuery();
         getQueryChecker(PM_STATS_BY_MONTH).check(query);
     }
 

@@ -9,49 +9,35 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
 import org.jooq.SelectJoinStep;
 import org.jooq.Table;
-import org.junit.After;
-import org.junit.Before;
+import org.jooq.exception.DataAccessException;
+import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ErrorCollector;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.history.db.BasedbIO;
-import com.vmturbo.history.db.DBConnectionPool;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.SchemaUtil;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.ingesters.IngestersConfig;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.AppStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.ChStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.CntStatsLatest;
@@ -67,20 +53,16 @@ import com.vmturbo.history.schema.abstraction.tables.VdcStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
-import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Write live stats to real DB table.
  **/
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {DbTestConfig.class})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 public class LiveStatsDBTest {
     // TODO unify: revive tests
-
-    private static final Logger logger = LogManager.getLogger();
 
     private static final long REALTIME_TOPOLOGY_CONTEXT_ID = 7777777;
     private static final int TEST_TOPOLOGY_ID = 5678;
@@ -95,43 +77,19 @@ public class LiveStatsDBTest {
     // The two new entries were "MarketSettingsManager" and "PresentationManager".
     private static final int NUMBER_OF_ENTITIES = 93 + 2;
 
-    @Autowired
-    private DbTestConfig dbTestConfig;
-
-    private String testDbName;
-
-    private HistorydbIO historydbIO;
+    /**
+     * Provision and provide access to a test database.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
 
     /**
-     * Set up test database for use in tests.
-     *
-     * @throws Throwable if there's a problem
+     * Clean up tables in the test database before each test.
      */
-    @Before
-    public void before() throws Throwable {
-        IdentityGenerator.initPrefix(0);
-        testDbName = dbTestConfig.testDbName();
-        historydbIO = dbTestConfig.historydbIO();
-        // map the 'vmtdb' database name used in the code into the test DB name
-        historydbIO.setSchemaForTests(testDbName);
-        logger.info("Initializing DB - " + testDbName);
-        HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName, Optional.empty());
-    }
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    /**
-     * Tear down the test database.
-     */
-    @After
-    public void after() {
-        DBConnectionPool.instance.getInternalPool().close();
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        } catch (VmtDbException | SQLException e) {
-            logger.error("Problem dropping db: " + testDbName, e);
-        }
-    }
+    private final DSLContext dsl = dbConfig.getDslContext();
 
     /**
      * Report all assertion failures during test, not just the first one.
@@ -167,7 +125,8 @@ public class LiveStatsDBTest {
 //            RecordWriterUtils.getRecordWritersThreadPool());
 
         List<TopologyEntityDTO> allEntityDTOs
-                = new ArrayList<>(StatsTestUtils.generateEntityDTOs(TEST_TOPOLOGY_PATH, TEST_TOPOLOGY_FILE_NAME));
+                = new ArrayList<>(
+                StatsTestUtils.generateEntityDTOs(TEST_TOPOLOGY_PATH, TEST_TOPOLOGY_FILE_NAME));
         int listSize = allEntityDTOs.size();
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -237,23 +196,22 @@ public class LiveStatsDBTest {
         checkPropertyValue(NUM_CPUS, 2.75);
     }
 
-    private void checkPropertyValue(String propertyName, double expected) throws VmtDbException {
-        SelectConditionStep<MarketStatsLatestRecord> selectStmt = HistorydbIO.getJooqBuilder().selectFrom(MarketStatsLatest.MARKET_STATS_LATEST)
+    private void checkPropertyValue(String propertyName, double expected) throws
+            DataAccessException {
+        SelectConditionStep<MarketStatsLatestRecord> selectStmt = dsl.selectFrom(
+                        MarketStatsLatest.MARKET_STATS_LATEST)
                 .where(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_TYPE.eq(propertyName));
-        Result<MarketStatsLatestRecord> answer =
-                (Result<MarketStatsLatestRecord>)historydbIO.execute(BasedbIO.Style.IMMEDIATE,
-                        selectStmt);
+        Result<MarketStatsLatestRecord> answer = dsl.fetch(selectStmt);
         assertThat(answer.size(), is(1));
         Double count = answer.get(0).getAvgValue();
         assertThat(count, is(expected));
     }
 
-    private void checkTableCount(Table tableToQuery, int numberOfEntities) throws VmtDbException {
-        SelectJoinStep<Record1<Integer>> getRecordCount = HistorydbIO.getJooqBuilder().selectCount()
-                .from(tableToQuery);
-        Result<? extends Record> countResult = historydbIO.execute(BasedbIO.Style.IMMEDIATE,
-                getRecordCount);
+    private void checkTableCount(Table tableToQuery, int numberOfEntities) throws DataAccessException {
+        SelectJoinStep<Record1<Integer>> getRecordCount = dsl.selectCount().from(tableToQuery);
+        Result<? extends Record> countResult = dsl.fetch(getRecordCount);
         Integer count = (Integer)countResult.getValue(0, 0, 0L);
-        collector.checkThat(String.format("Table %s: ", tableToQuery.getName()), count, is(numberOfEntities));
+        collector.checkThat(String.format("Table %s: ", tableToQuery.getName()), count,
+                is(numberOfEntities));
     }
 }

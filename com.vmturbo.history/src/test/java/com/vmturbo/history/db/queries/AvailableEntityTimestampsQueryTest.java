@@ -41,7 +41,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testUnconstrainedQuery() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST, null, null, 0,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST, null, null, 0,
                 null, null, false).getQuery();
         queryChecker.check(query);
     }
@@ -51,7 +51,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testHourlyTimeFrame() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.HOUR, null, null, 0,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.HOUR, null, null, 0,
                 null, null, false).getQuery();
         queryChecker.withTables("market_stats_by_hour")
                 .withSelectFields("market_stats_by_hour.snapshot_time")
@@ -64,7 +64,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithEntityType() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 PHYSICAL_MACHINE_ENTITY_TYPE, null, 0,
                 null, null, false).getQuery();
         queryChecker.withTables("pm_stats_latest")
@@ -78,9 +78,9 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithClusterEntityType() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
-            EntityType.named(StringConstants.CLUSTER).get(), null, 0,
-            null, null, false).getQuery();
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
+                EntityType.named(StringConstants.CLUSTER).get(), null, 0,
+                null, null, false).getQuery();
         queryChecker.withTables("cluster_stats_latest")
             .withSelectFields("cluster_stats_latest.recorded_on")
             .withSortFields("cluster_stats_latest.recorded_on")
@@ -92,9 +92,9 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithClusterEntityOid() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
-            EntityType.named(StringConstants.CLUSTER).get(), "123", 0,
-            null, null, false).getQuery();
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
+                EntityType.named(StringConstants.CLUSTER).get(), "123", 0,
+                null, null, false).getQuery();
         queryChecker.withTables("cluster_stats_latest")
             .withSelectFields("cluster_stats_latest.recorded_on")
             .withSortFields("cluster_stats_latest.recorded_on")
@@ -107,7 +107,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithEntityOid() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 PHYSICAL_MACHINE_ENTITY_TYPE, "xyzzy", 0, null, null, false).getQuery();
         queryChecker
                 // TODO reinstate check for index hint when the hint is back in
@@ -124,7 +124,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithPropertyTypes() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 null, null, false, "p1", "p2").getQuery();
         queryChecker.withConditions("market_stats_latest.property_type IN \\(\\s*'p1', \\s*'p2'\\s*\\)")
@@ -136,7 +136,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithExcludedPropertyTypes() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 null, null, true, "p1", "p2").getQuery();
         queryChecker.withConditions("market_stats_latest.property_type NOT IN \\(\\s*'p1', \\s*'p2'\\s*\\)")
@@ -148,7 +148,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithMinTime() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 Timestamp.valueOf("2019-01-02 03:04:05"), null, false).getQuery();
         queryChecker.withConditions("market_stats_latest.snapshot_time >= TIMESTAMP '2019-01-02 03:04:05\\.0'")
@@ -160,7 +160,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithMaxTime() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 null, Timestamp.valueOf("2019-01-02 03:04:05"), false).getQuery();
         queryChecker.withConditions("market_stats_latest.snapshot_time <= TIMESTAMP '2019-01-02 03:04:05\\.0'")
@@ -172,14 +172,14 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithBothTimes() {
-        final ResultQuery<?> query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        final ResultQuery<?> query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 Timestamp.valueOf("2019-01-01 03:04:05"), Timestamp.valueOf("2019-01-02 03:04:05"),
                 false).getQuery();
         queryChecker
-                .withConditions("market_stats_latest.snapshot_time " +
-                        "BETWEEN TIMESTAMP '2019-01-01 03:04:05\\.0' " +
-                        "AND TIMESTAMP '2019-01-02 03:04:05\\.0'")
+                .withConditions("market_stats_latest.snapshot_time "
+                        + "BETWEEN TIMESTAMP '2019-01-01 03:04:05\\.0' "
+                        + "AND TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
 
@@ -188,7 +188,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithLimit1() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 1,
                 null, null, false).getQuery();
         queryChecker.withDistinct(false).withLimit(1).check(query);
@@ -199,7 +199,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
      */
     @Test
     public void testWithLimit10() {
-        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+        Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 10,
                 null, null, false).getQuery();
         queryChecker.withLimit(10).check(query);

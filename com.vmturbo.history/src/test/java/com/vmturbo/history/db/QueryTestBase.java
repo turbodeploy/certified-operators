@@ -4,26 +4,22 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.SQLDialect;
 import org.jooq.conf.ParamType;
 import org.jooq.conf.RenderKeywordStyle;
 import org.jooq.conf.RenderNameStyle;
 import org.jooq.conf.Settings;
-
-import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
+import org.jooq.impl.DSL;
 
 /**
  * Base class for tests of query builders.
@@ -36,20 +32,19 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
  */
 public class QueryTestBase {
 
+    protected DSLContext dsl;
+
     /**
      * Set up Jooq for use by query builder.
      *
      * <p>Subclasses should call this in a @Before method.</p>
      */
     protected void setupJooq() {
-        // the query builder uses HistordbIO#getJooqBuilder, so we need one of those minimally set up
-        SQLConfigObject sqlConfigObject = new SQLConfigObject(
-                "localhost", 0, "vmtdb",
-                Optional.empty(), SQLDialect.MARIADB.name(), false, ImmutableMap.of(SQLDialect.MARIADB, ""));
-        HistorydbIO historydbIO = new HistorydbIO(null, sqlConfigObject, new PoolProperties());
-        HistorydbIO.setSharedInstance(historydbIO);
+        // the query builder uses a DSLContext, so we need one for MARIADB dialect
+        this.dsl = DSL.using(SQLDialect.MARIADB);
         // we customize some rendering settings to make our tests easier and more robust
-        Settings settings = HistorydbIO.getJooqBuilder().settings();
+        Settings settings = dsl.settings();
+        settings.withRenderFormatted(true);
         settings.setRenderSchema(false);
         settings.setRenderNameStyle(RenderNameStyle.LOWER);
         settings.setRenderKeywordStyle(RenderKeywordStyle.UPPER);
@@ -179,7 +174,7 @@ public class QueryTestBase {
      * @return a {@link Pattern} that can be used to test an SQL query
      */
     private String makePattern(String[]... groups) {
-        // we basicaly flatten the groups and create a regex that expects all the tokens in sequence, with one
+        // we basically flatten the groups and create a regex that expects all the tokens in sequence, with one
         // or more space between tokens.
         String content = Stream.of(groups)
                 .map(g -> Stream.of(g)
@@ -240,7 +235,7 @@ public class QueryTestBase {
     }
 
     /**
-     * A class that captures all the expected parts of a SQL query and then checks that they are all present.
+     * A class that captures all the expected parts of an SQL query and then checks that they are all present.
      */
     public class QueryChecker {
 

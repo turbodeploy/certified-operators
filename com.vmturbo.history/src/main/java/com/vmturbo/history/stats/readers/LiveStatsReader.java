@@ -33,11 +33,12 @@ import com.google.protobuf.TextFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
-import org.jooq.Query;
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
-import org.jooq.Select;
+import org.jooq.ResultQuery;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
@@ -45,12 +46,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.history.db.BasedbIO;
-import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
@@ -89,14 +87,17 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
     private final INonPaginatingStatsReader<HistUtilizationRecord> histUtilizationReader;
     private final int entitiesPerChunk;
+    private final DSLContext dsl;
 
     public LiveStatsReader(@Nonnull final HistorydbIO historydbIO,
+            @Nonnull final DSLContext dsl,
             @Nonnull final TimeRangeFactory timeRangeFactory,
             @Nonnull final StatsQueryFactory statsQueryFactory,
             @Nonnull final ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory,
             @Nonnull INonPaginatingStatsReader<HistUtilizationRecord> histUtilizationReader,
             int entitiesPerChunk) {
         this.historydbIO = historydbIO;
+        this.dsl = dsl;
         this.timeRangeFactory = timeRangeFactory;
         this.statsQueryFactory = statsQueryFactory;
         this.computedPropertiesProcessorFactory = computedPropertiesProcessorFactory;
@@ -168,12 +169,13 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      *                         parameters to use.
      * @return A {@link StatRecordPage} containing the next page of per-entity records and the
      *         next cursor for subsequent calls to this function.
-     * @throws VmtDbException If there is an error interacting with the database.
+     * @throws DataAccessException If there is an error interacting with the database.
      */
     @Nonnull
     public StatRecordPage getPaginatedStatsRecords(@Nonnull final EntityStatsScope entityStatsScope,
             @Nonnull final StatsFilter statsFilter,
-            @Nonnull final EntityStatsPaginationParams paginationParams) throws VmtDbException {
+            @Nonnull final EntityStatsPaginationParams paginationParams) throws
+            DataAccessException {
 
         EntityType entityType = historydbIO.getEntityTypeFromEntityStatsScope(entityStatsScope);
 
@@ -214,17 +216,16 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 recordsByEntityId.put(Long.parseLong(entityId), new ArrayList<>()));
 
         final List<String> nextPageEntityOids = nextPageInfo.getEntityOids();
-        Optional<Select<?>> query = statsQueryFactory.createStatsQuery(nextPageEntityOids,
+        Optional<ResultQuery<?>> query = statsQueryFactory.createStatsQuery(nextPageEntityOids,
                 nextPageInfo.getTable(), statsFilter.getCommodityRequestsList(),
-            paginationTimeRange, AGGREGATE.NO_AGG);
+                paginationTimeRange, AGGREGATE.NO_AGG);
         if (!query.isPresent()) {
             return StatRecordPage.empty();
         }
         // Run the query to get all relevant stat records.
         // TODO (roman, Jun 29 2018): Ideally we should get the IDs of entities in the page and
         // run the query to get the stats in the same transaction.
-        final Result<? extends Record> statsRecords = historydbIO.execute(
-                BasedbIO.Style.FORCED, query.get());
+        final Result<? extends Record> statsRecords = dsl.fetch(query.get());
         histUtilizationReader.getRecords(new HashSet<>(nextPageEntityOids), statsFilter)
                         .forEach(record -> {
                             final Long oid = record.getOid();
@@ -265,13 +266,13 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      *                    expanded before we get here
      * @param statsFilter stats filter constructed for the query
      * @return a list of records records, one for each stats information row retrieved
-     * @throws VmtDbException if a DB error occurs
+     * @throws DataAccessException if a DB error occurs
      */
     @Nonnull
     public List<Record> getRecords(
             @Nonnull final Set<String> entityIds,
             @Nonnull final StatsFilter statsFilter)
-            throws VmtDbException {
+            throws DataAccessException {
         return getRecords(entityIds, statsFilter, Collections.emptyList());
     }
 
@@ -292,14 +293,14 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      * @param statsFilter stats filter constructed for the query
      * @param derivedEntityTypes related entity types for which scope expansion was attempted.
      * @return a list of records records, one for each stats information row retrieved
-     * @throws VmtDbException if a DB error occurs
+     * @throws DataAccessException if a DB error occurs
      */
     @Nonnull
     public List<Record> getRecords(
             @Nonnull final Set<String> entityIds,
             @Nonnull final StatsFilter statsFilter,
             @Nonnull final List<Integer> derivedEntityTypes)
-            throws VmtDbException {
+            throws DataAccessException {
 
         final DataMetricTimer timer = GET_STATS_RECORDS_DURATION_SUMMARY.startTimer();
 
@@ -337,7 +338,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             logger.debug("fetch stats for entity type {}", entityType);
 
             // get the entities of that type
-            final List<String> entityIdsForType = (List<String>)entityTypeToIdsMap.get(entityType);
+            final List<String> entityIdsForType = entityTypeToIdsMap.get(entityType);
             logger.debug("entity count for {} = {}", entityType, entityIdsForType.size());
 
             // create a timerange, given the start/end range in the filter
@@ -359,14 +360,13 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 if (!table.isPresent()) {
                     continue;
                 }
-                final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(
+                final Optional<ResultQuery<?>> query = statsQueryFactory.createStatsQuery(
                         entityIdChunk, table.get(),
                         commodityRequests, timeRange, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;
                 }
-                final Result<? extends Record> statsRecords =
-                        historydbIO.execute(BasedbIO.Style.FORCED, query.get());
+                final Result<? extends Record> statsRecords = dsl.fetch(query.get());
                 final int answerSize = statsRecords.size();
                 if (logger.isDebugEnabled() && answerSize == 0) {
                     logger.debug("zero answers returned from: {}, time range: {}",
@@ -439,12 +439,12 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      * @param globalFilter The global filter to apply to all returned stats.
      * @return an ImmutableList of DB Stats Records containing the result from searching all the stats tables
      * for the given time range and commodity names
-     * @throws VmtDbException if there's an exception querying the data
+     * @throws DataAccessException if there's an exception querying the data
      */
     public @Nonnull
     List<Record> getFullMarketStatsRecords(@Nonnull final StatsFilter statsFilter,
             @Nonnull GlobalFilter globalFilter)
-            throws VmtDbException {
+            throws DataAccessException {
         final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         if (!timeRangeOpt.isPresent()) {
@@ -503,13 +503,12 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         // Format the query.
         // No need to order or group by anything, since when preparing the response
         // we rearrange things by snapshot time anyway.
-        final Query query = historydbIO.JooqBuilder()
-                .select(Arrays.asList(table.fields()))
+        final ResultQuery<?> query = dsl.select(Arrays.asList(table.fields()))
                 .from(table)
                 .where(whereConditions);
 
         logger.debug("Running query... {}", query);
-        final Result<? extends Record> result = historydbIO.execute(Style.FORCED, query);
+        final Result<? extends Record> result = dsl.fetch(query);
 
         // Fill in the ratio counts and add/remove entity counts based on the requested commodities
         final List<Record> answer = computedPropertiesProcessor
@@ -613,8 +612,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      * @return true, if the given entity type can be counted in the current context.
      */
     private boolean canCountEntityType(EntityType entityType, ListMultimap<EntityType, String> entityTypeToIdsMap, List<Integer> derivedEntityTypes) {
-        return entityTypeToIdsMap.containsKey(entityType) ||
-                derivedEntityTypes.contains(entityType.getSdkEntityType().get().getNumber());
+        return entityTypeToIdsMap.containsKey(entityType)
+                || derivedEntityTypes.contains(entityType.getSdkEntityType().get().getNumber());
     }
 
 }

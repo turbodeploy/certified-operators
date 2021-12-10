@@ -1,7 +1,5 @@
 package com.vmturbo.history.db.bulk;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -19,16 +17,14 @@ import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Insert;
-import org.jooq.InsertOnDuplicateSetStep;
-import org.jooq.InsertSetMoreStep;
+import org.jooq.InsertQuery;
 import org.jooq.InsertValuesStepN;
 import org.jooq.Record;
 import org.jooq.Table;
-import org.jooq.TableField;
 import org.jooq.UpdatableRecord;
+import org.jooq.VisitListener;
 import org.jooq.impl.DSL;
-
-import com.vmturbo.history.db.BasedbIO;
+import org.springframework.dao.DataAccessException;
 
 /**
  * This class defines {@link DbInserter} implementations currently in use in history component.
@@ -44,36 +40,25 @@ public class DbInserters {
      * @param <R> underlying record type
      */
     interface DbInserter<R extends Record> {
-        void insert(Table<R> table, List<R> records, Connection conn) throws SQLException;
+        void insert(Table<R> table, List<R> records, DSLContext dsl) throws DataAccessException;
     }
 
     /**
      * An DbInserter that inserts records via an INSERT statement with multiple inline VALUES
      * clauses.
      *
-     * @param basedbIO DB utils
-     * @param <R>      record type
+     * @param <R> record type
      * @return an inserter configured to insert a batch fo records
      */
-    public static <R extends Record> DbInserter<R> valuesInserter(BasedbIO basedbIO) {
+    public static <R extends Record> DbInserter<R> valuesInserter() {
 
-        return (table, records, conn) -> {
+        return (table, records, dsl) -> {
             final List<Field<?>> fieldList = getFieldList(records);
-            final InsertValuesStepN<R> insert = basedbIO.using(conn).insertInto(getInsertionTable(table))
+            final InsertValuesStepN<R> insert = dsl.insertInto(getInsertionTable(table))
                     .columns(fieldList);
             records.forEach(r -> insert.values(getOrderedValuesArray(r, fieldList)));
             insert.execute();
         };
-    }
-
-    private static <R extends Record> List<R> getRecordsFromData(
-            final Table<R> table, final List<Object[]> recordData) {
-        return recordData.stream()
-                .map(values -> {
-                    final R rec = table.newRecord();
-                    rec.fromArray(values);
-                    return rec;
-                }).collect(Collectors.toList());
     }
 
     /**
@@ -84,17 +69,16 @@ public class DbInserters {
      * an insert statement with multiple inline VALUES clauses. That could change with a different
      * choice of databae, or with soAftware upgrades, so the code will be retained.</p>
      *
-     * @param basedbIO DB utils
      * @param <R>      record type
      * @return an inserter that will insert a batch of records
      */
-    public static <R extends Record> DbInserter<R> batchInserter(BasedbIO basedbIO) {
-        return (table, records, conn) -> {
+    public static <R extends Record> DbInserter<R> batchInserter() {
+        return (table, records, dsl) -> {
             List<Field<?>> fields = getFieldList(records);
-            final InsertValuesStepN<?> insert = basedbIO.using(conn).insertInto(getInsertionTable(table))
+            final InsertValuesStepN<?> insert = dsl.insertInto(getInsertionTable(table))
                     .columns(fields)
                     .values(new Object[fields.size()]); // null values serve as placeholders
-            final BatchBindStep batch = basedbIO.using(conn).batch(insert);
+            final BatchBindStep batch = dsl.batch(insert);
             for (R record : records) {
                 batch.bind(getOrderedValuesArray(record, fields));
             }
@@ -135,16 +119,14 @@ public class DbInserters {
      *     cases where an upsert can be used.</li>
      *
      * </ul>
-     * @param basedbIO DB utilites
      * @param <R>      table record type
      * @return inserter function to apply to record batches
      */
-    public static <R extends Record> DbInserter<R> simpleUpserter(BasedbIO basedbIO) {
-        return (table, records, conn) -> {
-            final DSLContext ctx = basedbIO.using(conn);
-            final Insert<R> upsert = getUpsertStatement(table, records, ctx,
-                Collections.emptySet());
-            ctx.execute(upsert);
+    public static <R extends Record> DbInserter<R> simpleUpserter() {
+        return (table, records, dsl) -> {
+            final Insert<R> upsert = getUpsertStatement(table, records, dsl,
+                    Collections.emptySet());
+            dsl.execute(upsert);
         };
     }
 
@@ -152,40 +134,40 @@ public class DbInserters {
      * Inserter that that performs an "upsert" operation. In addition, it skips updating fields
      * provided in the fieldsToExclude argument.
      *
-     * @param basedbIO DB utilities
      * @param fieldsToExclude the fields that need to be excluded from updates
      * @param <R> table record type
      * @return inserter function to apply to record batches
      */
     public static <R extends Record> DbInserter<R> excludeFieldsUpserter(
-        BasedbIO basedbIO, Set<Field<?>> fieldsToExclude) {
-        return (table, records, conn) -> {
-            final DSLContext ctx = basedbIO.using(conn);
-            final Insert<R> upsert = getUpsertStatement(table, records, ctx, fieldsToExclude);
-            ctx.execute(upsert);
+            Set<Field<?>> fieldsToExclude) {
+        return (table, records, dsl) -> {
+            final Insert<R> upsert = getUpsertStatement(table, records, dsl, fieldsToExclude);
+            dsl.execute(upsert);
         };
     }
 
     private static <R extends Record> Insert<R> getUpsertStatement(Table<R> table,
-                                                                   Collection<R> records,
-                                                                   DSLContext ctx,
-                                                                   Set<Field<?>> fieldsToExclude) {
-        final Insert<R> insert = (Insert<R>)ctx.insertInto(getInsertionTable(table));
-        final Set<TableField<R, ?>> primaryKey = new HashSet<>(table.getPrimaryKey().getFields());
+            Collection<R> records,
+            DSLContext dsl,
+            Set<Field<?>> fieldsToExclude) {
+
+        final Set<Field<?>> primaryKey = new HashSet<>(table.getPrimaryKey().getFields());
+        InsertQuery<R> insert = dsl.insertQuery(getInsertionTable(table));
         records.forEach(r -> {
             // jOOQ's record state management really doesn't make sense for upserts. So to avoid
             // problems we replace each record with an exact copy that will always appear to jOOQ
             // as brand new record.
             R copy = table.newRecord();
             copy.from(r);
-            ((InsertSetMoreStep<R>)insert).set(copy).newRecord();
+            insert.addRecord(copy);
         });
-        ((InsertSetMoreStep<R>)insert).onDuplicateKeyUpdate();
-        Map<Field<?>, Field<?>> updates = Stream.of(table.fields())
+        insert.onDuplicateKeyUpdate(true);
+        Map<Field<?>, ? extends Field<?>> updateFields = Stream.of(table.fields())
                 .filter(f -> !primaryKey.contains(f))
                 .filter(f -> !fieldsToExclude.contains(f))
-                .collect(Collectors.toMap(Functions.identity(), f -> DSL.field(String.format("VALUES(%s)", f.getName()), f.getType())));
-        ((InsertOnDuplicateSetStep<R>)insert).set(updates);
+                .collect(Collectors.toMap(Functions.identity(),
+                        f -> DSL.field(String.format("VALUES(%s)", f.getName()), f.getType())));
+        insert.addValuesForUpdate(updateFields);
         return insert;
     }
 
@@ -196,15 +178,14 @@ public class DbInserters {
      * <p>This inserter can only be used with record types that implement {@link UpdatableRecord}
      * interface.</p>
      *
-     * @param basedbIO DB utils
-     * @param <R>      record type
+     * @param <R> record type
      * @return an inserter that will store a batch of records
      */
-    public static <R extends Record> DbInserter<R> batchStoreInserter(BasedbIO basedbIO) {
-        return (table, records, conn) -> {
-            @SuppressWarnings("checked")
-            final List<UpdatableRecord<?>> castRecords = (List<UpdatableRecord<?>>)records;
-            basedbIO.using(conn).batchStore(castRecords).execute();
+    public static <R extends Record> DbInserter<R> batchStoreInserter() {
+        return (table, records, dsl) -> {
+            @SuppressWarnings("checked") final List<UpdatableRecord<?>> castRecords =
+                    (List<UpdatableRecord<?>>)records;
+            dsl.batchStore(castRecords).execute();
         };
     }
 
@@ -233,13 +214,27 @@ public class DbInserters {
      * a jOOQ insert statement builder, would result in SQL like <code>INSERT INTO table AS transient...</code>
      * whereas we need <code>INSERT INTO transient...</code>.</p>
      *
-     * <p>The table object returned by this method should not be used for anything else, like checking
-     * field, etc.</p>
+     * <p>When this is table instance does, in fact have the default name for its table type, then
+     * the table instance itself is returned. This is important so that the {@link VisitListener}
+     * used in DbCleanupRule during tests correctly records that inserts have been posted
+     * to this table and must be removed.</p>
+     *
      * @param table the transient table object
      * @param <R> the type of the underlying records
      * @return a correctly-named table object
      */
     private static <R extends Record> Table<R> getInsertionTable(Table<R> table) {
-        return (Table<R>)DSL.table(table.getName());
+        try {
+            String nonTransientName = table.getClass().newInstance().getName();
+            if (nonTransientName.equals(table.getName())) {
+                return table;
+            }
+        } catch (InstantiationException | IllegalAccessException e) {
+            throw new org.jooq.exception.DataAccessException(
+                    "Failed to identify table for insertion", e);
+        }
+        Table<R> t = (Table<R>)DSL.table(table.getName());
+        t.fields(table.fields());
+        return t;
     }
 }

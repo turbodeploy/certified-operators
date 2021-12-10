@@ -7,6 +7,7 @@ import java.sql.Timestamp;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.jooq.DSLContext;
 import org.jooq.SortOrder;
 
 import com.vmturbo.commons.TimeFrame;
@@ -27,12 +28,15 @@ public class AvailableTimestampsQuery extends QueryBase {
      * @param limit          max # of results to return, or zero for no limit
      * @param fromInclusive  inclusive lower bound on results
      * @param toExclusive    exclusive upper bound on results
+     * @param dsl            DB access
      */
     public AvailableTimestampsQuery(@Nonnull TimeFrame timeFrame,
             @Nonnull HistoryVariety historyVariety,
             int limit,
             @Nullable Timestamp fromInclusive,
-            @Nullable Timestamp toExclusive) {
+            @Nullable Timestamp toExclusive,
+            @Nonnull DSLContext dsl) {
+        super(dsl);
         if (limit != 1) {
             // if we're getting more than one timestamp, omit duplicates
             setDistinct();

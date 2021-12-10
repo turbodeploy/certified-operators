@@ -9,13 +9,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -26,65 +23,67 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.assertj.core.util.Objects;
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.TableField;
-import org.jooq.impl.DSL;
+import org.jooq.exception.DataAccessException;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.history.db.BasedbIO;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.RecordTransformer;
-import com.vmturbo.history.db.SchemaUtil;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory.RollupKeyTransfomer;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.NotificationsRecord;
-import com.vmturbo.history.stats.DbTestConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Tests of BulkInserter and related classes.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {DbTestConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 public class BulkInserterTest extends Assert {
 
-    @Autowired
-    private DbTestConfig dbTestConfig;
-
-    private static String testDbName;
-    private static HistorydbIO historydbIO;
     private static ExecutorService threadPool;
+    private static BulkInserterConfig config;
     private SimpleBulkLoaderFactory loaders;
 
-    private static BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
-            .batchSize(2)
-            .maxPendingBatches(2)
-            .maxBatchRetries(3)
-            .maxRetryBackoffMsec(1000)
-            .build();
+    private BulkInserterConfig mkConfig(int batchSize) {
+        return ImmutableBulkInserterConfig.builder()
+                .batchSize(batchSize)
+                .maxPendingBatches(2)
+                .maxBatchRetries(3)
+                .maxRetryBackoffMsec(1000)
+                .build();
+    }
+
+    /**
+     * Provision and provide access to a test database.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /**
+     * Clean up tables in the test database before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private final DSLContext dsl = dbConfig.getDslContext();
 
     /**
      * Set up a thread pool for bulk inserters.
@@ -101,23 +100,19 @@ public class BulkInserterTest extends Assert {
      * Tables that are actually changed by any given tests are cleared out after that test, which
      * is much lest costly than tearing the database down and recreating it.</p>
      *
-     * @throws VmtDbException if a database operation fails
+     * @throws DataAccessException if a database operation fails
      */
     @Before
-    public void before() throws VmtDbException {
-        testDbName = dbTestConfig.testDbName();
-        historydbIO = dbTestConfig.historydbIO();
-        HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.setSchemaForTests(testDbName);
-        historydbIO.init(false, null, testDbName, Optional.empty());
+    public void before() throws DataAccessException {
         // entities table starts out with a couple of records during migration that make
         // the tests a little clumsier, so we just get rid of them during setup.
-        try (Connection conn = historydbIO.connection()) {
-            historydbIO.using(conn).deleteFrom(ENTITIES).execute();
-        } catch (SQLException e) {
+        try {
+            dsl.deleteFrom(ENTITIES).execute();
+        } catch (DataAccessException e) {
             e.printStackTrace();
         }
-        loaders = new SimpleBulkLoaderFactory(historydbIO, config, threadPool);
+        config = mkConfig(2);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
     }
 
     /**
@@ -127,37 +122,20 @@ public class BulkInserterTest extends Assert {
      * available after a given test has completed provides a list of every table that received
      * reords during the test, so we just clear out those tables.</p>
      *
-     * @throws VmtDbException if a database operation fails
-     * @throws SQLException   other database operation failures
+     * @throws DataAccessException if a database operation fails
      */
     @After
-    public void after() throws VmtDbException, SQLException {
+    public void after() throws DataAccessException {
         try {
             loaders.close();
-        } catch (InterruptedException e) {
+        } catch (InterruptedException ignored) {
         }
         final BulkInserterFactoryStats stats = loaders.getStats();
         // stats comes back null in some mocked tests
         if (stats != null) {
-            try (Connection conn = historydbIO.connection()) {
-                for (Table table : stats.getOutTables()) {
-                    historydbIO.using(conn).deleteFrom(table).execute();
-                }
+            for (Table table : stats.getOutTables()) {
+                dsl.deleteFrom(table).execute();
             }
-        }
-    }
-
-    /**
-     * Shut down the threadpool and destroy the test database when finished.
-     */
-    @AfterClass
-    public static void afterClass() {
-        threadPool.shutdownNow();
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        } catch (VmtDbException | SQLException e) {
-            e.printStackTrace();
         }
     }
 
@@ -168,7 +146,7 @@ public class BulkInserterTest extends Assert {
      */
     @Test
     public void testSameInstanceForSameTable() {
-        assertTrue(loaders.getLoader(NOTIFICATIONS) == loaders.getLoader(NOTIFICATIONS));
+        assertSame(loaders.getLoader(NOTIFICATIONS), loaders.getLoader(NOTIFICATIONS));
     }
 
     /**
@@ -183,9 +161,9 @@ public class BulkInserterTest extends Assert {
         BulkInserter<NotificationsRecord, NotificationsRecord> keyedLoader
                 = loaders.getFactory().getInserter(
                 "KEY", NOTIFICATIONS, NOTIFICATIONS, RecordTransformer.identity(),
-                DbInserters.batchStoreInserter(historydbIO),
+                DbInserters.batchStoreInserter(),
                 Optional.empty());
-        assertTrue(loaders.getLoader(NOTIFICATIONS) != keyedLoader);
+        assertNotSame(loaders.getLoader(NOTIFICATIONS), keyedLoader);
     }
 
     /**
@@ -197,7 +175,7 @@ public class BulkInserterTest extends Assert {
     @Test
     public void testInserterAndTransfomerConfigurations() {
         final BulkInserterFactory factory = mock(BulkInserterFactory.class);
-        loaders = new SimpleBulkLoaderFactory(historydbIO, factory);
+        loaders = new SimpleBulkLoaderFactory(dsl, factory);
         final ArgumentCaptor<DbInserter> inserterCaptor = ArgumentCaptor.forClass(DbInserter.class);
         final ArgumentCaptor<RecordTransformer> transformerCaptor
                 = ArgumentCaptor.forClass(RecordTransformer.class);
@@ -206,15 +184,15 @@ public class BulkInserterTest extends Assert {
         verify(factory).getInserter(any(Entities.class), any(Entities.class),
                 transformerCaptor.capture(), inserterCaptor.capture());
         assertNotNull(Objects.castIfBelongsToType(inserterCaptor.getValue(),
-                DbInserters.simpleUpserter(historydbIO).getClass()));
-        assertTrue(transformerCaptor.getValue() == RecordTransformer.IDENTITY);
+                DbInserters.simpleUpserter().getClass()));
+        assertSame(transformerCaptor.getValue(), RecordTransformer.IDENTITY);
         reset(factory);
 
         loaders.getLoader(VM_STATS_LATEST);
         verify(factory).getInserter(any(VmStatsLatest.class), any(VmStatsLatest.class),
                 transformerCaptor.capture(), inserterCaptor.capture());
         assertNotNull(Objects.castIfBelongsToType(inserterCaptor.getValue(),
-                DbInserters.valuesInserter(historydbIO).getClass()));
+                DbInserters.valuesInserter().getClass()));
         assertTrue(transformerCaptor.getValue() instanceof RollupKeyTransfomer);
         reset(factory);
 
@@ -222,8 +200,8 @@ public class BulkInserterTest extends Assert {
         verify(factory).getInserter(any(SystemLoad.class), any(SystemLoad.class),
                 transformerCaptor.capture(), inserterCaptor.capture());
         assertNotNull(Objects.castIfBelongsToType(inserterCaptor.getValue(),
-                DbInserters.valuesInserter(historydbIO).getClass()));
-        assertTrue(transformerCaptor.getValue() == RecordTransformer.IDENTITY);
+                DbInserters.valuesInserter().getClass()));
+        assertSame(transformerCaptor.getValue(), RecordTransformer.IDENTITY);
         reset(factory);
     }
 
@@ -235,12 +213,12 @@ public class BulkInserterTest extends Assert {
      * unique key, in in small batches.</p>
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       if database operations fail
+     * @throws DataAccessException       if database operations fail
      */
     @Test
-    public void testSuccessfulFullBatches() throws InterruptedException, VmtDbException {
+    public void testSuccessfulFullBatches() throws InterruptedException, DataAccessException {
         checkRecordLoad(
-                NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(1, 3 * config.batchSize()));
+                NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(1, 3L * config.batchSize()));
     }
 
     /**
@@ -250,11 +228,12 @@ public class BulkInserterTest extends Assert {
      * is partially filled.</p>
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       if a database operation fails
+     * @throws DataAccessException       if a database operation fails
      */
     @Test
-    public void testSuccessfulWithPartialBatch() throws InterruptedException, VmtDbException {
-        checkRecordLoad(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(1, 1 + 3 * config.batchSize()));
+    public void testSuccessfulWithPartialBatch() throws InterruptedException, DataAccessException {
+        checkRecordLoad(NOTIFICATIONS, NOTIFICATIONS.ID,
+                longIdRange(1, 1 + 3L * config.batchSize()));
     }
 
     /**
@@ -265,11 +244,12 @@ public class BulkInserterTest extends Assert {
      * same value for a unique key column, while other batches get unique values.</p>
      *
      * @throws InterruptedException if interuppted
-     * @throws VmtDbException       if database operations fail
+     * @throws DataAccessException       if database operations fail
      */
     @Test
-    public void testWithFailedBatches() throws InterruptedException, VmtDbException {
-        checkRecordLoad(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(1, 1 + 3 * config.batchSize()),
+    public void testWithFailedBatches() throws InterruptedException, DataAccessException {
+        checkRecordLoad(NOTIFICATIONS, NOTIFICATIONS.ID,
+                longIdRange(1, 1 + 3L * config.batchSize()),
                 2, 4);
     }
 
@@ -279,11 +259,14 @@ public class BulkInserterTest extends Assert {
      *
      * @throws InterruptedException if interrupted
      * @throws ExecutionException   if a database operation fails
-     * @throws VmtDbException       other db failures
+     * @throws DataAccessException       other db failures
      */
     @Test
-    public void testParallelLoaders() throws InterruptedException, ExecutionException, VmtDbException {
+    public void testParallelLoaders() throws InterruptedException, ExecutionException, DataAccessException {
         ExecutorService pool = Executors.newFixedThreadPool(4);
+        loaders.close();
+        config = mkConfig(100);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
         List<Future<Void>> futures = new ArrayList<>();
         for (long i = 0; i < 4000; i += 1000) {
             final long finalI = i;
@@ -312,7 +295,7 @@ public class BulkInserterTest extends Assert {
     );
 
     /**
-     * Test that the {@link DbInserter#simpleUpserter(BasedbIO)} inserter works properly.
+     * Test that the {@link DbInserter#simpleUpserter()} inserter works properly.
      *
      * <p>This inserter uses an "upsert" statement - i.e. an INSERT... ON DUPLICATE UPDATE
      * statement in order to either insert or update the supplied records, depending on whether
@@ -324,10 +307,10 @@ public class BulkInserterTest extends Assert {
      * the database, and we look for the changes we made to the intiial batch.</p>
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       if database operations fail
+     * @throws DataAccessException       if database operations fail
      */
     @Test
-    public void testUpserter() throws InterruptedException, VmtDbException {
+    public void testUpserter() throws InterruptedException, DataAccessException {
         final BulkLoader<EntitiesRecord> entitiesLoader = loaders.getLoader(ENTITIES);
         // send in initial batch of records
         entitiesLoader.insertAll(entitiesSet1);
@@ -352,19 +335,15 @@ public class BulkInserterTest extends Assert {
                 finalRecords.stream().map(EntitiesRecord::getId).collect(Collectors.toList()));
         // all records are present, as identified their id columns
         Assert.assertEquals(expectedIds, actualIds);
-        final Map<Long, EntitiesRecord> map
-                = finalRecords.stream()
-                .collect(Collectors.toMap(EntitiesRecord::getId, Functions.identity()));
         // get ids of records in initial batch
         final Set<Long> initialBatchIds = entitiesSet1.stream()
                 .map(EntitiesRecord::getId)
                 .collect(Collectors.toSet());
-        // make ser the initial records contain the display name modification, and others
+        // make sure the initial records contain the display name modification, and others
         // do not.
         Assert.assertTrue(mixedRecords.stream()
                 .allMatch(r -> initialBatchIds.contains(r.getId())
-                        ? r.getDisplayName().startsWith("xxx")
-                        : !r.getDisplayName().startsWith("xxx")));
+                        == r.getDisplayName().startsWith("xxx")));
     }
 
     /**
@@ -375,14 +354,14 @@ public class BulkInserterTest extends Assert {
      * {@link SimpleBulkLoaderFactory}, so the {@link BulkInserterFactory} API is used instead</p>
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       if a database operation fails.
+     * @throws DataAccessException       if a database operation fails.
      */
     @Test
-    public void testBachInserter() throws InterruptedException, VmtDbException {
+    public void testBachInserter() throws InterruptedException, DataAccessException {
         final BulkInserter<NotificationsRecord, NotificationsRecord> loader =
                 loaders.getFactory().getInserter(NOTIFICATIONS, NOTIFICATIONS,
                         RecordTransformer.identity(),
-                        DbInserters.batchInserter(historydbIO));
+                        DbInserters.batchInserter());
         performInserts(loader, NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));
         loaders.close();
         verifyInserts(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));
@@ -399,11 +378,11 @@ public class BulkInserterTest extends Assert {
      * @param <R>            underlying record type
      * @param <T>            underlying (Java) field type
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       if db operation fails
+     * @throws DataAccessException       if db operation fails
      */
     private <R extends Record, T> void checkRecordLoad(
             Table<R> table, TableField<R, T> field, List<T> values, Integer... failingBatches)
-            throws InterruptedException, VmtDbException {
+            throws InterruptedException, DataAccessException {
 
         performInserts(table, field, values, failingBatches);
         loaders.close();
@@ -419,12 +398,12 @@ public class BulkInserterTest extends Assert {
      * @param failingBatches batch number of batches that should have failed
      * @param <R>            underlying record type
      * @param <T>            underlying (java) field value type
-     * @throws VmtDbException if a database operation fails
+     * @throws DataAccessException if a database operation fails
      */
     private <R extends Record, T> void verifyInserts(final Table<R> table,
             final TableField<R, T> field,
             final List<T> values,
-            final Integer... failingBatches) throws VmtDbException {
+            final Integer... failingBatches) throws DataAccessException {
         // verify that the records have the correct field values
         verifyValues(table, field, values, failingBatches);
         // then check some of the basic stats values obtained from the loader
@@ -432,9 +411,8 @@ public class BulkInserterTest extends Assert {
         final long batchCount = (long)Math.ceil((values.size() + 0.0) / config.batchSize());
         assertEquals(batchCount - failingBatches.length, stats.getBatches());
         assertEquals(failingBatches.length, stats.getFailedBatches());
-        Set<Integer> failingBatchSet = toSet(failingBatches);
-        final Integer written = getRecordCount(table);
-        assertEquals((long)written, stats.getWritten());
+        final int written = getRecordCount(table);
+        assertEquals(written, stats.getWritten());
     }
 
     /**
@@ -525,11 +503,11 @@ public class BulkInserterTest extends Assert {
      *                       should not be found in the table)
      * @param <R>            underlying record type
      * @param <T>            type of designated field
-     * @throws VmtDbException if a database operation fails
+     * @throws DataAccessException if a database operation fails
      */
     private <R extends Record, T> void verifyValues(Table<R> table,
             TableField<R, T> field, List<T> values,
-            Integer... failingBatches) throws VmtDbException {
+            Integer... failingBatches) throws DataAccessException {
         Set<Integer> fails = Stream.of(failingBatches).collect(Collectors.toSet());
         // construct list of all the values we expect to find, including only the values supplied
         // for non-failing batches
@@ -546,7 +524,7 @@ public class BulkInserterTest extends Assert {
         // make sure that the expected values are identical to what we find when we retrieve all
         // the records from the database table.
         assertEquals(new HashSet<>(expected),
-                getRecords(table).stream().map(r -> ((R)r).getValue(field)).collect(Collectors.toSet()));
+                getRecords(table).stream().map(r -> r.getValue(field)).collect(Collectors.toSet()));
     }
 
     /**
@@ -554,10 +532,9 @@ public class BulkInserterTest extends Assert {
      *
      * @param table the table
      * @return the record count
-     * @throws VmtDbException if the db operation fails
      */
-    private int getRecordCount(Table<?> table) throws VmtDbException {
-        return (int)historydbIO.execute(DSL.select(DSL.count()).from(table)).getValue(0, 0);
+    private int getRecordCount(Table<?> table) {
+        return dsl.selectCount().from(table).fetchOne(0, Integer.class);
     }
 
     /**
@@ -566,24 +543,11 @@ public class BulkInserterTest extends Assert {
      * @param table the table containing the records
      * @param <R>   underlying record type
      * @return list of retrieved records
-     * @throws VmtDbException if a DB operation fails
      */
-    private <R extends Record> List<R> getRecords(Table<R> table) throws VmtDbException {
-        return (List<R>)historydbIO.execute(DSL.selectFrom(table)).into(table.newRecord().getClass());
-    }
-
-    /**
-     * Create a set out of the given values.
-     *
-     * @param members values to appear in the set
-     * @param <T>     underlying element type
-     * @return the constructed set
-     */
-    private <T> Set<T> toSet(T... members) {
-        final ImmutableSet.Builder builder = new ImmutableSet.Builder<>();
-        for (final T member : members) {
-            builder.add(member);
-        }
-        return builder.build();
+    private <R extends Record> List<R> getRecords(Table<R> table) {
+        @SuppressWarnings("unchecked") List<R> records = (List<R>)dsl.selectFrom(table)
+                .fetch()
+                .into(table.newRecord().getClass());
+        return records;
     }
 }

@@ -1,7 +1,8 @@
 package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
-import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,34 +34,62 @@ public class TestDbConfiguration {
     private final String testSchemaName;
     private final Flyway flyway;
     private final DSLContext dslContext;
+    private final DataSource dataSource;
     private final String dbUrl;
     private final Configuration configuration;
+
+    private static final Map<Schema, TestDbConfiguration> configsBySchema = new HashMap<>();
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            for (TestDbConfiguration config : configsBySchema.values()) {
+                config.flyway.clean();
+            }
+        }));
+    }
 
     /**
      * Constructor.
      *
-     * @param originalSchema original schema (which Jooq has generated sources
-     *         against)
-     * @param testSchemaName Name for the schema to use.
+     * @param originalSchema    original schema (which Jooq has generated sources
+     *                          against)
+     * @param testSchemaName    Name for the schema to use.
      * @param mariaDBProperties maria DB connection properties, if any.
      */
     public TestDbConfiguration(@Nonnull Schema originalSchema,
             @Nonnull String testSchemaName,
             @Nullable String mariaDBProperties) {
         this.testSchemaName = testSchemaName;
-        dbUrl = createDbUrl(mariaDBProperties);
-        final DataSource dataSource = dataSource(dbUrl);
+        dbUrl = createDbUrl(mariaDBProperties, testSchemaName);
+        this.dataSource = dataSource(dbUrl);
         flyway = new Flyway();
         flyway.setSchemas(testSchemaName);
-        flyway.setDataSource(dataSource);
+        flyway.setDataSource(dataSource(createDbUrl(mariaDBProperties, "")));
         final LazyConnectionDataSourceProxy lazyConnectionDataSourceProxy =
                 new LazyConnectionDataSourceProxy(dataSource);
         final TransactionAwareDataSourceProxy transactionAwareDataSourceProxy =
                 new TransactionAwareDataSourceProxy(lazyConnectionDataSourceProxy);
         final DataSourceConnectionProvider connectionProvider =
                 new DataSourceConnectionProvider(transactionAwareDataSourceProxy);
-        configuration = createConfiguration(connectionProvider, originalSchema.getName(), testSchemaName);
+        configuration = createConfiguration(connectionProvider, originalSchema.getName(),
+                testSchemaName);
         this.dslContext = new DefaultDSLContext(configuration);
+    }
+
+    /**
+     * Create an singleton instance for given schema.
+     *
+     * @param originalSchema    schema to be managed
+     * @param testSchemaName    alternative name for schema provisioned for tests
+     * @param mariaDBProperties properties to add to the connection URL
+     * @return instance to use for this schema
+     */
+    public static TestDbConfiguration of(@Nonnull Schema originalSchema,
+            @Nonnull String testSchemaName,
+            @Nullable String mariaDBProperties) {
+        return configsBySchema.computeIfAbsent(originalSchema,
+                _schema ->
+                        new TestDbConfiguration(originalSchema, testSchemaName, mariaDBProperties));
     }
 
     private static DataSource dataSource(@Nonnull String dbUrl) {
@@ -76,11 +105,12 @@ public class TestDbConfiguration {
     }
 
     @Nonnull
-    private static String createDbUrl(@Nullable String mariadbDriverProperties) {
+    private static String createDbUrl(@Nullable String mariadbDriverProperties, String schemaName) {
         return UriComponentsBuilder.newInstance()
                 .scheme("jdbc:mariadb")
                 .host("localhost")
                 .port(3306)
+                .path(schemaName)
                 .query(mariadbDriverProperties == null ? "" : mariadbDriverProperties)
                 .build()
                 .toUriString();
@@ -103,6 +133,7 @@ public class TestDbConfiguration {
 
         return jooqConfiguration;
     }
+
 
     /**
      * Returns schema name that will be used for tests. It is usually based on original schema name
@@ -136,6 +167,16 @@ public class TestDbConfiguration {
     }
 
     /**
+     * Returns Jooq DataSource.
+     *
+     * @return DataSource
+     */
+    @Nonnull
+    public DataSource getDataSource() {
+        return dataSource;
+    }
+
+    /**
      * Returns DB url.
      *
      * @return db url
@@ -154,3 +195,4 @@ public class TestDbConfiguration {
         return configuration;
     }
 }
+

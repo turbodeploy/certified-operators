@@ -48,7 +48,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -74,7 +73,7 @@ import com.vmturbo.sql.utils.pool.HikariPoolMonitor;
 public abstract class SQLDatabaseConfig {
 
     // hardcoded temp db user for checking root user GRANT permissions.
-    private static String turboTestUser = "vmttmpuser";
+    private static final String turboTestUser = "vmttmpuser";
 
     @Value("${enableSecureDBConnection:false}")
     private boolean isSecureDBConnectionRequested;
@@ -128,7 +127,7 @@ public abstract class SQLDatabaseConfig {
     private int dbPoolKeepAliveIntervalMinutes;
 
     @Value("${sqlDialect}")
-    private String sqlDialectName;
+    protected SQLDialect sqlDialect;
 
     @Value("${migrationLocation:}")
     private String migrationLocation;
@@ -168,15 +167,18 @@ public abstract class SQLDatabaseConfig {
     @Primary
     public DataSource dataSource() {
         return dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername,
-                getDBRootPassword(false), dbMinPoolSize, dbMaxPoolSize, false);
+                getDBRootPassword(false), dbMinPoolSize, dbMaxPoolSize, true);
     }
 
     /**
      * Get the DataSource from the given DB url, username and password.
      *
-     * @param dbUrl      Given JDBC connection url.
-     * @param dbUsername Given DB username.
-     * @param dbPassword Given DB password.
+     * @param dbUrl       Given JDBC connection url.
+     * @param dbUsername  Given DB username.
+     * @param dbPassword  Given DB password.
+     * @param minPoolSize minimum pool size
+     * @param maxPoolSize maximum pool size
+     * @param usePool     whether to create a connection pool
      * @return DataSource from which DB connection can be obtained.
      */
     @Nonnull
@@ -188,10 +190,9 @@ public abstract class SQLDatabaseConfig {
                 // Should be logged only once, on container startup
                 logger.info("Initializing pooled database connection source.");
                 final String poolName = DbConnectionPoolConfig.generatePoolName(getDbSchemaName());
-                DataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
-                    dbUrl, dbUsername, dbPassword, minPoolSize, maxPoolSize,
-                    dbPoolKeepAliveIntervalMinutes, poolName);
-                return  dataSource;
+                return DbConnectionPoolConfig.getPooledDataSource(
+                        dbUrl, dbUsername, dbPassword, minPoolSize, maxPoolSize,
+                        dbPoolKeepAliveIntervalMinutes, poolName);
             } else {
                 MariaDbDataSource dataSource = new MariaDbDataSource();
                 // Should be logged only once, on container startup
@@ -206,23 +207,15 @@ public abstract class SQLDatabaseConfig {
         }
     }
 
-    @Bean
-    public LazyConnectionDataSourceProxy lazyConnectionDataSource() {
+    private LazyConnectionDataSourceProxy lazyConnectionDataSource() {
         return new LazyConnectionDataSourceProxy(dataSource());
     }
 
-    @Bean
-    public TransactionAwareDataSourceProxy transactionAwareDataSource() {
+    private TransactionAwareDataSourceProxy transactionAwareDataSource() {
         return new TransactionAwareDataSourceProxy(lazyConnectionDataSource());
     }
 
-    @Bean
-    public DataSourceTransactionManager transactionManager() {
-        return new DataSourceTransactionManager(lazyConnectionDataSource());
-    }
-
-    @Bean
-    public DataSourceConnectionProvider connectionProvider() {
+    private DataSourceConnectionProvider connectionProvider() {
         return new DataSourceConnectionProvider(transactionAwareDataSource());
     }
 
@@ -231,24 +224,22 @@ public abstract class SQLDatabaseConfig {
         return new JooqExceptionTranslator();
     }
 
-    @Bean
-    public DefaultConfiguration configuration() {
+    private DefaultConfiguration configuration() {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
 
         jooqConfiguration.set(connectionProvider());
         jooqConfiguration.set(new Settings()
-            .withRenderNameStyle(RenderNameStyle.LOWER)
-            // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
-            // statement. For example, with false withRenderSchema, statement
-            // "SELECT * FROM vmtdb.entities" will be changed to "SELECT * FROM entities".
-            // And dynamically set schema name in the constructed JDBC connection URL to support
-            // multi-tenant database.
-            .withRenderSchema(false));
+                .withRenderNameStyle(RenderNameStyle.LOWER)
+                // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
+                // statement. For example, with false withRenderSchema, statement
+                // "SELECT * FROM vmtdb.entities" will be changed to "SELECT * FROM entities".
+                // And dynamically set schema name in the constructed JDBC connection URL to support
+                // multi-tenant database.
+                .withRenderSchema(false));
         jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()),
-            JooqTracingInterceptor::new);
+                JooqTracingInterceptor::new);
 
-        SQLDialect dialect = SQLDialect.valueOf(sqlDialectName);
-        jooqConfiguration.set(dialect);
+        jooqConfiguration.set(sqlDialect);
 
         return jooqConfiguration;
     }
@@ -280,11 +271,12 @@ public abstract class SQLDatabaseConfig {
     @Nonnull
     private Flyway flyway(@Nonnull String schemaName, @Nonnull DataSource dataSource) {
         return new FlywayMigrator(Duration.ofMinutes(1),
-            Duration.ofSeconds(5),
-            schemaName,
-            StringUtils.isEmpty(migrationLocation) ? Optional.empty() : Optional.of(migrationLocation),
-            dataSource,
-            flywayCallbacks()
+                Duration.ofSeconds(5),
+                schemaName,
+                StringUtils.isEmpty(migrationLocation) ? Optional.empty()
+                                                       : Optional.of(migrationLocation),
+                dataSource,
+                flywayCallbacks()
         ).migrate();
     }
 
@@ -301,13 +293,16 @@ public abstract class SQLDatabaseConfig {
     @Bean
     public SQLConfigObject getSQLConfigObject() {
         String dbPassword = getDBRootPassword(false);
-        final Optional<UsernamePasswordCredentials> rootCredentials = (dbRootUsername != null && dbPassword != null) ?
-            Optional.ofNullable(new UsernamePasswordCredentials(dbRootUsername, dbPassword)) : Optional.empty();
+        final Optional<UsernamePasswordCredentials> rootCredentials =
+                (dbRootUsername != null && dbPassword != null)
+                ? Optional.ofNullable(new UsernamePasswordCredentials(dbRootUsername, dbPassword))
+                : Optional.empty();
         final Map<SQLDialect, String> driverPropertiesMap = ImmutableMap.of(
                 SQLDialect.MARIADB, mariadbDriverProperties,
                 SQLDialect.MYSQL, mysqlDriverProperties);
-        return new SQLConfigObject(dbHost, dbPort, getDbSchemaName(), rootCredentials, sqlDialectName,
-            isSecureDBConnectionRequested, driverPropertiesMap);
+        return new SQLConfigObject(dbHost, dbPort, getDbSchemaName(), rootCredentials,
+                sqlDialect,
+                isSecureDBConnectionRequested, driverPropertiesMap);
     }
 
     /**
@@ -324,29 +319,42 @@ public abstract class SQLDatabaseConfig {
         // If no db password specified, use root password.
         return dataSourceConfig(dbSchemaName, dbUsername,
                 password.orElseGet(() -> getDBRootPassword(true)),
-                password.isPresent());
+                password.isPresent(), false);
+    }
+
+    @NotNull
+    protected DataSource getUnpooledDataSource(String dbSchemaName, String dbUsername,
+            Optional<String> password) {
+        // If no db password specified, use root password.
+        return dataSourceConfig(dbSchemaName, dbUsername,
+                password.orElseGet(() -> getDBRootPassword(true)),
+                password.isPresent(), true);
     }
 
     /**
-     * Set up DB configuration. If DB connection is available with the provided user credentials and
-     * schema, then access the database in this component with the given user; else if DB connection
-     * is not available with the given schema and user, use root credentials to run flyway migration
+     * Set up DB configuration. If DB connection is available with the provided user credentials
+     * and
+     * schema, then access the database in this component with the given user; else if DB
+     * connection
+     * is not available with the given schema and user, use root credentials to run flyway
+     * migration
      * to create the DB schema and create DB user with the given credentials, and then access the
-     * database in the component using the created user. If password is provided by system (not injected
+     * database in the component using the created user. If password is provided by system (not
+     * injected
      * by user), after failing to establish connection, it will be reset.
      *
-     * @param schemaName Given schema name.
-     * @param dbUsername Given db user name.
-     * @param dbPassword Given db password.
+     * @param schemaName         Given schema name.
+     * @param dbUsername         Given db user name.
+     * @param dbPassword         Given db password.
      * @param isPasswordInjected is password injected by user.
      * @return DataSource from which database connection can be obtained..
      */
     @Nonnull
     public DataSource dataSourceConfig(@Nonnull final String schemaName,
             @Nonnull final String dbUsername, @Nonnull final String dbPassword,
-            final boolean isPasswordInjected) {
+            final boolean isPasswordInjected, boolean suppressPool) {
         DataSource dataSource = dataSource(getSQLConfigObject().getDbUrl(), dbUsername, dbPassword,
-                dbMinPoolSize, dbMaxPoolSize, isConnectionPoolActive);
+                dbMinPoolSize, dbMaxPoolSize, !suppressPool && isConnectionPoolActive);
         try {
             // Test DB connection first with to the schema under given user credentials.
             // We use an un-pooled datasource because otherwise, failures can cause long waits.
@@ -380,15 +388,15 @@ public abstract class SQLDatabaseConfig {
                 // now run flyway using our non-root connection
                 flyway(schemaName, dataSource);
             } else {
-                logger.error("Database connection is not available with root credentials" +
-                        " or doesn't have GRANT permission. Failed " +
-                        "to create db user {} for schema {}.", dbUsername, schemaName);
-                throw new BeanCreationException(dbRootUsername +
-                        " does NOT have GRANT permission to reset component user: " + dbUsername);
+                logger.error("Database connection is not available with root credentials"
+                        + " or doesn't have GRANT permission. Failed "
+                        + "to create db user {} for schema {}.", dbUsername, schemaName);
+                throw new BeanCreationException(dbRootUsername
+                        + " does NOT have GRANT permission to reset component user: " + dbUsername);
             }
         } catch (SQLException e) {
-            logger.error("Database connection is not available with root credentials. Failed " +
-                    "to create db user {} for schema {}.", dbUsername, schemaName);
+            logger.error("Database connection is not available with root credentials. Failed "
+                    + "to create db user {} for schema {}.", dbUsername, schemaName);
             throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }
         return dataSource;
@@ -532,24 +540,24 @@ public abstract class SQLDatabaseConfig {
 
         /**
          * Create a new instance.
-         *  @param dbHost                        host name or IP address of DB server
+         * @param dbHost                        host name or IP address of DB server
          * @param dbPort                        port to access DB server
          * @param dbSchemaName                  DB schema name.
          * @param rootCredentials               authentication rootCredentials for DB
-         * @param sqlDialectName                JOOQ dialect name for DB server
+         * @param sqlDialect                JOOQ dialect name for DB server
          * @param isSecureDBConnectionRequested true if connection should be secure
          * @param driverPropertiesMap           map of driver property strings keyed by dialect
          */
-        public SQLConfigObject(@Nonnull final String dbHost, @Nonnull final int dbPort,
+        public SQLConfigObject(@Nonnull final String dbHost, final int dbPort,
                                @Nonnull String dbSchemaName,
                                @Nonnull final Optional<UsernamePasswordCredentials> rootCredentials,
-                               @Nonnull final String sqlDialectName,
+                               @Nonnull final SQLDialect sqlDialect,
                                final boolean isSecureDBConnectionRequested,
                                @Nonnull final Map<SQLDialect, String> driverPropertiesMap) {
             this.dbHost = dbHost;
             this.dbPort = dbPort;
             this.rootCredentials = rootCredentials;
-            this.sqlDialect = SQLDialect.valueOf(sqlDialectName);
+            this.sqlDialect = sqlDialect;
             this.isSecureDBConnectionRequested = isSecureDBConnectionRequested;
             this.driverPropertiesMap = driverPropertiesMap;
             this.dbRootUrl = createDbUrlBuilder(isSecureDBConnectionRequested).build().toUriString();

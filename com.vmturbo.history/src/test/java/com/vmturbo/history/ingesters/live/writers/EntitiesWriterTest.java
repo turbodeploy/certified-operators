@@ -23,6 +23,7 @@ import com.google.common.base.Functions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
+import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
@@ -35,7 +36,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoaderMock;
 import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -62,10 +62,10 @@ public class EntitiesWriterTest {
     /**
      * Set up for testing.
      *
-     * @throws VmtDbException if db operation fails (shouldn't happen with our mocks)
+     * @throws DataAccessException if db operation fails (shouldn't happen with our mocks)
      */
     @Before
-    public void before() throws VmtDbException {
+    public void before() throws DataAccessException {
         historydbIO = mock(HistorydbIO.class);
         when(historydbIO.getEntityType(anyInt())).thenCallRealMethod();
         // make HistorydbIO#getEntities(oids) lookup the given entity oids in ourx dbMock

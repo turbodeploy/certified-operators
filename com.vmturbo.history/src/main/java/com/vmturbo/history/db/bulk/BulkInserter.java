@@ -2,8 +2,6 @@ package com.vmturbo.history.db.bulk;
 
 import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqErrorMessage;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -24,15 +22,14 @@ import com.google.common.base.Stopwatch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.SharedMetrics.BatchInsertDisposition;
-import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.RecordTransformer;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 
 /**
@@ -115,24 +112,24 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
 
     private final Table<InT> inTable;
     private final Table<OutT> outTable;
-    private final BasedbIO basedbIO;
+    private final DSLContext dsl;
     private final ThrottlingCompletingExecutor<BatchStats> batchCompletionService;
 
     /**
      * create a new inserter instance.
      *
-     * @param basedbIO               basic database methods, including connection creation
-     * @param key                    object to use as a key for this inserter's stats (typically the
-     *                               output table)
-     * @param inTable                table for records of RI type, that will sent to this instance
-     * @param outTable               table for records of RO type, which will be stored to the
-     *                               database
-     * @param config                 config parameters
-     * @param recordTransformer      function to transform input records to output records
-     * @param dbInserter             function to perform batch insertions
+     * @param dsl basic database methods, including connection creation
+     * @param key object to use as a key for this inserter's stats (typically the
+     *         output table)
+     * @param inTable table for records of RI type, that will sent to this instance
+     * @param outTable table for records of RO type, which will be stored to the
+     *         database
+     * @param config config parameters
+     * @param recordTransformer function to transform input records to output records
+     * @param dbInserter function to perform batch insertions
      * @param batchCompletionService completion service for executing batches
      */
-    public BulkInserter(@Nonnull BasedbIO basedbIO,
+    public BulkInserter(@Nonnull DSLContext dsl,
             @Nonnull Object key,
             @Nonnull Table<InT> inTable,
             @Nonnull Table<OutT> outTable,
@@ -140,7 +137,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             @Nonnull RecordTransformer<InT, OutT> recordTransformer,
             @Nonnull DbInserter<OutT> dbInserter,
             @Nonnull ThrottlingCompletingExecutor<BatchStats> batchCompletionService) {
-        this.basedbIO = basedbIO;
+        this.dsl = dsl;
         this.inTable = inTable;
         this.outTable = outTable;
         this.recordTransformer = recordTransformer;
@@ -280,44 +277,40 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         public BatchStats call() throws InterruptedException {
             // time spent either doing work that failed, or backing off before a retry
             long lostTimeNanos = 0L;
+            final long finalLostTimeNanos = lostTimeNanos;
             // perform retries until our retry limit is exhausted
             for (int i = 0; i <= batchRetryBackoffsMsec.length; i++) {
                 Stopwatch operationTimer = Stopwatch.createStarted();
-                try (Connection conn = basedbIO.transConnection()) {
-                    try {
+                try {
+                    return dsl.transactionResult(trans -> {
                         // use our dbInserter to actually perform the operation
-                        dbInserter.insert(outTable, records, conn);
-                    } catch (Exception e) {
-                        // rollback the transaction since closing will only release back to
-                        // connection pool
-                        conn.rollback();
-                        throw e;
-                    }
-                    // commit the results, and record the operation in log and in metrics
-                    conn.commit();
-                    operationTimer.stop();
-                    logger.debug("Wrote batch #{} of {} records to table {} in {}", batchNo,
-                            records.size(), inTable.getName(), operationTimer);
-                    SharedMetrics.RECORDS_WRITTEN_BY_TABLE.labels(inTable.getName())
-                            .increment(((double)records.size()));
-                    SharedMetrics.BATCHED_INSERTS
-                            .labels(inTable.getName(), BatchInsertDisposition.success.name())
-                            .increment();
-                    // no more retries required
-                    // ultimately successful execution... send back stats
-                    long workTimeNanos = operationTimer.elapsed().toNanos();
-                    return BatchStats.goodBatch(records.size(), workTimeNanos, lostTimeNanos);
-                } catch (DataAccessException | VmtDbException | SQLException e) {
+                        dbInserter.insert(outTable, records, trans.dsl());
+                        // commit the results, and record the operation in log and in metrics
+                        operationTimer.stop();
+                        logger.debug("Wrote batch #{} of {} records to table {} in {}", batchNo,
+                                records.size(), inTable.getName(), operationTimer);
+                        SharedMetrics.RECORDS_WRITTEN_BY_TABLE.labels(inTable.getName())
+                                .increment(((double)records.size()));
+                        SharedMetrics.BATCHED_INSERTS
+                                .labels(inTable.getName(), BatchInsertDisposition.success.name())
+                                .increment();
+                        // no more retries required
+                        // ultimately successful execution... send back stats
+                        long workTimeNanos = operationTimer.elapsed().toNanos();
+                        return BatchStats.goodBatch(records.size(), workTimeNanos,
+                                finalLostTimeNanos);
+                    });
+                } catch (DataAccessException e) {
                     // something when wrong
                     operationTimer.stop();
                     lostTimeNanos += operationTimer.elapsed().toNanos();
                     if (i < batchRetryBackoffsMsec.length) {
                         // attempt a retry if we have any left to try
                         logger.warn("Table {}: Failed insertion, batch #{} try #{}; retrying: {}",
-                            inTable.getName(), batchNo, i + 1, trimJooqErrorMessage(e));
+                                inTable.getName(), batchNo, i + 1, trimJooqErrorMessage(e));
                         SharedMetrics.BATCHED_INSERTS
-                            .labels(inTable.getName(), BatchInsertDisposition.retry.name())
-                            .increment();
+                                .labels(inTable.getName(), BatchInsertDisposition.retry.name())
+                                .increment();
                         // sleep through the backoff interval for this retry attempt
                         Stopwatch sleepTimer = Stopwatch.createStarted();
                         Thread.sleep(batchRetryBackoffsMsec[i]);
@@ -335,7 +328,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
                                 .labels(inTable.getName(), BatchInsertDisposition.failure.name())
                                 .increment();
                         // this will cause the task to be counted as a failed execution
-                        return BatchStats.failedBatch(lostTimeNanos);
+                        return BatchStats.failedBatch(finalLostTimeNanos);
                     }
                 }
             }
@@ -393,12 +386,13 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         }
         // close our out table if it's transient
         if (dropOnClose) {
-            try (Connection conn = basedbIO.connection()) {
-                basedbIO.using(conn).dropTable(outTable).execute();
-            } catch (VmtDbException | SQLException | DataAccessException e) {
+            try {
+                dsl.dropTable(outTable).execute();
+            } catch (DataAccessException e) {
                 // create our own logger for this if the caller didn't provide one
                 final Logger log = statsLogger != null ? statsLogger : LogManager.getLogger();
-                log.error("Failed to drop transient bulk inserter table {} when inserter was closed",
+                log.error(
+                        "Failed to drop transient bulk inserter table {} when inserter was closed",
                         outTable.getName(), e);
             }
         }

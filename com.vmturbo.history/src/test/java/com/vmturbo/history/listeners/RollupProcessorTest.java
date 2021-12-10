@@ -14,9 +14,7 @@ import static org.hamcrest.Matchers.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
-import java.sql.Connection;
 import java.sql.Date;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -38,30 +36,24 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Record3;
 import org.jooq.Result;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.SchemaUtil;
-import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
@@ -69,19 +61,25 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.listeners.RollupProcessor.RollupType;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
+import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay;
+import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByHour;
+import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth;
+import com.vmturbo.history.schema.abstraction.tables.PmStatsByDay;
+import com.vmturbo.history.schema.abstraction.tables.PmStatsByHour;
+import com.vmturbo.history.schema.abstraction.tables.PmStatsByMonth;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
-import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Class to test the rollup processor and the stored procs it depends on.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {DbTestConfig.class})
-@DirtiesContext(classMode = ClassMode.AFTER_CLASS)
 public class RollupProcessorTest {
 
     private static final String UUID_FIELD = "uuid";
@@ -119,10 +117,20 @@ public class RollupProcessorTest {
      */
     private static final long RANDOM_SEED = 0L;
 
-    @Autowired
-    private DbTestConfig dbTestConfig;
+    /**
+     * Provision and provide access to a test database.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
 
-    private static HistorydbIO historydbIO;
+    /**
+     * Clean up tables in the test database before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private DSLContext dsl = dbConfig.getDslContext();
+
     private static String testDbName;
     private SimpleBulkLoaderFactory loaders;
     private RollupProcessor rollupProcessor;
@@ -131,24 +139,19 @@ public class RollupProcessorTest {
     /**
      * Create a history database to be used by all tests.
      *
-     * @throws VmtDbException if an error occurs during migrations
+     * @throws DataAccessException if an error occurs during migrations
      */
     @Before
-    public void before() throws VmtDbException {
-        testDbName = dbTestConfig.testDbName();
-        historydbIO = dbTestConfig.historydbIO();
-        HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.setSchemaForTests(testDbName);
-        historydbIO.init(false, null, testDbName, Optional.empty());
+    public void before() throws DataAccessException {
         BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
                 .batchSize(10)
                 .maxBatchRetries(1)
                 .maxRetryBackoffMsec(1000)
                 .maxPendingBatches(1)
                 .build();
-        loaders = new SimpleBulkLoaderFactory(
-                historydbIO, config, Executors.newSingleThreadExecutor());
-        rollupProcessor = new RollupProcessor(historydbIO, Executors.newSingleThreadExecutor());
+        loaders = new SimpleBulkLoaderFactory(dsl, config, Executors.newSingleThreadExecutor());
+        rollupProcessor = new RollupProcessor(dsl, dsl, Executors.newFixedThreadPool(8));
+        RetentionPolicy.init(dsl);
         IdentityGenerator.initPrefix(1L);
     }
 
@@ -183,24 +186,10 @@ public class RollupProcessorTest {
      * @param table table to be truncated
      */
     private void truncateTable(Table<?> table) {
-        try (Connection conn = historydbIO.connection()) {
-            historydbIO.using(conn).truncate(table).execute();
-        } catch (VmtDbException | SQLException e) {
+        try {
+            dsl.truncate(table).execute();
+        } catch (DataAccessException e) {
             LogManager.getLogger(getClass()).warn("Failed truncating table {} after tests", table);
-        }
-    }
-
-    /**
-     * Discard the test database.
-     *
-     * @throws VmtDbException if an error occurs
-     * @throws SQLException if an error occurs
-     */
-    @AfterClass
-    public static void afterClass() throws VmtDbException, SQLException {
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
         }
     }
 
@@ -210,11 +199,11 @@ public class RollupProcessorTest {
      * tables have correct values in all fields.
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       on db error
-     * @throws SQLException         on db error
+     * @throws DataAccessException       on db error
      */
     @Test
-    public void testRollups() throws InterruptedException, VmtDbException, SQLException {
+    @CleanupOverrides(truncate = {PmStatsByHour.class, PmStatsByDay.class, PmStatsByMonth.class})
+    public void testRollups() throws InterruptedException, DataAccessException {
         PmStatsLatestRecord template1 =
                 createTemplateForStatsTimeSeries(Tables.PM_STATS_LATEST, "CPU",
                         PropertySubType.Used.getApiParameterName(), null);
@@ -241,9 +230,15 @@ public class RollupProcessorTest {
         ts1.skipCycle();
         ts1.cycle(3, loader);
         final Aggregator hourly1AM = ts1.reset(HOUR);
-        // now run through the next 22 hours
+        // now run through the next 22 hours, skipping most cycles cuz they slow the test with
+        // little or now benefit
         for (int i = 0; i < 22; i++) {
-            ts1.cycle(6, loader);
+            ts1.cycle(1, loader);
+            ts1.skipCycle();
+            ts1.skipCycle();
+            ts1.skipCycle();
+            ts1.skipCycle();
+            ts1.skipCycle();
         }
         // and finally do daily and monthly rollups for Feb 1
         final Aggregator dailyFeb1 = ts1.reset(DAY);
@@ -265,11 +260,12 @@ public class RollupProcessorTest {
      * tables have correct values in all fields.
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       on db error
-     * @throws SQLException         on db error
+     * @throws DataAccessException       on db error
      */
     @Test
-    public void testClusterRollup() throws InterruptedException, VmtDbException, SQLException {
+    @CleanupOverrides(
+            truncate = {ClusterStatsByHour.class, ClusterStatsByDay.class, ClusterStatsByMonth.class})
+    public void testClusterRollup() throws InterruptedException {
         ClusterStatsLatestRecord template1 =
             createTemplateForClusterStatsTimeSeries(Tables.CLUSTER_STATS_LATEST, "CPU",
                 PropertySubType.Used.getApiParameterName());
@@ -296,9 +292,15 @@ public class RollupProcessorTest {
         ts1.skipCycle();
         ts1.cycle(3, loader);
         final Aggregator hourly1AM = ts1.reset(HOUR);
-        // now run through the next 22 hours
+        // now run through the next 22 hours, skipping most cycles cuz they slow test with little
+        // if any benefit
         for (int i = 0; i < 22; i++) {
-            ts1.cycle(6, loader);
+            ts1.cycle(1, loader);
+            ts1.skipCycle();
+            ts1.skipCycle();
+            ts1.skipCycle();
+            ts1.skipCycle();
+            ts1.skipCycle();
         }
         // and finally do daily and monthly rollups for Feb 1
         final Aggregator dailyFeb1 = ts1.reset(DAY);
@@ -323,16 +325,16 @@ public class RollupProcessorTest {
      * Test that retention processing removes the record related to the only volume from the
      * volume_attachment_history table that is older than retention period.
      *
-     * @throws VmtDbException if error encountered during insertion.
+     * @throws DataAccessException if error encountered during insertion.
      */
     @Test
-    public void testPurgeVolumeAttachmentHistoryRecordsRemoval() throws VmtDbException {
+    public void testPurgeVolumeAttachmentHistoryRecordsRemoval() throws DataAccessException {
         final long currentTime = System.currentTimeMillis();
         final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, 0L, outsideRetentionPeriod,
                 outsideRetentionPeriod);
-        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
+        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(dsl);
         final List<Record3<Long, Long, Date>> records =
                 reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
         Assert.assertFalse(records.isEmpty());
@@ -350,10 +352,10 @@ public class RollupProcessorTest {
      * Test that retention processing does not remove any records related to the volume from the
      * volume_attachment_history table as it has one entry discovered within the retention period.
      *
-     * @throws VmtDbException if error encountered during insertion.
+     * @throws DataAccessException if error encountered during insertion.
      */
     @Test
-    public void testPurgeVolumeAttachmentHistoryRecordsNoRemovals() throws VmtDbException {
+    public void testPurgeVolumeAttachmentHistoryRecordsNoRemovals() throws DataAccessException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);
@@ -368,7 +370,7 @@ public class RollupProcessorTest {
         final MultiStageTimer timer = new MultiStageTimer(logger);
         rollupProcessor.performRetentionProcessing(timer, false);
 
-        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
+        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(dsl);
         final List<Record3<Long, Long, Date>> recordsAfterPurge =
                 reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
         final Record3<Long, Long, Date> record = recordsAfterPurge.iterator().next();
@@ -381,10 +383,10 @@ public class RollupProcessorTest {
      * related to another volume as the former has no entries within the retention period while the
      * latter has one entry within the last retention period.
      *
-     * @throws VmtDbException if error encountered during insertion.
+     * @throws DataAccessException if error encountered during insertion.
      */
     @Test
-    public void testPurgeVolumeAttachmentHistoryRecordsOneRemoval() throws VmtDbException {
+    public void testPurgeVolumeAttachmentHistoryRecordsOneRemoval() throws DataAccessException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);
@@ -403,7 +405,7 @@ public class RollupProcessorTest {
         final MultiStageTimer timer = new MultiStageTimer(logger);
         rollupProcessor.performRetentionProcessing(timer, false);
 
-        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
+        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(dsl);
         final List<Record3<Long, Long, Date>> recordsAfterPurge =
                 reader.getVolumeAttachmentHistory(Stream.of(VOLUME_OID, VOLUME_OID_2)
                         .collect(Collectors.toList()));
@@ -415,16 +417,15 @@ public class RollupProcessorTest {
     private void insertIntoVolumeAttachmentHistoryTable(final long volumeOid, final long vmOid,
             final long lastAttachedTime,
             final long lastDiscoveredTime)
-            throws VmtDbException {
-        historydbIO.execute(Style.IMMEDIATE,
-                HistorydbIO.getJooqBuilder().insertInto(
-                        VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY,
+            throws DataAccessException {
+        dsl.insertInto(VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY,
                         VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VOLUME_OID,
                         VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VM_OID,
                         VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_ATTACHED_DATE,
                         VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE)
-                        .values(volumeOid, vmOid, new Date(lastAttachedTime),
-                                new Date(lastDiscoveredTime)));
+                .values(volumeOid, vmOid, new Date(lastAttachedTime),
+                        new Date(lastDiscoveredTime))
+                .execute();
     }
 
     /**
@@ -443,13 +444,13 @@ public class RollupProcessorTest {
      *                        condition
      * @param propertySubtype property subtype for time-series, or null to omit subtype condition
      * @param <R>             underlying record type
-     * @throws VmtDbException on db error
-     * @throws SQLException   on db error
+     * @throws DataAccessException on db error
+     * @throws DataAccessException   on db error
      */
     private <R extends Record> void checkRollups(
             TimeFrame timeFrame, R template, Aggregator aggregator, Table<R> table,
             @Nullable String uuid, @Nullable String propertyType, @Nullable String propertySubtype)
-            throws VmtDbException, SQLException {
+            throws DataAccessException {
         Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());
         Table<?> rollupTable = getRollupTable(EntityType.fromTable(table).get(), timeFrame);
         Record rollup = retrieveRecord(rollupTable, snapshot, uuid, propertyType, propertySubtype, false);
@@ -470,7 +471,7 @@ public class RollupProcessorTest {
     private <R extends Record> void checkClusterRollup(
             TimeFrame timeFrame, R template, Aggregator aggregator, Table<R> table,
             @Nullable String uuid, @Nullable String propertyType, @Nullable String propertySubtype)
-            throws VmtDbException, SQLException {
+            throws DataAccessException {
         Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());
         Table<?> rollupTable = getRollupTable(EntityType.fromTable(table).get(), timeFrame);
         Record rollup = retrieveRecord(rollupTable, snapshot, uuid, propertyType, propertySubtype, true);
@@ -531,20 +532,19 @@ public class RollupProcessorTest {
      * @param propertySubtype property subtype, or null to not include a property subtype condition
      * @param isClusterStats  whether it is cluster stats or not
      * @return the rollup record
-     * @throws VmtDbException on db error
-     * @throws SQLException   on db error
+     * @throws DataAccessException   on db error
      */
     private Record retrieveRecord(
             Table<?> rollupTable, Timestamp snapshot,
             @Nullable String uuid, @Nullable String propertyType, @Nullable String propertySubtype,
             boolean isClusterStats)
-            throws VmtDbException, SQLException {
+            throws DataAccessException {
         List<Condition> conditions = new ArrayList<>();
         conditions.add(getTimestampField(rollupTable,
             isClusterStats ? RECORDED_ON_FIELD : SNAPSHOT_TIME_FIELD).eq(snapshot));
         if (uuid != null) {
             conditions.add(getStringField(rollupTable,
-                isClusterStats ? INTERNAL_NAME_FIELD : UUID_FIELD).eq(uuid));
+                    isClusterStats ? INTERNAL_NAME_FIELD : UUID_FIELD).eq(uuid));
         }
         if (propertyType != null) {
             conditions.add(getStringField(rollupTable, PROPERTY_TYPE_FIELD).eq(propertyType));
@@ -552,14 +552,11 @@ public class RollupProcessorTest {
         if (propertySubtype != null) {
             conditions.add(getStringField(rollupTable, PROPERTY_SUBTYPE_FIELD).eq(propertySubtype));
         }
-        try (Connection conn = historydbIO.connection()) {
-            Result<?> records = historydbIO.using(conn)
-                    .selectFrom(rollupTable)
-                    .where(conditions)
-                    .fetch();
+        Result<?> records = dsl.selectFrom(rollupTable)
+                .where(conditions)
+                .fetch();
             assertEquals(1, records.size());
             return records.get(0);
-        }
     }
 
     /**

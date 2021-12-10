@@ -5,8 +5,6 @@ import static java.time.temporal.ChronoUnit.HOURS;
 
 import java.io.Reader;
 import java.lang.reflect.Type;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -23,7 +21,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -33,14 +30,13 @@ import com.google.gson.Gson;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.InsertValuesStepN;
+import org.jooq.DSLContext;
+import org.jooq.InsertQuery;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
@@ -53,12 +49,12 @@ import com.vmturbo.history.schema.abstraction.tables.records.IngestionStatusReco
  * what actions to take regarding incoming topology broadcasts.</p>
  */
 class ProcessingStatus {
-    private static Logger logger = LogManager.getLogger(ProcessingStatus.class);
+    private static final Logger logger = LogManager.getLogger(ProcessingStatus.class);
 
     private final int retentionSecs;
     private final int hourlyRollupTimeoutSecs;
-    private final HistorydbIO historydbIO;
-    private Map<Instant, SnapshotStatus> statusMap = new ConcurrentHashMap<>();
+    private final DSLContext dsl;
+    private final Map<Instant, SnapshotStatus> statusMap = new ConcurrentHashMap<>();
     private Instant lastRepartitionTime = Instant.MIN;
 
     Instant getLastRepartitionTime() {
@@ -69,10 +65,10 @@ class ProcessingStatus {
         this.lastRepartitionTime = lastRepartitionTime;
     }
 
-    ProcessingStatus(TopologyCoordinatorConfig config, HistorydbIO historydbIO) {
+    ProcessingStatus(TopologyCoordinatorConfig config, DSLContext dsl) {
         this.retentionSecs = config.topologyRetentionSecs();
         this.hourlyRollupTimeoutSecs = config.hourlyRollupTimeoutSecs();
-        this.historydbIO = historydbIO;
+        this.dsl = dsl;
     }
 
     IngestionStatus expect(TopologyFlavor flavor, TopologyInfo info, String topologyLabel) {
@@ -134,7 +130,7 @@ class ProcessingStatus {
 
     Stream<IngestionStatus> getIngestions(final TopologyFlavor flavor) {
         return getSnapshotTimes()
-                .map(ts -> statusMap.get(ts))
+                .map(statusMap::get)
                 .map(status -> status.getIngestion(flavor))
                 .filter(Objects::nonNull);
     }
@@ -145,7 +141,7 @@ class ProcessingStatus {
 
     Stream<SnapshotStatus> getSnapshots() {
         return statusMap.entrySet().stream()
-                .sorted(Comparator.comparing(Entry::getKey))
+                .sorted(Entry.comparingByKey())
                 .map(Entry::getValue);
     }
 
@@ -184,8 +180,7 @@ class ProcessingStatus {
         Instant hourEnd = hourStart.plus(1, HOURS);
         return getSnapshotTimes()
                 .filter(timestamp -> timestamp.isBefore(hourEnd) && !timestamp.isBefore(hourStart))
-                .map(this::getIngestionTables)
-                .flatMap(Function.identity());
+                .flatMap(this::getIngestionTables);
     }
 
     Stream<Table<?>> getIngestionTables(Instant snapshot) {
@@ -225,27 +220,20 @@ class ProcessingStatus {
             }
         }
         if (!records.isEmpty()) {
-            try (Connection conn = historydbIO.connection()) {
+            try {
                 // the cast is needed because we've broken construction of the insert object across
                 // multiple stmts, and we need to access the interface normally returned by
                 // the first data values have been supplied. It's all the same object under the
                 // covers, just a case where JOOQ's "cascading interfaces" cause some clumsiness
-                final InsertValuesStepN<IngestionStatusRecord> stmt
-                        = (InsertValuesStepN<IngestionStatusRecord>)
-                        historydbIO.using(conn).insertInto(INGESTION_STATUS);
-                records.stream()
-                        // not using method reference below because Roman reported seeing
-                        // IllegalAccessException in some configurtions, due to AbstractRecord
-                        // being package-private
-                        .map(record -> record.intoArray())
-                        .forEach(stmt::values);
-                stmt.onDuplicateKeyUpdate()
-                        .set(INGESTION_STATUS.STATUS,
-                                DSL.field("VALUES({0})",
-                                        INGESTION_STATUS.STATUS.getDataType(),
-                                        INGESTION_STATUS.STATUS))
-                        .execute();
-            } catch (VmtDbException | SQLException | DataAccessException e) {
+                InsertQuery<IngestionStatusRecord> stmt = dsl.insertQuery(INGESTION_STATUS);
+                records.forEach(stmt::addRecord);
+                stmt.onDuplicateKeyUpdate(true);
+                stmt.addValueForUpdate(INGESTION_STATUS.STATUS,
+                        DSL.field("VALUES({0})",
+                                INGESTION_STATUS.STATUS.getDataType(),
+                                INGESTION_STATUS.STATUS));
+                stmt.execute();
+            } catch (DataAccessException e) {
                 logger.error("Failed to persist topology processing status", e);
             }
         }
@@ -270,14 +258,15 @@ class ProcessingStatus {
         // component startup process. We could do this in a retrying manner later.
         final ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
-            try (Connection conn = historydbIO.connection()) {
-                historydbIO.using(conn).selectFrom(INGESTION_STATUS)
-                    .forEach(record -> {
-                        final Instant snapshotTime =
-                            Instant.ofEpochMilli(record.get(INGESTION_STATUS.SNAPSHOT_TIME));
-                        SnapshotStatus status = SnapshotStatus.fromJson(record.getStatus());
-                        statusMap.put(snapshotTime, status);
-                    });
+            try {
+                dsl.selectFrom(INGESTION_STATUS)
+                        .forEach(record -> {
+                            final Instant snapshotTime =
+                                    Instant.ofEpochMilli(
+                                            record.get(INGESTION_STATUS.SNAPSHOT_TIME));
+                            SnapshotStatus status = SnapshotStatus.fromJson(record.getStatus());
+                            statusMap.put(snapshotTime, status);
+                        });
             } catch (Exception e) {
                 logger.error("Failed to load saved topology processing status", e);
             }
@@ -289,7 +278,8 @@ class ProcessingStatus {
      * Creates a readable summary of the currnet processing status, suitable for logging.
      */
     private static class Summary {
-        private static final SimpleDateFormat HOUR_LINE_FORMAT = new SimpleDateFormat("YYYY-MM-dd HH");
+        private static final SimpleDateFormat HOUR_LINE_FORMAT = new SimpleDateFormat(
+                "yyyy-MM-dd HH");
         private static final SimpleDateFormat MINITE_LINE_FORMAT = new SimpleDateFormat("mm ");
 
         private String hourLine = "|";

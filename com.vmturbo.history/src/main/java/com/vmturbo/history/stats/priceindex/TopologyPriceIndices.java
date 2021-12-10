@@ -13,12 +13,12 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.SharedMetrics;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -90,7 +90,7 @@ public class TopologyPriceIndices {
                 }
             }
             visitor.onComplete();
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.error("Error creating connection to persist PriceIndex information to DB", e);
         } catch (RuntimeException e) {
             logger.error("Failed to save PriceIndex information due to exception.", e);

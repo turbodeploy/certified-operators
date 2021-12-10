@@ -11,6 +11,7 @@ import com.google.common.collect.Iterators;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.Condition;
+import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.JoinType;
 import org.jooq.Record;
@@ -32,6 +33,7 @@ import org.jooq.Table;
  * performance.</p>
  */
 public abstract class QueryBase {
+    private final DSLContext dsl;
     private Map<String, JoinSpec> tables = new LinkedHashMap<>();
     private Map<String, Pair<String, IndexHint>> indexHints = new HashMap<>();
     private List<Field<?>> selectFields = new ArrayList<>();
@@ -40,6 +42,14 @@ public abstract class QueryBase {
     private List<Field<?>> groupByFields = new ArrayList<>();
     private int limit = 0;
     private boolean distinct = false;
+
+    /**
+     * Create a new instance.
+     * @param dsl DB access
+     */
+    public QueryBase(DSLContext dsl) {
+        this.dsl = dsl;
+    }
 
     /**
      * Assemble the final query.
@@ -52,8 +62,8 @@ public abstract class QueryBase {
             addDefaultSelectFields();
         }
         final SelectSelectStep<Record> fieldsQuery = distinct
-                ? HistorydbIO.getJooqBuilder().selectDistinct(selectFields)
-                : HistorydbIO.getJooqBuilder().select(selectFields);
+                ? dsl.selectDistinct(selectFields)
+                : dsl.select(selectFields);
         final SelectJoinStep<Record> tablesQuery;
         if (!tables.isEmpty()) {
             // first table is guaranteed to not include a join specification

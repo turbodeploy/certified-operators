@@ -22,8 +22,8 @@ import com.google.common.collect.Lists;
 
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
-import org.jooq.InsertSetStep;
 import org.jooq.Record;
+import org.jooq.exception.DataAccessException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -38,7 +38,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -95,7 +94,6 @@ public class LiveStatsWriterTest {
 
         // mock the response to fetching
         mockEntitiesRecord = Mockito.mock(EntitiesRecord.class);
-        when(mockHistorydbIO.getCommodityInsertStatement(any())).thenReturn((InsertSetStep<Record>)mockInsertStep);
 
         // mock entity type lookup utilities
         when(mockHistorydbIO.getEntityType(vmEntityTypeNumber)).thenReturn(
@@ -161,7 +159,7 @@ public class LiveStatsWriterTest {
 
     }
 
-    private void verifyEntityWasUpdated() throws VmtDbException {
+    private void verifyEntityWasUpdated() throws DataAccessException {
         // check types for known entities
         verify(mockHistorydbIO, times(1)).getEntities(any());
         // don't persist the entity
@@ -170,8 +168,6 @@ public class LiveStatsWriterTest {
         // one test for entity type
         verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());
         // write aggregate stats and market stats in one chunk
-        verify(mockHistorydbIO, times(1)).execute(any(HistorydbIO.Style.class),
-                any(List.class));
         verifyNoMoreInteractions(mockDSLContext);
     }
 
@@ -218,7 +214,6 @@ public class LiveStatsWriterTest {
         // look up to calculate _latest table
         verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());
         // write aggregate stats and market stats
-        verify(mockHistorydbIO, times(1)).execute(any(HistorydbIO.Style.class), any(List.class));
         verifyNoMoreInteractions(mockDSLContext);
     }
 
@@ -228,7 +223,7 @@ public class LiveStatsWriterTest {
      * @param displayName the displayName to return; or null indicating no entries in the result
      * @param clsName class name to return
      */
-    private void setupEntitiesTableQuery(String displayName, String clsName) throws VmtDbException {
+    private void setupEntitiesTableQuery(String displayName, String clsName) throws DataAccessException {
 
         ImmutableMap.Builder<Long, EntitiesRecord> allEntitiesMapBuilder =
                 new ImmutableMap.Builder<>();
@@ -241,7 +236,7 @@ public class LiveStatsWriterTest {
         when(mockHistorydbIO.getEntities(any())).thenReturn(allEntitiesMap);
     }
 
-    private void verifyEntityWasNotUpdated() throws VmtDbException {
+    private void verifyEntityWasNotUpdated() throws DataAccessException {
         // check types for all known the entities
         verify(mockHistorydbIO, times(1)).getEntities(any());
         // don't persist the entity
@@ -250,10 +245,9 @@ public class LiveStatsWriterTest {
         // one test for entity type
         verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());
         // One execute() to insert the aggregate stats and market stats (chunked)
-        verify(mockHistorydbIO, times(1)).execute(any(HistorydbIO.Style.class),
-                any(List.class));
         verifyNoMoreInteractions(mockDSLContext);
     }
+
     /**
      * Create a {@link TopologyEntityDTO} with the given entity type and oid.
      *
@@ -263,8 +257,8 @@ public class LiveStatsWriterTest {
      * @param displayName the human-facing name from dicovery
      * @return a new {@link TopologyEntityDTO} with the given entity type and oid
      */
-    private TopologyEntityDTO buildEntityDTO(EntityDTO.EntityType sdkEntityType,long newOID,
-                                             String displayName) {
+    private TopologyEntityDTO buildEntityDTO(EntityDTO.EntityType sdkEntityType, long newOID,
+            String displayName) {
         return TopologyEntityDTO.newBuilder()
                 .setOid(newOID)
                 .setEntityType(sdkEntityType.getNumber())

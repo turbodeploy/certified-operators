@@ -10,17 +10,11 @@ import static com.vmturbo.history.schema.RetentionUtil.PERCENTILE_RETENTION_POLI
 import static com.vmturbo.history.schema.RetentionUtil.SYSTEM_LOAD_RETENTION_POLICY_NAME;
 import static com.vmturbo.history.schema.abstraction.Tables.AVAILABLE_TIMESTAMPS;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import com.google.common.base.Functions;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
@@ -38,40 +32,52 @@ import com.vmturbo.history.schema.abstraction.tables.records.RetentionPoliciesRe
 /**
  * This class mimics the retention_policies DB table and provides related utility methods.
  */
-public enum RetentionPolicy {
-    /**
-     * Retention policy for all the _latest entity stats tables.
-     */
-    LATEST_STATS(LATEST_STATS_RETENTION_POLICY_NAME),
-    /**
-     * Retention policy for all the _by_hour entity stats tables.
-     */
-    HOURLY_STATS(HOURLY_STATS_RETENTION_POLICY_NAME),
-    /**
-     * Retention policy for all the _by_day entity stats tables.
-     */
-    DAILY_STATS(DAILY_STATS_RETENTION_POLICY_NAME),
-    /**
-     * Retention policy for all the _by_month entity stats tables.
-     */
-    MONTHLY_STATS(MONTHLY_STATS_RETENTION_POLICY_NAME),
-    /**
-     * Retention policy for system_load data.
-     */
-    SYSTEM_LOAD(SYSTEM_LOAD_RETENTION_POLICY_NAME),
-    /**
-     * Retention policy for percentile data.
-     */
-    PERCENTILE(PERCENTILE_RETENTION_POLICY_NAME);
-
+public class RetentionPolicy {
     private static Logger logger = LogManager.getLogger();
 
     // map of keys to enum values
-    private static Map<String, RetentionPolicy> keyToPolicy = Stream.of(values())
-            .collect(Collectors.toMap(RetentionPolicy::getKey, Functions.identity()));
+    private static final Map<String, RetentionPolicy> keyToPolicy = new HashMap<>();
 
     // map of policy enums to policy data loaded from DB
     private static Map<RetentionPolicy, Pair<Integer, ChronoUnit>> retentionPeriods;
+
+
+    /**
+     * Retention policy for all the _latest entity stats tables.
+     */
+    public static final RetentionPolicy LATEST_STATS = new RetentionPolicy(
+            LATEST_STATS_RETENTION_POLICY_NAME);
+    /**
+     * Retention policy for all the _by_hour entity stats tables.
+     */
+    public static final RetentionPolicy HOURLY_STATS = new RetentionPolicy(
+            HOURLY_STATS_RETENTION_POLICY_NAME);
+
+    /**
+     * Retention policy for all the _by_day entity stats tables.
+     */
+    public static final RetentionPolicy DAILY_STATS = new RetentionPolicy(
+            DAILY_STATS_RETENTION_POLICY_NAME);
+
+    /**
+     * Retention policy for all the _by_month entity stats tables.
+     */
+    public static final RetentionPolicy MONTHLY_STATS = new RetentionPolicy(
+            MONTHLY_STATS_RETENTION_POLICY_NAME);
+
+    /**
+     * Retention policy for system_load data.
+     */
+    public static final RetentionPolicy SYSTEM_LOAD = new RetentionPolicy(
+            SYSTEM_LOAD_RETENTION_POLICY_NAME);
+
+    /**
+     * Retention policy for percentile data.
+     */
+    public static final RetentionPolicy PERCENTILE = new RetentionPolicy(
+            PERCENTILE_RETENTION_POLICY_NAME);
+
+    private static DSLContext dsl;
 
     private final String key;
 
@@ -82,6 +88,19 @@ public enum RetentionPolicy {
      */
     RetentionPolicy(String key) {
         this.key = key;
+        keyToPolicy.put(key, this);
+    }
+
+    /**
+     * Provide a {@link DSLContext} for database access.
+     *
+     * <p>This kicks of an initial load of retention data from the database.</p>
+     *
+     * @param dsl DB access
+     */
+    public static void init(DSLContext dsl) {
+        RetentionPolicy.dsl = dsl;
+        getRetentionData();
     }
 
     /**
@@ -129,7 +148,8 @@ public enum RetentionPolicy {
             ChronoUnit unit = data.get(this).getRight();
             return RetentionUtil.getExpiration(t, unit, period);
         } else {
-            throw new IllegalStateException(String.format("No retention policy data loaded for policy %s", name()));
+            throw new IllegalStateException(
+                    String.format("No retention policy data loaded for policy %s", key));
         }
     }
 
@@ -163,11 +183,8 @@ public enum RetentionPolicy {
         if (retentionPeriods == null) {
             // no loaded retention data, so load it now
             retentionPeriods = new HashMap<>();
-            HistorydbIO historydbIO = (HistorydbIO)HistorydbIO.instance();
-            try (Connection conn = historydbIO.connection()) {
-                Result<RetentionPoliciesRecord> records = historydbIO.using(conn)
-                        .selectFrom(Tables.RETENTION_POLICIES)
-                        .fetch();
+            try {
+                Result<RetentionPoliciesRecord> records = dsl.fetch(Tables.RETENTION_POLICIES);
                 for (RetentionPoliciesRecord record : records) {
                     RetentionPolicy policy = RetentionPolicy.forKey(record.getPolicyName());
                     if (policy == null) {
@@ -180,13 +197,14 @@ public enum RetentionPolicy {
                     try {
                         unit = ChronoUnit.valueOf(record.getUnit());
                     } catch (IllegalArgumentException e) {
-                        logger.error("Invalid unit in retention_policies table: {}", record.getUnit());
+                        logger.error("Invalid unit in retention_policies table: {}",
+                                record.getUnit());
                         continue;
                     }
                     int period = record.getRetentionPeriod();
                     retentionPeriods.put(policy, Pair.of(period, unit));
                 }
-            } catch (VmtDbException | SQLException | DataAccessException e) {
+            } catch (DataAccessException e) {
                 logger.error("Failed to load retention policy data", e);
             }
         }
@@ -194,31 +212,31 @@ public enum RetentionPolicy {
     }
 
     /**
-     * Recompute expiration timestamps for records in available_timestamps table, called when we're notified that the
+     * Recompute expiration timestamps for records in available_timestamps table, called when we're
+     * notified that the
      * retention policies have changed in the database.
      */
     private static void updateAvailableTimestampExpiration() {
-        HistorydbIO historydbIO = (HistorydbIO)HistorydbIO.instance();
-        try (Connection conn = historydbIO.transConnection()) {
-            DSLContext ctx = historydbIO.using(conn);
-            Result<AvailableTimestampsRecord> records = ctx.selectFrom(AVAILABLE_TIMESTAMPS).fetch();
-            records.stream()
-                    .filter(r -> r.getHistoryVariety().equals(ENTITY_STATS.name())
-                            || r.getHistoryVariety().equals(PRICE_DATA.name()))
-                    .forEach(r -> updateExpiration(r, ctx));
-            conn.commit();
-        } catch (VmtDbException | SQLException | DataAccessException e) {
-            logger.error("Failed to update available_snapshots entries on retention settings change");
+        try {
+            dsl.transaction(trans -> {
+                trans.dsl().selectFrom(AVAILABLE_TIMESTAMPS)
+                        .fetch().stream()
+                        .filter(r -> r.getHistoryVariety().equals(ENTITY_STATS.name())
+                                || r.getHistoryVariety().equals(PRICE_DATA.name()))
+                        .forEach(r -> updateExpiration(r, trans.dsl()));
+            });
+        } catch (DataAccessException e) {
+            logger.error(
+                    "Failed to update available_snapshots entries on retention settings change");
         }
     }
 
     /**
      * Update the expiration time in the given record from available_timestamps table.
-     *
-     * @param record the available_timestamps record
-     * @param ctx    jOOQ DSL context to use
+     *  @param record the available_timestamps record
+     * @param dsl jOOQ DSL context to use
      */
-    private static void updateExpiration(AvailableTimestampsRecord record, DSLContext ctx) {
+    private static void updateExpiration(AvailableTimestampsRecord record, DSLContext dsl) {
         RetentionPolicy policy;
         TimeFrame timeFrame = TimeFrame.valueOf(record.getTimeFrame());
         switch (timeFrame) {
@@ -239,7 +257,7 @@ public enum RetentionPolicy {
                 return;
         }
         Instant expiration = policy.getExpiration(record.getTimeStamp().toInstant());
-        ctx.update(AVAILABLE_TIMESTAMPS)
+        dsl.update(AVAILABLE_TIMESTAMPS)
                 .set(AVAILABLE_TIMESTAMPS.EXPIRES_AT, Timestamp.from(expiration))
                 .where(AVAILABLE_TIMESTAMPS.TIME_STAMP.eq(record.getTimeStamp()),
                         AVAILABLE_TIMESTAMPS.TIME_FRAME.eq(record.getTimeFrame()),

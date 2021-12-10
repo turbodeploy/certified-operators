@@ -12,7 +12,6 @@ import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
 import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
-import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -25,14 +24,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RecordTransformer;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 
@@ -69,31 +68,33 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
             CLUSTER_STATS_BY_DAY,
             CLUSTER_STATS_BY_MONTH);
 
+    private DSLContext dsl;
+
     // we delegate to this factory for all the writers we create
     private final BulkInserterFactory factory;
-
-    private final BasedbIO basedbIO;
 
     /**
      * Create a new instance.
      *
-     * @param basedbIO      base db utilities
+     * @param dsl base db utilities
      * @param defaultConfig config to be used by default when creating inserters
-     * @param executor      executor service to manage concurrent statement executions
+     * @param executor executor service to manage concurrent statement executions
      */
-    public SimpleBulkLoaderFactory(final @Nonnull BasedbIO basedbIO,
-                                   final @Nonnull BulkInserterConfig defaultConfig,
-                                   final @Nonnull ExecutorService executor) {
-        this(basedbIO, new BulkInserterFactory(basedbIO, defaultConfig, executor));
+    public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
+            final @Nonnull BulkInserterConfig defaultConfig,
+            final @Nonnull ExecutorService executor) {
+        this(dsl, new BulkInserterFactory(dsl, defaultConfig, executor));
     }
 
-    /** Create a new instance, supplying a BulkInserterFactory instance.
-     * @param basedbIO      base db utilities
-     * @param factory       underlying BulkInserterFactory instance
+    /**
+     * Create a new instance, supplying a BulkInserterFactory instance.
+     *
+     * @param dsl base db utilities
+     * @param factory underlying BulkInserterFactory instance
      */
-    public SimpleBulkLoaderFactory(final @Nonnull BasedbIO basedbIO,
-                                   final @Nonnull BulkInserterFactory factory) {
-        this.basedbIO = basedbIO;
+    public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
+            final @Nonnull BulkInserterFactory factory) {
+        this.dsl = dsl;
         this.factory = factory;
     }
 
@@ -168,14 +169,13 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * @param postTableCreateOp a function to perform operations on the table after it has been created
      * @param <R>               record type of underlying and transient tables
      * @return the transient table, as a jOOQ {@link Table} instance
-     * @throws SQLException if there's a database error creating the table
      * @throws InstantiationException if we can't create the jOOQ table object
-     * @throws VmtDbException if there's a problem with DB connection
+     * @throws DataAccessException if there's a problem with DB connection
      * @throws IllegalAccessException if we can't create the jOOQ tabel object
      */
     public <R extends Record> BulkLoader<R> getTransientLoader(
             final @Nonnull Table<R> table, TableOperation<R> postTableCreateOp)
-            throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
+            throws InstantiationException, DataAccessException, IllegalAccessException {
         return factory.getTransientInserter(
                 table, table, getRecordTransformer(table), getDbInserter(table,
                 Collections.emptySet()),
@@ -196,13 +196,13 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
         if (ENTITIES == table || HIST_UTILIZATION == table) {
             // Entities table uses upserts so that previously existing entities get any changes
             // to display name that show up in the topology.
-            return simpleUpserter(basedbIO);
+            return simpleUpserter();
         } else if (VOLUME_ATTACHMENT_HISTORY == table) {
-            return excludeFieldsUpserter(basedbIO, fieldsToExclude);
+            return excludeFieldsUpserter(fieldsToExclude);
         } else {
             // nothing else currently using bulk loader should ever have a primary key collision,
             // so straight inserts are used.
-            return valuesInserter(basedbIO);
+            return valuesInserter();
         }
     }
 

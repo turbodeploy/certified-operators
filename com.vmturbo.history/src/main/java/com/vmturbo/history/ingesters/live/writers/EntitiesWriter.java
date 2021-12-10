@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -19,7 +20,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
@@ -68,7 +68,7 @@ public class EntitiesWriter extends TopologyWriterBase {
         final Map<Long, EntitiesRecord> knownChunkEntities;
         try {
             knownChunkEntities = new HashMap<>(historydbIO.getEntities(entityOids));
-        } catch (VmtDbException e) {
+        } catch (DataAccessException e) {
             logger.warn("Failed to retrieve known entities from topology broadcast chunk; "
                             + "will discontinue writing entities for broadcast {}",
                     infoSummary);

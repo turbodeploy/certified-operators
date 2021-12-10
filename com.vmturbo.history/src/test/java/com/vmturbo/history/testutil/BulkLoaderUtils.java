@@ -3,7 +3,8 @@ package com.vmturbo.history.testutil;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.vmturbo.history.db.HistorydbIO;
+import org.jooq.DSLContext;
+
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 
@@ -16,11 +17,11 @@ public class BulkLoaderUtils {
 
     /**
      * Create a bulk loader factory.
-     * @param historydbIO DB methods
+     * @param dsl DB access
      * @return the new factory
      */
-    public static SimpleBulkLoaderFactory getRecordWriterFactory(HistorydbIO historydbIO) {
-        return new SimpleBulkLoaderFactory(historydbIO, getConfig(), getRecordWritersThreadPool());
+    public static SimpleBulkLoaderFactory getRecordWriterFactory(DSLContext dsl) {
+        return new SimpleBulkLoaderFactory(dsl, getConfig(), getRecordWritersThreadPool());
     }
 
     public static ExecutorService getRecordWritersThreadPool() {

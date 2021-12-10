@@ -10,9 +10,9 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.jooq.Record;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.history.db.VmtDbException;
 
 /**
  * {@link INonPaginatingStatsReader} reads records from the database.
@@ -34,10 +34,10 @@ public interface INonPaginatingStatsReader<R extends Record> {
      *                 filter data in database.
      * @return collection of records with data related to specified entities and filtered by
      *                 conditions in specified filter instance.
-     * @throws VmtDbException in case data reading process has been broken due to
+     * @throws DataAccessException in case data reading process has been broken due to
      *                 issues with DB connection.
      */
     @Nonnull
     List<R> getRecords(@Nonnull Set<String> entityIds, @Nonnull StatsFilter statsFilter)
-                    throws VmtDbException;
+                    throws DataAccessException;
 }

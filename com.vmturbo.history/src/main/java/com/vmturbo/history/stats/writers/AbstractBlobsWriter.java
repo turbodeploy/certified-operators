@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import com.google.protobuf.ByteString;
 
@@ -23,13 +24,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.TableField;
+import org.jooq.conf.Settings;
+import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
 
 import com.vmturbo.components.common.utils.ThrowingConsumer;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -44,7 +46,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 public abstract class AbstractBlobsWriter<P, C, W extends Record> implements StreamObserver<C> {
     private final StreamObserver<P> responseObserver;
     private final Logger logger = LogManager.getLogger();
-    private final HistorydbIO historydbIO;
+    private final DataSource dataSource;
     private final DataMetricTimer dataMetricTimer;
     private final DataMetricSummary metric;
     private final Table<W> blobsTable;
@@ -61,14 +63,14 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
      *
      * @param responseObserver provides information about errors to the client side that called
      *                          blobs writer instance.
-     * @param historydbIO provides connection to database.
+     * @param dataSource provides connection to database.
      * @param metric the {@link DataMetricSummary} recording the performance.
      * @param blobsTable the database table storing the data blobs.
      */
     public AbstractBlobsWriter(@Nonnull StreamObserver<P> responseObserver,
-            @Nonnull HistorydbIO historydbIO, @Nonnull DataMetricSummary metric,
+            @Nonnull DataSource dataSource, @Nonnull DataMetricSummary metric,
             @Nonnull TableImpl<W> blobsTable) {
-        this.historydbIO = Objects.requireNonNull(historydbIO, "HistorydbIO should not be null");
+        this.dataSource = Objects.requireNonNull(dataSource, "DataSource should not be null");
         this.responseObserver = Objects.requireNonNull(responseObserver,
                         "Response observer should not be null");
         dataMetricTimer = metric.startTimer();
@@ -88,9 +90,9 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
                 return;
             }
             if (connection == null) {
-                connection = historydbIO.transConnection();
+                connection = dataSource.getConnection();
                 startTimestamp = startTimestampMs;
-                context = historydbIO.JooqBuilder();
+                context = DSL.using(connection, SQLDialect.MARIADB, new Settings().withRenderSchema(false));
                 try (PreparedStatement deleteExistingRecords = this.connection.prepareStatement(
                         context.deleteFrom(blobsTable).where(getStartTimestampField().eq(startTimestampMs)).getSQL())) {
                     deleteExistingRecords.setLong(1, startTimestampMs);
@@ -100,7 +102,7 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
             final byte[] bytes = writeChunk(connection, context, processedChunks, chunk);
             totalBytesWritten += bytes.length;
             processedChunks++;
-        } catch (IOException | SQLException | VmtDbException ex) {
+        } catch (IOException | SQLException ex) {
             closeResources(new CloseResourceHandler(ex));
         }
     }

@@ -32,7 +32,8 @@ import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
         "authRetryDelaySecs=10",
         "authHost=auth",
         "serverGrpcPort=8080",
-        "grpcPingIntervalSeconds=100"
+        "grpcPingIntervalSeconds=100",
+        "sqlDialect=MARIADB"
 })
 @ContextConfiguration
 public class ControllableConfigTest {

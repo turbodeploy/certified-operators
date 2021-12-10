@@ -13,13 +13,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
-import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.mockito.Mockito;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -44,14 +41,14 @@ public class PlanStatsAggregatorTest {
     private static PlanStatsAggregator aggregator;
     private static List<MktSnapshotsStatsRecord> records;
 
-    private static long CONTEXT_ID = 6666666;
-    private static String PREFIX = STAT_PREFIX_CURRENT;
-    private static double CPU_CAPACITY = 111.111;
-    private static double CPU_MIN = 10;
-    private static double CPU_MID = 20;
-    private static double CPU_MAX = 30;
-    private static double VCPU_OVERCOMMITMENT_VAL = 0.5;
-    private static double VMEM_OVERCOMMITMENT_VAL = 1.2;
+    private static final long CONTEXT_ID = 6666666;
+    private static final String PREFIX = STAT_PREFIX_CURRENT;
+    private static final double CPU_CAPACITY = 111.111;
+    private static final double CPU_MIN = 10;
+    private static final double CPU_MID = 20;
+    private static final double CPU_MAX = 30;
+    private static final double VCPU_OVERCOMMITMENT_VAL = 0.5;
+    private static final double VMEM_OVERCOMMITMENT_VAL = 1.2;
     private static final long DEFAULT_PROVIDER_ID = 999;
     private static final double DELTA = 0.01;
 
@@ -87,7 +84,7 @@ public class PlanStatsAggregatorTest {
             .setTopologyContextId(CONTEXT_ID)
             .setTopologyId(200)
             .build();
-        HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class), null, new PoolProperties());
+        HistorydbIO historydbIO = new HistorydbIO(null, null);
         aggregator = new PlanStatsAggregator(null, historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1, unplacedVm));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2, suspendedVm));
@@ -184,9 +181,9 @@ public class PlanStatsAggregatorTest {
                 .contains("NumCPUs")).findFirst().get();
 
         Assert.assertEquals(PREFIX + "NumCPUs", numCPUsStats.getPropertyType());
-        Assert.assertTrue(18 == numCPUsStats.getMaxValue());
-        Assert.assertTrue(18 == numCPUsStats.getMinValue());
-        Assert.assertTrue(18 == numCPUsStats.getAvgValue());
+        Assert.assertEquals(18, numCPUsStats.getMaxValue(), 0.0);
+        Assert.assertEquals(18, numCPUsStats.getMinValue(), 0.0);
+        Assert.assertEquals(18, numCPUsStats.getAvgValue(), 0.0);
     }
 
     /**

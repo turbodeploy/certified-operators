@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils;
 import java.time.Instant;
 
 import javax.annotation.Nonnull;
+import javax.sql.DataSource;
 
 import org.jooq.DSLContext;
 import org.jooq.Schema;
@@ -49,7 +50,7 @@ public class DbConfigurationRule extends ExternalResource {
     public DbConfigurationRule(@Nonnull Schema originalSchema) {
         String testSchemaName = String.join("_", originalSchema.getName(), "test",
                 String.valueOf(Instant.now().toEpochMilli()));
-        this.dbConfig = new TestDbConfiguration(originalSchema, testSchemaName, "");
+        this.dbConfig = TestDbConfiguration.of(originalSchema, testSchemaName, "");
         this.schema = originalSchema;
     }
 
@@ -66,13 +67,7 @@ public class DbConfigurationRule extends ExternalResource {
 
     @Override
     protected void before() {
-        dbConfig.getFlyway().clean();
         dbConfig.getFlyway().migrate();
-    }
-
-    @Override
-    protected void after() {
-        dbConfig.getFlyway().clean();
     }
 
     /**
@@ -83,5 +78,15 @@ public class DbConfigurationRule extends ExternalResource {
     @Nonnull
     public DSLContext getDslContext() {
         return dbConfig.getDslContext();
+    }
+
+    /**
+     * Returns Jooq DataSource.
+     *
+     * @return DataSource
+     */
+    @Nonnull
+    public DataSource getDataSource() {
+        return dbConfig.getDataSource();
     }
 }

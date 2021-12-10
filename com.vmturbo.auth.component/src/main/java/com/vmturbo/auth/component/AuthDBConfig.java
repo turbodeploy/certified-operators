@@ -257,7 +257,7 @@ public class AuthDBConfig extends SQLDatabaseConfig {
         }
         // Get DataSource from the given DB schema name and user. Make sure we have the proper user
         // here. If the user does not exist, create it under root connection.
-        DataSource dataSource = dataSourceConfig(dbSchemaName, authDbUsername, dbPassword, isPasswordInjected);
+        DataSource dataSource = dataSourceConfig(dbSchemaName, authDbUsername, dbPassword, isPasswordInjected, false);
 
         // Ensure the connection is available before proceeding.
         while (true) {

@@ -55,9 +55,11 @@ import com.google.common.collect.Iterators;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
@@ -79,10 +81,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.queries.ClusterStatsQuery;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor;
@@ -101,7 +100,7 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRang
 public class ClusterStatsReader {
     private static final Logger logger = LogManager.getLogger();
 
-    private final HistorydbIO historydbIO;
+    private final DSLContext dsl;
     private final ClusterTimeRangeFactory clusterTimeRangeFactory;
     private final DefaultTimeRangeFactory defaultTimeRangeFactory;
     private final ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory;
@@ -112,7 +111,7 @@ public class ClusterStatsReader {
      * Containment in this set is case-insensitive.
      */
     private static final Set<String> STATS_STORED_IN_TWO_RECORDS;
-    private int maxAmountOfEntitiesPerGrpcMessage;
+    private final int maxAmountOfEntitiesPerGrpcMessage;
 
     /**
      * These stats are not stored on the "latest" and "hourly" table.
@@ -168,26 +167,27 @@ public class ClusterStatsReader {
                                                                         .setLimit(Integer.MAX_VALUE)
                                                                         .build();
 
-    private static final long ONE_HOUR_IN_MILLIS = 3_600_000;
     private static final long ONE_DAY_IN_MILLIS = 86_400_000;
     private static final long ONE_MONTH_IN_MILLIS = 2_592_000_000L;
     private static final long ONE_MONTH_IN_DAYS = 30;
 
     /**
      * Create a new instance.
-     * @param historydbIO                        Access to some DB utilities
-     * @param clusterTimeRangeFactory            an instance of ClusterTimeRangeFactory used to
-     *                                           determine time frame for query results
-     * @param defaultTimeRangeFactory            an instance of DefaultTimeRangeFactory used to
-     *                                           determine time frame for query results
-     * @param computedPropertiesProcessorFactory factory for processors tohandle computed properties
+     *
+     * @param dsl Access to some DB utilities
+     * @param clusterTimeRangeFactory an instance of ClusterTimeRangeFactory used to
+     *         determine time frame for query results
+     * @param defaultTimeRangeFactory an instance of DefaultTimeRangeFactory used to
+     *         determine time frame for query results
+     * @param computedPropertiesProcessorFactory factory for processors tohandle computed
+     *         properties
      * @param maxAmountOfEntitiesPerGrpcMessage max amount of entities in a grpc chunk
      */
-    ClusterStatsReader(HistorydbIO historydbIO, ClusterTimeRangeFactory clusterTimeRangeFactory,
-                       DefaultTimeRangeFactory defaultTimeRangeFactory,
-                       ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory,
-                       final int maxAmountOfEntitiesPerGrpcMessage) {
-        this.historydbIO = historydbIO;
+    ClusterStatsReader(DSLContext dsl, ClusterTimeRangeFactory clusterTimeRangeFactory,
+            DefaultTimeRangeFactory defaultTimeRangeFactory,
+            ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory,
+            final int maxAmountOfEntitiesPerGrpcMessage) {
+        this.dsl = dsl;
         this.clusterTimeRangeFactory = clusterTimeRangeFactory;
         this.defaultTimeRangeFactory = defaultTimeRangeFactory;
         this.computedPropertiesProcessorFactory = computedPropertiesProcessorFactory;
@@ -207,11 +207,11 @@ public class ClusterStatsReader {
      * @param timeFrame     an optional time frame, to be used when picking
      *                      the appropriate DB table for lookup
      * @return retrieved records, each wrapped in a {@link ClusterStatsRecordReader} instance.
-     * @throws VmtDbException if retrieval fails
+     * @throws DataAccessException if retrieval fails
      */
     List<ClusterStatsRecordReader> getStatsRecordsForHeadRoomPlanRequest(
             long clusterUuid, long startTime, long endTime, Optional<TimeFrame> timeFrame,
-            @Nonnull Set<String> propertyTypes) throws VmtDbException {
+            @Nonnull Set<String> propertyTypes) throws DataAccessException {
         Objects.requireNonNull(propertyTypes);
         StatsFilter statsFilter = StatsFilter.newBuilder()
                 .setStartDate(startTime)
@@ -249,10 +249,8 @@ public class ClusterStatsReader {
      * @param propertyTypes property types of interest
      * @param timeRange     time range determined from start end end times
      * @return retrieved records, each wrapped in a {@link ClusterStatsRecordReader} instance
-     * @throws VmtDbException if retrieval fails
      */
-    private Result<? extends Record> getStatsRecordsForHeadRoomPlanRequest(long clusterUuid, Set<String> propertyTypes, TimeRange timeRange)
-            throws VmtDbException {
+    private Result<? extends Record> getStatsRecordsForHeadRoomPlanRequest(long clusterUuid, Set<String> propertyTypes, TimeRange timeRange) {
         Table<?> table = getStatsTable(timeRange.getTimeFrame());
         List<Condition> conditions = new ArrayList<>();
         conditions.add(getStringField(table, INTERNAL_NAME).eq(Long.toString(clusterUuid)));
@@ -263,8 +261,7 @@ public class ClusterStatsReader {
         conditions.add(getTimestampField(table, RECORDED_ON).between(
                 new Timestamp(timeRange.getStartTime()), new Timestamp(timeRange.getEndTime())));
 
-        return historydbIO.execute(Style.FORCED, historydbIO.JooqBuilder().selectFrom(table)
-                                                        .where(conditions).getQuery());
+        return dsl.selectFrom(table).where(conditions).fetch();
     }
 
     /**
@@ -296,10 +293,10 @@ public class ClusterStatsReader {
      *
      * @param request the gRPC request
      * @return the gRPC response
-     * @throws VmtDbException when the query to the database fails
+     * @throws DataAccessException when the query to the database fails
      */
     @Nonnull
-    public List<ClusterStatsResponse> getStatsRecords(@Nonnull ClusterStatsRequest request) throws VmtDbException {
+    public List<ClusterStatsResponse> getStatsRecords(@Nonnull ClusterStatsRequest request) throws DataAccessException {
         // collector of stats
         final Map<Long, SingleClusterStats> statsPerCluster = new HashMap<>();
 
@@ -414,7 +411,7 @@ public class ClusterStatsReader {
             @Nonnull final Set<Long> clusterIds, @Nonnull Set<String> fields,
             @Nonnull final Optional<Long> startDate,
             @Nonnull final Optional<Long> endDate)
-            throws VmtDbException {
+            throws DataAccessException {
         final StatsFilter.Builder statsFilter = StatsFilter.newBuilder();
         startDate.ifPresent(statsFilter::setStartDate);
         endDate.ifPresent(statsFilter::setEndDate);
@@ -448,7 +445,7 @@ public class ClusterStatsReader {
                                           @Nonnull Set<Long> clusterIds, @Nonnull Set<String> fields,
                                           @Nonnull Optional<Long> startDate, @Nonnull Optional<Long> endDate,
                                           boolean includeProjectedStats)
-            throws VmtDbException {
+            throws DataAccessException {
         // find tables to query
         // assumptions on the input:
         // if start date exists, it is in the past and the end date exists
@@ -480,8 +477,7 @@ public class ClusterStatsReader {
                                          @Nonnull Set<Long> clusterIds, @Nonnull Set<String> fields,
                                          @Nonnull Optional<Timestamp> startTimestamp,
                                          @Nonnull Optional<Timestamp> endTimestamp,
-                                         boolean includeProjectedStats, @Nonnull Table<?> table)
-            throws VmtDbException {
+                                         boolean includeProjectedStats, @Nonnull Table<?> table) {
         // if we want projections, we need to fetch the latest VM growth from the DB
         // this flag is raised if the VM growth must be added to the requested fields
         // (note that the flag is false if we don't *need* to include VM growth, which
@@ -503,8 +499,8 @@ public class ClusterStatsReader {
 
         // construct and execute query
         final ClusterStatsQuery query = new ClusterStatsQuery(table, startTimestamp, endTimestamp,
-                                                              queryFields, clusterIds);
-        final Result<? extends Record> queryResults = historydbIO.execute(query.getQuery());
+                queryFields, clusterIds, dsl);
+        final Result<? extends Record> queryResults = dsl.fetch(query.getQuery());
 
         // post-process the results of the query
         final Iterable<? extends Record> processedQueryResults
@@ -512,7 +508,7 @@ public class ClusterStatsReader {
 
         // ingest query results
         for (Record r : processedQueryResults) {
-            final long id = Long.valueOf(r.get(INTERNAL_NAME, String.class));
+            final long id = Long.parseLong(r.get(INTERNAL_NAME, String.class));
             statsPerCluster.computeIfAbsent(
                     id, k -> new SingleClusterStats(k, includeProjectedStats, vmGrowthMustBeAddedToQuery))
                 .ingestRecord(r);
@@ -550,7 +546,7 @@ public class ClusterStatsReader {
          */
         public void ingestRecord(@Nonnull Record record) {
             if (!record.get(RECORDED_ON, Timestamp.class).equals(recordedOn)
-                    || Long.valueOf(record.get(INTERNAL_NAME, String.class)) != clusterId) {
+                    || Long.parseLong(record.get(INTERNAL_NAME, String.class)) != clusterId) {
                 throw new IllegalArgumentException("Cannot ingest cluster stats record");
             }
 
@@ -635,11 +631,8 @@ public class ClusterStatsReader {
          * @return the value
          */
         public double getValue(@Nonnull String key, boolean isAscending) {
-            if (values.containsKey(key)) {
-                return values.get(key);
-            } else {
-                return isAscending ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
-            }
+            return values.getOrDefault(key,
+                    isAscending ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
         }
 
         private static StatValue makeStatValue(double value) {
@@ -690,7 +683,7 @@ public class ClusterStatsReader {
          * @param record the DB record to ingest
          */
         public void ingestRecord(@Nonnull Record record) {
-            if (Long.valueOf(record.get(INTERNAL_NAME, String.class)) != clusterId) {
+            if (Long.parseLong(record.get(INTERNAL_NAME, String.class)) != clusterId) {
                 throw new IllegalArgumentException("Cannot ingest cluster stats record");
             }
 

@@ -4,7 +4,6 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE
 import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyList;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,7 +11,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,7 +21,7 @@ import com.google.common.collect.Lists;
 
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
-import org.jooq.Query;
+import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -39,7 +37,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.IngestersConfig;
@@ -115,9 +112,7 @@ public class EntityStatsWriterTest {
         doCallRealMethod().when(mockWriter).insertAll(any());
         // make sure mocked writer gets closed (so we get dbcount) when writers gets closed
         // let all execute calls get to the three-arg method, so we can count them easily
-        when(mockHistorydbIO.execute(any(), anyList())).then(dbCounter(Collections.emptyList()));
-        when(mockHistorydbIO.execute(any(), any(Query.class))).then(dbCounter(Collections.emptyList()));
-// TODO        when(mockHistorydbIO.execute(any(), any(), any())).then(dbCounter(null));
+        // TODO        when(mockHistorydbIO.execute(any(), any(), any())).then(dbCounter(null));
         // also, we'd get one execution per writer in a real setting (maybe more than one, but
         // we'll assume one)
         when(mockLoaders.getLoader(any())).then(invocation -> {
@@ -201,7 +196,7 @@ public class EntityStatsWriterTest {
 
     }
 
-    private void verifyEntityWasUpdated() throws VmtDbException, InterruptedException {
+    private void verifyEntityWasUpdated() throws DataAccessException, InterruptedException {
         // check types for known entities
         verify(mockHistorydbIO, times(1)).getEntities(any());
         verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());
@@ -268,9 +263,9 @@ public class EntityStatsWriterTest {
      *
      * @param displayName the displayName to return; or null indicating no entries in the result
      * @param clsName     class name to return
-     * @throws VmtDbException if there's a problem
+     * @throws DataAccessException if there's a problem
      */
-    private void setupEntitiesTableQuery(String displayName, String clsName) throws VmtDbException {
+    private void setupEntitiesTableQuery(String displayName, String clsName) throws DataAccessException {
 
         ImmutableMap.Builder<Long, EntitiesRecord> allEntitiesMapBuilder =
                 new ImmutableMap.Builder<>();
@@ -283,7 +278,7 @@ public class EntityStatsWriterTest {
         when(mockHistorydbIO.getEntities(any())).thenReturn(allEntitiesMap);
     }
 
-    private void verifyEntityWasNotUpdated() throws VmtDbException, InterruptedException {
+    private void verifyEntityWasNotUpdated() throws DataAccessException {
         // check types for known entities
         verify(mockHistorydbIO, times(1)).getEntities(any());
         verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());

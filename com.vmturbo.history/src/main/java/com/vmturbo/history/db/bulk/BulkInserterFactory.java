@@ -1,7 +1,5 @@
 package com.vmturbo.history.db.bulk;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,9 +19,7 @@ import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.RecordTransformer;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserter.BatchStats;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 
@@ -79,22 +75,23 @@ public class BulkInserterFactory implements AutoCloseable {
     // all the inserter objects we've allocated
     private final Map<Object, BulkInserter<?, ?>> inserters = new ConcurrentHashMap<>();
 
-    private final BasedbIO basedbIO;
+    private final DSLContext dsl;
     private final ThrottlingCompletingExecutor<BatchStats> batchCompleter;
 
     /**
      * Create a new instance.
      *
-     * @param basedbIO basic database helpers
-     * @param config   default configuration for inserters
+     * @param dsl basic database helpers
+     * @param config default configuration for inserters
      * @param executor threadpool for execution of loader batches
      */
-    public BulkInserterFactory(@Nonnull BasedbIO basedbIO,
-                               @Nonnull BulkInserterConfig config,
-                               @Nonnull ExecutorService executor) {
-        this.basedbIO = basedbIO;
+    public BulkInserterFactory(@Nonnull DSLContext dsl,
+            @Nonnull BulkInserterConfig config,
+            @Nonnull ExecutorService executor) {
+        this.dsl = dsl;
         this.defaultConfig = config;
-        this.batchCompleter = new ThrottlingCompletingExecutor<>(executor, config.maxPendingBatches());
+        this.batchCompleter = new ThrottlingCompletingExecutor<>(executor,
+                config.maxPendingBatches());
     }
 
     /**
@@ -158,7 +155,7 @@ public class BulkInserterFactory implements AutoCloseable {
             BulkInserter<InT, OutT> inserter = (BulkInserter<InT, OutT>)inserters.get(key);
             if (inserter == null) {
                 final BulkInserterConfig configToUse = config.orElse(defaultConfig);
-                inserter = new BulkInserter<>(basedbIO, key, inTable, outTable, configToUse,
+                inserter = new BulkInserter<>(dsl, key, inTable, outTable, configToUse,
                         recordTransformer, dbInserter, batchCompleter);
                 inserters.put(key, inserter);
             }
@@ -191,8 +188,7 @@ public class BulkInserterFactory implements AutoCloseable {
      * @param <InT>               input record type
      * @param <OutT>              output record type
      * @return the existing or newly created inserter
-     * @throws SQLException if we encounter a database exception
-     * @throws VmtDbException if we have a DB connection problem
+     * @throws DataAccessException if we have a DB connection problem
      * @throws InstantiationException if we can't instantiate the transient jOOQ table
      * @throws IllegalAccessException if we can't instantiate the transient jOOQ table
      */
@@ -202,16 +198,15 @@ public class BulkInserterFactory implements AutoCloseable {
             @Nonnull RecordTransformer<InT, OutT> recordTransformer,
             @Nonnull DbInserter<OutT> dbInserter,
             @Nullable TableOperation<OutT> postTableCreateFunc)
-            throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
-        try (Connection conn = basedbIO.connection()) {
+            throws InstantiationException, DataAccessException, IllegalAccessException {
+        try {
             // create a jOOQ table object just like the out table but with a different name
             // and no indexes
             final String tableNamePrefix = outTable.getName() + TRANSIENT_TABLE_SUFFIX;
             String transientTableName = tableNamePrefix + System.nanoTime();
             Table<OutT> transientTable = outTable.getClass().newInstance().as(transientTableName);
             // create that table in the database
-            try (DSLContext dslContext = basedbIO.using(conn);
-                    CreateTableColumnStep table = dslContext.createTable(transientTable)) {
+            try (CreateTableColumnStep table = dsl.createTable(transientTable)) {
                 table.columns(outTable.fields())
                         .execute();
             }
@@ -220,7 +215,7 @@ public class BulkInserterFactory implements AutoCloseable {
             }
             return getInserter(transientTable, inTable, transientTable, recordTransformer, dbInserter,
                     Optional.of(ImmutableBulkInserterConfig.copyOf(defaultConfig).withDropOnClose(true)));
-        } catch (SQLException | VmtDbException | InstantiationException | IllegalAccessException e) {
+        } catch (DataAccessException | InstantiationException | IllegalAccessException e) {
             logger.error("Failed to create transient table based on {}", outTable.getName(), e);
             throw e;
         }
@@ -351,10 +346,8 @@ public class BulkInserterFactory implements AutoCloseable {
         /**
          * Perofrm the table operation.
          * @param table the table to operate on
-         * @throws SQLException if a database error occurs
-         * @throws DataAccessException if a database error occurs in jOOQ-based code
-         * @throws VmtDbException if a connection error occurs
+         * @throws DataAccessException if a connection error occurs
          */
-        void execute(Table<R> table) throws SQLException, DataAccessException, VmtDbException;
+        void execute(Table<R> table) throws DataAccessException;
     }
 }

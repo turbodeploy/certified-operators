@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -20,6 +21,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import com.google.protobuf.ByteString;
 
@@ -31,9 +33,6 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
-import org.jooq.conf.MappedSchema;
-import org.jooq.conf.RenderMapping;
-import org.jooq.conf.Settings;
 import org.jooq.impl.DSL;
 import org.jooq.tools.jdbc.MockConnection;
 import org.junit.Assert;
@@ -44,15 +43,14 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.TestDataProvider;
-import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.history.stats.TestDataProvider.SqlWithResponse;
 
 /**
  * Checks that {@link AbstractBlobsReaderTest} is working as expected.
  *
- * @param <Q> type of the API request that will be processed and data from history will be returned.
+ * @param <Q> type of the API request that will be processed and data from history will be
+ *         returned.
  * @param <C> type of the record chunks that will be returned by the reader.
  * @param <R> type of the records returned from the database.
  */
@@ -96,15 +94,16 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     /**
      * Returns a new {@link AbstractBlobsReader} constructed with the given parameters.
      *
-     * @param timeToWaitNetworkReadinessMs time to wait network buffer readiness to send accept
-     *                                     next chunk for sending over the network.
+     * @param timeToWaitNetworkReadinessMs time to wait network buffer readiness to send
+     *         accept
+     *         next chunk for sending over the network.
      * @param grpcTimeoutMs GRPC interaction timeout in milliseconds
      * @param clock provides information about current time.
-     * @param historydbIO provides connection to database.
+     * @param dataSource provides connection to database.
      * @return a new {@link AbstractBlobsReader}
      */
     protected abstract AbstractBlobsReader newReader(int timeToWaitNetworkReadinessMs,
-            long grpcTimeoutMs, @Nonnull Clock clock, @Nonnull HistorydbIO historydbIO);
+            long grpcTimeoutMs, @Nonnull Clock clock, @Nonnull DataSource dataSource);
 
     /**
      * Returns a new database record constructed with the given parameters.
@@ -131,47 +130,41 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
      * Adds a request-to-response pair with the given timestamp and result into the list to be used
      * in the mock SQL server.
      *
-     * @param sqlRequestToResponse the holding list of request-to-response SQL statements used in
-     *                             the mock SQL server
+     * @param sqlRequestToResponse the holding list of request-to-response SQL statements
+     *         used in
+     *         the mock SQL server
      * @param timestamp the timestamp used as a parameter in the SELECT statement to add
      * @param result the result to return for the request to add
      */
-    protected abstract void addSqlResult(
-            @Nonnull LinkedList<Pair<Pair<String, List<?>>, ?>> sqlRequestToResponse,
+    protected abstract void addSqlResult(@Nonnull Queue<SqlWithResponse> sqlRequestToResponse,
             long timestamp, @Nullable Result<R> result);
 
     static final String TEST_DB_SCHEMA_NAME = "test_vmtdb";
     private static final long GRPC_TIMEOUT_MS = 100000;
-    private static final String SOURCE_DATA = "Some_long_more_than_chunk_size_item string for test bytes";
+    private static final String SOURCE_DATA =
+            "Some_long_more_than_chunk_size_item string for test bytes";
     private static final long START_TIMESTAMP = 20L;
     private static final String TIMEOUT_EXCEPTION_FORMAT =
             "Cannot read %s data for start timestamp '%s' and period '%s' because of exceeding GRPC timeout '%s' ms";
     private static final int CHUNK_SIZE = 10;
 
-    private AbstractBlobsReader reader;
-    private HistorydbIO historyDbIo;
-    private LinkedList<Pair<Pair<String, List<?>>, ?>> sqlRequestToResponse;
-    private Clock clock;
+    private final Queue<SqlWithResponse> sqlWithResponses = new ArrayDeque<>();
+    private final Clock clock = Mockito.mock(Clock.class);
+    private final DataSource dataSource = Mockito.mock(DataSource.class);
+    private final Connection connection = Mockito.spy(
+            new MockConnection(new TestDataProvider(sqlWithResponses)));
+    private final AbstractBlobsReader reader = newReader(CHUNK_SIZE, GRPC_TIMEOUT_MS,
+            clock, dataSource);
 
     /**
      * Initializes all resources required by tests.
      *
-     * @throws VmtDbException in case of error while creating/closing DB connection.
+     * @throws SQLException for DB problem
      */
     @Before
-    public void before() throws VmtDbException {
-        historyDbIo = Mockito.mock(HistorydbIO.class);
-        final Settings settings = new Settings().withRenderMapping(new RenderMapping().withSchemata(
-                new MappedSchema().withInput("vmtdb").withOutput(TEST_DB_SCHEMA_NAME)));
-        sqlRequestToResponse = new LinkedList<>();
-        clock = Mockito.mock(Clock.class);
+    public void before() throws SQLException {
         Mockito.when(clock.millis()).thenAnswer(invocation -> System.currentTimeMillis());
-        reader = newReader(CHUNK_SIZE, GRPC_TIMEOUT_MS, clock, historyDbIo);
-        final Connection connection =
-                        new MockConnection(new TestDataProvider(sqlRequestToResponse));
-        Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
-        Mockito.when(historyDbIo.using(Mockito.any(Connection.class)))
-                        .thenReturn(DSL.using(connection, SQLDialect.MARIADB, settings));
+        Mockito.when(dataSource.getConnection()).thenReturn(connection);
     }
 
     /**
@@ -179,17 +172,18 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
      */
     @Test
     public void checkRequestToEmptyDatabase() {
-        addSqlResult(sqlRequestToResponse, 0L, null);
+        addSqlResult(sqlWithResponses, 0L, null);
         final List<C> result = new ArrayList<>();
         final StreamObserver<C> responseObserver = createStreamObserver(result, true);
         reader.processRequest(newRequest(CHUNK_SIZE, 0L), responseObserver);
         Assert.assertThat(result, CoreMatchers.is(Collections.emptyList()));
     }
 
-    private StreamObserver<C> createStreamObserver(@Nonnull Collection<C> receivedChunks, boolean isReady) {
+    private StreamObserver<C> createStreamObserver(@Nonnull Collection<C> receivedChunks,
+            boolean isReady) {
         Objects.requireNonNull(receivedChunks);
-        @SuppressWarnings("unchecked")
-        final ServerCallStreamObserver<C> result = Mockito.mock(ServerCallStreamObserver.class);
+        @SuppressWarnings("unchecked") final ServerCallStreamObserver<C> result = Mockito.mock(
+                ServerCallStreamObserver.class);
         Mockito.doAnswer(invocation -> {
             receivedChunks.add(invocation.getArgumentAt(0, getChunkClass()));
             return null;
@@ -201,19 +195,13 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     /**
      * Checks that in case SQL connection will throw {@link SQLException} while connection closing,
      * then request will fail with expected type and message.
-     *
-     * @throws VmtDbException in case of error while reading data from the database.
+     * @throws SQLException if there's a DB problem
      */
     @Test
-    public void checkSqlException() throws VmtDbException {
-        addSqlResult(sqlRequestToResponse, 0L, null);
-        Mockito.when(historyDbIo.transConnection()).thenAnswer((Answer<Connection>)invocation -> {
-            final MockConnection connection = Mockito.spy(new MockConnection(
-                            new TestDataProvider(sqlRequestToResponse)));
-            Mockito.doThrow(new SQLException("Something wrong has happened")).when(connection)
-                            .close();
-            return connection;
-        });
+    public void checkSqlException() throws SQLException {
+        addSqlResult(sqlWithResponses, 0L, null);
+        Mockito.doThrow(new SQLException("Something wrong has happened"))
+                .when(connection).close();
         final StreamObserver<C> streamObserver = createStreamObserver(new ArrayList<>(), true);
         reader.processRequest(newRequest(CHUNK_SIZE, 0L), streamObserver);
         Mockito.verify(streamObserver, Mockito.atLeastOnce()).onError(Mockito.any());
@@ -228,9 +216,10 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     @Test
     public void checkBatchedResponse() throws IOException {
         final Result<R> result = createDbRecord(SOURCE_DATA);
-        addSqlResult(sqlRequestToResponse, START_TIMESTAMP, result);
+        addSqlResult(sqlWithResponses, START_TIMESTAMP, result);
         final List<C> records = new ArrayList<>();
-        reader.processRequest(newRequest(CHUNK_SIZE, START_TIMESTAMP), createStreamObserver(records, true));
+        reader.processRequest(newRequest(CHUNK_SIZE, START_TIMESTAMP),
+                createStreamObserver(records, true));
         Assert.assertThat(records.size(), CoreMatchers.is(6));
         final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
         for (C chunk : records) {
@@ -249,18 +238,19 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     public void checkChunkedBlob() throws IOException {
         final DSLContext context = DSL.using(SQLDialect.MARIADB);
         final Result<R> result = context.newResult(getBlobsTable());
-        final String[] chunks = new String[] {"Some_long_more_than_chunk_size_item",
-                        " string",
-                        " for",
-                        " test",
-                        " bytes"};
+        final String[] chunks = new String[]{"Some_long_more_than_chunk_size_item",
+                " string",
+                " for",
+                " test",
+                " bytes"};
         for (int i = 0; i < chunks.length; i++) {
             final R values = newRecord(context, chunks[i], i, START_TIMESTAMP);
             result.add(values);
         }
-        addSqlResult(sqlRequestToResponse, START_TIMESTAMP, result);
+        addSqlResult(sqlWithResponses, START_TIMESTAMP, result);
         final List<C> records = new ArrayList<>();
-        reader.processRequest(newRequest(CHUNK_SIZE, START_TIMESTAMP), createStreamObserver(records, true));
+        reader.processRequest(newRequest(CHUNK_SIZE, START_TIMESTAMP),
+                createStreamObserver(records, true));
         Assert.assertThat(records.size(), CoreMatchers.is(8));
         final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
         for (C chunk : records) {
@@ -285,10 +275,11 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     public void checkTimeoutDueToGrpcNotReady() {
         final Result<R> result = createDbRecord(SOURCE_DATA);
         final Queue<Long> currentTimeValues = Stream.of(0L, GRPC_TIMEOUT_MS + 1L)
-                        .collect(Collectors.toCollection(LinkedList::new));
+                .collect(Collectors.toCollection(LinkedList::new));
         Mockito.when(clock.millis()).thenAnswer(invocation -> currentTimeValues.poll());
-        addSqlResult(sqlRequestToResponse, START_TIMESTAMP, result);
-        final StreamObserver<C> streamObserver = createStreamObserver(Collections.emptyList(), false);
+        addSqlResult(sqlWithResponses, START_TIMESTAMP, result);
+        final StreamObserver<C> streamObserver = createStreamObserver(Collections.emptyList(),
+                false);
         reader.processRequest(newRequest(CHUNK_SIZE, START_TIMESTAMP), streamObserver);
         checkException(streamObserver, String.format(getRecordClassName(),
                 TIMEOUT_EXCEPTION_FORMAT, START_TIMESTAMP, getPeriod(), GRPC_TIMEOUT_MS));
@@ -297,7 +288,8 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     private void checkException(StreamObserver<C> streamObserver, String message) {
         final ArgumentCaptor<Throwable> errorCaptor = ArgumentCaptor.forClass(Throwable.class);
         Mockito.verify(streamObserver, Mockito.atLeastOnce()).onError(errorCaptor.capture());
-        Assert.assertThat(errorCaptor.getValue().getMessage(), CoreMatchers.containsString(message));
+        Assert.assertThat(errorCaptor.getValue().getMessage(),
+                CoreMatchers.containsString(message));
     }
 
     /**
@@ -309,7 +301,7 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     @Test
     public void checkReadInChunksWhenStreamObserverStateChanges() throws IOException {
         final Result<R> result = createDbRecord(SOURCE_DATA);
-        addSqlResult(sqlRequestToResponse, START_TIMESTAMP, result);
+        addSqlResult(sqlWithResponses, START_TIMESTAMP, result);
         final List<C> records = new ArrayList<>();
         final boolean isReady = true;
         final ServerCallStreamObserver<C> streamObserver =
@@ -330,10 +322,11 @@ public abstract class AbstractBlobsReaderTest<Q, C, R extends org.jooq.Record> {
     @Test
     public void checkTimeoutWhenStreamObserverStateChanges() {
         final Result<R> result = createDbRecord(SOURCE_DATA);
-        final Queue<Long> currentTimeValues = Stream.of(0L, GRPC_TIMEOUT_MS, GRPC_TIMEOUT_MS, GRPC_TIMEOUT_MS + 1L)
+        final Queue<Long> currentTimeValues = Stream.of(0L, GRPC_TIMEOUT_MS, GRPC_TIMEOUT_MS,
+                        GRPC_TIMEOUT_MS + 1L)
                 .collect(Collectors.toCollection(LinkedList::new));
         Mockito.when(clock.millis()).thenAnswer(invocation -> currentTimeValues.poll());
-        addSqlResult(sqlRequestToResponse, START_TIMESTAMP, result);
+        addSqlResult(sqlWithResponses, START_TIMESTAMP, result);
         final List<C> records = new ArrayList<>();
         final boolean isReady = true;
         final ServerCallStreamObserver<C> streamObserver =

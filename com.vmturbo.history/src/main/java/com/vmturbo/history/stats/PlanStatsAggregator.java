@@ -422,12 +422,12 @@ public class PlanStatsAggregator implements MemReporter {
                 } else {
                     // Update the record representing the aggregation for this entityType/commodityType combo
                     final MktSnapshotsStatsRecord commodityRecord = commodityAggregation.getAggregatedRecord();
-                    commodityRecord.setMinValue(historydbIO.clipValue(Math.min(used, commodityRecord.getMinValue())));
-                    commodityRecord.setMaxValue(historydbIO.clipValue(Math.max(used, commodityRecord.getMaxValue())));
+                    commodityRecord.setMinValue(HistorydbIO.clipValue(Math.min(used, commodityRecord.getMinValue())));
+                    commodityRecord.setMaxValue(HistorydbIO.clipValue(Math.max(used, commodityRecord.getMaxValue())));
                     // in the first phase we use the "avgValue" field to store the sum of used
-                    commodityRecord.setAvgValue(historydbIO.clipValue(used + commodityRecord.getAvgValue()));
+                    commodityRecord.setAvgValue(HistorydbIO.clipValue(used + commodityRecord.getAvgValue()));
                     // Capacity is the aggregate of all the individual commodity capacities
-                    commodityRecord.setCapacity(historydbIO.clipValue(capacity + commodityRecord.getCapacity()));
+                    commodityRecord.setCapacity(HistorydbIO.clipValue(capacity + commodityRecord.getCapacity()));
                     // Update the count for how many times we've encountered this entityType/commodityType combo
                     commodityAggregation.incrementEntityCount();
                 }
@@ -450,7 +450,7 @@ public class PlanStatsAggregator implements MemReporter {
         commodityAggregationTable.values().forEach(commodityAggregation -> {
             final MktSnapshotsStatsRecord commodityRecord = commodityAggregation.getAggregatedRecord();
             // calculate averages, using the sum of used values from avgValue and counts
-            commodityRecord.setAvgValue(historydbIO.clipValue(
+            commodityRecord.setAvgValue(HistorydbIO.clipValue(
                     commodityRecord.getAvgValue()
                             / commodityAggregation.getEntityCount()));
             // add the record to the results list
@@ -493,11 +493,11 @@ public class PlanStatsAggregator implements MemReporter {
         commodityRecord.setMktSnapshotId(topologyContextId);
         commodityRecord.setPropertyType(propertyType);
         commodityRecord.setPropertySubtype(propertySubtype);
-        commodityRecord.setMinValue(historydbIO.clipValue(used));
-        commodityRecord.setMaxValue(historydbIO.clipValue(used));
-        commodityRecord.setAvgValue(historydbIO.clipValue(used));
+        commodityRecord.setMinValue(HistorydbIO.clipValue(used));
+        commodityRecord.setMaxValue(HistorydbIO.clipValue(used));
+        commodityRecord.setAvgValue(HistorydbIO.clipValue(used));
         if (capacity != null) {
-            commodityRecord.setCapacity(historydbIO.clipValue(capacity));
+            commodityRecord.setCapacity(HistorydbIO.clipValue(capacity));
         }
         commodityRecord.setProjectionTime(snapshotTimestamp);
         commodityRecord.setEntityType((short)entityType);

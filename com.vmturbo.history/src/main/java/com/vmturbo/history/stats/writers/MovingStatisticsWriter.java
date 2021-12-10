@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.sql.DataSource;
 
 import com.google.protobuf.ByteString;
 
@@ -25,7 +26,6 @@ import org.jooq.TableField;
 import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.SetMovingStatisticsResponse;
 import com.vmturbo.history.SharedMetrics;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.MovingStatisticsBlobs;
 import com.vmturbo.history.schema.abstraction.tables.records.MovingStatisticsBlobsRecord;
 
@@ -42,11 +42,11 @@ public class MovingStatisticsWriter extends AbstractBlobsWriter<SetMovingStatist
      *
      * @param responseObserver provides information about errors to the client side that called
      *                         the moving statistics writer instance.
-     * @param historydbIO provides connection to database.
+     * @param dataSource provides connection to database.
      */
     public MovingStatisticsWriter(@Nonnull StreamObserver<SetMovingStatisticsResponse> responseObserver,
-                    @Nonnull HistorydbIO historydbIO) {
-        super(responseObserver, historydbIO, SharedMetrics.PERCENTILE_WRITING, MOVING_STATISTICS_BLOBS_TABLE);
+                    @Nonnull DataSource dataSource) {
+        super(responseObserver, dataSource, SharedMetrics.PERCENTILE_WRITING, MOVING_STATISTICS_BLOBS_TABLE);
     }
 
     @Override
@@ -94,8 +94,8 @@ public class MovingStatisticsWriter extends AbstractBlobsWriter<SetMovingStatist
                 insertNewValues.execute();
             }
             logger.trace("Chunk#{} of {} data '{}' for '{}' timestamp has been processed.",
-                    () -> processedChunks, () -> getRecordSimpleName(), content::size,
-                    () -> chunk.getStartTimestamp());
+                    () -> processedChunks, this::getRecordSimpleName, content::size,
+                    chunk::getStartTimestamp);
         }
         return bytes;
     }

@@ -5,6 +5,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import com.google.protobuf.ByteString;
 
@@ -13,9 +14,8 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.PercentileBlobs;
-import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.history.stats.TestDataProvider.SqlWithResponse;
 
 /**
  * Checks that {@link PercentileWriter} implementation is working as expected.
@@ -38,22 +38,21 @@ public class PercentileWriterTest extends AbstractBlobsWriterTest<SetPercentileC
     @Override
     protected AbstractBlobsWriter newWriter(
             @Nonnull StreamObserver<SetPercentileCountsResponse> responseObserver,
-            @Nonnull HistorydbIO historydbIO) {
-        return new PercentileWriter(responseObserver, historydbIO);
+            @Nonnull DataSource dataSource) {
+        return new PercentileWriter(responseObserver, dataSource);
     }
 
     @Override
     protected String deleteStatement() {
-        return String.format("delete from `%s`.`%s`", TEST_DB_SCHEMA_NAME,
+        return String.format("delete from `%s`", TEST_DB_SCHEMA_NAME,
                 PercentileBlobs.PERCENTILE_BLOBS.getName());
     }
 
     @Override
     protected String addInsertStatement() {
-        final String insertStatement = String.format("insert into `%s`.`%s", TEST_DB_SCHEMA_NAME,
-                PercentileBlobs.PERCENTILE_BLOBS.getName());
-        sqlRequestToResponse.add(Pair.create(Pair.create(insertStatement,
-                Arrays.asList(START_TIMESTAMP, getPeriod(), null, 0)), null));
+        final String insertStatement = String.format("insert into `%s`", PercentileBlobs.PERCENTILE_BLOBS.getName());
+        sqlWithResponses.add(new SqlWithResponse(insertStatement,
+                Arrays.asList(START_TIMESTAMP, getPeriod(), null, 0), null));
         return insertStatement;
     }
 
