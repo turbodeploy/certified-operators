@@ -39,13 +39,12 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStatusOuterClass.TargetStatus;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.targets.TargetStoreListener;
 
 /**
  * Class responsible for tracking statuses of the targets.
  */
 @ThreadSafe
-public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStoreListener {
+public class TargetStatusTrackerImpl implements TargetStatusTracker {
     private static final Logger LOGGER = LogManager.getLogger();
     private final Map<Long, DiscoveryFailure> targetToFailedDiscoveries = Collections.synchronizedMap(new HashMap<>());
     private final Map<Long, TargetStatus> targetStatusCache;
@@ -90,6 +89,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         removeFailedDiscovery(removedTargetId);
         // do not report last successful discovery time on targets that no longer exist
         lastSuccessfulDiscoveryTimeByTargetId.remove(removedTargetId);
+        lastSuccessfulIncrementalDiscoveryTimeByTargetId.remove(removedTargetId);
     }
 
 
