@@ -42,13 +42,6 @@ credentials:
 
 env: {}
 
-flat:
-  enabled: false
-  image:
-    name: datacloud
-    repository: ""
-    tag: ""
-
 graph:
   enabled: true
   image:
