@@ -1,6 +1,7 @@
 package com.vmturbo.cost.calculation.integration;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -145,14 +146,17 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final VMBillingType billingType;
         private final int numCores;
         private final EntityDTO.LicenseModel licenseModel;
+        private final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought;
 
         public ComputeConfig(final OSType os, final Tenancy tenancy, final VMBillingType billingType,
-                             final int numCores, final EntityDTO.LicenseModel licenseModel) {
+                             final int numCores, final EntityDTO.LicenseModel licenseModel,
+                             final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought) {
             this.os = os;
             this.tenancy = tenancy;
             this.billingType = billingType;
             this.numCores = numCores;
             this.licenseModel = licenseModel;
+            this.pricedCommoditiesBought = pricedCommoditiesBought;
         }
 
         @Nonnull
@@ -176,6 +180,11 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public EntityDTO.LicenseModel getLicenseModel() {
             return licenseModel;
+        }
+
+        @Nonnull
+        public Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> getPricedCommoditiesBought() {
+            return pricedCommoditiesBought;
         }
     }
 

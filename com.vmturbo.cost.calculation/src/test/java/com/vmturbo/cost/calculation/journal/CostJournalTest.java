@@ -77,7 +77,7 @@ public class CostJournalTest {
         final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
-                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
+                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE), null);
         final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
@@ -97,7 +97,7 @@ public class CostJournalTest {
         final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
-                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
+                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE), null);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         //TODO fix this
         final TraxNumber cost =
@@ -117,7 +117,7 @@ public class CostJournalTest {
         final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
-                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
+                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE), null);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
@@ -136,7 +136,7 @@ public class CostJournalTest {
         final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
-                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
+                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE), null);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
@@ -156,7 +156,7 @@ public class CostJournalTest {
         final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
-                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
+                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE), null);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
@@ -175,7 +175,7 @@ public class CostJournalTest {
         final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
-                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
+                        CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE), null);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
                         .stream()
@@ -253,9 +253,9 @@ public class CostJournalTest {
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, payee, licensePrice,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .recordRiCost(riData, Trax.trax(1), Trax.trax(25))
                         .build();
 
@@ -295,9 +295,9 @@ public class CostJournalTest {
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, payee, licensePrice,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .recordRiCost(riData, Trax.trax(1), Trax.trax(25))
                         .recordRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, Trax.trax(0.25))
                         .build();
@@ -329,9 +329,9 @@ public class CostJournalTest {
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         // One cost category that is also present in the test entity.
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         // One cost category that is NOT present in the test entity.
-                        .recordOnDemandCost(CostCategory.STORAGE, payee, price, Trax.trax(1))
+                        .recordOnDemandCost(CostCategory.STORAGE, payee, price, Trax.trax(1), Optional.empty())
                         .build();
         final DependentCostLookup<TestEntityClass> dependentCostLookup = e -> {
             assertThat(e, Matchers.is(childCostProvider));
@@ -342,7 +342,7 @@ public class CostJournalTest {
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator,
                         dependentCostLookup)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .inheritCost(childCostProvider)
                         .build();
 
@@ -375,9 +375,9 @@ public class CostJournalTest {
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, payee, licensePrice,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .recordBuyRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData,
                                 Trax.trax(0.25))
                         .build();
@@ -486,7 +486,7 @@ public class CostJournalTest {
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
-                                Trax.trax(1))
+                                Trax.trax(1), Optional.empty())
                         .recordBuyRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData,
                                 Trax.trax(.50))
                         // Uptime = 75% so 25% discount

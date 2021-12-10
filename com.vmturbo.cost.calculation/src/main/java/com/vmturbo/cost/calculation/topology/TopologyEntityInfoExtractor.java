@@ -1,6 +1,11 @@
 package com.vmturbo.cost.calculation.topology;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -10,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
@@ -27,6 +33,7 @@ import com.vmturbo.platform.sdk.common.util.Units;
 public class TopologyEntityInfoExtractor implements EntityInfoExtractor<TopologyEntityDTO> {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final List<Integer> commodityTypesSupported = Arrays.asList(CommodityType.NUM_VCORE_VALUE, CommodityType.MEM_PROVISIONED_VALUE);
 
     @Override
     public int getEntityType(@Nonnull final TopologyEntityDTO entity) {
@@ -58,11 +65,19 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
             && entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo().hasVirtualMachine()) {
             VirtualMachineInfo vmConfig = entity.getTypeSpecificInfo().getVirtualMachine();
+            final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought = entity.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                    .filter(c -> c.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                    .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                    .flatMap(Collection::stream)
+                    .filter(commodity -> (commodityTypesSupported.contains(commodity.getCommodityType().getType())))
+                    .collect(Collectors.toMap(c -> c.getCommodityType(), c -> c.getUsed()));
             return Optional.of(new ComputeConfig(vmConfig.getGuestOsInfo().getGuestOsType(),
                     vmConfig.getTenancy(),
                     vmConfig.getBillingType(),
                     vmConfig.getNumCpus(),
-                    vmConfig.getLicenseModel()));
+                    vmConfig.getLicenseModel(),
+                    pricedCommoditiesBought));
         } else {
             return Optional.empty();
         }

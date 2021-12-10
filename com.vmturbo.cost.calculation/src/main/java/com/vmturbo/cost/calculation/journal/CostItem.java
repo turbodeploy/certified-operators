@@ -16,6 +16,7 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.CostSourceLinkDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.trax.TraxNumber;
 
 /**
@@ -41,6 +42,13 @@ public interface CostItem {
      */
     @Nonnull
     TraxNumber cost();
+
+    /**
+     * The commodity type.
+     * @return The commodity type.
+     */
+    @Nonnull
+    Optional<CommodityType> commodity();
 
     /**
      * Constructs and returns a new {@link Builder} instance.

@@ -25,8 +25,10 @@ import com.google.common.collect.Table.Cell;
 import com.google.protobuf.MapEntry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 import org.stringtemplate.v4.ST;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
@@ -50,6 +52,7 @@ import com.vmturbo.cost.calculation.journal.tabulator.RIDiscountTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.RIEntryTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.ReservedLicenseTabulator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.TraxCollectors;
@@ -106,7 +109,7 @@ public class CostJournal<ENTITY_CLASS> {
 
     private final Map<CostCategory, SortedSet<QualifiedJournalEntry<ENTITY_CLASS>>> costEntries;
 
-    private final Table<CostCategory, CostSourceLink, TraxNumber> finalCostsByCategoryAndSource = HashBasedTable.create();
+    private final Table<CostCategory, CatagoryCostInfo, TraxNumber> finalCostsByCategoryAndSource = HashBasedTable.create();
 
     /**
      * We calculate the costs from the journal entries the first time costs are actually requested.
@@ -137,6 +140,18 @@ public class CostJournal<ENTITY_CLASS> {
         this.dependentCostLookup = dependentCostLookup;
     }
 
+    @Value.Style(visibility = Value.Style.ImplementationVisibility.PACKAGE,
+            allParameters = true,
+            typeImmutable = "*Tuple")
+    @Value.Immutable(prehash = true)
+    interface CatagoryCostInfo {
+        CostSourceLink costSourceLink();
+        Optional<CommodityType> commodity();
+        static CatagoryCostInfo of(CostSourceLink costSourceLink, Optional<CommodityType> commodity) {
+            return CatagoryCostInfoTuple.of(costSourceLink, commodity);
+        }
+    }
+
     private void calculateCosts() {
         if (calculationStarted.compareAndSet(false, true)) {
 
@@ -153,16 +168,16 @@ public class CostJournal<ENTITY_CLASS> {
 
                         final TraxNumber cost = costItem.cost();
                         final CostSourceLink costSourceLink = costItem.costSourceLink();
-
+                        final CatagoryCostInfo catagoryCostInfo = CatagoryCostInfo.of(costSourceLink, costItem.commodity());
                         if (Double.isFinite(cost.getValue())) {
 
-                            if (finalCostsByCategoryAndSource.get(category, costSourceLink) != null) {
-                                final TraxNumber existing = finalCostsByCategoryAndSource.get(category, costSourceLink);
+                            if (finalCostsByCategoryAndSource.get(category, catagoryCostInfo) != null) {
+                                final TraxNumber existing = finalCostsByCategoryAndSource.get(category, catagoryCostInfo);
                                 final TraxNumber aggregateCost = cost.plus(existing)
                                         .compute("Total cost for " + costSourceLink);
-                                finalCostsByCategoryAndSource.put(category, costSourceLink, aggregateCost);
+                                finalCostsByCategoryAndSource.put(category, catagoryCostInfo, aggregateCost);
                             } else {
-                                finalCostsByCategoryAndSource.put(category, costSourceLink, cost);
+                                finalCostsByCategoryAndSource.put(category, catagoryCostInfo, cost);
                             }
                         } else {
                             logger.warn("Skipping invalid cost of '{}' for entity '{}' with cost source '{}'",
@@ -189,17 +204,17 @@ public class CostJournal<ENTITY_CLASS> {
                     // Hope there are no circular dependencies, fingers crossed!
                     journal.calculateCosts();
                     for (final CostCategory category: journal.getCategories()) {
-                        final Map<CostSourceLink, TraxNumber> costByCategoryMap = finalCostsByCategoryAndSource.row(category);
-                        final Map<CostSourceLink, TraxNumber> inheritedCostMap = journal.finalCostsByCategoryAndSource.row(category);
-                        inheritedCostMap.forEach((costSource, inheritedCost) -> {
+                        final Map<CatagoryCostInfo, TraxNumber> costByCategoryMap = finalCostsByCategoryAndSource.row(category);
+                        final Map<CatagoryCostInfo, TraxNumber> inheritedCostMap = journal.finalCostsByCategoryAndSource.row(category);
+                        inheritedCostMap.forEach((catagoryCostInfo, inheritedCost) -> {
                             final TraxNumber currPriceNum =
-                                    costByCategoryMap.getOrDefault(costSource, trax(0, "none"));
+                                    costByCategoryMap.getOrDefault(catagoryCostInfo, trax(0, "none"));
                             final TraxNumber newCost = inheritedCost.plus(currPriceNum)
                                     .compute("inherited hourly costs from " +
                                             infoExtractor.getName(childCostEntity));
                             logger.trace("Inheriting {} for category {}. New cost is: {}",
                                     inheritedCost, category, newCost);
-                            finalCostsByCategoryAndSource.put(category, costSource, newCost);
+                            finalCostsByCategoryAndSource.put(category, catagoryCostInfo, newCost);
                         });
                     }
                 }
@@ -288,8 +303,8 @@ public class CostJournal<ENTITY_CLASS> {
         finalCostsByCategoryAndSource.cellSet().forEach(costCell ->
             costBuilder.addComponentCost(ComponentCost.newBuilder()
                     .setCategory(costCell.getRowKey())
-                    .setCostSource(costCell.getColumnKey().costSource())
-                    .setCostSourceLink(costCell.getColumnKey().toProtobuf())
+                    .setCostSource(costCell.getColumnKey().costSourceLink().costSource())
+                    .setCostSourceLink(costCell.getColumnKey().costSourceLink().toProtobuf())
                     .setAmount(CurrencyAmount.newBuilder()
                             .setAmount(costCell.getValue().getValue()))));
 
@@ -305,7 +320,7 @@ public class CostJournal<ENTITY_CLASS> {
     @Nonnull
     public TraxNumber getHourlyCostForCategory(@Nonnull final CostCategory category) {
         calculateCosts();
-        final Map<CostSourceLink, TraxNumber> costsByCategory = finalCostsByCategoryAndSource.row(category);
+        final Map<CatagoryCostInfo, TraxNumber> costsByCategory = finalCostsByCategoryAndSource.row(category);
         return costsByCategory.values().stream().collect(TraxCollectors.sum("total hourly cost for category: " + category));
     }
 
@@ -349,16 +364,23 @@ public class CostJournal<ENTITY_CLASS> {
     private Collection<CostItem> getFilteredCostItemsForCategory(@Nonnull CostCategory costCategory,
                                                                  @Nonnull CostSourceFilter costSourceFilter) {
 
-        final Map<CostSourceLink, TraxNumber> costsBySourceLink = finalCostsByCategoryAndSource.row(costCategory);
+        final Map<CatagoryCostInfo, TraxNumber> costsBySourceLink = finalCostsByCategoryAndSource.row(costCategory);
         return costsBySourceLink.entrySet()
                 .stream()
-                .filter(costEntry -> costEntry.getKey().costSourceChain()
+                .filter(costEntry -> costEntry.getKey().costSourceLink().costSourceChain()
                         .stream()
                         .allMatch(costSourceFilter::filter))
-                .map(costEntry -> CostItem.builder()
-                        .costSourceLink(costEntry.getKey())
-                        .cost(costEntry.getValue())
-                        .build())
+                .collect(Collectors.groupingBy(
+                        costEntry -> costEntry.getKey().costSourceLink()))
+                .entrySet().stream()
+                .map(groupEntry -> {
+                    CostSourceLink costSourceLink = groupEntry.getKey();
+                    TraxNumber sum = groupEntry.getValue().stream().collect(Collectors.mapping(a -> a.getValue(), TraxCollectors.sum()));
+                    return CostItem.builder()
+                        .costSourceLink(costSourceLink)
+                        .cost(sum)
+                        .build();
+                })
                 .collect(ImmutableList.toImmutableList());
     }
 
@@ -560,7 +582,8 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final CostCategory category,
                 @Nonnull final ENTITY_CLASS_ payee,
                 @Nonnull final Price price,
-                final TraxNumber amount) {
+                final TraxNumber amount,
+                final Optional<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType> commodityType) {
             if (logger.isTraceEnabled()) {
                 logger.trace("On-demand {} purchase of {} from payee {} (id: {}) at price {}",
                         category, amount, infoExtractor.getName(payee), infoExtractor.getId(payee), price);
@@ -568,7 +591,8 @@ public class CostJournal<ENTITY_CLASS> {
             Preconditions.checkArgument(category != CostCategory.RI_COMPUTE);
             final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
                     costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator));
-            prices.add(new OnDemandJournalEntry<>(payee, price, amount, category, Optional.of(CostSource.ON_DEMAND_RATE)));
+            prices.add(new OnDemandJournalEntry<>(payee, price, amount, category, Optional.of(CostSource.ON_DEMAND_RATE),
+                    commodityType.isPresent() ? commodityType.get() : null));
             return this;
         }
 
