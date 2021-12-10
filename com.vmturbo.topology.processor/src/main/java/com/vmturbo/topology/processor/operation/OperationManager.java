@@ -368,6 +368,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public void setTargetStatusTracker(@Nonnull TargetStatusTracker targetStatusTracker) {
         this.operationListeners.add(targetStatusTracker);
+        this.targetStore.addListener(targetStatusTracker);
     }
 
     @Override
@@ -540,6 +541,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @throws CommunicationException If a communication error occurs.
      * @throws InterruptedException If the current thread is interrupted.
      */
+    @Override
     public WorkflowExecutionResult requestWorkflow(ActionExecutionDTO actionExecutionDTO, final long targetId)
         throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final SetOnce<WorkflowExecutionResult> result = SetOnce.create();

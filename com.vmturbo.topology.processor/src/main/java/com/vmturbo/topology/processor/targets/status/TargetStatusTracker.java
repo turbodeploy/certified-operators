@@ -10,12 +10,13 @@ import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.targets.TargetStatusOuterClass.TargetStatus;
+import com.vmturbo.topology.processor.targets.TargetStoreListener;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl.DiscoveryFailure;
 
 /**
  * Interface for tracking targets statuses.
  */
-public interface TargetStatusTracker extends OperationListener, StringDiagnosable {
+public interface TargetStatusTracker extends OperationListener, StringDiagnosable, TargetStoreListener {
 
     /**
      * Get statuses for the requested targets. If input target ids is null then return statuses for
