@@ -629,7 +629,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 service.get(), price, amountBought));
                     });
             } else {
-                logger.error("Connected service is not available to calculate IP price for" +
+                logger.debug("Connected service is not available to calculate IP price for" +
                                 " {} with ID {} with compute tier {} with ID {}",
                         entityInfoExtractor.getName(entity), entityInfoExtractor.getId(entity),
                         entityInfoExtractor.getName(computeTier),
