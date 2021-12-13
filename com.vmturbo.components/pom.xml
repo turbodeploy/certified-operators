@@ -32,6 +32,17 @@
         <aggregate.adoc.dir>../com.vmturbo.components.common/src/main/resources</aggregate.adoc.dir>
         <!-- END properties for static swagger documentation generation -->
         <jackson.version>2.11.4</jackson.version>
+
+        <!-- Integration Test Phase properties -->
+        <integration-test-phase></integration-test-phase>
+        <pre-integration-test-phase></pre-integration-test-phase>
+        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.4</dockerRobotImage>
+        <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
+        <it.suite.name>${artifactId}</it.suite.name>
+        <it.test.directory>/usr/src/project/it</it.test.directory>
+        <it.docker.dir>/usr/src/project/it/docker</it.docker.dir>
+        <it.db.password>${db.password}</it.db.password>
+        <it.tag>Mandatory</it.tag>
     </properties>
 
     <build>
@@ -96,6 +107,116 @@
                             </manifest>
                         </archive>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>copy-libs</id>
+                            <phase>${pre-integration-test-phase}</phase>
+                            <goals>
+                                <goal>copy-dependencies</goal>
+                            </goals>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}/deps</outputDirectory>
+                                <useBaseVersion>false</useBaseVersion>
+                                <includeScope>runtime</includeScope>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <executions>
+                        <execution>
+                          <id>copy-it-directory</id>
+                          <phase>${pre-integration-test-phase}</phase>
+                          <goals>
+                            <goal>copy-resources</goal>
+                          </goals>
+                          <configuration>
+                            <outputDirectory>${project.build.directory}/it</outputDirectory>
+                            <resources>
+                              <resource>
+                                <directory>src/it</directory>
+                              </resource>
+                            </resources>
+                          </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>io.fabric8</groupId>
+                    <artifactId>docker-maven-plugin</artifactId>
+                    <configuration>
+                        <skip>${skipITs}</skip>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>integration-test</id>
+                            <phase>${integration-test-phase}</phase>
+                            <goals>
+                                <goal>start</goal>
+                            </goals>
+                            <configuration>
+                                <dockerHost>${dockerHost}</dockerHost>
+                                <showLogs>true</showLogs>
+                                <images>
+                                    <image>
+                                        <name>${dockerRobotImage}</name>
+                                        <run>
+                                            <!--
+                                            pattern needs to start with "maven-" so jenkins builds
+                                            will properly clean up leaked containers
+                                            -->
+                                            <containerNamePattern>maven-group-%i
+                                            </containerNamePattern>
+                                            <volumes>
+                                                <bind>
+                                                    <volume>${project.build.directory}:/usr/src/project</volume>
+                                                    <!-- Docker automatically handles this path on Windows. -->
+                                                    <volume>/var/run/docker.sock:/var/run/docker.sock</volume>
+                                                </bind>
+                                            </volumes>
+                                            <env>
+                                                <S6_KILL_FINISH_MAXTIME>${it.s6.kill.finish.maxtime}</S6_KILL_FINISH_MAXTIME>
+                                                <PROJECT_NAME>${it.suite.name}</PROJECT_NAME>
+                                                <PROJECT_HOME>/usr/src/project</PROJECT_HOME>
+                                                <PROJECT_VERSION>${project.version}</PROJECT_VERSION>
+                                                <TEST_DIRECTORY>${it.test.directory}</TEST_DIRECTORY>
+                                                <TEST_IMAGE>${dockerRobotImage}</TEST_IMAGE>
+                                                <DOCKER_PROJECT_DIR>${it.docker.dir}</DOCKER_PROJECT_DIR>
+                                                <DBROOT>${it.db.password}</DBROOT>
+                                                <ROBOT_TAG>${it.tag}</ROBOT_TAG>
+                                            </env>
+                                            <wait>
+                                                <log>${it.suite.name}[ ]+\| PASS \|</log>
+                                                <kill>30000</kill>
+                                                <time>300000</time>
+                                            </wait>
+                                        </run>
+                                    </image>
+                                </images>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>stop-IT</id>
+                            <phase>${integration-test-phase}</phase>
+                            <goals>
+                                <goal>stop</goal>
+                            </goals>
+                            <configuration>
+                                <dockerHost>${dockerHost}</dockerHost>
+                                <images>
+                                    <image>
+                                        <name>${dockerRobotImage}</name>
+                                    </image>
+                                </images>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>
