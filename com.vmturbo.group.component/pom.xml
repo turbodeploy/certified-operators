@@ -30,6 +30,11 @@
         <db.schema>group_component_build_${maven.build.timestamp}</db.schema><!-- group is a keyword in SQL, so name it group_component-->
         <db.outputSchema>group_component</db.outputSchema>
         <db.driver>org.mariadb.jdbc.Driver</db.driver>
+
+        <pre-integration-test-phase>pre-integration-test</pre-integration-test-phase>
+        <integration-test-phase>integration-test</integration-test-phase>
+        <it.suite.name>group_it_test</it.suite.name>
+        <dockerHost>unix:///var/run/docker.sock</dockerHost>
     </properties>
 
     <dependencies>

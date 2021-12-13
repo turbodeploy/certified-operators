@@ -1,0 +1,214 @@
+version: '3.9'
+
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.28.0.0/24
+        gateway: 172.28.0.1
+
+volumes:
+  consuldata: &localdriver
+    driver: local
+  syslogdata: *localdriver
+  syslogdata_rotate: *localdriver
+  auditlogdata: *localdriver
+  mysqldata: *localdriver
+  mysql_var: *localdriver
+  mysql_log: *localdriver
+  clustermgr: *localdriver
+  auth: *localdriver
+  kafka1-log: *localdriver
+  zoo1-data: *localdriver
+
+services:
+  rsyslog:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/syslog:${XL_VERSION}
+    ports:
+      - "${RSYSLOG_PORT}"
+    volumes:
+      - syslogdata:/home/vmtsyslog
+      - syslogdata_rotate:/var/lib/logrotate
+      - auditlogdata:/var/log/turbonomic
+    restart: always
+
+  consul:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/com.vmturbo.consul:${XL_VERSION}
+    command: ["vmt-server", "-client=0.0.0.0", "-ui"]
+    hostname: consul
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - "constraint:node==/node-4/"
+    ports:
+      - "${CONSUL_PORT}"
+    volumes:
+      - consuldata:/consul/data
+    mem_limit: 100M
+    depends_on:
+      - rsyslog
+    restart: always
+
+  db:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/db:${XL_VERSION}
+    hostname: db
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - mysql_log:/var/log
+      - mysql_var:/var/run
+    ports:
+      - "${DB_PORT}"
+    mem_limit: ${DB_MEM_LIMIT_MB}M
+    depends_on:
+      - rsyslog
+    environment:
+        DB_MEM_PCT_FOR_BUFFER_POOL: ${DB_MEM_PCT_FOR_BUFFER_POOL}
+    restart: always
+
+  zoo1:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/zookeeper:${XL_VERSION}
+    restart: always
+    mem_limit: ${ZOOKEEPER_MEM_LIMIT}M
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: zoo1
+    volumes:
+      - zoo1-data:/var/lib/zoo
+    restart: always
+
+  kafka1:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/kafka:${XL_VERSION}
+    mem_limit: ${KAFKA_MEM_LIMIT}M
+    environment:
+      BROKER_ID: 1
+      ZOOKEEPER_HOSTS: ${ZOOKEEPER_SERVERS}
+      KAFKA_INTERNAL_PORT: ${KAFKA_INTERNAL_PORT}
+      KAFKA_INTERNAL_BROKER_ADDRESS: ${KAFKA_INTERNAL_BROKER_ADDRESS}
+      KAFKA_EXTERNAL_PORT: ${KAFKA_EXTERNAL_PORT}
+      KAFKA_EXTERNAL_BROKER_ADDRESS: ${KAFKA_EXTERNAL_BROKER_ADDRESS}
+      KAFKA_LOG_RETENTION_HRS: ${KAFKA_LOG_RETENTION_HRS}
+      KAFKA_MAX_MESSAGE_BYTES: ${KAFKA_MAX_MESSAGE_BYTES}
+    volumes:
+      - kafka1-log:/home/kafka/data
+    ports:
+      # the external port mapping will have to be revisited for clustering, where external ports
+      # would need to be unique per-host.
+      - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}"
+    depends_on:
+      - rsyslog
+      - zoo1
+    restart: always
+
+  auth:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/auth:${XL_VERSION}
+    depends_on:
+      - clustermgr
+      - consul
+      - db
+    ports:
+      - "${AUTH_PORT}"
+      - "${AUTH_DEBUG_PORT}"
+    environment:
+      component_type: auth
+      instance_id: auth-1
+      kafkaServers: ${KAFKA_SERVERS}
+      JAVA_COMPONENT_OPTS: "${AUTH_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${AUTH_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    volumes:
+      - auth:/home/turbonomic/data
+    mem_limit: ${AUTH_MEM_LIMIT_MB}M
+    restart: always
+
+  clustermgr:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.clustermgr:${XL_VERSION}
+    depends_on:
+      - consul
+      - rsyslog
+      - kafka1
+    ports:
+      - "${CLUSTERMGR_PORT}"
+      - "${CLUSTERMGR_DEBUG_PORT}"
+    environment:
+      component_type: clustermgr
+      instance_id: clustermgr-1
+      serverHttpPort: 8080
+      JAVA_COMPONENT_OPTS: "${CLUSTERMGR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${CLUSTERMGR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      node_name: default
+      consul_host: consul
+      kafkaServers: ${KAFKA_SERVERS}
+    volumes:
+      - clustermgr:/home/turbonomic/data
+    mem_limit: ${CLUSTERMGR_MEM_LIMIT_MB}M
+    restart: always
+
+  robot-docker:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    read_only: false
+    image: ${TEST_IMAGE}
+    command: tail -F anything
+    ports:
+      - "${GROUP_PORT}"
+      - "${GROUP_DEBUG_PORT}"
+    depends_on:
+      - db
+      - consul
+      - kafka1
+      - auth
+    environment:
+      component_type: group
+      instance_id: group-1
+      logging.level.com.vmturbo.group: info # change to debug to enable more debugging output
+      JAVA_COMPONENT_OPTS: "${GROUP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${GROUP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      PROJECT_NAME: "${PROJECT_NAME}"
+      PROJECT_VERSION: "${PROJECT_VERSION}"
+      ROBOT_TAG: "${ROBOT_TAG}"
+      DBROOT: "${DBROOT}"
+      kafkaServers: ${KAFKA_SERVERS}
+    volumes:
+      - /usr/src/project:/usr/src/project
+      - /var/run/docker.sock:/var/run/docker.sock
+    mem_limit: ${GROUP_MEM_LIMIT_MB}M
+    restart: always
