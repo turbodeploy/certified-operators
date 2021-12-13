@@ -566,7 +566,7 @@ public class Analysis {
         // Calculate reservedCapacity and generate resize actions
         // Do not generate reservations for cloud migration plans.
         final ReservedCapacityResults reservedCapacityResults;
-        if (!isMigrateToCloud) {
+        if (!isMigrateToCloud && !FeatureFlags.DISABLE_RESERVATION_RESIZE.isEnabled()) {
             try (DataMetricTimer timer = RESERVED_CAPACITY_ANALYSIS_SUMMARY.labels(contextType).startTimer()) {
                 try (TracingScope ignored = Tracing.trace("reserved_capacity_analysis")) {
                     reservedCapacityResults = reservedCapacityAnalysisEngine.execute(topologyDTOs, converter.getConsistentScalingHelper());
