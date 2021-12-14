@@ -11,6 +11,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -445,6 +446,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         TableField<?, Integer> samplesField;
     }
 
+    @Nonnull
     private List<AggregatedSavingsStats> querySavingsStats(RollupDurationType durationType,
             @Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
@@ -452,10 +454,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException {
         if (statsTypes.isEmpty() || (entityOids.isEmpty() && resourceGroups.isEmpty())) {
-            throw new EntitySavingsException("Cannot get " + durationType.name()
-                    + " entity savings stats: Type count: " + statsTypes.size()
-                    + ", Entity OID count: " + entityOids.size()
-                    + ", Resource Group OID count: " + resourceGroups.size());
+            //There are no entities or filters that support savings stats, returning an empty list
+            return new ArrayList<AggregatedSavingsStats>();
         }
         if (startTime > endTime) {
             throw new EntitySavingsException("Cannot get " + durationType.name()
