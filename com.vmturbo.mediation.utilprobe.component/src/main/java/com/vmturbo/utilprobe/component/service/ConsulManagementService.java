@@ -47,8 +47,8 @@ public class ConsulManagementService {
                         final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
                         JsonFormat.parser().merge(entry.getValue(), probeInfoBuilder);
                         ProbeInfo info = probeInfoBuilder.build();
-                        return probeCategory.equals(info.getProbeCategory()) &&
-                                probeType.equals(info.getProbeType());
+                        return probeCategory.equals(info.getProbeCategory())
+                                && probeType.equals(info.getProbeType());
                     } catch (InvalidProtocolBufferException e) {
                         logger.error("Failed to load probe info from Consul, cannot parse data from {} key",
                                 entry.getKey());
