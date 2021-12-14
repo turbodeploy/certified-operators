@@ -78,6 +78,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
     private ProbeStore probeStore;
 
     private final long actionId = 7;
+    private final long actionStableId = 107;
 
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
@@ -384,7 +385,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         final long probeId = createProbe();
         final Target target = createTarget(probeId, "1");
-        final Action action = new Action(actionId, probeId, target.getId(),
+        final Action action = new Action(actionId, actionStableId, probeId, target.getId(),
                 integrationTestServer.getBean(IdentityProvider.class), ActionType.MOVE);
         final MediationMessage.ActionResponse progressResponse = ActionResponse.newBuilder()
                 .setProgress(33)
@@ -403,7 +404,8 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final ActionProgress gotProgress = progressCaptor.getValue();
         Assert.assertEquals(progressResponse.getResponseDescription(), gotProgress.getDescription());
         Assert.assertEquals(progressResponse.getProgress(), gotProgress.getProgressPercentage());
-        Assert.assertEquals(action.getActionId(), gotProgress.getActionId());
+        Assert.assertEquals(action.getActionInstanceId(), gotProgress.getActionId());
+        Assert.assertEquals(action.getActionStableId(), gotProgress.getActionStableId());
     }
 
     @Test
@@ -413,7 +415,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         final long probeId = createProbe();
         final Target target = createTarget(probeId, "1");
-        final Action action = new Action(actionId, probeId, target.getId(),
+        final Action action = new Action(actionId, actionStableId, probeId, target.getId(),
                 integrationTestServer.getBean(IdentityProvider.class), ActionType.MOVE);
         final MediationMessage.ActionResponse successResponse = ActionResponse.newBuilder()
                 .setProgress(100)
@@ -431,7 +433,8 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         final ActionSuccess gotSuccess = successCaptor.getValue();
         Assert.assertEquals(successResponse.getResponseDescription(), gotSuccess.getSuccessDescription());
-        Assert.assertEquals(action.getActionId(), gotSuccess.getActionId());
+        Assert.assertEquals(action.getActionInstanceId(), gotSuccess.getActionId());
+        Assert.assertEquals(action.getActionStableId(), gotSuccess.getActionStableId());
     }
 
     @Test
@@ -441,7 +444,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         final long probeId = createProbe();
         final Target target = createTarget(probeId, "1");
-        final Action action = new Action(actionId, probeId, target.getId(),
+        final Action action = new Action(actionId, actionStableId, probeId, target.getId(),
                 integrationTestServer.getBean(IdentityProvider.class), ActionType.MOVE);
         final MediationMessage.ActionResponse failResponse = ActionResponse.newBuilder()
                 .setProgress(100)
@@ -459,7 +462,8 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         final ActionFailure gotFailure = failureCaptor.getValue();
         Assert.assertEquals(failResponse.getResponseDescription(), gotFailure.getErrorDescription());
-        Assert.assertEquals(action.getActionId(), gotFailure.getActionId());
+        Assert.assertEquals(action.getActionInstanceId(), gotFailure.getActionId());
+        Assert.assertEquals(action.getActionStableId(), gotFailure.getActionStableId());
     }
 
     @Test
