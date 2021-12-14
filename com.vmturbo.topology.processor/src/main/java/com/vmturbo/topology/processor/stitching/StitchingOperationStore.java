@@ -316,13 +316,14 @@ public class StitchingOperationStore {
          */
         private List<StitchingOperation<?, ?>> createStitchingOpsForKubernetes(@Nonnull final ProbeInfo probeInfo,
         @Nonnull final Set<ProbeCategory> probeScope) {
-            if (cachedOperationsPerProbeType.containsKey(KUBERNETES)) {
-                return cachedOperationsPerProbeType.get(KUBERNETES);
-            }
-            final List<StitchingOperation<?, ?>> operations =
-                createStitchingOperationsFromProbeInfo(probeInfo, probeScope);
-            cachedOperationsPerProbeType.put(KUBERNETES, operations);
-            return operations;
+            final String probeTypeKey = kubernetesProbeVersion(probeInfo);
+            return cachedOperationsPerProbeType.computeIfAbsent(probeTypeKey,
+                k -> createStitchingOperationsFromProbeInfo(probeInfo, probeScope));
+        }
+
+        @Nonnull
+        private String kubernetesProbeVersion(@Nonnull ProbeInfo probeInfo) {
+            return KUBERNETES + "_" + probeInfo.getVersion();
         }
     }
 

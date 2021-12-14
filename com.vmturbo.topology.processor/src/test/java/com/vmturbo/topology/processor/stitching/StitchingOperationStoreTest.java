@@ -301,4 +301,53 @@ public class StitchingOperationStoreTest {
             Assert.assertNotSame(operationsProbe1.get(i), operationsProbe2.get(i));
         }
     }
+
+    /**
+     * Add 3 k8s probes, two with the same version, one with different version.
+     * The ones sharing a versions should use the same operation.
+     *
+     * @throws ProbeException exceptions thrown by the stitching library.
+     */
+    @Test
+    public void testAddK8sProbeVersions() throws ProbeException {
+        final int probeId1 = 4321; // Probes 1 and 3 should use the same operation
+        final int probeId2 = 5432; // Probe 2 shoudl use different operations
+        final int probeId3 = 9876;
+        final StitchingOperationStore store = new StitchingOperationStore(library, true);
+        final MediationMessage.ProbeInfo probe1Info = createProbeInfo(KUBERNETES,
+            createTemplateDTO(EntityType.STORAGE))
+            .toBuilder()
+            .setProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+            .setVersion("foo")
+            .build();
+        final MediationMessage.ProbeInfo probe2Info = createProbeInfo(KUBERNETES,
+            createTemplateDTO(EntityType.STORAGE))
+            .toBuilder()
+            .setProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+            .setVersion("bar")
+            .build();
+        final MediationMessage.ProbeInfo probe3Info = createProbeInfo(KUBERNETES,
+            createTemplateDTO(EntityType.STORAGE))
+            .toBuilder()
+            .setProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+            .setVersion("foo")
+            .build();
+
+        store.setOperationsForProbe(probeId1, probe1Info, Sets.newHashSet());
+        store.setOperationsForProbe(probeId2, probe2Info, Sets.newHashSet());
+        store.setOperationsForProbe(probeId3, probe3Info, Sets.newHashSet());
+
+        List<StitchingOperation<?, ?>> operationsProbe1 = store.getOperationsForProbe(probeId1).get();
+        List<StitchingOperation<?, ?>> operationsProbe2 = store.getOperationsForProbe(probeId2).get();
+        List<StitchingOperation<?, ?>> operationsProbe3 = store.getOperationsForProbe(probeId3).get();
+
+        Assert.assertEquals(3, store.getAllOperations().size());
+
+        for (int i = 0; i < operationsProbe1.size(); i++) {
+            Assert.assertNotSame(operationsProbe1.get(i), operationsProbe2.get(i));
+        }
+        for (int i = 0; i < operationsProbe1.size(); i++) {
+            Assert.assertSame(operationsProbe1.get(i), operationsProbe3.get(i));
+        }
+    }
 }
