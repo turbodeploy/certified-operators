@@ -69,11 +69,6 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private static final String TARGET_LOOKUP_TOKEN = "primary";
 
     /**
-     * The literal that is used as the key for saving stable ID of action in the context data.
-     */
-    public static final String STABLE_ID = "STABLE_ID";
-
-    /**
      * The id of this action, as sent from Action Orchestrator.
      */
     private final long actionId;
@@ -529,7 +524,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         List<ContextData> contextData = dataManager.getContextData(actionSpec.getRecommendation().getInfo());
         // should be added separately as it is not in the recommendation
         if (includeStableId) {
-            contextData.add(ContextData.newBuilder().setContextKey(STABLE_ID)
+            contextData.add(ContextData.newBuilder().setContextKey("STABLE_ID")
                     .setContextValue(String.valueOf(actionSpec.getRecommendationId()))
                     .build()
             );

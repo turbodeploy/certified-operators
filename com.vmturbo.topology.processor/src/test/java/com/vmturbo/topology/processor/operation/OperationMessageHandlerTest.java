@@ -153,7 +153,7 @@ public class OperationMessageHandlerTest {
      */
     @Test
     public void testActionWrongMessage() {
-        final Action action = new Action(0, 10, 0, 0, identityProvider, ActionType.MOVE);
+        final Action action = new Action(0, 0, 0, identityProvider, ActionType.MOVE);
         final ActionOperationCallback callback = Mockito.mock(ActionOperationCallback.class);
 
         final BaseMessageHandler handler = new ActionMessageHandler(action, Clock.systemUTC(), 1000,

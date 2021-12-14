@@ -14,19 +14,13 @@ import com.vmturbo.topology.processor.operation.Operation;
 public class Action extends Operation {
 
     /**
-     * This is the  instance ID of the over-arching action
+     * This is the ID of the over-arching action
      * from the Action Orchestrator. It's distinct
      * from the ID of this {@link Action} operation. Multi-step
      * actions will have multiple {@link Action}s, each with their
      * own operation ID, but all with a common actionId.
      */
-    private final long actionInstanceId;
-
-    /**
-     * The action stable id. This will be included in action updates as that instance
-     * of the action may not be around when the component receives the update.
-     */
-    private final long actionStableId;
+    private final long actionId;
 
     private int progress = 0;
     private String description = "";
@@ -35,28 +29,25 @@ public class Action extends Operation {
     /**
      * Constructs action operation.
      *
-     * @param actionInstanceId action id
-     * @param actionStableId action stable id
+     * @param actionId action id
      * @param probeId probe OID
      * @param targetId target OID
      * @param identityProvider identity provider to create a unique ID
      * @param actionType action type
      */
-    public Action(final long actionInstanceId,
-                  final long actionStableId,
+    public Action(final long actionId,
                   final long probeId,
                   final long targetId,
                   @Nonnull final IdentityProvider identityProvider,
                   @Nonnull ActionType actionType) {
         super(probeId, targetId, identityProvider, ActionList.ACTION_DURATION_SUMMARY);
-        this.actionInstanceId = actionInstanceId;
-        this.actionStableId = actionStableId;
+        this.actionId = actionId;
         this.actionType = actionType;
     }
 
     @Override
     public String toString() {
-        return "Action operation (execution step of action " + actionInstanceId + "): " + super.toString();
+        return "Action operation (execution step of action " + actionId + "): " + super.toString();
     }
 
     /**
@@ -69,12 +60,8 @@ public class Action extends Operation {
         this.description = actionResponse.getResponseDescription();
     }
 
-    public long getActionInstanceId() {
-        return actionInstanceId;
-    }
-
-    public long getActionStableId() {
-        return actionStableId;
+    public long getActionId() {
+        return actionId;
     }
 
     public int getProgress() {

@@ -15,9 +15,6 @@ message ActionProgress {
 
     // action state description, for example ("Moving VM...")
     optional string description = 3;
-
-    // The stable ID of the action whose status is described by this message.
-    optional int64 actionStableId = 4;
 }
 
 // Sent as an update when an action completes successfully.
@@ -30,9 +27,6 @@ message ActionSuccess {
 
     // The action spec for the action.
     optional ActionSpec action_spec = 3;
-
-    // The stable ID of the action whose status is described by this message.
-    optional int64 actionStableId = 4;
 }
 
 // Sent as an update when an action completes and fails.
@@ -45,9 +39,6 @@ message ActionFailure {
 
     // The action spec for the action.
     optional ActionSpec action_spec = 3;
-
-    // The stable ID of the action whose status is described by this message.
-    optional int64 actionStableId = 4;
 }
 
 // Sent when the set of actions have been updated in the action orchestrator
