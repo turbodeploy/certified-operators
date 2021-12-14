@@ -25,10 +25,10 @@
         <ux.mt.branch.version>8.4.2-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.195-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.196-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
-        <cpu.capacity.version>1.5.0</cpu.capacity.version>
+        <cpu.capacity.version>1.5.1</cpu.capacity.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -63,8 +63,7 @@
         <!-- END Versions for the various opentracing libraries -->
 
         <slf4j.version>1.7.25</slf4j.version>
-        <log4j.version>1.2.17</log4j.version>
-        <log4j2.Version>2.8.2</log4j2.Version>
+        <log4j2.Version>2.15.0</log4j2.Version>
         <log4j2.AsyncVersion>3.3.6</log4j2.AsyncVersion>
         <commons-logging.version>1.2</commons-logging.version>
         <commons-io.version>2.5</commons-io.version>
@@ -2725,12 +2724,6 @@
                 <version>${spring.security.version}</version>
             </dependency>
 
-            <!-- log4j 1.2 -->
-            <dependency>
-                <groupId>log4j</groupId>
-                <artifactId>log4j</artifactId>
-                <version>${log4j.version}</version>
-            </dependency>
             <!-- log4j2 -->
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
