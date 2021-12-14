@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.operation;
 
+import static com.vmturbo.topology.processor.actions.data.context.AbstractActionExecutionContext.STABLE_ID;
+
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -48,6 +50,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -382,8 +385,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final String probeType = getProbeTypeWithCheck(target);
 
         final ActionExecutionDTO actionDto = request.getActionExecutionDTO();
-        final Action action = new Action(actionDto.getActionOid(), target.getProbeId(),
-                targetId, identityProvider,
+        final long actionStableId = extractActionStableId(actionDto);
+        final Action action = new Action(actionDto.getActionOid(), actionStableId,
+                target.getProbeId(), targetId, identityProvider,
                 actionDto.getActionType());
 
         final ActionOperationCallback callback = new ActionOperationCallback() {
@@ -437,6 +441,23 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO());
         operationStart(messageHandler);
         return action;
+    }
+
+    private long extractActionStableId(@Nonnull final ActionExecutionDTO actionDto) {
+        if (actionDto.getActionItemCount() > 0) {
+            return actionDto.getActionItem(0).getContextDataList()
+                    .stream()
+                    .filter(c -> STABLE_ID.equals(c.getContextKey()))
+                    .map(CommonDTO.ContextData::getContextValue)
+                    .findAny()
+                    .map(Long::valueOf)
+                    .orElseThrow(() -> new IllegalArgumentException("The action execution"
+                      + " request " + actionDto.getActionOid()
+                      + " does not have a stable action ID."));
+        } else {
+            throw new IllegalArgumentException("The action execution request "
+                    + actionDto.getActionOid() + " does not have any actions.");
+        }
     }
 
     @Override
@@ -601,7 +622,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .setActionExecutionDTO(actionExecutionDTO)
                 .build();
 
-        final Action action = new Action(0, target.getProbeId(),
+        final Action action = new Action(0, 0, target.getProbeId(),
                 targetId, identityProvider,
                 ActionType.NONE);
 
@@ -1802,7 +1823,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @return if the action should be updated.
      */
     private boolean shouldUpdateEntityActionTable(Action action) {
-        return shouldUpdateEntityActionTable(action.getActionId(), action.getActionType());
+        return shouldUpdateEntityActionTable(action.getActionInstanceId(), action.getActionType());
     }
 
     private boolean shouldUpdateEntityActionTable(
@@ -1818,7 +1839,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
      */
     private void updateControllableAndSuspendableState(@Nonnull final Action action) {
-        updateControllableAndSuspendableState(action.getActionId(), action.getStatus());
+        updateControllableAndSuspendableState(action.getActionInstanceId(), action.getStatus());
     }
 
     /**
