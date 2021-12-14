@@ -46,7 +46,7 @@ import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClus
 import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetTransactionsCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessCapacityPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageEntityCapacityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageEntityIopsOrLatencyCapacityPostStitchingOp;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
@@ -119,9 +119,9 @@ public class PostStitchingOperationLibrary {
             new StorageAccessCapacityPostStitchingOperation(EntityType.DISK_ARRAY, diskCapacityCalculator),
             new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL, diskCapacityCalculator),
             new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER, diskCapacityCalculator),
-            new StorageEntityCapacityPostStitchingOperation(CommodityType.STORAGE_ACCESS, EntitySettingSpecs.IOPSCapacity),
+            new StorageEntityIopsOrLatencyCapacityPostStitchingOp(CommodityType.STORAGE_ACCESS, EntitySettingSpecs.IOPSCapacity),
             new VolumeEntityAccessCapacityPostStitchingOperation(),
-            new StorageEntityCapacityPostStitchingOperation(CommodityType.STORAGE_LATENCY, EntitySettingSpecs.LatencyCapacity),
+            new StorageEntityIopsOrLatencyCapacityPostStitchingOp(CommodityType.STORAGE_LATENCY, EntitySettingSpecs.LatencyCapacity),
             new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_LATENCY),
             new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_ACCESS),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
