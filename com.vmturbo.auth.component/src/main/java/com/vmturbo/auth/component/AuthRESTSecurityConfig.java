@@ -91,7 +91,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     /**
      * Group container DN. It's optional and intened to imporove performance when using LDAP_MATCHING_RULE_IN_CHAIN
      */
-    @Value("${groupContainerDN:}")
+    @Value("${groupContainerDN:#{null}}")
     private String groupContainerDN;
 
 
@@ -250,7 +250,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
         final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
         final ReportPolicy reportPolicy = new ReportPolicy(licensingConfig.licenseCheckService(),
                 enableReporting || isReportingEnabled);
-        final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy, Optional.of(groupContainerDN));
+        final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy, Optional.ofNullable(groupContainerDN));
         AuditLog.newEntry(userPolicy.getAuditAction(),
                 "User login policy is set to " + loginPolicy, true)
                 .targetName("Login Policy")
