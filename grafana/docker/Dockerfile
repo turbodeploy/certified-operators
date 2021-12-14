@@ -1,7 +1,7 @@
 # This docker file is capable of building an image that contains multiple versions of the
 # grafana server for use in different scenarios, if needed. The following ARG specifies the
-# versions as a list of <name>:<version> pairs.
-ARG grafana_versions="embedded-reporting:8.0.6 saas-reporting:7.5.10"
+# versions as a list of <name>:<version> pairs. 
+ARG grafana_versions="embedded-reporting:8.3.2 saas-reporting:7.5.10"
 
 # The grafana.ini config file is, in our case, created by the helm chart responsible for the
 # grafana deployment. It is mounted as a read-only volume mounted at /etc/grafana/grafana.ini.
