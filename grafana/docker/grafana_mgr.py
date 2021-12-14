@@ -386,6 +386,8 @@ def main():
     home_path = os.environ["GF_PATHS_HOME"]
     config_path = os.environ["GF_PATHS_CONFIG"]
     license_path = os.environ.get("LICENSE_PATH")
+    SENSITIVE_KEYS = {"dbRootPassword", "dbs.grafana.password", "grafanaAdminPassword", "grafanaDb.password"}
+    ASTERISKS = "xxxxx"
     if license_path is None:
         license_path = "/tmp/license.jwt"
 
@@ -418,7 +420,10 @@ def main():
 
     props = get_config_properties(['extractor', 'grafana'])
     for (prop) in sorted(props):
-        logger.info(f"Configured property {prop}={props[prop]}")
+        if prop in SENSITIVE_KEYS:
+            logger.info(f"Configured property {prop}={ASTERISKS}")
+        else:
+            logger.info(f"Configured property {prop}={props[prop]}")
 
     grafana = Grafana(home_path, config_path, license_path)
 
