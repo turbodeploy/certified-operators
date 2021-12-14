@@ -25,9 +25,18 @@ public final class SensitiveDataUtil {
      */
     public static final String ASTERISKS = "xxxxx";
     // Other sensitive keys that are not currently included in component secrets.
-    private static final Set<String> additionalSensitiveKeySet = ImmutableSet.of("arangodbPass",
-            "userPassword", "sslKeystorePassword", "readonlyPassword", "dbRootPassword",
-            "ssl.keystore.password", "ssl.key.password", "ssl.truststore.password");
+    private static final Set<String> additionalSensitiveKeySet = ImmutableSet.of(
+            "arangodbPass",
+            "userPassword",
+            "sslKeystorePassword",
+            "readonlyPassword",
+            "dbRootPassword",
+            "ssl.keystore.password",
+            "ssl.key.password",
+            "ssl.truststore.password",
+            "dbs.grafana.password",
+            "grafanaAdminPassword",
+            "grafanaDb.password");
 
     // utility class
     private SensitiveDataUtil() {
