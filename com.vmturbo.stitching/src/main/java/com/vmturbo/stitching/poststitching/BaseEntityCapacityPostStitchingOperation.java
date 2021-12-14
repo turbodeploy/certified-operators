@@ -5,12 +5,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
@@ -51,7 +54,7 @@ public abstract class BaseEntityCapacityPostStitchingOperation {
      * @param entity topology entity
      * @param settingsCollection settings collection
      * @param spec setting specification
-     * @return policy value, default if policy if not configured for entity
+     * @return policy value, default if policy is not configured for entity
      */
     protected static double getNumericPolicyValue(TopologyEntity entity,
                     EntitySettingsCollection settingsCollection, EntitySettingSpecs spec) {
@@ -86,18 +89,30 @@ public abstract class BaseEntityCapacityPostStitchingOperation {
                 } else {
                     // this situation is standard, log in lower level
                     logger.trace("Setting unset commodity {} capacities for Entity {} with {}",
-                                    commodityType, entityForUpdate.getOid(), newCapacity);
+                            commodityType, entityForUpdate.getOid(), newCapacity);
                 }
-                getApplicableCommodities(entity, commodityType, override)
-                                .forEach(commodity -> commodity.setCapacity(newCapacity));
+                getApplicableCommodities(entity, commodityType, override).forEach(
+                        commodity -> commodity.setCapacity(newCapacity));
             });
         }
     }
 
+    @Nonnull
+    protected static Optional<Double> getCapacity(@Nonnull TopologyEntity entity,
+            CommodityType commodityType) {
+        return getApplicableCommodities(entity, commodityType.getNumber(), true)
+                .findAny()
+                .filter(comm -> comm.hasCapacity() && comm.getCapacity() != 0)
+                .map(CommoditySoldDTO.Builder::getCapacity);
+    }
+
     private static Stream<CommoditySoldDTO.Builder> getApplicableCommodities(TopologyEntity entity,
-                    int commodityType, boolean override) {
-        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
-                        .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
-                        .filter(comm -> override ? true : !comm.hasCapacity() || comm.getCapacity() == 0);
+            int commodityType, boolean override) {
+        return entity
+                .getTopologyEntityDtoBuilder()
+                .getCommoditySoldListBuilderList()
+                .stream()
+                .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
+                .filter(comm -> override ? true : !comm.hasCapacity() || comm.getCapacity() == 0);
     }
 }
