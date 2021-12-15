@@ -33,7 +33,6 @@ global:
   elk: false
 #  logtostdout: false
 #  debug: true
-  dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
   storageAnnotations: {}
 #  storageClassName: default
 #  storageSelector: true
