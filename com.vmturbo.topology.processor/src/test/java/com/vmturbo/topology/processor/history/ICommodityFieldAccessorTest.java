@@ -1,14 +1,23 @@
 package com.vmturbo.topology.processor.history;
 
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -135,4 +144,38 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
         Assert.assertEquals(percentile, sold.getHistoricalUsed().getPercentile(), DELTA);
     }
 
+    /**
+     * Test applyInsufficientHistoricalDataPolicy when only VMEM does not have enough data
+     * and when both VMEM and VCPU do not have enough data to pass min observation period check.
+     */
+    @Test
+    public void testApplyInsufficientHistoricalDataPolicy() {
+        final long vmOid = 1234567L;
+        TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder().setOid(vmOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE)).setIsResizeable(true))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE)).setIsResizeable(true));
+        EntityCommodityFieldReference vmemRef = new EntityCommodityFieldReference(vmOid, CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.VMEM_VALUE).build(),
+                CommodityField.USED);
+        ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph);
+        when(graph.getEntity(eq(vmOid))).thenReturn(Optional.of(TopologyEntity.newBuilder(vmBuilder).build()));
+        // Only perform applyInsufficientHistoricalDataPolicy on VMEM, vm's getCommoditiesBoughtFromProviders
+        // are still scalable.
+        accessor.applyInsufficientHistoricalDataPolicy(vmemRef);
+        Assert.assertTrue(vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream().allMatch(commBoughtGrp
+                -> commBoughtGrp.getScalable() == true));
+        // Now both VMEM and VCPU have performed applyInsufficientHistoricalDataPolicy, vm's
+        // getCommoditiesBoughtFromProviders are no longer scalable.
+        EntityCommodityFieldReference vcpuRef = new EntityCommodityFieldReference(vmOid, CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.VCPU_VALUE).build(),
+                CommodityField.USED);
+        accessor.applyInsufficientHistoricalDataPolicy(vcpuRef);
+        Assert.assertTrue(vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream().noneMatch(commBoughtGrp
+                -> commBoughtGrp.getScalable() == true));
+
+    }
 }
