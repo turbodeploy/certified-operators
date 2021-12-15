@@ -28,7 +28,7 @@
         <com.vmturbo.api.version>3.1.197-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
-        <cpu.capacity.version>1.5.1</cpu.capacity.version>
+        <cpu.capacity.version>1.5.2</cpu.capacity.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -63,7 +63,7 @@
         <!-- END Versions for the various opentracing libraries -->
 
         <slf4j.version>1.7.25</slf4j.version>
-        <log4j2.Version>2.15.0</log4j2.Version>
+        <log4j2.Version>2.16.0</log4j2.Version>
         <log4j2.AsyncVersion>3.3.6</log4j2.AsyncVersion>
         <commons-logging.version>1.2</commons-logging.version>
         <commons-io.version>2.5</commons-io.version>
