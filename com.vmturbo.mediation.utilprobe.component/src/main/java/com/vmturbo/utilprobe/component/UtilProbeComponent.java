@@ -41,6 +41,7 @@ class UtilProbeComponent extends MediationComponentMain {
 
     private static final String PROBE_TYPE = "UTILPROBE_TYPE";
     private static final String PROBE_CATEGORY = "UTILPROBE_CATEGORY";
+    private static final String PROBE_UI_CATEGORY = "UTILPROBE_UI_CATEGORY";
 
     @Value("${consul_host:}")
     private String consulHost;
@@ -63,7 +64,7 @@ class UtilProbeComponent extends MediationComponentMain {
     private ConsulManagementService consulManagementService;
 
     static void start() {
-        startContext(UtilProbeComponent.class);
+        runComponent(UtilProbeComponent.class);
     }
 
     /**
@@ -78,6 +79,7 @@ class UtilProbeComponent extends MediationComponentMain {
     public Collection<ProbeProperties<?>> probePropertiesCollection() throws ProbeConfigurationLoadException {
         final String probeType = System.getenv(PROBE_TYPE);
         final String probeCategory = System.getenv(PROBE_CATEGORY);
+        final String probeUiCategory = System.getenv(PROBE_UI_CATEGORY);
 
         logger.info("Probe type: {}\nProbe category: {}", probeType, probeCategory);
 
@@ -93,13 +95,15 @@ class UtilProbeComponent extends MediationComponentMain {
         // Pass probe category and probe type from the parameters
         newProps.add(new ProbeProperties(
                 probeCategory,
+                probeUiCategory,
+                null,
                 probeType,
                 probeClassContext,
                 accountValuesConverter,
                 probeDirectory,
-                NumberUtils.isParsable(rediscoveryIntervalSeconds) ?
-                    Integer.parseInt(rediscoveryIntervalSeconds) :
-                    ProbeProperties.DEFAULT_REDISCOVERY_INTERVAL_IN_SEC,
+                NumberUtils.isParsable(rediscoveryIntervalSeconds)
+                        ? Integer.parseInt(rediscoveryIntervalSeconds)
+                        : ProbeProperties.DEFAULT_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.DEFAULT_INCREMENTAL_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.MINIMUM_PERFORMANCE_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.DEFAULT_PROBE_TIMEOUT_SEC,
@@ -114,11 +118,11 @@ class UtilProbeComponent extends MediationComponentMain {
      */
     @Bean
     protected KeyValueStore getKeyValueStore() {
-        logger.info("Initializing KV store:\n" +
-                    "Namespace: {}\n" +
-                    "Consul host: {}\n" +
-                    "Consul port: {}\n" +
-                    "Retry interval: {} ms\n",
+        logger.info("Initializing KV store:\n"
+                    + "Namespace: {}\n"
+                    + "Consul host: {}\n"
+                    + "Consul port: {}\n"
+                    + "Retry interval: {} ms\n",
                     topologyProcessorInstance, consulHost, consulPort, kvStoreTimeoutSeconds);
 
         return new ConsulKeyValueStore(
