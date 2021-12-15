@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -82,6 +83,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import common.HealthCheck.HealthState;
+
 import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
@@ -105,7 +108,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.target.TargetOperationStageApiDTO;
-import com.vmturbo.api.dto.target.TargetType;
+import com.vmturbo.api.dto.target.TargetRelationship;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
@@ -169,8 +172,6 @@ import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
 
-import common.HealthCheck.HealthState;
-
 /**
  * Test the {@link TargetsService}. Mocks calls to the underlying {@link TopologyProcessor}.
  */
@@ -189,6 +190,12 @@ public class TargetsServiceTest {
     private static final String TARGET_DISPLAY_NAME = "target name";
     private static final Duration MILLIS_100 = Duration.ofMillis(100);
     private static final Duration MILLIS_50 = Duration.ofMillis(50);
+
+    private static final long PROBE_ID = 1;
+    private static final long PARENT_TARGET_ID = 2;
+    private static final long DERIVED_TARGET_ID = 3;
+    private static final long DERIVED_HIDDEN_TARGET_ID = 4;
+    private static final long REGULAR_TARGET_ID = 5;
 
     @Autowired
     private TopologyProcessor topologyProcessor;
@@ -234,6 +241,16 @@ public class TargetsServiceTest {
 
     @Autowired
     private ApiWebsocketHandler apiWebsocketHandler;
+
+    private ProbeInfo probeInfo;
+
+    private TargetInfo parentTargetInfo;
+
+    private TargetInfo derivedTargetInfo;
+
+    private TargetInfo derivedHiddenTargetInfo;
+
+    private TargetInfo regularTargetInfo;
 
     @Before
     public void init() throws TopologyProcessorException, CommunicationException {
@@ -330,17 +347,17 @@ public class TargetsServiceTest {
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
-            AccountDefEntry... entries) throws Exception {
+            AccountDefEntry... entries) {
         return createMockProbeInfo(probeId, type, category, uiCategory, CreationMode.STAND_ALONE, entries);
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
-                                          CreationMode creationMode,  AccountDefEntry... entries) throws Exception {
+                                          CreationMode creationMode,  AccountDefEntry... entries) {
         return createMockProbeInfo(probeId, type, category, uiCategory, creationMode, null, entries);
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
-            CreationMode creationMode, String license, AccountDefEntry... entries) throws Exception {
+            CreationMode creationMode, String license, AccountDefEntry... entries) {
         final ProbeInfo newProbeInfo = Mockito.mock(ProbeInfo.class);
         when(newProbeInfo.getId()).thenReturn(probeId);
         when(newProbeInfo.getType()).thenReturn(type);
@@ -359,8 +376,13 @@ public class TargetsServiceTest {
         return newProbeInfo;
     }
 
-    private TargetInfo createMockTargetInfo(long probeId, long targetId, AccountValue... accountValues)
-            throws Exception {
+    private TargetInfo createMockTargetInfo(long probeId, long targetId,
+                                            AccountValue... accountValues) {
+        return createMockTargetInfo(probeId, targetId, false, accountValues);
+    }
+
+    private TargetInfo createMockTargetInfo(long probeId, long targetId, boolean isHidden,
+                                AccountValue... accountValues) {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
@@ -369,15 +391,15 @@ public class TargetsServiceTest {
         when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
         when(targetInfo.getStatus()).thenReturn("Validated");
         when(targetInfo.getHealthState()).thenReturn(HealthState.NORMAL);
-        when(targetInfo.isHidden()).thenReturn(false);
+        when(targetInfo.isHidden()).thenReturn(isHidden);
         when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
+        when(targetInfo.getParentTargetIds()).thenReturn(Collections.emptyList());
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
 
     private TargetInfo createMockTargetInfo(long probeId, long targetId,
-            boolean isHidden, boolean isReadOnly, AccountValue... accountValues)
-            throws Exception {
+            boolean isHidden, boolean isReadOnly, AccountValue... accountValues) {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
@@ -391,13 +413,12 @@ public class TargetsServiceTest {
         return targetInfo;
     }
 
-    private TargetInfo createMockHiddenTargetInfo(long probeId, long targetId, AccountValue... accountValues)
-            throws Exception {
+    private TargetInfo createMockHiddenTargetInfo(long probeId, long targetId, AccountValue... accountValues) {
         return createMockTargetInfo(probeId, targetId, true, false, accountValues);
     }
 
     private TargetInfo createMockReadOnlyTargetInfo(long probeId, long targetId,
-            AccountValue... accountValues) throws Exception {
+            AccountValue... accountValues) {
         return createMockTargetInfo(probeId, targetId, false, true, accountValues);
     }
 
@@ -481,6 +502,260 @@ public class TargetsServiceTest {
         final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
                 ErrorApiDTO.class);
         Assert.assertThat(resp.getMessage(), CoreMatchers.containsString(TGT_NOT_FOUND));
+    }
+
+    /**
+     * Test getting a single target with visible derived targets and health details.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void getParentTargetVisibleDerivedWithHealthInfo() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+
+        final ArgumentCaptor<GetTargetDetailsRequest> captor =
+                ArgumentCaptor.forClass(GetTargetDetailsRequest.class);
+
+        doReturn(GetTargetDetailsResponse.newBuilder()
+                .putTargetDetails(PARENT_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(PARENT_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.CRITICAL)
+                                .build())
+                        .build())
+                .putTargetDetails(DERIVED_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(DERIVED_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.MINOR)
+                                .build())
+                        .build())
+                .build()).when(targetsServiceMole).getTargetDetails(captor.capture());
+
+        // ACT
+        final MvcResult result = mockMvc.perform(
+                        get("/targets/" + PARENT_TARGET_ID
+                                + "?target_relationship=" + TargetRelationship.VISIBLE_DERIVED
+                                + "&detail_level=" + TargetDetailLevel.HEALTH)
+                            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andReturn();
+        final TargetApiDTO parentDto = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO.class);
+
+        // ASSERT
+        Set<Long> targetIdsRequestedForDetails = new HashSet<>(captor.getValue().getTargetIdsList());
+        assertThat(targetIdsRequestedForDetails, containsInAnyOrder(PARENT_TARGET_ID,
+                DERIVED_TARGET_ID));
+
+        // verify the response for the parent target
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(1));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        assertEquals(derivedTargetInfo, probeInfo, parentDto.getDerivedTargets().get(0));
+        assertThat(parentDto.getDerivedTargets().get(0).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+    }
+
+    /**
+     * Test getting a single parent target with derived relationships including hidden targets
+     * and health details.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void getParentTargetWithDervidRelationshipWithHealthInfo() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+
+        final ArgumentCaptor<GetTargetDetailsRequest> captor =
+                ArgumentCaptor.forClass(GetTargetDetailsRequest.class);
+
+        doReturn(GetTargetDetailsResponse.newBuilder()
+                .putTargetDetails(PARENT_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(PARENT_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.CRITICAL)
+                                .build())
+                        .build())
+                .putTargetDetails(DERIVED_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(DERIVED_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.MINOR)
+                                .build())
+                        .build())
+                .putTargetDetails(DERIVED_HIDDEN_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(DERIVED_HIDDEN_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.NORMAL)
+                                .build())
+                        .build())
+                .build()).when(targetsServiceMole).getTargetDetails(captor.capture());
+
+        // ACT
+        final MvcResult result = mockMvc.perform(
+                        get("/targets/" + PARENT_TARGET_ID
+                                + "?target_relationship=" + TargetRelationship.DERIVED
+                                + "&detail_level=" + TargetDetailLevel.HEALTH)
+                                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andReturn();
+        final TargetApiDTO parentDto = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO.class);
+
+        // ASSERT
+        Set<Long> targetIdsRequestedForDetails = new HashSet<>(captor.getValue().getTargetIdsList());
+        assertThat(targetIdsRequestedForDetails, containsInAnyOrder(PARENT_TARGET_ID,
+                DERIVED_TARGET_ID, DERIVED_HIDDEN_TARGET_ID));
+
+        // verify the response for the parent target
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(2));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        final Map<Long, TargetApiDTO> derivedTargets = Maps.uniqueIndex(
+                parentDto.getDerivedTargets(), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+        assertEquals(derivedTargetInfo, probeInfo, derivedTargets.get(DERIVED_TARGET_ID));
+        assertEquals(derivedHiddenTargetInfo, probeInfo, derivedTargets.get(DERIVED_HIDDEN_TARGET_ID));
+        assertThat(derivedTargets.get(DERIVED_TARGET_ID).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+        assertThat(derivedTargets.get(DERIVED_HIDDEN_TARGET_ID).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL));
+    }
+
+    /**
+     * Test getting a single parent target with all relationships include hidden targets
+     * and health details.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void getParentTargetWithAllRelationshipWithHealthInfo() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+
+        final ArgumentCaptor<GetTargetDetailsRequest> captor =
+                ArgumentCaptor.forClass(GetTargetDetailsRequest.class);
+
+        doReturn(GetTargetDetailsResponse.newBuilder()
+                .putTargetDetails(PARENT_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(PARENT_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.CRITICAL)
+                                .build())
+                        .build())
+                .putTargetDetails(DERIVED_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(DERIVED_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.MINOR)
+                                .build())
+                        .build())
+                .putTargetDetails(DERIVED_HIDDEN_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(DERIVED_HIDDEN_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.NORMAL)
+                                .build())
+                        .build())
+                .build()).when(targetsServiceMole).getTargetDetails(captor.capture());
+
+        // ACT
+        final MvcResult result = mockMvc.perform(
+                        get("/targets/" + PARENT_TARGET_ID
+                                + "?target_relationship=" + TargetRelationship.DERIVED_AND_PARENT
+                                + "&detail_level=" + TargetDetailLevel.HEALTH)
+                            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andReturn();
+        final TargetApiDTO parentDto = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO.class);
+
+        // ASSERT
+        Set<Long> targetIdsRequestedForDetails = new HashSet<>(captor.getValue().getTargetIdsList());
+        assertThat(targetIdsRequestedForDetails, containsInAnyOrder(PARENT_TARGET_ID,
+                DERIVED_TARGET_ID, DERIVED_HIDDEN_TARGET_ID));
+
+        // verify the response for the parent target
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(2));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        final Map<Long, TargetApiDTO> derivedTargets = Maps.uniqueIndex(
+                parentDto.getDerivedTargets(), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+        assertEquals(derivedTargetInfo, probeInfo, derivedTargets.get(DERIVED_TARGET_ID));
+        assertEquals(derivedHiddenTargetInfo, probeInfo, derivedTargets.get(DERIVED_HIDDEN_TARGET_ID));
+        assertThat(derivedTargets.get(DERIVED_TARGET_ID).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+        assertThat(derivedTargets.get(DERIVED_HIDDEN_TARGET_ID).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL));
+    }
+
+    /**
+     * Test getting a single derived target with visible derived and parent targets and health details.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void getDerivedTargetDerivedAndParentWithHealthInfo() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+
+        final ArgumentCaptor<GetTargetDetailsRequest> captor =
+                ArgumentCaptor.forClass(GetTargetDetailsRequest.class);
+
+        doReturn(GetTargetDetailsResponse.newBuilder()
+                .putTargetDetails(PARENT_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(PARENT_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.CRITICAL)
+                                .build())
+                        .build())
+                .putTargetDetails(DERIVED_HIDDEN_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(DERIVED_HIDDEN_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.MINOR)
+                                .build())
+                        .build())
+                .build()).when(targetsServiceMole).getTargetDetails(captor.capture());
+
+        // ACT
+        final MvcResult result = mockMvc.perform(
+                        get("/targets/" + DERIVED_HIDDEN_TARGET_ID
+                                + "?target_relationship=" + TargetRelationship.VISIBLE_DERIVED_AND_PARENT
+                                + "&detail_level=" + TargetDetailLevel.HEALTH)
+                            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andReturn();
+        final TargetApiDTO derivedDto = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO.class);
+
+        // ASSERT
+        Set<Long> targetIdsRequestedForDetails = new HashSet<>(captor.getValue().getTargetIdsList());
+        assertThat(targetIdsRequestedForDetails, containsInAnyOrder(PARENT_TARGET_ID,
+                DERIVED_HIDDEN_TARGET_ID));
+
+        // verify the response for the derived target
+        assertEquals(derivedTargetInfo, probeInfo, derivedDto);
+        assertThat(derivedDto.getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+        assertThat(derivedDto.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedDto.getParentTargets().size(), equalTo(1));
+        assertEquals(derivedTargetInfo, probeInfo, derivedDto.getParentTargets().get(0));
+        assertThat(derivedDto.getParentTargets().get(0).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
     }
 
     /**
@@ -678,42 +953,392 @@ public class TargetsServiceTest {
     }
 
     /**
-     * Tests the case where the user's environment includes a "parent" target and two derived targets.
-     * Verifies that the parent's derivedTarget Dtos have been created correctly.
+     * Tests the case where all targets where no target relationship is specified.
+     * Verifies that the derivedTarget have been populated correctly.
      *
      * @throws Exception Not expected to happen.
      */
     @Test
-    public void testGetAllTargets_withDerivedTargetRelationships() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
-        final TargetInfo parentTargetInfo = createMockTargetInfo(probe.getId(), 2);
-        final TargetInfo childTargetInfo1 = createMockTargetInfo(probe.getId(), 3);
-        final TargetInfo childTargetInfo2 = createMockTargetInfo(probe.getId(), 4);
+    public void testGetTargetsWithNoTargetRelationshipSpecified() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+        setupSearchServiceForTargetRelationship();
 
-        final ArgumentCaptor<SearchTargetsRequest> captor =
-            ArgumentCaptor.forClass(SearchTargetsRequest.class);
-        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
-            SearchTargetsResponse.newBuilder()
-                .addTargets(2)
-                .setPaginationResponse(Pagination.PaginationResponse.newBuilder()
-                    .setTotalRecordCount(1).build())
-                .build());
-
-        when(parentTargetInfo.getDerivedTargetIds()).thenReturn(Lists.newArrayList(3L, 4L));
-
+        // ACT
         final MvcResult result = mockMvc
-                .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .perform(get("/targets")
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                 .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        final Map<Long, TargetApiDTO> allTargetDtosMap = createTargetMap(result);
+
+        assertThat(allTargetDtosMap.size(), equalTo(3));
+
+        // verify the response for the parent target
+        final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(1));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        assertEquals(derivedTargetInfo, probeInfo, parentDto.getDerivedTargets().get(0));
+
+        // verify the response for the derived target
+        final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
+        assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
+        assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedTarget.getParentTargets().size(), equalTo(0));
+
+        // verify the response for the regular target
+        final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
+        assertEquals(regularTargetInfo, probeInfo, regularTarget);
+        assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(regularTarget.getParentTargets().size(), equalTo(0));
+    }
+
+    /**
+     * Tests the case where all targets with no visible derived and parent targets requested.
+     * Verifies that the parent's derivedTarget and children's parentTarget DTOs have not been
+     * populated.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetTargetsWithNoneRelationship() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+        setupSearchServiceForTargetRelationship();
+
+        // ACT
+        final MvcResult result = mockMvc.perform(
+                get("/targets?target_relationship=" + TargetRelationship.NONE).accept(
+                        MediaType.APPLICATION_JSON_UTF8_VALUE)).andExpect(
+                MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        final Map<Long, TargetApiDTO> allTargetDtosMap = createTargetMap(result);
+
+        assertThat(allTargetDtosMap.size(), equalTo(3));
+
+        // verify the response for the parent target
+        final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(0));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+
+        // verify the response for the derived target
+        final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
+        assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
+        assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedTarget.getParentTargets().size(), equalTo(0));
+
+        // verify the response for the regular target
+        final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
+        assertEquals(regularTargetInfo, probeInfo, regularTarget);
+        assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(regularTarget.getParentTargets().size(), equalTo(0));
+    }
+
+    /**
+     * Tests the case where all targets where visible derived target relationship is selected.
+     * Verifies that the derivedTarget have been populated correctly.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetTargetsWithVisibleDerivedTargetRelationship() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+        setupSearchServiceForTargetRelationship();
+
+        // ACT
+        final MvcResult result = mockMvc
+                .perform(get("/targets?target_relationship=" + TargetRelationship.VISIBLE_DERIVED)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        final Map<Long, TargetApiDTO> allTargetDtosMap = createTargetMap(result);
+
+        assertThat(allTargetDtosMap.size(), equalTo(3));
+
+        // verify the response for the parent target
+        final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(1));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        assertEquals(derivedTargetInfo, probeInfo, parentDto.getDerivedTargets().get(0));
+
+        // verify the response for the derived target
+        final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
+        assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
+        assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedTarget.getParentTargets().size(), equalTo(0));
+
+        // verify the response for the regular target
+        final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
+        assertEquals(regularTargetInfo, probeInfo, regularTarget);
+        assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(regularTarget.getParentTargets().size(), equalTo(0));
+    }
+
+    /**
+     * Tests the case where visible targets with their visible derived and parent targets are requested.
+     * Verifies that the parent's derivedTarget and children's parentTarget DTOs  have been
+     * populated correctly.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetTargetsWithVisibleDerivedAndParentRelationship() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+        setupSearchServiceForTargetRelationship();
+
+        // ACT
+        final MvcResult result = mockMvc.perform(
+                        get("/targets?target_relationship=" + TargetRelationship.VISIBLE_DERIVED_AND_PARENT)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        final Map<Long, TargetApiDTO> allTargetDtosMap = createTargetMap(result);
+
+        assertThat(allTargetDtosMap.size(), equalTo(3));
+
+        // verify the response for the parent target
+        final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(1));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        assertEquals(derivedTargetInfo, probeInfo, parentDto.getDerivedTargets().get(0));
+
+        // verify the response for the derived target
+        final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
+        assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
+        assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedTarget.getParentTargets().size(), equalTo(1));
+        assertEquals(parentTargetInfo, probeInfo, derivedTarget.getParentTargets().get(0));
+
+        // verify the response for the regular target
+        final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
+        assertEquals(regularTargetInfo, probeInfo, regularTarget);
+        assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(regularTarget.getParentTargets().size(), equalTo(0));
+    }
+
+    /**
+     * Tests the case where all targets with their visible and hidden derived targets are requested.
+     * Verifies that the parent's derivedTarget populated correctly and hidden targets are returned.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetTargetsWithAllDerivedRelationship() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+        setupSearchServiceForTargetRelationship();
+
+        // ACT
+        final MvcResult result = mockMvc
+                .perform(get("/targets?target_relationship=" + TargetRelationship.DERIVED)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        final Map<Long, TargetApiDTO> allTargetDtosMap = createTargetMap(result);
+
+        assertThat(allTargetDtosMap.size(), equalTo(3));
+
+        // verify the response for the parent target
+        final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(2));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        final Map<Long, TargetApiDTO> derivedTargets = Maps.uniqueIndex(
+                parentDto.getDerivedTargets(), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+        assertEquals(derivedTargetInfo, probeInfo, derivedTargets.get(DERIVED_TARGET_ID));
+        assertEquals(derivedHiddenTargetInfo, probeInfo, derivedTargets.get(DERIVED_HIDDEN_TARGET_ID));
+
+        // verify the response for the visible derived target
+        final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
+        assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
+        assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedTarget.getParentTargets().size(), equalTo(0));
+
+        // verify the response for the regular target
+        final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
+        assertEquals(regularTargetInfo, probeInfo, regularTarget);
+        assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(regularTarget.getParentTargets().size(), equalTo(0));
+    }
+
+    /**
+     * Tests the case where all targets with their visible and hidden derived and parent targets are requested.
+     * Verifies that the parent's derivedTarget and children's parentTarget DTOs  have been
+     * populated correctly and hidden targets are returned.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetTargetsWithAllDerivedAndParentRelationship() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+        setupSearchServiceForTargetRelationship();
+
+        // ACT
+        final MvcResult result = mockMvc
+                .perform(get("/targets?target_relationship=" + TargetRelationship.DERIVED_AND_PARENT)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        final Map<Long, TargetApiDTO> allTargetDtosMap = createTargetMap(result);
+
+        assertThat(allTargetDtosMap.size(), equalTo(3));
+
+        // verify the response for the parent target
+        final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(2));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        final Map<Long, TargetApiDTO> derivedTargets = Maps.uniqueIndex(
+                parentDto.getDerivedTargets(), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+        assertEquals(derivedTargetInfo, probeInfo, derivedTargets.get(DERIVED_TARGET_ID));
+        assertEquals(derivedHiddenTargetInfo, probeInfo, derivedTargets.get(DERIVED_HIDDEN_TARGET_ID));
+
+        // verify the response for the visible derived target
+        final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
+        assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
+        assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedTarget.getParentTargets().size(), equalTo(1));
+        assertEquals(parentTargetInfo, probeInfo, derivedTarget.getParentTargets().get(0));
+
+        // verify the response for the regular target
+        final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
+        assertEquals(regularTargetInfo, probeInfo, regularTarget);
+        assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(regularTarget.getParentTargets().size(), equalTo(0));
+    }
+
+    /**
+     * Tests the case where visible targets with their visible derived and parent targets
+     * with their health details are requested.
+     * Verifies that the parent's derivedTarget and children's parentTarget DTOs  have been
+     * populated correctly.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetTargetsWithDerivedAndParentRelationshipWithHealthDetails() throws Exception {
+        // ARRANGE
+        setupTargetsForTargetRelationship();
+        setupSearchServiceForTargetRelationship();
+
+        final ArgumentCaptor<GetTargetDetailsRequest> captor =
+                ArgumentCaptor.forClass(GetTargetDetailsRequest.class);
+
+        doReturn(GetTargetDetailsResponse.newBuilder()
+                .putTargetDetails(PARENT_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(PARENT_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.CRITICAL)
+                                .build())
+                        .build())
+                .putTargetDetails(DERIVED_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(DERIVED_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                                .setHealthState(HealthState.MINOR)
+                                .build())
+                        .build())
+                .putTargetDetails(REGULAR_TARGET_ID, TargetDetails.newBuilder()
+                        .setTargetId(REGULAR_TARGET_ID)
+                        .setHealthDetails(TargetHealth.newBuilder()
+                                .setSubcategory(TargetHealthSubCategory.VALIDATION)
+                                .setHealthState(HealthState.NORMAL)
+                                .build())
+                        .build())
+                .build()).when(targetsServiceMole).getTargetDetails(captor.capture());
+
+        // ACT
+        final MvcResult result = mockMvc
+                .perform(get("/targets?target_relationship=" + TargetRelationship.VISIBLE_DERIVED_AND_PARENT
+                        + "&detail_level=" + TargetDetailLevel.HEALTH)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        Set<Long> targetIdsRequestedForDetails = new HashSet<>(captor.getValue().getTargetIdsList());
+        assertThat(targetIdsRequestedForDetails, containsInAnyOrder(PARENT_TARGET_ID,
+                DERIVED_TARGET_ID, REGULAR_TARGET_ID));
+
+        final Map<Long, TargetApiDTO> allTargetDtosMap = createTargetMap(result);
+
+        assertThat(allTargetDtosMap.size(), equalTo(3));
+
+        // verify the response for the parent target
+        final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
+        assertEquals(parentTargetInfo, probeInfo, parentDto);
+        assertThat(parentDto.getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+        assertThat(parentDto.getDerivedTargets().size(), equalTo(1));
+        assertThat(parentDto.getParentTargets().size(), equalTo(0));
+        assertEquals(derivedTargetInfo, probeInfo, parentDto.getDerivedTargets().get(0));
+        assertThat(parentDto.getDerivedTargets().get(0).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+
+        // verify the response for the derived target
+        final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
+        assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
+        assertThat(derivedTarget.getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+        assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(derivedTarget.getParentTargets().size(), equalTo(1));
+        assertEquals(parentTargetInfo, probeInfo, derivedTarget.getParentTargets().get(0));
+        assertThat(derivedTarget.getParentTargets().get(0).getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+
+        // verify the response for the regular target
+        final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
+        assertEquals(regularTargetInfo, probeInfo, regularTarget);
+        assertThat(regularTarget.getHealthSummary().getHealthState(),
+                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL));
+        assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
+        assertThat(regularTarget.getParentTargets().size(), equalTo(0));
+    }
+
+    private void setupTargetsForTargetRelationship() {
+        probeInfo = createMockProbeInfo(PROBE_ID, "type", "category", "uiCategory");
+        parentTargetInfo = createMockTargetInfo(PROBE_ID, PARENT_TARGET_ID);
+        derivedTargetInfo = createMockTargetInfo(PROBE_ID, DERIVED_TARGET_ID);
+        derivedHiddenTargetInfo = createMockTargetInfo(PROBE_ID, DERIVED_HIDDEN_TARGET_ID, true);
+        regularTargetInfo = createMockTargetInfo(PROBE_ID, REGULAR_TARGET_ID);
+
+        when(parentTargetInfo.getDerivedTargetIds()).thenReturn(
+                Lists.newArrayList(DERIVED_TARGET_ID, DERIVED_HIDDEN_TARGET_ID));
+        when(derivedTargetInfo.getParentTargetIds()).thenReturn(
+                Lists.newArrayList(PARENT_TARGET_ID));
+        when(derivedHiddenTargetInfo.getParentTargetIds()).thenReturn(
+                Lists.newArrayList(PARENT_TARGET_ID));
+    }
+
+    private void setupSearchServiceForTargetRelationship() {
+        when(targetsServiceMole.searchTargets(any())).thenReturn(SearchTargetsResponse.newBuilder()
+                    .addTargets(PARENT_TARGET_ID)
+                    .addTargets(DERIVED_TARGET_ID)
+                    .addTargets(REGULAR_TARGET_ID)
+                    .setPaginationResponse(Pagination.PaginationResponse
+                            .newBuilder()
+                            .setTotalRecordCount(3).build()).build());
+    }
+
+    private Map<Long, TargetApiDTO> createTargetMap(final MvcResult result)
+            throws UnsupportedEncodingException {
         final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
                 TargetApiDTO[].class);
-        final Map<Long, TargetApiDTO> allTargetDtosMap =
-                Maps.uniqueIndex(Arrays.asList(resp), targetInfo -> Long.valueOf(targetInfo.getUuid()));
-        final TargetApiDTO parentDto = allTargetDtosMap.get(parentTargetInfo.getId());
-        final Map<Long, TargetApiDTO> derivedTargetDtosMap =
-                Maps.uniqueIndex(parentDto.getDerivedTargets(), targetInfo -> Long.valueOf(targetInfo.getUuid()));
-
-        assertEquals(childTargetInfo1, probe, derivedTargetDtosMap.get(childTargetInfo1.getId()));
-        assertEquals(childTargetInfo2, probe, derivedTargetDtosMap.get(childTargetInfo2.getId()));
+        return Maps.uniqueIndex(Arrays.asList(resp),
+                targetInfo -> Long.valueOf(targetInfo.getUuid()));
     }
 
     /**
@@ -2279,7 +2904,7 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
         doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
         final TargetApiDTO targetApiDTO = targetsService.getTarget(
-                "1", TargetDetailLevel.BASIC, TargetType.PRIMARY);
+                "1", TargetDetailLevel.BASIC, TargetRelationship.NONE);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
         assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
@@ -2306,7 +2931,7 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.BASIC,
                 new TargetPaginationRequest(null, null, true, null),
-                TargetType.PRIMARY);
+                TargetRelationship.NONE);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
@@ -2360,7 +2985,7 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH,
                 new TargetPaginationRequest(null, null, true, null),
-                TargetType.PRIMARY);
+                TargetRelationship.NONE);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
@@ -2411,7 +3036,7 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH_DETAILS,
                 new TargetPaginationRequest(null, null, true, null),
-                TargetType.PRIMARY);
+                TargetRelationship.NONE);
         verify(targetDetailsMapper, times(2)).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
@@ -2508,7 +3133,7 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH_DETAILS,
                 new TargetPaginationRequest(null, null, true, null),
-                TargetType.PRIMARY);
+                TargetRelationship.NONE);
         verify(targetDetailsMapper, times(1)).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         assertNotNull(targetPaginationResponse.getRawResults().get(0).getHealth());

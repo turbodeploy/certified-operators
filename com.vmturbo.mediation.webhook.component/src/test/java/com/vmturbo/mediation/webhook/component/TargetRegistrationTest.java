@@ -35,9 +35,9 @@ public class TargetRegistrationTest {
             new HashSet<>(Arrays.asList(ProbeFeature.ACTION_EXECUTION, ProbeFeature.DISCOVERY)));
 
     private static final TargetInfo WEBHOOK_TARGET = new TargetInfo(2L, "Webhook",
-            Collections.emptyList(), new TargetSpec(1L, Collections.emptyList(), Optional.empty(),
-            "System"),
-            true, "VALID", LocalDateTime.now(), null, null, HealthState.NORMAL);
+            Collections.emptyList(),
+            new TargetSpec(1L, Collections.emptyList(), Optional.empty(), "System"), true, "VALID",
+            LocalDateTime.now(), null, null, HealthState.NORMAL, Collections.emptyList());
 
     private TopologyProcessor topologyProcessor;
 

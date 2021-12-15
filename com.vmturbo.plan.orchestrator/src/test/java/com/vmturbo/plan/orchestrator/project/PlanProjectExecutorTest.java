@@ -341,8 +341,9 @@ public class PlanProjectExecutorTest {
         when(templatesDao.getClusterHeadroomTemplateForGroup(eq(12345L)))
             .thenReturn(Optional.of(template));
 
-        when(topologyProcessor.getAllTargets()).thenReturn(ImmutableSet.of(new TargetInfo(500L,
-            "target", null, null, null, null, null, null, null, HealthState.CRITICAL)));
+        when(topologyProcessor.getAllTargets()).thenReturn(ImmutableSet.of(
+                new TargetInfo(500L, "target", null, null, null, null, null, null, null,
+                        HealthState.CRITICAL, Collections.emptyList())));
 
         headroomExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);

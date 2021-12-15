@@ -98,4 +98,12 @@ public interface TargetInfo extends TargetData {
      */
     @Nonnull
     HealthState getHealthState();
+
+    /**
+     * Return the list of parent target IDs or an empty list if none found.
+     *
+     * @return the list of parent target ids.
+     */
+    @Nonnull
+    List<Long> getParentTargetIds();
 }
