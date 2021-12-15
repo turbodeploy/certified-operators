@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.operation;
 
+import static com.vmturbo.topology.processor.actions.data.context.AbstractActionExecutionContext.STABLE_ID;
 import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -151,6 +152,9 @@ import com.vmturbo.topology.processor.workflow.WorkflowExecutionResult;
 @RunWith(JUnitParamsRunner.class)
 public class OperationManagerTest {
     private static final String TEST_RESPONSE_DESCRIPTION = "Action x was executed.";
+    private static final long ACTION_STABLE_ID_1 = 1002;
+    private static final long ACTION_STABLE_ID_2 = 1003;
+    private static final long ACTION_STABLE_ID_3 = 1004;
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -1044,36 +1048,50 @@ public class OperationManagerTest {
      */
     @Test
     public void testStartAction() throws Exception {
-        ActionOperationRequest request = new ActionOperationRequest(actionDto(),
+        ActionOperationRequest request = new ActionOperationRequest(actionDto(ACTION_STABLE_ID_1),
                 ImmutableSet.of(MOVE_SOURCE_ID, MOVE_DESTINATION_ID));
         final Action moveAction = operationManager.requestActions(request, targetId, null);
         Mockito.verify(mockRemoteMediationServer).sendActionRequest(any(Target.class),
                 any(ActionRequest.class), any(OperationMessageHandler.class));
-        assertTrue(operationManager.getInProgressAction(moveAction.getId()).isPresent());
+        assertThat(moveAction.getActionStableId(), equalTo(ACTION_STABLE_ID_1));
+        Optional<Action> moveActionOpt = operationManager.getInProgressAction(moveAction.getId());
+        assertTrue(moveActionOpt.isPresent());
+        assertThat(moveActionOpt.get().getActionStableId(), equalTo(ACTION_STABLE_ID_1));
+
         Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
                         .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
                         .fetchSet(ENTITY_ACTION.ENTITY_ID);
         Assert.assertEquals(2, moveEntityIds.size());
         assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
+        request = new ActionOperationRequest(ActionExecutionDTO
+                .newBuilder(actionDto(ACTION_STABLE_ID_2))
                 .setActionType(ActionType.START)
                 .build(),
                 Collections.singleton(ACTIVATE_VM_ID));
         final Action activateAction = operationManager.requestActions(request, targetId, null);
+        assertThat(activateAction.getActionStableId(), equalTo(ACTION_STABLE_ID_2));
         assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
+        Optional<Action> activateActionOpt = operationManager.getInProgressAction(activateAction.getId());
+        assertTrue(activateActionOpt.isPresent());
+        assertThat(activateActionOpt.get().getActionStableId(), equalTo(ACTION_STABLE_ID_2));
+
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
                .fetchSet(ENTITY_ACTION.ENTITY_ID);
         Assert.assertEquals(1, activateEntityIds.size());
         assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
+        request = new ActionOperationRequest(ActionExecutionDTO
+                .newBuilder(actionDto(ACTION_STABLE_ID_3))
                 .setActionType(ActionType.SUSPEND)
                 .build(),
                 Collections.singleton(DEACTIVATE_VM_ID));
         final Action deactivateAction = operationManager.requestActions(request, targetId, null);
-        assertTrue(operationManager.getInProgressAction(deactivateAction.getId()).isPresent());
+        assertThat(deactivateAction.getActionStableId(), equalTo(ACTION_STABLE_ID_3));
+        Optional<Action> deactivateActionOpt = operationManager.getInProgressAction(deactivateAction.getId());
+        assertTrue(deactivateActionOpt.isPresent());
+        assertThat(deactivateActionOpt.get().getActionStableId(), equalTo(ACTION_STABLE_ID_3));
         List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
                .fetch();
@@ -1428,15 +1446,21 @@ public class OperationManagerTest {
 
     @Nonnull
     private ActionExecutionDTO actionDto() {
+        // arbitrary constant is used for stable id as it never is looked at.
+        return actionDto(4312L);
+    }
+
+    @Nonnull
+    private ActionExecutionDTO actionDto(final long stableId) {
         return ActionExecutionDTO.newBuilder()
                 .setActionOid(ACTION_OID)
-                .addAllActionItem(actionItemDtos())
+                .addAllActionItem(actionItemDtos(stableId))
                 .setActionType(ActionType.MOVE)
                 .setActionState(ActionResponseState.IN_PROGRESS)
                 .build();
     }
 
-    private List<ActionItemDTO> actionItemDtos() {
+    private List<ActionItemDTO> actionItemDtos(final long stableId) {
         final EntityDTO target = EntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setId("vm")
@@ -1446,6 +1470,10 @@ public class OperationManagerTest {
             .setActionType(ActionType.MOVE)
             .setUuid("test")
             .setTargetSE(target)
+            .addContextData(CommonDTO.ContextData.newBuilder()
+                    .setContextKey(STABLE_ID)
+                    .setContextValue(Long.toString(stableId))
+                    .build())
             .build());
     }
 
