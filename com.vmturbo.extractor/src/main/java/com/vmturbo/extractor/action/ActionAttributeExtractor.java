@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.commons.Units;
 import com.vmturbo.extractor.action.commodity.ActionCommodityData;
 import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
@@ -434,16 +435,21 @@ public class ActionAttributeExtractor {
         final CommodityChange commodityChange = new CommodityChange();
         commodityChange.setFrom(resize.getOldCapacity());
         commodityChange.setTo(resize.getNewCapacity());
-        if (resize.hasCommodityAttribute()) {
-            commodityChange.setAttribute(resize.getCommodityAttribute().name());
-        }
+        final CommodityAttribute commodityAttribute =
+                        CommodityTypeMapping.transformEnum(resize,
+                                        Resize::hasCommodityAttribute,
+                                        Resize::getCommodityAttribute, CommodityAttribute.CAPACITY,
+                                        commodityChange::setAttribute);
         commodityChange.setPercentileChange(
                 actionCommodityData.getPercentileChange(resize.getTarget().getId(), resize.getCommodityType()));
-        CommodityTypeMapping.getCommodityUnitsForActions(commodityTypeInt, null)
+        CommodityTypeMapping.getCommodityUnitsForActions(commodityTypeInt, null,
+                                        commodityAttribute.getNumber())
                 .ifPresent(commodityChange::setUnit);
         commodityChange.setCommodityType(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt));
         return commodityChange;
     }
+
+
 
     /**
      * Get the list of commodity changes for the given AtomicResize action.
@@ -462,13 +468,17 @@ public class ActionAttributeExtractor {
             final CommodityChange commodityChange = new CommodityChange();
             commodityChange.setFrom(resize.getOldCapacity());
             commodityChange.setTo(resize.getNewCapacity());
-            if (resize.hasCommodityAttribute()) {
-                commodityChange.setAttribute(resize.getCommodityAttribute().name());
-            }
+            final CommodityAttribute commodityAttribute =
+                            CommodityTypeMapping.transformEnum(resize,
+                                            ResizeInfo::hasCommodityAttribute,
+                                            ResizeInfo::getCommodityAttribute,
+                                            CommodityAttribute.CAPACITY,
+                                            commodityChange::setAttribute);
             final int commodityTypeInt = resize.getCommodityType().getType();
 
-            CommodityTypeMapping.getCommodityUnitsForActions(commodityTypeInt, resize.getTarget().getType())
-                    .ifPresent(commodityChange::setUnit);
+            CommodityTypeMapping.getCommodityUnitsForActions(commodityTypeInt,
+                                            resize.getTarget().getType(), commodityAttribute.getNumber())
+                            .ifPresent(commodityChange::setUnit);
 
             // set target (where this commodity comes from) for each sub action, if it's different from main target
             if (resize.getTarget().getId() != atomicResize.getExecutionTarget().getId()) {

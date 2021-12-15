@@ -1479,6 +1479,7 @@ message CommodityType {
 }
 
 // Standard attributes of a commodity
+// Numeration in the enum has to match exactly to ActionExecution.proto:CommodityAttribute
 enum CommodityAttribute {
     // The capacity of a commodity is the "raw capacity" -- i.e. the total amount of the commodity
     // available for use, before considering any restrictions such as limits or utilization

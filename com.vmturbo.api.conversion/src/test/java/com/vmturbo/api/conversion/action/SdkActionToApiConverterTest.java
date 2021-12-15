@@ -11,11 +11,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
@@ -27,6 +30,8 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.ActionExecution;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
@@ -173,52 +178,58 @@ public class SdkActionToApiConverterTest {
           .build();
 
     private static final ActionExecution.ActionExecutionDTO ON_PREM_RESIZE_ACTION =
-        ActionExecution.ActionExecutionDTO.newBuilder()
-            .setActionOid(ACTION_UUID)
-            .setActionState(ActionExecution.ActionResponseState.IN_PROGRESS)
-            .setCreateTime(ACTION_CREATION_TIME)
-            .setUpdateTime(ACTION_UPDATE_TIME)
-            .setAcceptedBy(ACCEPTED_BY)
-            .setActionType(ActionExecution.ActionItemDTO.ActionType.RESIZE)
-            .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
-                .setActionType(ActionExecution.ActionItemDTO.ActionType.RESIZE)
-                .setUuid(String.valueOf(ACTION_UUID))
-                .addContextData(CommonDTO.ContextData.newBuilder()
-                        .setContextKey("STABLE_ID")
-                        .setContextValue(Long.toString(ACTION_OID)).build())
-                .setTargetSE(CommonDTO.EntityDTO.newBuilder()
-                    .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
-                    .setId("Test1")
-                    .setTurbonomicInternalId(VM_UUID)
-                    .setDisplayName(VM_DISPLAY_NAME)
-                    .addEntityProperties(CommonDTO.EntityDTO.EntityProperty.newBuilder()
-                        .setNamespace("DEFAULT")
-                        .setName("LocalName")
-                        .setValue(VM_LOCAL_NAME)
-                        .build())
-                    .addEntityProperties(CommonDTO.EntityDTO.EntityProperty.newBuilder()
-                        .setNamespace("DEFAULT")
-                        .setName("targetAddress")
-                        .setValue(TARGET_ADDRESS)
-                        .build())
-                    .setPowerState(CommonDTO.EntityDTO.PowerState.POWERED_ON))
-                .setCurrentComm(CommonDTO.CommodityDTO.newBuilder()
-                    .setCommodityType(CommonDTO.CommodityDTO.CommodityType.VCPU)
-                    .setCapacity(OLD_CPU_CAPACITY)
-                    .build())
-                .setNewComm(CommonDTO.CommodityDTO.newBuilder()
-                    .setCommodityType(CommonDTO.CommodityDTO.CommodityType.VCPU)
-                    .setCapacity(NEW_CPU_CAPACITY)
-                    .build())
-                .setDescription(MOVE_ACTION_DESC)
-                .setRisk(ActionExecution.ActionItemDTO.Risk.newBuilder()
-                    .setSeverity(ActionExecution.ActionItemDTO.Risk.Severity.CRITICAL)
-                    .setCategory(ActionExecution.ActionItemDTO.Risk.Category.PERFORMANCE_ASSURANCE)
-                    .setDescription(MOVE_RISK_DESC)
-                    .addAffectedCommodity(CommonDTO.CommodityDTO.CommodityType.VCPU)
-                )
-            )
-            .build();
+                    createOnPremResizeAction(CommodityAttribute.Capacity);
+
+    private static ActionExecutionDTO createOnPremResizeAction(
+                    CommodityAttribute commodityAttribute) {
+        return ActionExecutionDTO.newBuilder().setActionOid(ACTION_UUID)
+                        .setActionState(ActionExecution.ActionResponseState.IN_PROGRESS)
+                        .setCreateTime(ACTION_CREATION_TIME).setUpdateTime(ACTION_UPDATE_TIME)
+                        .setAcceptedBy(ACCEPTED_BY)
+                        .setActionType(ActionExecution.ActionItemDTO.ActionType.RESIZE)
+                        .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
+                                        .setActionType(ActionExecution.ActionItemDTO.ActionType.RESIZE)
+                                        .setUuid(String.valueOf(ACTION_UUID))
+                                        .addContextData(CommonDTO.ContextData.newBuilder()
+                                                        .setContextKey("STABLE_ID")
+                                                        .setContextValue(Long.toString(ACTION_OID))
+                                                        .build())
+                                        .setCommodityAttribute(commodityAttribute)
+                                        .setTargetSE(CommonDTO.EntityDTO.newBuilder()
+                                                        .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
+                                                        .setId("Test1")
+                                                        .setTurbonomicInternalId(VM_UUID)
+                                                        .setDisplayName(VM_DISPLAY_NAME)
+                                                        .addEntityProperties(
+                                                                        EntityProperty.newBuilder()
+                                                                                        .setNamespace("DEFAULT")
+                                                                                        .setName("LocalName")
+                                                                                        .setValue(VM_LOCAL_NAME)
+                                                                                        .build())
+                                                        .addEntityProperties(
+                                                                        EntityProperty.newBuilder()
+                                                                                        .setNamespace("DEFAULT")
+                                                                                        .setName("targetAddress")
+                                                                                        .setValue(TARGET_ADDRESS)
+                                                                                        .build())
+                                                        .setPowerState(CommonDTO.EntityDTO.PowerState.POWERED_ON))
+                                        .setCurrentComm(CommonDTO.CommodityDTO.newBuilder()
+                                                        .setCommodityType(
+                                                                        CommonDTO.CommodityDTO.CommodityType.VCPU)
+                                                        .setCapacity(OLD_CPU_CAPACITY).build())
+                                        .setNewComm(CommonDTO.CommodityDTO.newBuilder()
+                                                        .setCommodityType(
+                                                                        CommonDTO.CommodityDTO.CommodityType.VCPU)
+                                                        .setCapacity(NEW_CPU_CAPACITY).build())
+                                        .setDescription(MOVE_ACTION_DESC)
+                                        .setRisk(ActionExecution.ActionItemDTO.Risk.newBuilder()
+                                                        .setSeverity(ActionExecution.ActionItemDTO.Risk.Severity.CRITICAL)
+                                                        .setCategory(ActionExecution.ActionItemDTO.Risk.Category.PERFORMANCE_ASSURANCE)
+                                                        .setDescription(MOVE_RISK_DESC)
+                                                        .addAffectedCommodity(
+                                                                        CommonDTO.CommodityDTO.CommodityType.VCPU)))
+                        .build();
+    }
 
     private static final ActionExecution.ActionExecutionDTO CLOUD_VOLUME_SCALE_ACTION =
         ActionExecution.ActionExecutionDTO.newBuilder()
@@ -393,13 +404,44 @@ public class SdkActionToApiConverterTest {
         // ACT
         final ActionApiDTO apiMessage = converter.convert(provider, true, 0L, false);
 
+        verifyMessage(apiMessage, CommodityTypeMapping.VCPU_UNIT);
+    }
+
+    /**
+     * Tests the case that we convert the SDK on-prem vCPU limit or reservation resize action to API
+     * format.
+     */
+    @Test
+    public void testOnPremResizeVcpuLimitAndReservationConversion() {
+        Stream.of(CommodityAttribute.Limit, CommodityAttribute.Reservation).forEach(attribute -> {
+            final SdkActionInformationProvider provider = new SdkActionInformationProvider(
+                            createOnPremResizeAction(attribute));
+            // ACT
+            final ActionApiDTO apiMessage = converter.convert(provider, true, 0L, false);
+            verifyMessage(apiMessage, CommodityTypeMapping.MHZ);
+        });
+    }
+
+    /**
+     * Tests the case that we convert the SDK on-prem vCPU capacity resize action to API format.
+     */
+    @Test
+    public void testOnPremResizeVcpuCapacityConversion() {
+        final SdkActionInformationProvider provider = new SdkActionInformationProvider(
+                        createOnPremResizeAction(CommodityAttribute.Capacity));
+        // ACT
+        final ActionApiDTO apiMessage = converter.convert(provider, true, 0L, false);
+        verifyMessage(apiMessage, CommodityTypeMapping.VCPU_UNIT);
+    }
+
+    private void verifyMessage(ActionApiDTO apiMessage, String valueUnits) {
         // ASSERT
         assertThat(apiMessage.getActionID(), is(ACTION_OID));
         assertThat(apiMessage.getActionImpactID(), is(ACTION_OID));
         assertThat(OffsetDateTime.parse(apiMessage.getCreateTime()).toInstant().toEpochMilli(),
-            is(ACTION_CREATION_TIME));
+                        is(ACTION_CREATION_TIME));
         assertThat(OffsetDateTime.parse(apiMessage.getUpdateTime()).toInstant().toEpochMilli(),
-            is(ACTION_UPDATE_TIME));
+                        is(ACTION_UPDATE_TIME));
         assertThat(apiMessage.getActionType(), is(ActionType.RESIZE));
         assertThat(apiMessage.getActionState(), is(ActionState.IN_PROGRESS));
         assertThat(apiMessage.getUserName(), is(ACCEPTED_BY));
@@ -407,7 +449,7 @@ public class SdkActionToApiConverterTest {
 
         // verify target entity
         assertEntityData(apiMessage.getTarget(), "ACTIVE", null, TARGET_ADDRESS, TARGET_ADDRESS,
-            VM_LOCAL_NAME, VM_UUID, VM_DISPLAY_NAME, "VirtualMachine");
+                        VM_LOCAL_NAME, VM_UUID, VM_DISPLAY_NAME, "VirtualMachine");
 
         // assert current and new value
         assertThat(apiMessage.getCurrentValue(), is("2.0"));
@@ -419,9 +461,8 @@ public class SdkActionToApiConverterTest {
         assertThat(risk.getDescription(), is(MOVE_RISK_DESC));
         assertThat(risk.getSeverity(), is("CRITICAL"));
         assertThat(risk.getReasonCommodities(), is(Collections.singleton("VCPU")));
-
+        assertThat(apiMessage.getValueUnits(), CoreMatchers.is(valueUnits));
     }
-
 
     /**
      * Tests the case that we convert the cloud volume scale SDK action to API format.

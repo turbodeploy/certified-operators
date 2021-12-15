@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -307,8 +308,11 @@ class ActionStatsMapper {
                             groupByFilters,
                             numberToAPIStatValue((float) actionResourceImpactStat.getAmount()));
 
-                    CommodityTypeMapping.getCommodityUnitsForActions(actionResourceImpactStat.getReasonCommodityBaseType(),
-                            actionStat.getStatGroup().getTargetEntityType()).ifPresent(statApiDTO::setUnits);
+                    CommodityTypeMapping.getCommodityUnitsForActions(
+                                                    actionResourceImpactStat.getReasonCommodityBaseType(),
+                                                    actionStat.getStatGroup().getTargetEntityType(),
+                                                    CommodityAttribute.Capacity_VALUE)
+                                    .ifPresent(statApiDTO::setUnits);
 
                     statApiDTOList.add(statApiDTO);
                 }
