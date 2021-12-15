@@ -82,7 +82,7 @@ public class PercentileEditor extends
     // certain sold commodities should have percentile calculated from real-time points
     // even if dedicated percentile utilizations are absent in the mediation
     // map of commodity type that should have percentile to entity types that sell (add unknown for any)
-    private static final Map<CommodityType, Set<EntityType>> REQUIRED_SOLD_COMMODITY_TYPES =
+    public static final Map<CommodityType, Set<EntityType>> REQUIRED_SOLD_COMMODITY_TYPES =
                     ImmutableMap.of(CommodityType.VCPU, Collections.singleton(EntityType.UNKNOWN),
                                     CommodityType.VMEM, Collections.singleton(EntityType.UNKNOWN),
                                     CommodityType.STORAGE_ACCESS, Collections.singleton(EntityType.VIRTUAL_VOLUME));
@@ -224,12 +224,12 @@ public class PercentileEditor extends
             return false;
         }
         Set<EntityType> allowedTypes = REQUIRED_SOLD_COMMODITY_TYPES
-                        .get(CommodityType.forNumber(commSold.getCommodityType().getType()));
+                .get(CommodityType.forNumber(commSold.getCommodityType().getType()));
         if (allowedTypes == null) {
             return false;
         }
         return allowedTypes.contains(EntityType.UNKNOWN)
-                        || allowedTypes.contains(EntityType.forNumber(entity.getEntityType()));
+                || allowedTypes.contains(EntityType.forNumber(entity.getEntityType()));
     }
 
     @Override

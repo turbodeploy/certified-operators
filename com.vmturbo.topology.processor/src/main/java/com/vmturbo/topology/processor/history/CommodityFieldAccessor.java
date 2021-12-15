@@ -1,20 +1,26 @@
 package com.vmturbo.topology.processor.history;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
@@ -22,9 +28,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 
 /**
  * Implementation for access to the values of commodity fields in a topology by identifiers.
@@ -36,6 +45,29 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * An entity type to its resizable commodity sold types mapping.
+     */
+    private static final Map<EntityType, Set<CommodityType>> entityTypeToPercentileCommSoldMap = computeResizableCommMap();
+
+    /**
+     * Initialize an entity type to its resizable commodity sold types mapping based on the commodity
+     * types provided by PercentileEditor.
+     *
+     * @return an entity type to resizable commodity sold types mapping.
+     */
+    private static Map<EntityType, Set<CommodityType>> computeResizableCommMap() {
+        final Map<EntityType, Set<CommodityType>> resizableCommMap = new HashMap<>();
+        PercentileEditor.REQUIRED_SOLD_COMMODITY_TYPES.entrySet().stream().forEach(e -> {
+            CommodityType comm = e.getKey();
+            for (EntityType entityType : e.getValue()) {
+                resizableCommMap.computeIfAbsent(entityType, k -> new HashSet<>()).add(comm);
+            }
+        });
+        return resizableCommMap;
+    }
+
     /**
      * Get the builder for a sold commodity from entity builder by field reference.
      */
@@ -231,20 +263,49 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
             // Disable resize on comm sold (disables resize on-prem)
             getCommodityBuilder(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
                             .ifPresent(builder -> builder.setIsResizeable(false));
-
-            // Disable scalable on all comm bought groupings (disables scaling actions in cloud)
-            // Note that this is currently safe to do because:
-            // 1. When there are multiple commodities bought in the corresponding comm bought for a
-            //    comm sold but only one has insufficient data, we want to do the "most conservative"
-            //    thing which is to disable scaling for the entire entity since we can't scale one
-            //    comm bought without scaling them all.
-            // 2. On all entities we scale today with multiple comm bought groupings, we only actually
-            //    generate scale actions on one of them, so disabling scaling on all of them is fine.
             Optional<TopologyEntity> entity = graph.getEntity(commRef.getEntityOid());
-            entity.ifPresent(e -> e.getTopologyEntityDtoBuilder()
-                .getCommoditiesBoughtFromProvidersBuilderList().forEach(commBoughtGroup ->
-                    commBoughtGroup.setScalable(false)));
+            // Disable scalable on all comm bought groupings (disables scaling actions in cloud)
+            // when the expected set of commodities sold are all marked as resizable false.
+            // Note that this is currently safe to do because:
+            // On all entities we scale today with multiple comm bought groupings, we only actually
+            //  generate scale actions on one of them, so disabling scaling on all of them is fine.
+            if (!checkEntityScalability(entity)) {
+                entity.ifPresent(e -> e.getTopologyEntityDtoBuilder()
+                        .getCommoditiesBoughtFromProvidersBuilderList()
+                        .forEach(commBoughtGroup -> commBoughtGroup.setScalable(false)));
+            }
         }
         //TODO:implementation for BusinessUser use-case.
+    }
+
+    /**
+     * Check if the given entity should disable scale on all of its CommoditiesBoughtFromProviders.
+     * In particular, when the entity is a cloud entity, the scalability of CommoditiesBoughtFromProviders
+     * should be strictly relying on a predefined set of commodities sold's resize ability.
+     *
+     * @param entity the topology entity DTO.
+     * @return false if the entity's CommoditiesBoughtFromProviders has to be marked as scalable false.
+     */
+    private static boolean checkEntityScalability(Optional<TopologyEntity> entity) {
+        if (!entity.isPresent()) {
+            return true;
+        }
+        if (entity.get().getEnvironmentType() != EnvironmentType.CLOUD) {
+            return false;
+        }
+        TopologyEntityDTO.Builder entityBuilder = entity.get().getTopologyEntityDtoBuilder();
+        // The given entity's CommoditiesBoughtFromProviders should still be scalable if any one of
+        // the resizable commodity sold is resizable. For example, when a cloud VM has VCPU resizable
+        // but VMEM not resizable, scale actions should still be generated based on VCPU. When a cloud
+        // VM has both VCPU and VMEM not resizable, the entire entity should not generate scale actions.
+        Set<CommodityType> commTypes = entityTypeToPercentileCommSoldMap.get(EntityType
+                .forNumber(entityBuilder.getEntityType()));
+        final Set<Integer> resizeCommoditySoldSet = commTypes != null ? commTypes.stream()
+                .map(ct -> ct.getNumber()).collect(Collectors.toSet()) : entityTypeToPercentileCommSoldMap
+                .getOrDefault(EntityType.UNKNOWN, Sets.newHashSet()).stream().map(ct -> ct.getNumber())
+                .collect(Collectors.toSet());
+        return entityBuilder.getCommoditySoldListBuilderList().stream().filter(cs
+                    -> resizeCommoditySoldSet.contains(cs.getCommodityType().getType()))
+                    .anyMatch(cs -> cs.getIsResizeable());
     }
 }
