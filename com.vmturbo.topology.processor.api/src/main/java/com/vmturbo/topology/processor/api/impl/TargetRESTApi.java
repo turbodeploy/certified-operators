@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api.impl;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -112,6 +113,7 @@ public class TargetRESTApi {
         private final String lastEditingUser;
         private final Long lastEditTime;
         private final HealthState healthState;
+        private final List<Long> parentTargetIds;
 
         protected TargetInfo() {
             targetId = null;
@@ -124,12 +126,14 @@ public class TargetRESTApi {
             lastEditingUser = null;
             lastEditTime = null;
             healthState = HealthState.NORMAL;
+            parentTargetIds = Collections.emptyList();
         }
 
         public TargetInfo(final Long id, String displayName, final List<String> errors,
                 final TargetSpec spec, final Boolean probeConnected, String status,
                 LocalDateTime lastValidationTime, final String lastEditingUser,
-                final Long lastEditTime, final HealthState healthState) {
+                final Long lastEditTime, final HealthState healthState,
+                @Nonnull final List<Long> parentTargetIds) {
             this.targetId = id;
             this.displayName = displayName;
             this.spec = spec;
@@ -140,6 +144,7 @@ public class TargetRESTApi {
             this.lastEditingUser = lastEditingUser;
             this.lastEditTime = lastEditTime;
             this.healthState = healthState;
+            this.parentTargetIds = Objects.requireNonNull(parentTargetIds);
         }
 
         @ApiModelProperty(value = "If non-null, the id of the target. If null, errors should be non-null.")
@@ -224,6 +229,12 @@ public class TargetRESTApi {
         @Override
         public HealthState getHealthState() {
             return healthState;
+        }
+
+        @Nonnull
+        @Override
+        public List<Long> getParentTargetIds() {
+            return this.parentTargetIds;
         }
 
         @Override

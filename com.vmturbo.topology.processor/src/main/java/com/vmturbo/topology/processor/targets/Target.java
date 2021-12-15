@@ -36,7 +36,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo.Builder;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
-import com.vmturbo.topology.processor.api.impl.TargetInfoProtobufWrapper;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
@@ -316,10 +315,6 @@ public class Target implements ProbeStoreListener {
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
                 targetInfo.getSpec().getAccountValueList(), derivedTargetsIds, Optional.empty());
         return new Target(getId(), probeStore, newSpec.build(), true, false, clock);
-    }
-
-    public com.vmturbo.topology.processor.api.TargetInfo createTargetInfo() {
-        return new TargetInfoProtobufWrapper(noSecretDto);
     }
 
     /**

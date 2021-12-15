@@ -392,7 +392,8 @@ public class TargetController {
         final TargetHealth targetHealth = targetHealthRetriever.getTargetHealth(Collections.singleton(target.getId()), true).get(target.getId());
         final String status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected, targetHealth);
         return success(target, isProbeConnected, status, lastValidated, lastEditingUser,
-                lastEditTime, targetHealth == null ? HealthState.NORMAL : targetHealth.getHealthState());
+                lastEditTime, targetHealth == null ? HealthState.NORMAL : targetHealth.getHealthState(),
+                new ArrayList<>(targetStore.getParentTargetIds(target.getId())));
     }
 
     /**
@@ -466,21 +467,24 @@ public class TargetController {
 
     private static TargetInfo error(final Long targetId, @Nonnull final String err) {
         String error = Objects.requireNonNull(err);
-        return new TargetInfo(targetId, null, ImmutableList.of(error), null, null, null, null, null, null, HealthState.CRITICAL);
+        return new TargetInfo(targetId, null, ImmutableList.of(error), null, null, null, null,
+                null, null, HealthState.CRITICAL, Collections.emptyList());
     }
 
     private static TargetInfo error(@Nonnull final List<String> errors) {
-        return new TargetInfo(null, null, errors, null, null, null, null, null, null, HealthState.CRITICAL);
+        return new TargetInfo(null, null, errors, null, null, null, null,
+                null, null, HealthState.CRITICAL, Collections.emptyList());
     }
 
     public static TargetInfo success(@Nonnull final Target target, final boolean probeConnected,
             @Nonnull final String targetStatus, @Nullable final LocalDateTime lastValidation,
             @Nullable final String lastEditingUser, @Nullable final Long lastEditTime,
-            @Nonnull final HealthState healthState) {
+            @Nonnull final HealthState healthState, @Nonnull final List<Long> parentTargetIds) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(targetStatus);
         return new TargetInfo(target.getId(), target.getDisplayName(), null,
                 new TargetSpec(target.getNoSecretDto().getSpec()), probeConnected,
-                targetStatus, lastValidation, lastEditingUser, lastEditTime, healthState);
+                targetStatus, lastValidation, lastEditingUser, lastEditTime, healthState,
+                parentTargetIds);
     }
 }

@@ -4,6 +4,7 @@ import static org.mockito.Matchers.any;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -137,7 +138,8 @@ public abstract class AbstractApiCallsTest {
                         new TargetSpec(target.getProbeId(), fields, Optional.empty(), "System");
         return new TargetRESTApi.TargetInfo(target.getId(), target.getDisplayName(), null, spec,
                 true, "Validated", LocalDateTime.now(), "Me",
-                LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli(), HealthState.NORMAL);
+                LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli(), HealthState.NORMAL,
+                Collections.emptyList());
     }
 
     private static InputField convertToRest(@Nonnull final AccountValue src) {

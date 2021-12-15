@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api.impl;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -86,6 +87,12 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     @Override
     public HealthState getHealthState() {
         return null;
+    }
+
+    @Nonnull
+    @Override
+    public List<Long> getParentTargetIds() {
+        return Collections.emptyList();
     }
 
     @Override

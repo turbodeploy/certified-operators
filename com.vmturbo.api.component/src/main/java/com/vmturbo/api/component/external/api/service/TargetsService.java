@@ -25,7 +25,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -52,6 +51,7 @@ import com.vmturbo.api.component.external.api.mapper.TargetMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -65,7 +65,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthSummaryApiDTO;
-import com.vmturbo.api.dto.target.TargetType;
+import com.vmturbo.api.dto.target.TargetRelationship;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.TargetStatsGroupBy;
@@ -141,9 +141,10 @@ public class TargetsService implements ITargetsService {
                 TargetDetailLevel.HEALTH_DETAILS, TargetDTO.TargetDetailLevel.FULL);
 
     /**
-     * Default target type that is used when querying for target details.
+     * Default target relationship controls what relationship should be returned on the target.
      */
-    private static final TargetType DEFAULT_TARGET_TYPE = TargetType.PRIMARY;
+    private static final TargetRelationship DEFAULT_TARGET_RELATIONSHIP =
+            TargetRelationship.VISIBLE_DERIVED;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -254,7 +255,7 @@ public class TargetsService implements ITargetsService {
             final SearchTargetsResponse searchResponse = targetsService.searchTargets(request);
 
             return getTargetApiDto(searchResponse.getTargetsList(), getProbeIdToProbeInfoMap(),
-                    DEFAULT_TARGET_TYPE);
+                    DEFAULT_TARGET_RELATIONSHIP);
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
@@ -268,9 +269,11 @@ public class TargetsService implements ITargetsService {
            @Nullable final String targetCategory,
            @Nullable final TargetDetailLevel targetDetailLevel,
            @Nullable final TargetPaginationRequest paginationRequest,
-           @Nullable TargetType targetType) {
+           @Nullable final TargetRelationship targetRelationship) {
         try {
             final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
+
+            final TargetRelationship relationship = getTargetRelationshipOrDefault(targetRelationship);
 
             final Set<String> probeTypes;
 
@@ -294,8 +297,8 @@ public class TargetsService implements ITargetsService {
             final SearchTargetsResponse searchResponse = targetsService.searchTargets(request);
 
             final List<TargetApiDTO> targetList = getTargetApiDto(searchResponse.getTargetsList(),
-                    probeMap, targetType);
-            decorateWithDetails(targetList, targetDetailLevel, targetType);
+                    probeMap, relationship);
+            decorateWithDetails(targetList, targetDetailLevel, relationship);
 
             if (searchResponse.hasPaginationResponse()) {
                 final int totalRecords = searchResponse.getPaginationResponse().getTotalRecordCount();
@@ -310,10 +313,16 @@ public class TargetsService implements ITargetsService {
         }
     }
 
+    @Nonnull
+    private TargetRelationship getTargetRelationshipOrDefault(
+            @Nullable final TargetRelationship targetRelationship) {
+        return targetRelationship != null ? targetRelationship : DEFAULT_TARGET_RELATIONSHIP;
+    }
+
     private List<TargetApiDTO> getTargetApiDto(
             List<Long> targetIds,
             Map<Long, ProbeInfo> probeMap,
-            TargetType targetType)
+            @Nonnull TargetRelationship targetRelationship)
             throws CommunicationException {
 
         // get the information for the targets
@@ -322,16 +331,17 @@ public class TargetsService implements ITargetsService {
             .stream()
             .collect(Collectors.toMap(TargetInfo::getId, Function.identity()));
 
-        // get the information for the targets derived from these targets
-        Map<Long, TargetInfo> derivedTargetMap = getDerivedTargetsMap(targetInfos.values());
+        // get the information for the targets related to this targets
+        Map<Long, TargetInfo> relatedTargetMap = getRelatedTargetMap(targetInfos.values(),
+                targetRelationship);
 
         List<TargetApiDTO> targetList = new ArrayList<>(targetIds.size());
 
         for (long targetId : targetIds) {
             final TargetInfo targetInfo = targetInfos.get(targetId);
             if (targetInfo != null) {
-                targetList.add(createTargetDtoWithRelationships(targetInfo, derivedTargetMap,
-                    probeMap, targetType));
+                targetList.add(createTargetDtoWithRelationships(targetInfo, relatedTargetMap,
+                    probeMap, targetRelationship));
             } else {
                 logger.error("Target with id {} cannot be retrieved.", targetId);
             }
@@ -341,26 +351,42 @@ public class TargetsService implements ITargetsService {
     }
 
     /**
-     * Gets the derived targets as map from their ids to their objects.
+     * Gets the related targets as map from their ids to their objects.
+     * The relationship of targets is controlled by input TargetRelationship parameter.
      *
-     * @param targetInfos the info for the targets we are getting derived targets for.
-     * @return the map from id to target info.
-     * @throws CommunicationException if something goes wrong connecting to topology processor.
+     * @param targetInfos the info for the targets we are getting related targets for.
+     * @param targetRelationship indicates relationships should be included for the targets.
+     * @return the map from related target id to target info.
+     * @throws CommunicationException if something goes wrong connecting to topology
+     *         processor.
      */
-    private Map<Long, TargetInfo> getDerivedTargetsMap(Collection<TargetInfo> targetInfos)
+    private Map<Long, TargetInfo> getRelatedTargetMap(Collection<TargetInfo> targetInfos,
+            @Nonnull TargetRelationship targetRelationship)
           throws CommunicationException {
-        // gets the id of derived targets
-        Set<Long> derivedTargetsIds = targetInfos.stream()
-            .map(TargetInfo::getDerivedTargetIds)
-            .flatMap(List::stream)
-            .collect(Collectors.toSet());
+        final Set<Long> relatedTargets = new HashSet<>();
 
-        if (derivedTargetsIds.isEmpty()) {
+        if (shouldRetrieveDerivedTargets(targetRelationship)) {
+            // gets the id of derived targets
+            relatedTargets.addAll(targetInfos.stream()
+                    .map(TargetInfo::getDerivedTargetIds)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toSet()));
+        }
+
+        if (shouldRetrieveParentTargets(targetRelationship)) {
+            // gets the id of parent targets
+            relatedTargets.addAll(targetInfos.stream()
+                    .map(TargetInfo::getParentTargetIds)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toSet()));
+        }
+
+        if (relatedTargets.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        // get the info for derived targets
-        return topologyProcessor.getTargets(new ArrayList<>(derivedTargetsIds))
+        // get the info for related targets
+        return topologyProcessor.getTargets(new ArrayList<>(relatedTargets))
             .stream().collect(Collectors.toMap(TargetInfo::getId, Function.identity()));
     }
 
@@ -375,13 +401,13 @@ public class TargetsService implements ITargetsService {
         // create the list of filter to filter targets based on
         List<Search.PropertyFilter> propertyFilterList = new ArrayList<>();
 
-        // only show hidden information
+        // only request for visible targets
         propertyFilterList.add(PropertyFilter.newBuilder()
-            .setPropertyName(SearchableProperties.IS_TARGET_HIDDEN)
-            .setStringFilter(PropertyFilter.StringFilter.newBuilder()
-                .addOptions(Boolean.FALSE.toString())
-                .build())
-            .build());
+                .setPropertyName(SearchableProperties.IS_TARGET_HIDDEN)
+                .setStringFilter(PropertyFilter.StringFilter.newBuilder()
+                        .addOptions(Boolean.FALSE.toString())
+                        .build())
+                .build());
 
         // set environment if set
         if (environmentType == EnvironmentType.CLOUD || environmentType == EnvironmentType.ONPREM) {
@@ -475,7 +501,7 @@ public class TargetsService implements ITargetsService {
 
     private void decorateWithDetails(@Nonnull List<TargetApiDTO> targets,
                                      @Nullable TargetDetailLevel apiDetailLevel,
-                                     @Nullable TargetType targetType) {
+                                     @Nonnull TargetRelationship targetRelationship) {
         // Fetch additional details if necessary.
         // TODO (roman, Jun 30 2021): In the future there should be a single search call to
         // the topology processor, instead of search -> get targets -> get details.
@@ -484,9 +510,7 @@ public class TargetsService implements ITargetsService {
             Set<Long> targetIds = targets.stream()
                 .map(target -> Long.parseLong(target.getUuid()))
                 .collect(Collectors.toSet());
-            if (TargetType.DERIVED.equals(targetType)) {
-                checkAndAddDerivedTargetIds(targetIds, targets);
-            }
+            checkAndAddDerivedTargetIds(targetIds, targets, targetRelationship);
             Map<Long, TargetDetails> detailsByTarget = targetsService.getTargetDetails(
                     GetTargetDetailsRequest.newBuilder()
                     .addAllTargetIds(targetIds)
@@ -494,9 +518,14 @@ public class TargetsService implements ITargetsService {
                     .build()).getTargetDetailsMap();
             for (TargetApiDTO targetApiDTO : targets) {
                 addTargetHealthData(detailLevel, targetApiDTO, detailsByTarget);
-                if (TargetType.DERIVED.equals(targetType) && !CollectionUtils.isEmpty(targetApiDTO.getDerivedTargets())) {
+                if (!CollectionUtils.isEmpty(targetApiDTO.getDerivedTargets())) {
                     for (final TargetApiDTO derivedTarget : targetApiDTO.getDerivedTargets()) {
                         addTargetHealthData(detailLevel, derivedTarget, detailsByTarget);
+                    }
+                }
+                if (!CollectionUtils.isEmpty(targetApiDTO.getParentTargets())) {
+                    for (final TargetApiDTO parentTarget : targetApiDTO.getParentTargets()) {
+                        addTargetHealthData(detailLevel, parentTarget, detailsByTarget);
                     }
                 }
             }
@@ -505,13 +534,27 @@ public class TargetsService implements ITargetsService {
     }
 
     private void checkAndAddDerivedTargetIds(@Nonnull final Set<Long> targetIds,
-                                             @Nonnull final List<TargetApiDTO> targets) {
+                                             @Nonnull final List<TargetApiDTO> targets,
+                                             @Nonnull final TargetRelationship targetRelationship) {
+        if (targetRelationship == TargetRelationship.NONE) {
+            return;
+        }
+
         targets.forEach(target -> {
-            if (!CollectionUtils.isEmpty(target.getDerivedTargets())) {
+            if (shouldRetrieveDerivedTargets(targetRelationship)
+                    && !CollectionUtils.isEmpty(target.getDerivedTargets())) {
                 targetIds.addAll(target.getDerivedTargets().stream()
                         .filter(Objects::nonNull)
                         .map(derivedTarget ->
                         Long.parseLong(derivedTarget.getUuid())).collect(Collectors.toSet()));
+            }
+            if (shouldRetrieveParentTargets(targetRelationship)
+                    && !CollectionUtils.isEmpty(target.getParentTargets())) {
+                targetIds.addAll(target.getParentTargets().stream()
+                        .filter(Objects::nonNull)
+                        .map(BaseApiDTO::getUuid)
+                        .map(Long::valueOf)
+                        .collect(Collectors.toSet()));
             }
         });
 
@@ -558,7 +601,7 @@ public class TargetsService implements ITargetsService {
     public TargetApiDTO getTarget(
             @Nonnull final String uuid,
             @Nullable final TargetDetailLevel targetDetailLevel) throws UnknownObjectException {
-        return getTarget(uuid, targetDetailLevel, DEFAULT_TARGET_TYPE);
+        return getTarget(uuid, targetDetailLevel, DEFAULT_TARGET_RELATIONSHIP);
     }
 
     /**
@@ -569,8 +612,8 @@ public class TargetsService implements ITargetsService {
      * @param uuid                         the unique ID for the target
      * @param targetDetailLevel            how much detail about the target should be returned.
      *                                     Null targetDetailLevel means assume TargetDetailLevel.BASIC.
-     * @param targetType {@link TargetType} to check if {@link TargetApiDTO} should include
-     *                                     hidden derived target.
+     * @param targetRelationship  {@link TargetRelationship} determines if {@link TargetApiDTO} should include
+     *                                     derived and parent target.
      * @return an {@link TargetApiDTO} containing the uuid of the target, plus the info from the
      * related probe.
      * @throws UnknownObjectException if target is not found.
@@ -580,19 +623,20 @@ public class TargetsService implements ITargetsService {
     public TargetApiDTO getTarget(
             @Nonnull final String uuid,
             @Nullable final TargetDetailLevel targetDetailLevel,
-            @Nullable TargetType targetType) throws UnknownObjectException {
+            @Nullable TargetRelationship targetRelationship) throws UnknownObjectException {
         logger.debug("Get target {}", uuid);
+        final TargetRelationship relationship = getTargetRelationshipOrDefault(targetRelationship);
         // assumes target uuid's are long's in XL
         long targetId = Long.parseLong(uuid);
         try {
             TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
-            Map<Long, TargetInfo> derivedTargetMap =
-                    getDerivedTargetsMap(Collections.singletonList(targetInfo));
+            Map<Long, TargetInfo> relatedTargetMap =
+                    getRelatedTargetMap(Collections.singletonList(targetInfo), relationship);
             TargetApiDTO targetApiDTO = createTargetDtoWithRelationships(targetInfo,
-                    derivedTargetMap, getProbeIdToProbeInfoMap(), targetType);
+                    relatedTargetMap, getProbeIdToProbeInfoMap(), relationship);
 
             decorateWithDetails(Collections.singletonList(targetApiDTO), targetDetailLevel,
-                    targetType);
+                    relationship);
 
             return targetApiDTO;
         } catch (TopologyProcessorException e) {
@@ -679,7 +723,7 @@ public class TargetsService implements ITargetsService {
     @Override
     public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO)
             throws Exception {
-        final Set<Long> uuidSet = getTargetEntityIds(Long.valueOf(uuid));
+        final Set<Long> uuidSet = getTargetEntityIds(Long.parseLong(uuid));
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
                 actionApiInputDTO, Optional.of(uuidSet), null);
         return actionSearchUtil.callActionServiceWithNoPagination(filter);
@@ -728,7 +772,7 @@ public class TargetsService implements ITargetsService {
 
         Pagination.PaginationParameters.Builder paginationParameters = Pagination.PaginationParameters.newBuilder()
                 .setLimit(limit == null ? this.apiPaginationDefaultLimit : limit)
-                .setAscending(ascending == null ? true : ascending)
+                .setAscending(ascending == null || ascending)
                 .setOrderBy(orderBy);
 
         if (cursor != null) {
@@ -796,15 +840,15 @@ public class TargetsService implements ITargetsService {
 
                 // if validation is successful and this is the first target, listen to the results
                 // and send notification to UI
-                if (validatedTargetInfo != null
-                        && StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus())
-                        && targetSizeBeforeValidation == 0) {
+                if (StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(
+                        validatedTargetInfo.getStatus()) && targetSizeBeforeValidation == 0) {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
-                Map<Long, TargetInfo> derivedTargetMap =
-                    getDerivedTargetsMap(Collections.singletonList(validatedTargetInfo));
+                Map<Long, TargetInfo> relatedTargetMap =
+                    getRelatedTargetMap(Collections.singletonList(validatedTargetInfo),
+                            DEFAULT_TARGET_RELATIONSHIP);
                 return createTargetDtoWithRelationships(
-                        validatedTargetInfo, derivedTargetMap, getProbeIdToProbeInfoMap());
+                        validatedTargetInfo, relatedTargetMap, getProbeIdToProbeInfoMap());
             } catch (TopologyProcessorException e) {
                 throw new OperationFailedException(e);
             }
@@ -856,7 +900,7 @@ public class TargetsService implements ITargetsService {
             throws OperationFailedException, UnauthorizedObjectException,
             InterruptedException {
         logger.debug("Execute validate={}, discover={} on target {}", validate, rediscover, uuid);
-        long targetId = Long.valueOf(uuid);
+        long targetId = Long.parseLong(uuid);
         try {
             Optional<TargetInfo> result = Optional.empty();
             if (validate != null && validate) {
@@ -875,15 +919,17 @@ public class TargetsService implements ITargetsService {
             }
 
             if (result.isPresent()) {
-                Map<Long, TargetInfo> derivedTargetMap =
-                    getDerivedTargetsMap(Collections.singletonList(result.get()));
-                return createTargetDtoWithRelationships(result.get(), derivedTargetMap, getProbeIdToProbeInfoMap());
+                Map<Long, TargetInfo> relatedTargetMap =
+                    getRelatedTargetMap(Collections.singletonList(result.get()),
+                            DEFAULT_TARGET_RELATIONSHIP);
+                return createTargetDtoWithRelationships(result.get(), relatedTargetMap, getProbeIdToProbeInfoMap());
             } else {
                 final TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
-                Map<Long, TargetInfo> derivedTargetMap =
-                    getDerivedTargetsMap(Collections.singletonList(targetInfo));
+                Map<Long, TargetInfo> relatedTargetMap =
+                    getRelatedTargetMap(Collections.singletonList(targetInfo),
+                            DEFAULT_TARGET_RELATIONSHIP);
                 return createTargetDtoWithRelationships(
-                    targetInfo, derivedTargetMap, getProbeIdToProbeInfoMap());
+                    targetInfo, relatedTargetMap, getProbeIdToProbeInfoMap());
             }
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -915,7 +961,7 @@ public class TargetsService implements ITargetsService {
         checkLicenseByTargetUuid(uuid);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
-        long targetId = Long.valueOf(uuid);
+        long targetId = Long.parseLong(uuid);
         final NewTargetData updatedTargetData = new NewTargetData(inputFields);
         try {
             TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
@@ -927,9 +973,10 @@ public class TargetsService implements ITargetsService {
             TargetInfo updatedTargetInfo = topologyProcessor.modifyTarget(targetId,
                     new TargetInputFields(updatedTargetData.inputFieldsList,
                             updatedTargetData.getCommunicationBindingChannel()));
-            Map<Long, TargetInfo> derivedTargetMap =
-                getDerivedTargetsMap(Collections.singletonList(updatedTargetInfo));
-            return createTargetDtoWithRelationships(updatedTargetInfo, derivedTargetMap, getProbeIdToProbeInfoMap());
+            Map<Long, TargetInfo> relatedTargetMap =
+                getRelatedTargetMap(Collections.singletonList(updatedTargetInfo),
+                        DEFAULT_TARGET_RELATIONSHIP);
+            return createTargetDtoWithRelationships(updatedTargetInfo, relatedTargetMap, getProbeIdToProbeInfoMap());
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -947,7 +994,7 @@ public class TargetsService implements ITargetsService {
     public void deleteTarget(@Nonnull String uuid)
             throws UnknownObjectException, InvalidOperationException {
         logger.debug("Delete target {}", uuid);
-        long targetId = Long.valueOf(uuid);
+        long targetId = Long.parseLong(uuid);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
         try {
@@ -980,7 +1027,7 @@ public class TargetsService implements ITargetsService {
      */
     private Map<Long, ProbeInfo> getProbeIdToProbeInfoMap() throws CommunicationException {
         // create a map of ID -> probeInfo
-        return Maps.uniqueIndex(topologyProcessor.getAllProbes(), probeInfo -> probeInfo.getId());
+        return Maps.uniqueIndex(topologyProcessor.getAllProbes(), ProbeInfo::getId);
     }
 
     /**
@@ -1008,7 +1055,7 @@ public class TargetsService implements ITargetsService {
          * mismatch between the InputFieldApiDTO ({@code List<String>)}) and the
          * InputField.groupProperties ({@code List<List<String>>}).
          *
-         * @param inputFields a list of {@ref InputFieldApiDTO} to use to initialize the accountData
+         * @param inputFields a list of {@link InputFieldApiDTO} to use to initialize the accountData
          */
         NewTargetData(Collection<InputFieldApiDTO> inputFields) {
             inputFieldsList = new ArrayList<>();
@@ -1035,7 +1082,7 @@ public class TargetsService implements ITargetsService {
          * InputField.groupProperties ({@code List<List<String>>}).</p>
          *
          * @param probeType probe type
-         * @param inputFields a list of {@ref InputFieldApiDTO} to use to initialize the accountData
+         * @param inputFields a list of {@link InputFieldApiDTO} to use to initialize the accountData
          */
         NewTargetData(@Nonnull final String probeType, final Collection<InputFieldApiDTO> inputFields) {
             this(ensureStorageBrowsingFlagSet(probeType, inputFields));
@@ -1047,6 +1094,7 @@ public class TargetsService implements ITargetsService {
             return new HashSet<>(inputFieldsList);
         }
 
+        @Nonnull
         @Override
         public Optional<String> getCommunicationBindingChannel() {
             return communicationBindingChannel;
@@ -1063,7 +1111,7 @@ public class TargetsService implements ITargetsService {
          * So probe and UI are consistent.
          *
          * @param probeType probe type
-         * @param inputFieldsApiDTO a list of {@ref InputFieldApiDTO} to use to initialize the accountData
+         * @param inputFieldsApiDTO a list of {@link InputFieldApiDTO} to use to initialize the accountData
          * @return a list of parsed {@link InputFieldApiDTO}
          */
         private static Collection<InputFieldApiDTO> ensureStorageBrowsingFlagSet(@Nonnull final String probeType, final Collection<InputFieldApiDTO> inputFieldsApiDTO) {
@@ -1213,45 +1261,46 @@ public class TargetsService implements ITargetsService {
 
     /**
      * Creates a {@link TargetApiDTO} instance from information in a {@link TargetInfo} object
-     * by mapProbeInfoToDTO() and sets the "derived targets" attribute of the target.
+     * by mapProbeInfoToDTO() and sets the "derived targets"/"parent targets" attribute of the
+     * target depends on targetRelationship value.
      *
-     * @param targetInfo            the {@link TargetInfo} structure returned from the Topology-Processor.
-     * @param derivedTargetMap      the map from derived target ids to their info.
+     * @param targetInfo the {@link TargetInfo} structure returned from the TP
+     * @param relatedTargetMap the map from related target ids to their info.
      * @param probeIdToProbeInfoMap A map of probeInfo indexed by probeId.
-     * @return a {@link TargetApiDTO} containing the target information and its derived targets
-     *      * relationships.
+     * @return a {@link TargetApiDTO} containing the target information and its related targets
+     *         relationships.
      */
-    private TargetApiDTO createTargetDtoWithRelationships(
-            final TargetInfo targetInfo,
-            final Map<Long, TargetInfo> derivedTargetMap,
+    private TargetApiDTO createTargetDtoWithRelationships(final TargetInfo targetInfo,
+            final Map<Long, TargetInfo> relatedTargetMap,
             final Map<Long, ProbeInfo> probeIdToProbeInfoMap) {
-        return createTargetDtoWithRelationships(targetInfo, derivedTargetMap,
-                probeIdToProbeInfoMap, DEFAULT_TARGET_TYPE);
+        return createTargetDtoWithRelationships(targetInfo, relatedTargetMap, probeIdToProbeInfoMap,
+                DEFAULT_TARGET_RELATIONSHIP);
     }
 
     /**
      * Creates a {@link TargetApiDTO} instance from information in a {@link TargetInfo} object
-     * by mapProbeInfoToDTO() and sets the "derived targets" attribute of the target.
+     * by mapProbeInfoToDTO() and sets the "derived targets"/"parent targets" attribute of the
+     * target depends on targetRelationship value.
      *
-     * @param targetInfo       the {@link TargetInfo} structure returned from the Topology-Processor.
-     * @param derivedTargetMap the map from derived target ids to their info.
-     * @param probeMap         A map of probeInfo indexed by probeId.
-     * @param targetType  {@link TargetType} to check if {@link TargetApiDTO} should include
-     *                                     hidden derived target.
-     * @return a {@link TargetApiDTO} containing the target information and its derived targets
-     * relationships.
+     * @param targetInfo the {@link TargetInfo} structure returned from the TP
+     * @param relatedTargetMap the map from related target ids to their info.
+     * @param probeMap A map of probeInfo indexed by probeId.
+     * @param targetRelationship {@link TargetRelationship} to indicate what relationships
+     *         should be included
+     * @return a {@link TargetApiDTO} containing the target information and its related targets
+     *         relationships.
      */
     private TargetApiDTO createTargetDtoWithRelationships(
             @Nonnull final TargetInfo targetInfo,
-            @Nonnull final Map<Long, TargetInfo> derivedTargetMap,
+            @Nonnull final Map<Long, TargetInfo> relatedTargetMap,
             @Nonnull final Map<Long, ProbeInfo> probeMap,
-            @Nullable TargetType targetType) {
+            @Nonnull TargetRelationship targetRelationship) {
         try {
             TargetApiDTO targetApiDTO = targetMapper.mapTargetInfoToDTO(targetInfo, probeMap);
-            targetApiDTO.setDerivedTargets(
-                    convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds().stream()
-                            .map(String::valueOf).collect(Collectors.toList()), derivedTargetMap, probeMap,
-                            targetType));
+            targetApiDTO.setDerivedTargets(convertDerivedTargetInfosToDtos(targetInfo.getId(),
+                targetInfo.getDerivedTargetIds(), relatedTargetMap, probeMap, targetRelationship));
+            targetApiDTO.setParentTargets(convertParentTargetInfosToDtos(targetInfo.getId(),
+                    targetInfo.getParentTargetIds(), relatedTargetMap, probeMap, targetRelationship));
             return targetApiDTO;
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -1262,42 +1311,122 @@ public class TargetsService implements ITargetsService {
      * Creates a List of {@link TargetApiDTO}s to be set as the derived targets of
      * their parent target.
      *
+     * @param parentTargetId the id of the parent target we are getting derived targets for.
      * @param derivedTargetIds a List of derived target's ids that associated with a parent target.
-     * @param derivedTargetMap The map from the id of derived target its info.
+     * @param targetInfoMap The map from the id of a target to its info.
      * @param probeMap A map of probeInfo objects indexed by probeId.
-     * @param targetType {@link TargetType} to indicate if we should skip over hidden derived targets.
+     * @param targetRelationship {@link TargetRelationship} to indicate what relationships
+     *                                                     should be included.
      * @return List of {@link TargetApiDTO}s containing the target information from their
      * {@link TargetInfo}s.
+     * @throws CommunicationException if communication to topology processor fail while getting
+     * information about targets.
      */
     private List<TargetApiDTO> convertDerivedTargetInfosToDtos(
-            @Nonnull final List<String> derivedTargetIds,
-            @Nonnull final Map<Long, TargetInfo> derivedTargetMap,
+            final long parentTargetId,
+            @Nonnull final List<Long> derivedTargetIds,
+            @Nonnull final Map<Long, TargetInfo> targetInfoMap,
             @Nonnull final Map<Long, ProbeInfo> probeMap,
-            @Nullable TargetType targetType) {
-        if (derivedTargetIds.isEmpty()) {
+            @Nonnull final TargetRelationship targetRelationship) throws CommunicationException {
+        if (derivedTargetIds.isEmpty() || !shouldRetrieveDerivedTargets(targetRelationship)) {
+            logger.debug("No derived target will be converted for target {}", parentTargetId);
             return Collections.emptyList();
         }
 
-        List<TargetApiDTO> derivedTargetsDtos = Lists.newArrayList();
-        derivedTargetIds.forEach(targetId -> {
-            TargetInfo targetInfo = derivedTargetMap.get(Long.parseLong(targetId));
+        final List<TargetApiDTO> derivedTargetsDtos = new ArrayList<>(derivedTargetIds.size());
+        for (Long targetId : derivedTargetIds) {
+            final TargetInfo targetInfo = targetInfoMap.get(targetId);
             if (targetInfo != null) {
-                if (targetInfo.isHidden() && !TargetType.DERIVED.equals(targetType)) {
-                    logger.debug("Skip the conversion of a hidden derived target: {}", targetId);
+                if (shouldIncludeDerivedTarget(targetInfo, targetRelationship)) {
+                    derivedTargetsDtos.add(targetMapper.mapTargetInfoToDTO(targetInfo, probeMap));
                 } else {
-                    try {
-                        derivedTargetsDtos.add(targetMapper.mapTargetInfoToDTO(targetInfo, probeMap));
-                    } catch (CommunicationException e) {
-                        throw new CommunicationError(e);
-                    }
+                    logger.debug("Conversion of a derived target {} of target{} was skipped.",
+                            targetId, parentTargetId);
                 }
             } else {
-                logger.warn(
-                        "Derived Target {} no longer exists, but appears as a derived target in the "
-                                + "target store", targetId);
+                logger.warn("Derived target {} for target {} no longer exists, "
+                    + "but appears as a derived target in the target store", targetId,
+                        parentTargetId);
             }
-        });
+        }
+
         return derivedTargetsDtos;
+    }
+
+    /**
+     * Creates a List of {@link TargetApiDTO}s to be set as the parent targets of
+     * their parent target.
+     *
+     * @param derivedTargetId the id of the derived target we are getting parent targets for.
+     * @param parentTargetIds a List of parent target's ids that associated with a derived target.
+     * @param targetInfoMap The map from the id of a target to its info.
+     * @param probeMap A map of probeInfo objects indexed by probeId.
+     * @param targetRelationship {@link TargetRelationship} to indicate if we should skip over hidden parent targets.
+     * @return List of {@link TargetApiDTO}s containing the target information from their
+     * {@link TargetInfo}s.
+     * @throws CommunicationException if communication to topology processor fail while getting
+     * information about targets.
+     */
+    private List<TargetApiDTO> convertParentTargetInfosToDtos(
+            final long derivedTargetId,
+            @Nonnull final List<Long> parentTargetIds,
+            @Nonnull final Map<Long, TargetInfo> targetInfoMap,
+            @Nonnull final Map<Long, ProbeInfo> probeMap,
+            @Nonnull TargetRelationship targetRelationship) throws CommunicationException {
+        if (parentTargetIds.isEmpty() || !shouldRetrieveParentTargets(targetRelationship)) {
+            logger.debug("No parent target will be converted for target {}", derivedTargetId);
+            return Collections.emptyList();
+        }
+
+        final List<TargetApiDTO> parentTargetsDtos = new ArrayList<>(parentTargetIds.size());
+        for (Long targetId : parentTargetIds) {
+            final TargetInfo targetInfo = targetInfoMap.get(targetId);
+            if (targetInfo != null) {
+                if (shouldIncludeParentTarget(targetInfo, targetRelationship)) {
+                    parentTargetsDtos.add(targetMapper.mapTargetInfoToDTO(targetInfo, probeMap));
+                } else {
+                    logger.debug("Conversion of a parent target {} for target{} was skipped.",
+                            targetId, derivedTargetId);
+                }
+            } else {
+                logger.warn("Parent target {} for target {} no longer exists, but"
+                  + " appears as a parent target in the target store", targetId, derivedTargetId);
+            }
+        }
+
+        return parentTargetsDtos;
+    }
+
+    private boolean shouldRetrieveDerivedTargets(@Nonnull TargetRelationship targetRelationship) {
+        return targetRelationship == TargetRelationship.VISIBLE_DERIVED
+                || targetRelationship == TargetRelationship.VISIBLE_DERIVED_AND_PARENT
+                || targetRelationship == TargetRelationship.DERIVED
+                || targetRelationship == TargetRelationship.DERIVED_AND_PARENT;
+    }
+
+    private boolean shouldRetrieveParentTargets(@Nonnull TargetRelationship targetRelationship) {
+        return targetRelationship == TargetRelationship.VISIBLE_DERIVED_AND_PARENT
+                || targetRelationship == TargetRelationship.DERIVED_AND_PARENT;
+    }
+
+    private boolean shouldIncludeDerivedTarget(@Nonnull TargetInfo targetInfo,
+                                               @Nonnull TargetRelationship targetRelationship) {
+        if (targetRelationship == TargetRelationship.VISIBLE_DERIVED
+                || targetRelationship == TargetRelationship.VISIBLE_DERIVED_AND_PARENT) {
+            return !targetInfo.isHidden();
+        } else {
+            return targetRelationship == TargetRelationship.DERIVED
+                    || targetRelationship == TargetRelationship.DERIVED_AND_PARENT;
+        }
+    }
+
+    private boolean shouldIncludeParentTarget(@Nonnull TargetInfo targetInfo,
+                                              @Nonnull TargetRelationship targetRelationship) {
+        if (targetRelationship == TargetRelationship.VISIBLE_DERIVED_AND_PARENT) {
+            return !targetInfo.isHidden();
+        } else {
+            return targetRelationship == TargetRelationship.DERIVED_AND_PARENT;
+        }
     }
 
     /**
@@ -1391,8 +1520,8 @@ public class TargetsService implements ITargetsService {
     /**
      * Class to compare the health states (if relevant) and check subcategories of health response.
      */
-    public class HealthResponseComparator implements Comparator<TargetHealthApiDTO> {
-        private boolean sortByState;
+    public static class HealthResponseComparator implements Comparator<TargetHealthApiDTO> {
+        private final boolean sortByState;
 
         /**
          * Creates a comparator that sorts by state then by subcategory if flag is true,
@@ -1458,8 +1587,7 @@ public class TargetsService implements ITargetsService {
     private void checkLicensedWorkloadLimit() {
         final LicenseSummary licenseSummary = licenseCheckClient.getLicenseSummary();
         final boolean isOverLicensedWorkloadLimit =
-                licenseCheckClient != null && licenseSummary != null
-                        && licenseSummary.getIsOverEntityLimit();
+                licenseSummary != null && licenseSummary.getIsOverEntityLimit();
         if (isOverLicensedWorkloadLimit) {
             throw new LicenseWorkloadLimitExceededException();
         }
