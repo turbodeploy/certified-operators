@@ -672,7 +672,7 @@ server:
   ##
   image:
     repository: prom/prometheus
-    tag: v2.19.2
+    tag: v2.32.0
     pullPolicy: IfNotPresent
 
   #nameOverride: ""
