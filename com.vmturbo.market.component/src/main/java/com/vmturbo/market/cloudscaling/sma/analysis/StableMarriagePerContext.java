@@ -490,9 +490,9 @@ public class StableMarriagePerContext {
                     }
                 }
             }
-            if (currentRICoupons > SMAUtils.EPSILON && !currentRI.isDisountableVMsEmpty()) {
+            if (currentRICoupons > SMAUtils.EPSILON && !currentRI.isDiscountableVMsEmpty()) {
                 SMAVirtualMachine currentVM = currentRI
-                        .findBestDiscountableVM(currentRICoupons, virtualMachineGroupMap, reduceDependency);
+                        .findBestDiscountableVM();
                 if (currentVM == null) {
                     continue;
                 }
@@ -529,7 +529,7 @@ public class StableMarriagePerContext {
                 if (!freeRIs.contains(currentRI)) {
                     freeRIs.addFirst(currentRI);
                 }
-                currentRI.removeVMFromDiscountableVMs(currentVMCouponRequest);
+                currentRI.removeVMFromDiscountableVMs();
                 SMAMatch newEngagement = new SMAMatch(currentVM, destinationTemplate,
                         currentRI, discountedCoupons);
                 Boolean isCurrentRIBetter = isCurrentRIBetterThanOldRI(oldEngagement,
