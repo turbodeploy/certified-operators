@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -17,7 +18,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.lang.StringUtils;
 
@@ -36,8 +36,33 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingEntitySemanticD
 
 /**
  * The concrete implementation of the {@link StitchingEntity} interface.
+ *
+ * Many fields in this class are initialized to empty because creating default collections
+ * on millions of entities increases memory usage dramatically when many times these
+ * data structures will be empty or have very few values.
  */
 public class TopologyStitchingEntity implements StitchingEntity {
+
+    /**
+     * Capacity for a map we expect to contain very few elements.
+     */
+    private static final int MINI_MAP_CAPACITY = 4;
+
+    /**
+     * Capacity for a map we expect to contain only a small number of elements.
+     */
+    private static final int SMALL_MAP_CAPACITY = 8;
+
+    /**
+     * Value for connections maps before they are initialized.
+     */
+    private static final Map<ConnectionType, Set<StitchingEntity>> UNINITIALIZED_CONNECTIONS =
+        Collections.emptyMap();
+
+    /**
+     * Value for consumers map before it is initialized.
+     */
+    private static final Set<StitchingEntity> UNINITIALIZED_CONSUMERS = Collections.emptySet();
 
     /**
      * The builder for the {@link }
@@ -55,7 +80,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     /**
      * The errors encountered by this entity during any part of stitching.
      */
-    private final StitchingErrors stitchingErrors = new StitchingErrors();
+    private StitchingErrors stitchingErrors;
 
     /**
      * A set of {@link StitchingMergeInformation} for entities that were that were merged onto this entity.
@@ -71,13 +96,15 @@ public class TopologyStitchingEntity implements StitchingEntity {
      */
     private Set<StitchingMergeInformation> mergeInformation;
 
-    private final Map<StitchingEntity, List<CommoditiesBought>> commodityBoughtListByProvider = new IdentityHashMap<>();
-    private final Set<StitchingEntity> consumers = Sets.newIdentityHashSet();
+    private final Map<StitchingEntity, List<CommoditiesBought>> commodityBoughtListByProvider =
+        miniIdentityHashMap();
     private final List<CommoditySold> commoditiesSold = new ArrayList<>();
 
-    private final Map<ConnectionType, Set<StitchingEntity>> connectedTo = new IdentityHashMap<>();
+    private Set<StitchingEntity> consumers = UNINITIALIZED_CONSUMERS;
 
-    private final Map<ConnectionType, Set<StitchingEntity>> connectedFrom = new IdentityHashMap<>();
+    private Map<ConnectionType, Set<StitchingEntity>> connectedTo = UNINITIALIZED_CONNECTIONS;
+
+    private Map<ConnectionType, Set<StitchingEntity>> connectedFrom = UNINITIALIZED_CONNECTIONS;
 
     /**
      * Indicates that this is a proxy object that should be removed if it doesn't get stitched.
@@ -101,9 +128,9 @@ public class TopologyStitchingEntity implements StitchingEntity {
      * @param lastUpdatedTime last updated time
      */
     public TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
-                    final long oid,
-                    final long targetId,
-                    final long lastUpdatedTime) {
+                                   final long oid,
+                                   final long targetId,
+                                   final long lastUpdatedTime) {
         this(entityBuilder, oid, targetId, lastUpdatedTime, false);
     }
 
@@ -117,10 +144,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
      * @param isStale whether the entity is considered outdated
      */
     public TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
-                    final long oid,
-                    final long targetId,
-                    final long lastUpdatedTime,
-                    boolean isStale) {
+                                   final long oid,
+                                   final long targetId,
+                                   final long lastUpdatedTime,
+                                   boolean isStale) {
         this.entityBuilder = Objects.requireNonNull(entityBuilder);
         this.oid = oid;
         this.targetId = targetId;
@@ -135,10 +162,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public Collection<String> getPropertyValues(@Nonnull String name) {
         return entityBuilder.getEntityPropertiesList().stream()
-                        .filter(p -> Objects.equals(p.getName(), name))
-                        .map(EntityProperty::getValue)
-                        .filter(StringUtils::isNotBlank)
-                        .collect(Collectors.toSet());
+            .filter(p -> Objects.equals(p.getName(), name))
+            .map(EntityProperty::getValue)
+            .filter(StringUtils::isNotBlank)
+            .collect(Collectors.toSet());
     }
 
     @Nonnull
@@ -155,7 +182,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Nonnull
     @Override
     public StitchingErrors getStitchingErrors() {
-        return stitchingErrors;
+        return stitchingErrors == null ? StitchingErrors.none() : stitchingErrors ;
     }
 
     @Nonnull
@@ -189,28 +216,38 @@ public class TopologyStitchingEntity implements StitchingEntity {
         // Consumers do not need to be deep-copied because when performing a diff of consumers, we only
         // look at membership in this set, and don't need to check for changes to those consumers via
         // this set.
-        copy.consumers.addAll(consumers);
+        if (consumers != UNINITIALIZED_CONSUMERS) {
+            copy.consumers = smallIdentityHashSet();
+            copy.consumers.addAll(consumers);
+        }
 
         // Copy commodities sold
         commoditiesSold.forEach(sold -> copy.commoditiesSold.add(sold.deepCopy()));
 
         // Copy commodityBoughtListByProvider
         commodityBoughtListByProvider.forEach((provider, commodityBoughtList) ->
-                copy.commodityBoughtListByProvider.put(provider, commodityBoughtList.stream()
-                        .map(CommoditiesBought::deepCopy)
-                        .collect(Collectors.toList())));
+            copy.commodityBoughtListByProvider.put(provider, commodityBoughtList.stream()
+                .map(CommoditiesBought::deepCopy)
+                .collect(Collectors.toList())));
 
         // copy connectedTo and connectedFrom
-        copy.connectedTo.putAll(connectedTo);
-        copy.connectedFrom.putAll(connectedFrom);
+        if (connectedTo != UNINITIALIZED_CONNECTIONS) {
+            copy.connectedTo = new EnumMap<>(ConnectionType.class);
+            copy.connectedTo.putAll(connectedTo);
+        }
+
+        if (connectedFrom != UNINITIALIZED_CONNECTIONS) {
+            copy.connectedFrom = new EnumMap<>(ConnectionType.class);
+            copy.connectedFrom.putAll(connectedFrom);
+        }
 
         // Copy merge information
         getMergeInformation().forEach(mergeInfo -> copy
-                .addMergeInformation(new StitchingMergeInformation(mergeInfo.getOid(),
-                                                                   mergeInfo.getTargetId(),
-                                                                   mergeInfo.getError(),
-                                                                   mergeInfo.getVendorId(),
-                                                                   mergeInfo.getOrigin())));
+            .addMergeInformation(new StitchingMergeInformation(mergeInfo.getOid(),
+                mergeInfo.getTargetId(),
+                mergeInfo.getError(),
+                mergeInfo.getVendorId(),
+                mergeInfo.getOrigin())));
 
         return copy;
     }
@@ -227,6 +264,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Override
     public void recordError(@Nonnull final StitchingErrorCode errorCode) {
+        if (this.stitchingErrors == null) {
+            stitchingErrors = new StitchingErrors();
+        }
+
         this.stitchingErrors.add(errorCode);
     }
 
@@ -291,7 +332,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
      */
     @Override
     public Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull StitchingEntity provider,
-            @Nonnull CommoditiesBought commoditiesBought) {
+                                                                    @Nonnull CommoditiesBought commoditiesBought) {
         // TODO: After the volume model change in OM-62262, there will not be multiple sets of
         //   CommoditiesBought from the same provider. As a result, the value of the
         //   commodityBoughtListByProvider map should contain only one element.
@@ -301,10 +342,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
         //       Map<StitchingEntity, CommoditiesBought> commoditiesBoughtByProvider
         //   and then change all places referencing this variable.
         return Optional
-                .ofNullable(commodityBoughtListByProvider.get(provider))
-                .flatMap(cbList -> cbList.stream()
-                        .filter(Objects::nonNull)
-                        .findFirst());
+            .ofNullable(commodityBoughtListByProvider.get(provider))
+            .flatMap(cbList -> cbList.stream()
+                .filter(Objects::nonNull)
+                .findFirst());
     }
 
     public List<CommoditySold> getTopologyCommoditiesSold() {
@@ -320,12 +361,15 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     public boolean removeConsumer(@Nonnull final StitchingEntity entity) {
-        return consumers.remove(Objects.requireNonNull(entity));
+        return consumers != UNINITIALIZED_CONSUMERS && consumers.remove(Objects.requireNonNull(entity));
     }
 
     public void addConsumer(@Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
 
+        if (consumers == UNINITIALIZED_CONSUMERS) {
+            consumers = smallIdentityHashSet();
+        }
         consumers.add(Objects.requireNonNull(entity));
     }
 
@@ -341,8 +385,12 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Override
     public boolean removeConnectedTo(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
+        if (this.connectedTo == UNINITIALIZED_CONNECTIONS) {
+            return false;
+        }
+
         final Set<StitchingEntity> connectedToOfType = this.connectedTo.get(type);
-        if (connectedToOfType != null) {
+        if (connectedToOfType != UNINITIALIZED_CONNECTIONS) {
             return connectedToOfType.remove(connectedTo);
         } else {
             return false;
@@ -351,7 +399,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Override
     public boolean removeConnectedFrom(@Nonnull StitchingEntity connectedFrom,
-            @Nonnull ConnectionType type) {
+                                       @Nonnull ConnectionType type) {
+        if (this.connectedFrom == UNINITIALIZED_CONNECTIONS) {
+            return false;
+        }
+
         final Set<StitchingEntity> connectedFromOfType = this.connectedFrom.get(type);
         if (connectedFromOfType != null) {
             return connectedFromOfType.remove(connectedFrom);
@@ -361,11 +413,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     public void addProviderCommodityBought(@Nonnull final StitchingEntity entity,
-            @Nonnull final CommoditiesBought commoditiesBought) {
+                                           @Nonnull final CommoditiesBought commoditiesBought) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
 
         commodityBoughtListByProvider.computeIfAbsent(entity, k -> new ArrayList<>())
-                .add(commoditiesBought);
+            .add(commoditiesBought);
     }
 
     public void setCommoditiesSold(@Nonnull final Collection<CommoditySold> commoditiesSold) {
@@ -379,7 +431,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     public void clearConsumers() {
-        consumers.clear();
+        consumers = UNINITIALIZED_CONSUMERS;
     }
 
     public void clearProviders() {
@@ -389,39 +441,49 @@ public class TopologyStitchingEntity implements StitchingEntity {
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
                                @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(entity);
+        if (connectedTo == UNINITIALIZED_CONNECTIONS) {
+            connectedTo = new EnumMap<>(ConnectionType.class);
+        }
+
+        connectedTo.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).add(entity);
     }
 
     @Override
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
                                @Nonnull final Set<StitchingEntity> entities) {
-        connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).addAll(entities);
-    }
-
-    public boolean removeConnectedTo(@Nonnull final ConnectionType connectionType,
-                                     @Nonnull final StitchingEntity entity) {
-        Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        Set<StitchingEntity> connectedToEntities = connectedTo.get(connectionType);
-        if (connectedToEntities == null) {
-            return false;
+        if (connectedTo == UNINITIALIZED_CONNECTIONS) {
+            connectedTo = new EnumMap<>(ConnectionType.class);
         }
-        return connectedToEntities.remove(entity);
+
+        connectedTo.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).addAll(entities);
     }
 
     public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
-                               @Nonnull final StitchingEntity entity) {
+                                 @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        connectedFrom.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(entity);
+        if (connectedFrom == UNINITIALIZED_CONNECTIONS) {
+            connectedFrom = new EnumMap<>(ConnectionType.class);
+        }
+
+        connectedFrom.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).add(entity);
     }
 
     public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
-                               @Nonnull final Set<StitchingEntity> entities) {
-        connectedFrom.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).addAll(entities);
+                                 @Nonnull final Set<StitchingEntity> entities) {
+        if (connectedFrom == UNINITIALIZED_CONNECTIONS) {
+            connectedFrom = new EnumMap<>(ConnectionType.class);
+        }
+
+        connectedFrom.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).addAll(entities);
     }
 
     public boolean removeConnectedFrom(@Nonnull final ConnectionType connectionType,
                                        @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
+        if (connectedFrom == UNINITIALIZED_CONNECTIONS) {
+            return false;
+        }
+
         Set<StitchingEntity> connectedFromEntities = connectedFrom.get(connectionType);
         if (connectedFromEntities == null) {
             return false;
@@ -433,14 +495,14 @@ public class TopologyStitchingEntity implements StitchingEntity {
      * Clear connected to relationship.
      */
     public void clearConnectedTo() {
-        connectedTo.clear();
+        connectedTo = UNINITIALIZED_CONNECTIONS;
     }
 
     /**
      * Clear connected from relationship.
      */
     public void clearConnectedFrom() {
-        connectedFrom.clear();
+        connectedFrom = UNINITIALIZED_CONNECTIONS;
     }
 
     @Override
@@ -448,7 +510,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
         return String.format("(%s %s %s %s numConsumers-%d numProviders-%d)",
             getEntityType().name(), getLocalId(), getDisplayName(),
             StitchingMergeInformation.formatOidAndTarget(getOid(), getTargetId()),
-            consumers.size(), commodityBoughtListByProvider.size());
+            getConsumers().size(), commodityBoughtListByProvider.size());
     }
 
     /**
@@ -545,5 +607,13 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public boolean isStale() {
         return isStale;
+    }
+
+    private static <K,V> IdentityHashMap<K, V> miniIdentityHashMap() {
+        return new IdentityHashMap<>(MINI_MAP_CAPACITY);
+    }
+
+    private static <E> Set<E> smallIdentityHashSet() {
+        return Collections.newSetFromMap(new IdentityHashMap<>(SMALL_MAP_CAPACITY));
     }
 }
