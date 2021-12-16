@@ -159,8 +159,120 @@
                     </generator>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <dbs.postgresDefault.host>${postgresHost}</dbs.postgresDefault.host>
+                        <dbs.postgresDefault.port>${postgresPort}</dbs.postgresDefault.port>
+                        <dbs.postgresDefault.userName>${postgresUserName}</dbs.postgresDefault.userName>
+                        <dbs.postgresDefault.password>${postgresPassword}</dbs.postgresDefault.password>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+        <profiles>
+        <profile>
+            <id>no-run-postgres-container</id>
+            <!-- set default for postgres port only if we're not going to spin up a postgres container -->
+            <activation>
+                <property>
+                    <name>postgresContainer.skip</name>
+                </property>
+            </activation>
+            <properties>
+                <postgresPort>5432</postgresPort>
+            </properties>
+        </profile>
+        <profile>
+            <id>run-postgres-container</id>
+            <!--
+                If you don't want a postgres container to be spun up during the build in order to
+                perform live DB tests, specify -DpostgresContainer.skip` on maven command line. In
+                that case you will need to have a postgres server available in your environment,
+                and the postgresHost and postgresPort properties can be used to configure access
+                if they're different from localhost and 5432, respectively.
+            -->
+            <activation>
+                <property>
+                    <name>!postgresContainer.skip</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>start-postgres</id>
+                                <phase>process-test-classes</phase>
+                                <goals>
+                                    <goal>start</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <showLogs>false</showLogs>
+                                    <images>
+                                        <image>
+                                            <alias>postgres</alias>
+                                            <name>postgres:${postgres-image-tag}</name>
+                                            <run>
+                                                <!--
+                                                pattern needs to start with "maven-" so jenkins builds
+                                                will properly clean up leaked containers
+                                                -->
+                                                <containerNamePattern>maven-%a-%i</containerNamePattern>
+                                                <ports>
+                                                    <port>postgresPort:5432</port>
+                                                </ports>
+                                                <env>
+                                                    <POSTGRES_USER>${postgresUserName}</POSTGRES_USER>
+                                                    <POSTGRES_PASSWORD>${postgresPassword}</POSTGRES_PASSWORD>
+                                                </env>
+                                                <wait>
+                                                    <log>
+                                                        <!--
+                                                        CDATA prevents intellij from wrapping the search
+                                                        string, which would break things.
+                                                        We wait for a message that shows that timescale
+                                                        is ready, and we wait to see it twice, since the
+                                                        container's entry-point script includes an internal
+                                                        restart.
+                                                        -->
+                                                        <![CDATA[(?s)database system is ready to accept connections.*database system is ready to accept connections]]>
+                                                    </log>
+                                                    <time>120000</time>
+                                                </wait>
+                                            </run>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>stop-postgres</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>stop</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <images>
+                                        <image>
+                                            <name>postgres:${postgres-image-tag}</name>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <dependencies>
         <dependency>

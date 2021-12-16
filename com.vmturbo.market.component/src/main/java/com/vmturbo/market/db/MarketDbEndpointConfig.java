@@ -35,9 +35,6 @@ public class MarketDbEndpointConfig extends DbEndpointsConfig {
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true))
                 .withUserName(marketDbUsername)
-                // TODO this is needed because we have not created the new migration structure yet
-                // remove once the integration with postgres is done
-                .withMigrationLocations("db.migration")
                 .build();
     }
 }
