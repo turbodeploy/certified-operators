@@ -5,12 +5,15 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.google.gson.Gson;
 
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAMatchTestTrim;
+import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
@@ -67,8 +70,9 @@ public class JsonToSMAInputTranslator {
      * @param filename json filename.
      * @return SMAInputContext constructed.
      */
-    public SMAInputContext readsmaInput(String filename) {
+    public SMAInput readsmaInput(String filename) {
         BufferedReader br = null;
+        SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator();
         try {
             br = new BufferedReader(new FileReader(filename));
         } catch (FileNotFoundException e) {
@@ -78,9 +82,11 @@ public class JsonToSMAInputTranslator {
         if (smaInputContext.getSmaConfig() == null) {
             smaInputContext.setSmaConfig(new SMAConfig());
         }
-        smaInputContext.decompress();
+        smaInputContext.decompress(cloudCostCalculator);
         // this will initialize fields which are not set in json.
-        return (new SMAInputContext(smaInputContext));
+        smaInputContext =  (new SMAInputContext(smaInputContext, cloudCostCalculator));
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext), cloudCostCalculator);
+        return smaInput;
     }
 
 }

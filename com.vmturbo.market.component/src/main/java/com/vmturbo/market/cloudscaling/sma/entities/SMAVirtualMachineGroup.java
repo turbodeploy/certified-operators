@@ -36,17 +36,22 @@ public class SMAVirtualMachineGroup {
      * @param groupName the group name
      * @param virtualMachines the virtual machines that belong to this group.
      * @param groupProviderList the intersection of providers of all members
+     * @param smaCloudCostCalculator cost calculator to compute the cost.
      */
     public SMAVirtualMachineGroup(@Nonnull final String groupName,
                                   List<SMAVirtualMachine> virtualMachines,
-                                  List<SMATemplate> groupProviderList) {
+                                  List<SMATemplate> groupProviderList,
+                                    SMACloudCostCalculator smaCloudCostCalculator) {
         this.name = Objects.requireNonNull(groupName, "groupName is null!");
         this.virtualMachines = virtualMachines;
         Collections.sort(getVirtualMachines(), new SortByRiCoverageAndVmOID());
         // The first vm is set as groupLeader.
         this.groupLeader = getVirtualMachines().get(0);
         this.groupLeader.setGroupSize(getVirtualMachines().size());
-        this.groupLeader.setGroupProviders(groupProviderList);
+        SMAVirtualMachineProvider smaVirtualMachineProvider =
+                smaCloudCostCalculator.updateGroupProvidersOfVirtualMachine(groupProviderList,
+                this.groupLeader.getCostContext(), this.groupLeader.getCurrentTemplate());
+        this.groupLeader.setVirtualMachineProviderInfoWithoutProviders(smaVirtualMachineProvider);
         this.zonalDiscountable = true;
         updateAllMembers();
     }
@@ -60,8 +65,11 @@ public class SMAVirtualMachineGroup {
     public void updateAllMembers() {
         for (SMAVirtualMachine virtualMachine : getVirtualMachines()) {
             if (virtualMachine != groupLeader) {
+                SMAVirtualMachineProvider smaVirtualMachineProvider = new SMAVirtualMachineProvider();
                 // the non leaders have empty providers
-                virtualMachine.setGroupProviders(Collections.emptyList());
+                virtualMachine
+                        .setVirtualMachineProviderInfoWithoutProviders(
+                                smaVirtualMachineProvider);
                 //non leaders have group size 0
                 virtualMachine.setGroupSize(0);
                 // update the group size of the leader with the size of the group.

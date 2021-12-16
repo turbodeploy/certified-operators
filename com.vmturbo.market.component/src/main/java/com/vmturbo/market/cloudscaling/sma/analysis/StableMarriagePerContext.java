@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
@@ -42,7 +43,8 @@ public class StableMarriagePerContext {
      * @return the matching in the inputContext.
      */
     public static SMAOutputContext execute(final SMAInputContext inputContext,
-                                           Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+                                           Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                                            SMACloudCostCalculator cloudCostCalculator) {
         final List<SMAVirtualMachine> virtualMachines = inputContext.getVirtualMachines();
 
         /*
@@ -86,7 +88,7 @@ public class StableMarriagePerContext {
         createRIToVMsMap(virtualMachines,
                 remainingCoupons, virtualMachineGroupMap,
                 familyNameToTemplates,
-                inputContext.getSmaConfig().isReduceDependency());
+                inputContext.getSmaConfig().isReduceDependency(), cloudCostCalculator);
 
         // map to keep track of the successful engagements so far.
         Map<SMAVirtualMachine, SMAMatch> currentEngagements = new HashMap<>();
@@ -96,7 +98,7 @@ public class StableMarriagePerContext {
          */
         runSMA(freeRIs, remainingCoupons,
                 currentEngagements, virtualMachineGroupMap,
-                inputContext.getSmaConfig().isReduceDependency());
+                inputContext.getSmaConfig().isReduceDependency(), cloudCostCalculator);
 
         /*
          * For all VMs, compute a SMAMatch
@@ -202,7 +204,8 @@ public class StableMarriagePerContext {
                      Map<SMAReservedInstance, Float> remainingCoupons,
                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                      Map<String, List<SMATemplate>> familyNameToTemplates,
-                     boolean reduceDependency) {
+                     boolean reduceDependency,
+                     SMACloudCostCalculator cloudCostCalculator) {
         // Multimap from template to the VMs that has the template as one of its provider.
         Map<SMATemplate, List<SMAVirtualMachine>> templateToVmsMap = new HashMap<>();
         for (SMAVirtualMachine vm : virtualMachines) {
@@ -245,7 +248,7 @@ public class StableMarriagePerContext {
                 }
             }
             // TODO move attribute remaining coupons to SMAReservedInstance
-            sortAndUpdateVMList(virtualMachineList, remainingCoupons.get(ri), ri, virtualMachineGroupMap, reduceDependency);
+            sortAndUpdateVMList(virtualMachineList, remainingCoupons.get(ri), ri, virtualMachineGroupMap, reduceDependency, cloudCostCalculator);
         }
 
     }
@@ -263,8 +266,9 @@ public class StableMarriagePerContext {
     private static void sortAndUpdateVMList(List<SMAVirtualMachine> virtualMachineList,
                                             Float riCoupons, SMAReservedInstance ri,
                                             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                                            boolean reduceDependency) {
-        Collections.sort(virtualMachineList, new RIPreference(riCoupons, ri, virtualMachineGroupMap, reduceDependency));
+                                            boolean reduceDependency,
+                                            SMACloudCostCalculator cloudCostCalculator) {
+        Collections.sort(virtualMachineList, new RIPreference(riCoupons, ri, virtualMachineGroupMap, reduceDependency, cloudCostCalculator));
         virtualMachineList.stream().forEach(vm -> ri.addVMToDiscountableVMs(vm, false));
     }
 
@@ -285,7 +289,8 @@ public class StableMarriagePerContext {
     protected static boolean preference(SMAVirtualMachine vm,
                                         SMAMatch oldEngagement,
                                         SMAMatch newEngagement,
-                                        Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+                                        Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                                        SMACloudCostCalculator cloudCostCalculator) {
         try {
             Objects.requireNonNull(vm, "VM is null");
             Objects.requireNonNull(oldEngagement, "oldEngagement is null");
@@ -346,9 +351,9 @@ public class StableMarriagePerContext {
             // pick the RI which has lower ondemand cost.
 
             float newTemplateTotalCost =
-                newTemplate.getOnDemandTotalCost(vm.getCostContext());
+                cloudCostCalculator.getOnDemandTotalCost(vm.getCostContext(), newTemplate);
             float oldTemplateTotalCost =
-                oldTemplate.getOnDemandTotalCost(vm.getCostContext());
+                cloudCostCalculator.getOnDemandTotalCost(vm.getCostContext(), oldTemplate);
 
             if (SMAUtils.round(newTemplateTotalCost - oldTemplateTotalCost)
                     > SMAUtils.EPSILON) {
@@ -429,7 +434,8 @@ public class StableMarriagePerContext {
     public static boolean isCurrentRIBetterThanOldRI(SMAMatch oldEngagement,
                                                      SMAMatch newEngagement,
                                                      Map<String, SMAVirtualMachineGroup>
-                                                             virtualMachineGroupMap) {
+                                                             virtualMachineGroupMap,
+                                                     SMACloudCostCalculator cloudCostCalculator) {
         SMAVirtualMachine virtualMachine = newEngagement.getVirtualMachine();
         float costImprovement = costImprovement(virtualMachine.getCostContext(),
                 newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
@@ -437,7 +443,7 @@ public class StableMarriagePerContext {
                 (oldEngagement == null) ?
                         0 : oldEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 (oldEngagement == null) ?
-                        virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate());
+                        virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate(), cloudCostCalculator);
         costImprovement = SMAUtils.round(costImprovement);
         if (costImprovement < -1.0 * SMAUtils.EPSILON) {
             return false;
@@ -450,7 +456,7 @@ public class StableMarriagePerContext {
                 return virtualMachine.getCurrentTemplate().getOid() == newEngagement.getTemplate().getOid();
             } else {
                 return preference(virtualMachine, oldEngagement,
-                        newEngagement, virtualMachineGroupMap);
+                        newEngagement, virtualMachineGroupMap, cloudCostCalculator);
             }
         }
     }
@@ -470,7 +476,8 @@ public class StableMarriagePerContext {
                               Map<SMAReservedInstance, Float> remainingCoupons,
                               Map<SMAVirtualMachine, SMAMatch> currentEngagements,
                               Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                              boolean reduceDependency) {
+                              boolean reduceDependency,
+                              SMACloudCostCalculator smaCloudCostCalculator) {
         while (!freeRIs.isEmpty()) {
             SMAReservedInstance currentRI = freeRIs.poll();
             float currentRICoupons = (currentRI == null) ? 0f : remainingCoupons.get(currentRI);
@@ -533,7 +540,7 @@ public class StableMarriagePerContext {
                 SMAMatch newEngagement = new SMAMatch(currentVM, destinationTemplate,
                         currentRI, discountedCoupons);
                 Boolean isCurrentRIBetter = isCurrentRIBetterThanOldRI(oldEngagement,
-                        newEngagement, virtualMachineGroupMap);
+                        newEngagement, virtualMachineGroupMap, smaCloudCostCalculator);
                 if (isCurrentRIBetter) {
                     if (oldEngagement == null) {
                         currentEngagements.put(currentVM, newEngagement);
@@ -580,9 +587,9 @@ public class StableMarriagePerContext {
 
     public static float costImprovement(CostContext costContext,
                                         float currentCoupons, SMATemplate currentTemplate,
-                                        float oldCoupons, SMATemplate oldTemplate) {
-        return (oldTemplate.getNetCost(costContext, oldCoupons)
-            - currentTemplate.getNetCost(costContext, currentCoupons));
+                                        float oldCoupons, SMATemplate oldTemplate, SMACloudCostCalculator cloudCostCalculator) {
+        return (cloudCostCalculator.getNetCost(costContext, oldCoupons, oldTemplate)
+            - cloudCostCalculator.getNetCost(costContext, currentCoupons, currentTemplate));
     }
 
 
@@ -636,6 +643,8 @@ public class StableMarriagePerContext {
          */
         private boolean reduceDependency;
 
+        private SMACloudCostCalculator cloudCostCalculator;
+
         /**
          * Constuctor for the comparator.
          * @param coupons number of coupons remaining for the reservedInstance
@@ -645,11 +654,12 @@ public class StableMarriagePerContext {
          */
         public RIPreference(float coupons, SMAReservedInstance reservedInstance,
                             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                            boolean reduceDependency) {
+                            boolean reduceDependency, SMACloudCostCalculator cloudCostCalculator) {
             this.coupons = coupons;
             this.reservedInstance = reservedInstance;
             this.virtualMachineGroupMap = virtualMachineGroupMap;
             this.reduceDependency = reduceDependency;
+            this.cloudCostCalculator = cloudCostCalculator;
         }
 
         /**
@@ -670,8 +680,8 @@ public class StableMarriagePerContext {
                 }
             }
 
-            int costComparison = reservedInstance
-                    .compareCost(vm1, vm2, virtualMachineGroupMap, coupons);
+            int costComparison = cloudCostCalculator
+                    .compareCost(vm1, vm2, virtualMachineGroupMap, coupons, reservedInstance);
             if (costComparison != 0) {
                 return costComparison;
             }

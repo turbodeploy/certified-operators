@@ -79,6 +79,12 @@ public class SMAInput {
      */
     public final List<SMAInputContext> inputContexts;
 
+    private final SMACloudCostCalculator cloudCostCalculator;
+
+    public SMACloudCostCalculator getCloudCostCalculator() {
+        return cloudCostCalculator;
+    }
+
     //keep retrieved compute price bundles
     private final Map<PriceTableKey, ComputePriceBundle> computePriceBundleMap = new HashMap<>();
     //keep retrieved reserved license price bundles
@@ -89,9 +95,10 @@ public class SMAInput {
      * @param contexts the input to SMA partioned into contexts.
      *                 Each element in list corresponds to a context.
      */
-    public SMAInput(@Nonnull final List<SMAInputContext> contexts) {
+    public SMAInput(@Nonnull final List<SMAInputContext> contexts, SMACloudCostCalculator cloudCostCalculator) {
         this.inputContexts = Objects.requireNonNull(contexts, "contexts is null!");
         this.marketCloudRateExtractor = null;
+        this.cloudCostCalculator = cloudCostCalculator;
     }
 
     /**
@@ -127,7 +134,7 @@ public class SMAInput {
         cloudCostData.logMissingAccountPricingData();
         Objects.requireNonNull(marketCloudRateExtractor, "marketPriceTable is null");
         this.marketCloudRateExtractor = marketCloudRateExtractor;
-
+        this.cloudCostCalculator = new SMACloudCostCalculator();
         final Stopwatch stopWatch = Stopwatch.createStarted();
         /*
          * maps from SMAContext to entities.  Needed to build SMAInputContexts.
@@ -387,6 +394,7 @@ public class SMAInput {
         if (groupIdOptional.isPresent()) {
             groupName = groupIdOptional.get();
         }
+
         /*
          * Create Virtual Machine.
          */
@@ -401,7 +409,10 @@ public class SMAInput {
             SMAUtils.BOGUS_RI,
             osType,
             vmInfo.getLicenseModel(),
-                false);
+                false,
+                new ArrayList<>(),
+                null,
+                new HashMap<>());
         logger.debug("processVM: new VM {}", vm);
 
         Set<SMAVirtualMachine> contextVMs = smaContextToVMs.getOrDefault(context, new HashSet<>());
@@ -467,7 +478,9 @@ public class SMAInput {
                     }
                 }
             }
-            vm.setProviders(providers);
+            SMAVirtualMachineProvider smaVirtualMachineProvider = cloudCostCalculator.updateProvidersOfVirtualMachine(providers, vm.getCurrentTemplate(),
+                    vm.getCostContext());
+            vm.setVirtualMachineProviderInfo(smaVirtualMachineProvider);
 
             Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
             if (currentRICoverage != null) {

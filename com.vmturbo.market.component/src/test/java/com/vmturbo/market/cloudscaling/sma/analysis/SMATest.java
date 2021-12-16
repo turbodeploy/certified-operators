@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
@@ -30,9 +31,10 @@ public class SMATest {
     private void testExactResult(String filename) {
         JsonToSMAInputTranslator jsonToSMAInputTranslator =
                 new JsonToSMAInputTranslator();
-        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
-        List<SMAMatch> expectedouput = jsonToSMAInputTranslator.readsmaOutput(dirPath + filename + ".o.txt", smaInputContext);
-        SMAOutputContext outputActualContext = StableMarriageAlgorithm.execute(new SMAInput(Collections.singletonList(smaInputContext))).getContexts().get(0);
+        SMAInput smaInput = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        List<SMAMatch> expectedouput = jsonToSMAInputTranslator.readsmaOutput(dirPath + filename + ".o.txt",
+                smaInput.getContexts().get(0));
+        SMAOutputContext outputActualContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
         Assert.assertTrue(compareSMAMatches(outputActualContext.getMatches(), expectedouput));
     }
 

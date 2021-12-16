@@ -85,24 +85,31 @@ public class SMAInputContext {
      *
      * @param inputContext current input context
      */
-    public SMAInputContext(@Nonnull final SMAInputContext inputContext) {
+    public SMAInputContext(@Nonnull final SMAInputContext inputContext,
+            SMACloudCostCalculator cloudCostCalculator) {
         this.context = inputContext.getContext();
         this.templates = inputContext.getTemplates();
         this.smaConfig = inputContext.getSmaConfig();
         List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
         for (SMAVirtualMachine oldVM : inputContext.getVirtualMachines()) {
+            SMAVirtualMachineProvider virtualMachineProvider = cloudCostCalculator
+                    .updateProvidersOfVirtualMachine(oldVM.getProviders(), oldVM.getCurrentTemplate(),
+                            oldVM.getCostContext());
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                     oldVM.getName(),
                     oldVM.getGroupName(),
                     oldVM.getBusinessAccountId(),
                     oldVM.getCurrentTemplate(),
-                    oldVM.getProviders(),
+                    virtualMachineProvider.getProviders(),
                     oldVM.getCurrentRICoverage(),
                     oldVM.getZoneId(),
                     oldVM.getCurrentRI(),
                     oldVM.getOsType(),
                     oldVM.getOsLicenseModel(),
-                    oldVM.isScaleUp());
+                    oldVM.isScaleUp(),
+                    virtualMachineProvider.getGroupProviders(),
+                    virtualMachineProvider.getNaturalTemplate(),
+                    virtualMachineProvider.getMinCostProviderPerFamily());
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;
@@ -117,47 +124,6 @@ public class SMAInputContext {
         }
         this.reservedInstances = newReservedInstances;
     }
-
-    /**
-     * Create a new input context from the current input context. The current template and
-     * the RI utilization of the VM is updated based on the outputContext.
-     *
-     * @param inputContext  the current input context.
-     * @param outputContext the current output context.
-     */
-    public SMAInputContext(@Nonnull final SMAInputContext inputContext,
-                           @Nonnull final SMAOutputContext outputContext) {
-        this.context = inputContext.getContext();
-        this.smaConfig = inputContext.getSmaConfig();
-        this.templates = inputContext.getTemplates();
-        List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
-        for (SMAMatch smaMatch : outputContext.getMatches()) {
-            SMAVirtualMachine oldVM = smaMatch.getVirtualMachine();
-            SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
-                    oldVM.getName(),
-                    oldVM.getGroupName(),
-                    oldVM.getBusinessAccountId(),
-                    smaMatch.getTemplate(),
-                    oldVM.getProviders(),
-                    smaMatch.getDiscountedCoupons(),
-                    oldVM.getZoneId(),
-                    smaMatch.getReservedInstance() == null ?
-                            SMAUtils.BOGUS_RI :
-                            smaMatch.getReservedInstance(),
-                    oldVM.getOsType(),
-                    oldVM.getOsLicenseModel(),
-                    oldVM.isScaleUp());
-            newVirtualMachines.add(smaVirtualMachine);
-        }
-        this.virtualMachines = newVirtualMachines;
-        List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
-        for (SMAReservedInstance oldRI : inputContext.getReservedInstances()) {
-            SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
-            newReservedInstances.add(newRI);
-        }
-        this.reservedInstances = newReservedInstances;
-    }
-
 
     @Nonnull
     public SMAContext getContext() {
@@ -213,7 +179,7 @@ public class SMAInputContext {
     /**
      * decompress inputContext.
      */
-    public void decompress() {
+    public void decompress(SMACloudCostCalculator cloudCostCalculator) {
         Map<Long, SMATemplate> oidToTemplateMap = new HashMap();
 
         Map<Long, SMAReservedInstance> oidToRIMap = new HashMap();
@@ -228,7 +194,10 @@ public class SMAInputContext {
             vm.setCurrentRI(oidToRIMap.get(vm.getCurrentRIOID()));
             List<SMATemplate> providerList = (vm.getProvidersOid()
                     .stream().map(oid -> oidToTemplateMap.get(oid)).collect(Collectors.toList()));
-            vm.setProviders(providerList);
+            SMAVirtualMachineProvider smaVirtualMachineProvider = cloudCostCalculator
+                    .updateProvidersOfVirtualMachine(providerList, vm.getCurrentTemplate(),
+                            vm.getCostContext());
+            vm.setVirtualMachineProviderInfo(smaVirtualMachineProvider);
             vm.getProvidersOid().clear();
         });
         getReservedInstances().stream().forEach(ri -> {
@@ -250,7 +219,7 @@ public class SMAInputContext {
                         .collect(Collectors.toList()));
                 vm.getProviders().clear();
             }
-            vm.setGroupProviders(new ArrayList<>());
+            vm.setVirtualMachineProviderInfoWithoutProviders(new SMAVirtualMachineProvider());
             vm.setCurrentTemplateOid(vm.getCurrentTemplate().getOid());
             vm.setCurrentTemplate(null);
             vm.setNaturalTemplate(null);

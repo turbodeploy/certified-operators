@@ -14,7 +14,6 @@ import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_TE
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_VIRTUAL_MACHINE_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TOPOLOGY_INFO_DIAGS_FILE_NAME;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TRADER_DIAGS_FILE_NAME;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -76,6 +75,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
+import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
@@ -133,7 +133,6 @@ public class AnalysisDiagnosticsCollectorTest {
     private final String unzippedAnalysisDiagsLocation = "target/test-classes/analysisDiags";
     //Change this to the location of unzipped SMA diags.
     private final String unzippedSMADiagsLocation = "target/test-classes/cloudvmscaling/smaDiags";
-    private final String unzippedSMADiagsLocation2 = "target/test-classes/cloudvmscaling/smaDiags2";
     private final String unzippedInitialPlacementDiagsLocation = "";
 
     /**
@@ -252,7 +251,7 @@ public class AnalysisDiagnosticsCollectorTest {
             SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
             logger.info("SMA generated {} outputContexts", smaOutput.getContexts().size());
             assertTrue(getActionCount(smaOutput) > 0);
-            computeSaving(smaOutput);
+            computeSaving(smaOutput, smaInput.get().getCloudCostCalculator());
         } else {
             logger.error("Could not create SMAInput. SMA was not run.");
         }
@@ -262,18 +261,19 @@ public class AnalysisDiagnosticsCollectorTest {
      * Compute the savings obtained after SMA.
      *
      * @param smaOutput the topology of interest.
+     * @param cloudCostCalculator cloud cost calculator to compute saving
      */
-    public void computeSaving(SMAOutput smaOutput) {
+    public void computeSaving(SMAOutput smaOutput, SMACloudCostCalculator cloudCostCalculator) {
         float saving = 0.0f;
         float investment = 0.0f;
         float netSaving = 0.0f;
         for (SMAOutputContext outputContext : smaOutput.getContexts()) {
             for (SMAMatch smaMatch : outputContext.getMatches()) {
                 SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
-                float currentCost = virtualMachine.getCurrentTemplate().getNetCost(
-                        virtualMachine.getCostContext(), virtualMachine.getCurrentRICoverage());
-                float projectedCost = smaMatch.getTemplate().getNetCost(
-                        virtualMachine.getCostContext(), smaMatch.getDiscountedCoupons());
+                float currentCost = cloudCostCalculator.getNetCost(
+                        virtualMachine.getCostContext(), virtualMachine.getCurrentRICoverage(), virtualMachine.getCurrentTemplate());
+                float projectedCost = cloudCostCalculator.getNetCost(
+                        virtualMachine.getCostContext(), smaMatch.getDiscountedCoupons(), smaMatch.getTemplate());
                 if (currentCost - projectedCost > 0) {
                     saving += currentCost - projectedCost;
                 } else {
@@ -285,58 +285,6 @@ public class AnalysisDiagnosticsCollectorTest {
         logger.info("netSaving: {} , investment: {} , saving: {}", netSaving, investment, saving);
     }
 
-    /**
-     * I run the SMA with the SMA diags. I get the output contexts…
-     * I update the current template, and current coverage of input vms with the info from outputcontext..
-     * (this step is like simulating the customer actually executing the move).
-     * We then run SMA again..This time ideally there should be 0 actions
-     */
-    @Test
-    public void testStabilityWithDiags() {
-        restoreSMAsMembers(unzippedSMADiagsLocation2);
-        if (smaInput.isPresent()) {
-            SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
-            List<SMAInputContext> newInputContexts = new ArrayList<>();
-            for (SMAOutputContext outputContext : smaOutput.getContexts()) {
-                for (SMAInputContext inputContext : smaInput.get().getContexts()) {
-                    if (outputContext.getContext().equals(inputContext.getContext())) {
-                        List<SMAVirtualMachine> smaVirtualMachines = outputContext.getMatches()
-                                .stream().map(a -> a.getVirtualMachine()).collect(Collectors.toList());
-                        List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
-                        for (int i = 0; i < smaVirtualMachines.size(); i++) {
-                            SMAVirtualMachine oldVM = smaVirtualMachines.get(i);
-                            SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
-                                    oldVM.getName(),
-                                    oldVM.getGroupName(),
-                                    oldVM.getBusinessAccountId(),
-                                    outputContext.getMatches().get(i).getTemplate(),
-                                    oldVM.getProviders(),
-                                    outputContext.getMatches().get(i).getDiscountedCoupons(),
-                                    oldVM.getZoneId(),
-                                    outputContext.getMatches().get(i).getReservedInstance(),
-                                    oldVM.getOsType(),
-                                    oldVM.getOsLicenseModel(),
-                                    oldVM.isScaleUp());
-                            newVirtualMachines.add(smaVirtualMachine);
-                        }
-                        SMAContext context = inputContext.getContext();
-                        List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
-                        List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
-                        for (int i = 0; i < oldReservedInstances.size(); i++) {
-                            SMAReservedInstance oldRI = oldReservedInstances.get(i);
-                            SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
-                            newReservedInstances.add(newRI);
-                        }
-                        newInputContexts.add(new SMAInputContext(context, newVirtualMachines,
-                                newReservedInstances, inputContext.getTemplates(), inputContext.getSmaConfig()));
-                    }
-                }
-            }
-            SMAOutput newOutput = StableMarriageAlgorithm
-                    .execute(new SMAInput(newInputContexts));
-            assertEquals(0, getActionCount(newOutput));
-        }
-    }
 
     /**
      * find the number of actions.
@@ -624,30 +572,24 @@ public class AnalysisDiagnosticsCollectorTest {
                         break;
                 }
             }
+            SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator();
             for (Integer index : contextList.keySet()) {
                 if (contextList.get(index) == null || virtualMachineList.get(index) == null
                         || reservedInstanceList.get(index) == null
-                        || templateList.get(index) == null) {
+                        || templateList.get(index) == null || configList.get(index) == null) {
                     smaInput = Optional.empty();
                     logger.error("Could not create SMAInput.");
                     return;
                 }
-                SMAInputContext smaInputContext;
-                if (configList.get(index) == null) {
-                    smaInputContext = new SMAInputContext(contextList.get(index),
-                            virtualMachineList.get(index),
-                            reservedInstanceList.get(index), templateList.get(index));
-                } else {
-                    smaInputContext = new SMAInputContext(contextList.get(index),
+                SMAInputContext smaInputContext = new SMAInputContext(contextList.get(index),
                             virtualMachineList.get(index),
                             reservedInstanceList.get(index),
                             templateList.get(index), configList.get(index));
-                }
-                smaInputContext.decompress();
+                smaInputContext.decompress(cloudCostCalculator);
                 // this will initialize fields which are not set in json.
-                smaInputContexts.add(new SMAInputContext(smaInputContext));
+                smaInputContexts.add(new SMAInputContext(smaInputContext, cloudCostCalculator));
             }
-            smaInput = Optional.of(new SMAInput(smaInputContexts));
+            smaInput = Optional.of(new SMAInput(smaInputContexts, cloudCostCalculator));
         } catch (Exception e) {
             logger.error("Could not extract from file {}.", unzippedSMADiagsLocation, e);
         }

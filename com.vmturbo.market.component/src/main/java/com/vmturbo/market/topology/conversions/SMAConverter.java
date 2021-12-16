@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
@@ -51,8 +52,18 @@ public class SMAConverter {
     // Stable Marriage related actions.
     private SMAOutput smaOutput = new SMAOutput(new ArrayList<>());
 
+    private SMACloudCostCalculator smaCloudCostCalculator = null;
+
     public SMAOutput getSmaOutput() {
         return smaOutput;
+    }
+
+    public SMACloudCostCalculator getSmaCloudCostCalculator() {
+        return smaCloudCostCalculator;
+    }
+
+    public void setSmaCloudCostCalculator(SMACloudCostCalculator smaCloudCostCalculator) {
+        this.smaCloudCostCalculator = smaCloudCostCalculator;
     }
 
     public void setSmaOutput(final SMAOutput smaOutput) {

@@ -65,6 +65,13 @@ public class SMATemplate {
      */
     private Map<Long, Map<OSType, SMACost>> discountedCosts = new HashMap();
 
+    public Map<Long, Map<OSType, SMACost>> getOnDemandCosts() {
+        return onDemandCosts;
+    }
+
+    public Map<Long, Map<OSType, SMACost>> getDiscountedCosts() {
+        return discountedCosts;
+    }
 
     /**
      * The scaling penalty that will be applied as a tie breaker in the
@@ -146,72 +153,7 @@ public class SMATemplate {
         this.discountedCosts.get(businessAccountId).put(osType, Objects.requireNonNull(cost));
     }
 
-    /**
-     * Lookup the on-demand total cost for the business account.
-     * @param costContext instance containing all the parameters for cost lookup.
-     * @return on-demand total cost or Float.MAX_VALUE if not found.
-     */
-    public float getOnDemandTotalCost(CostContext costContext) {
-        Map<OSType, SMACost> costMap = onDemandCosts.get(costContext.getBusinessAccount());
-        SMACost cost = costMap != null ? costMap.get(costContext.getOsType()) : null;
-        if (cost == null) {
-            logger.debug("getOnDemandTotalCost: OID={} name={} has no on demand cost for {}",
-                oid, name, costContext);
-            return Float.MAX_VALUE;
-        }
-        return getOsLicenseModelBasedCost(cost, costContext.getOsLicenseModel());
-    }
 
-    /**
-     * Lookup the discounted total cost for the business account.
-     *
-     * @param costContext instance containing all the parameters for cost lookup.
-     * @return discounted total cost or Float.MAX_VALUE if not found.
-     */
-    public float getDiscountedTotalCost(CostContext costContext) {
-        Map<OSType, SMACost> costMap = discountedCosts.get(costContext.getBusinessAccount());
-        SMACost cost = costMap != null ? costMap.get(costContext.getOsType()) : null;
-        if (cost == null) {
-            logger.debug("getDiscountedTotalCost: OID={} name={} has no discounted cost for {}",
-                oid, name, costContext);
-            return Float.MAX_VALUE;
-        }
-        return getOsLicenseModelBasedCost(cost, costContext.getOsLicenseModel());
-    }
-
-    private static float getOsLicenseModelBasedCost(final SMACost cost,
-                                                    final LicenseModel osLicenseModel) {
-        if (osLicenseModel == LicenseModel.LICENSE_INCLUDED) {
-            return SMAUtils.round(cost.getTotal());
-        } else {
-            return SMAUtils.round(cost.getCompute());
-        }
-    }
-
-    /**
-     * compute the net cost based on discounted coupons and onDemandCost.
-     * For AWS, the cost is only non-discounted portion times the onDemand cost.
-     * For Azure, their may be a non zero discounted cost, which is applied to the discounted coupons.
-     *
-     * @param costContext instance containing all the parameters for cost lookup.
-     * @param discountedCoupons discounted coupons
-     * @return cost after applying discounted coupons.
-     */
-    public float getNetCost(CostContext costContext, float discountedCoupons) {
-        final float netCost;
-        if (coupons < SMAUtils.BIG_EPSILON) {
-            // If a template has 0 coupons, then it can't be discounted by a RI, and the on-demand
-            // cost is returned.  E.g. Standard_A2m_v2.
-            netCost = getOnDemandTotalCost(costContext);
-        } else if (discountedCoupons >= coupons) {
-            netCost = getDiscountedTotalCost(costContext);
-        } else {
-            float discountPercentage = discountedCoupons / coupons;
-            netCost = (getDiscountedTotalCost(costContext) * discountPercentage)
-                    + (getOnDemandTotalCost(costContext) * (1 - discountPercentage));
-        }
-        return SMAUtils.round(netCost);
-    }
 
     /**
      * Getter for the scalingPenalty.
