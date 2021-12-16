@@ -1303,6 +1303,8 @@ public class SMAInput {
                     regionIdToCspCache.put(regionId, SMACSP.AWS);
                 } else if (cspDisplayName.equalsIgnoreCase("Azure")) {
                     regionIdToCspCache.put(regionId, SMACSP.AZURE);
+                } else if (cspDisplayName.equalsIgnoreCase("GCP")) {
+                    regionIdToCspCache.put(regionId, SMACSP.GCP);
                 } else {
                     logger.warn("getVMRegionId() region OID={} name={} has unknown CSP",
                         regionId, cspDisplayName);
