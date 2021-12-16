@@ -91,7 +91,8 @@ public enum Component {
      * The market.
      */
     MARKET("market", "com.vmturbo.market.component", MarketComponent.class,
-            Optional.of(Market.MARKET)),
+            Optional.of(Market.MARKET),
+            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.market.component/src/main/resources/db/migration"))),
 
     /**
      * The action orchestrator.

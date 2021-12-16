@@ -1,5 +1,7 @@
 package com.vmturbo.market.reservations;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
@@ -54,6 +56,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
@@ -73,8 +76,8 @@ public class EconomyCachePersistenceTest {
     /**
      * Test rule to use {@link com.vmturbo.sql.utils.DbEndpoint}s in test.
      */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("market");
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("market");
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
@@ -281,5 +284,13 @@ public class EconomyCachePersistenceTest {
      * DbEndpointTestRule, making call to auth to get root password, etc.
      */
     @Configuration
-    public static class TestMarketDbEndpointConfig extends MarketDbEndpointConfig {}
+    public static class TestMarketDbEndpointConfig extends MarketDbEndpointConfig {
+        @Override
+        public DbEndpointCompleter endpointCompleter() {
+            // prevent actual completion of the DbEndpoint
+            DbEndpointCompleter dbEndpointCompleter = spy(super.endpointCompleter());
+            doNothing().when(dbEndpointCompleter).setEnvironment(any());
+            return dbEndpointCompleter;
+        }
+    }
 }
