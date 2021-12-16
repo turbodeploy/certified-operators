@@ -293,7 +293,8 @@ public class AnalysisDiagnosticsCollector {
             logger.error("Error when attempting to save SMA diags. But analysis will continue.", e);
         } finally {
             closeZipOutputStream(diagnosticZip);
-            smaInput.getContexts().stream().forEach(a -> a.decompress());
+            smaInput.getContexts().stream().forEach(a -> a.decompress(smaInput.getCloudCostCalculator()));
+
             stopwatch.stop();
             logger.info("Completed dump of SMA diagnostics for topology context id {} in {} seconds",
                     topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));

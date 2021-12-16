@@ -38,6 +38,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
+import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
@@ -180,15 +181,9 @@ public class ActionLogger {
      */
     public List<String> logSMAOutput(SMAOutput smaOutput,
                            @Nonnull final CloudTopology<TopologyEntityDTO> sourceCloudTopology,
-                           @Nonnull final CloudTopology<TopologyEntityDTO> projectedCloudTopology,
-                           @Nonnull final CloudCostData cloudCostData,
-                           @Nonnull final Map<Long, EntityReservedInstanceCoverage> projectedReservedInstanceCoverage,
-                           @Nonnull ConsistentScalingHelper consistentScalingHelper) {
+                           @Nonnull final CloudCostData cloudCostData, SMACloudCostCalculator smaCloudCostCalculator) {
         Objects.requireNonNull(sourceCloudTopology, "sourceCloudTopology == null");
-        Objects.requireNonNull(projectedCloudTopology, "projectedCloudTopology == null");
         Objects.requireNonNull(cloudCostData, "cloudCostData == null");
-        Objects.requireNonNull(projectedReservedInstanceCoverage, "projectedReservedInstanceCoverage == null");
-        Objects.requireNonNull(consistentScalingHelper, "consistentScalingHelper == null");
         final Stopwatch stopWatchRefined = Stopwatch.createStarted();
         List<String> buffer = new ArrayList<>();
         buffer.add(header);
@@ -208,7 +203,7 @@ public class ActionLogger {
                 csp = context.getCsp();
                 tenancyName = context.getTenancy().name();
                 regionName = optionalDto.get().getDisplayName();
-                processMatch(match, sourceCloudTopology, buffer);
+                processMatch(match, sourceCloudTopology, buffer, smaCloudCostCalculator);
             }
         }
         return buffer;
@@ -222,7 +217,7 @@ public class ActionLogger {
      */
     private void processMatch(SMAMatch match,
                               CloudTopology<TopologyEntityDTO> sourceCloudTopology,
-                              List<String> buffer) {
+                              List<String> buffer, SMACloudCostCalculator cloudCostCalculator) {
         SMAVirtualMachine vm = match.getVirtualMachine();
         virtualMachineOid = vm.getOid();
         OSType osType = vm.getOsType();
@@ -266,12 +261,12 @@ public class ActionLogger {
             setProjectedReservedInstanceAttributes(ri, match);
         }
 
-        float sourceCost = sourceTemplate.getNetCost(vm.getCostContext(),
+        float sourceCost = cloudCostCalculator.getNetCost(vm.getCostContext(),
             (sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
-                : sourceReservedInstanceCouponsApplied));
-        float projectedCost = projectedTemplate.getNetCost(vm.getCostContext(),
+                : sourceReservedInstanceCouponsApplied), sourceTemplate);
+        float projectedCost = cloudCostCalculator.getNetCost(vm.getCostContext(),
             (projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
-                : projectedReservedInstanceCouponsApplied));
+                : projectedReservedInstanceCouponsApplied), projectedTemplate);
         savingsPerHour = SMAUtils.format4Digits(sourceCost - projectedCost);
 
         setChange();

@@ -137,7 +137,10 @@ public class SMAVirtualMachine {
                              final SMAReservedInstance currentRI,
                              final OSType osType,
                              @Nullable final LicenseModel operatingSystemLicenseModel,
-                             boolean scaleUp) {
+                             boolean scaleUp,
+                             @Nonnull List<SMATemplate> groupProviders,
+                             SMATemplate naturalTemplate,
+                             HashMap<String, SMATemplate> minCostProviderPerFamily) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.groupName = groupName;
@@ -153,8 +156,24 @@ public class SMAVirtualMachine {
         // may not have operatingSystemLicenseModel defined.
         this.operatingSystemLicenseModel = operatingSystemLicenseModel == null
             ? LicenseModel.LICENSE_INCLUDED : operatingSystemLicenseModel;
-        setProviders(providers);
+        this.providers = providers;
+        this.groupProviders = groupProviders;
+        this.minCostProviderPerFamily = minCostProviderPerFamily;
+        this.naturalTemplate = naturalTemplate;
         this.scaleUp = scaleUp;
+    }
+
+    public void setVirtualMachineProviderInfo(SMAVirtualMachineProvider smaVirtualMachineProvider) {
+        this.providers = smaVirtualMachineProvider.getProviders();
+        this.groupProviders = smaVirtualMachineProvider.getGroupProviders();
+        this.naturalTemplate = smaVirtualMachineProvider.getNaturalTemplate();
+        this.minCostProviderPerFamily = smaVirtualMachineProvider.getMinCostProviderPerFamily();
+    }
+
+    public void setVirtualMachineProviderInfoWithoutProviders(SMAVirtualMachineProvider smaVirtualMachineProvider) {
+        this.groupProviders = smaVirtualMachineProvider.getGroupProviders();
+        this.naturalTemplate = smaVirtualMachineProvider.getNaturalTemplate();
+        this.minCostProviderPerFamily = smaVirtualMachineProvider.getMinCostProviderPerFamily();
     }
 
     public boolean isScaleUp() {
@@ -170,87 +189,7 @@ public class SMAVirtualMachine {
     }
 
 
-    /**
-     * Sets naturalTemplate: the natural (least cost) template.
-     * Sets minCostProviderPerFamily: the least cost template on a per family basis.
-     * Call only after templates have been processed fully.
-     */
-    public void updateNaturalTemplateAndMinCostProviderPerFamily() {
-        this.minCostProviderPerFamily = new HashMap<>();
-        Optional<SMATemplate> naturalOptional = Optional.empty();
-        Collections.sort(groupProviders, new SortTemplateByOID());
 
-        /*
-        order for natural template:
-        ondemand cost
-        penalty
-        current template
-        lower oid
-
-        order for mincost provider in family:
-        ondemand cost
-        discounted cost
-        penalty
-        current template
-        lower oid
-         */
-
-        for (SMATemplate template : groupProviders) {
-            float onDemandTotalCost = template.getOnDemandTotalCost(getCostContext());
-            float onDemandTotalCostWithPenalty = onDemandTotalCost + template.getScalingPenalty();
-            if (!naturalOptional.isPresent()) {
-                naturalOptional = Optional.of(template);
-            } else {
-                float naturalOnDemandTotalCost = naturalOptional.get().getOnDemandTotalCost(getCostContext());
-                float naturalOnDemandTotalCostWithPenalty = naturalOnDemandTotalCost + naturalOptional.get().getScalingPenalty();
-                if (onDemandTotalCost - naturalOnDemandTotalCost < (-1 * SMAUtils.EPSILON)) {
-                    // ondemand cost breaks the tie
-                    naturalOptional = Optional.of(template);
-                } else if (Math.abs(onDemandTotalCost - naturalOnDemandTotalCost) < SMAUtils.EPSILON
-                    && onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty < (-1 * SMAUtils.EPSILON)) {
-                    // ondemand cost the same. penalty breaks the tie.
-                    naturalOptional = Optional.of(template);
-                } else if (Math.abs(onDemandTotalCost - naturalOnDemandTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty) < SMAUtils.EPSILON
-                        && (template.getOid() == getCurrentTemplate().getOid())) {
-                    // ondemand cost the same. penalty the same. current template breaks the tie.
-                    naturalOptional = Optional.of(template);
-                }
-            }
-            if (minCostProviderPerFamily.get(template.getFamily()) == null) {
-                minCostProviderPerFamily.put(template.getFamily(), template);
-            } else {
-                float discountedTotalCost = template.getDiscountedTotalCost(getCostContext());
-                float minCostProviderOnDemandTotalCost = minCostProviderPerFamily.get(template.getFamily())
-                        .getOnDemandTotalCost(getCostContext());
-                float minCostProviderDiscountedTotalCost = minCostProviderPerFamily.get(template.getFamily())
-                        .getDiscountedTotalCost(getCostContext());
-                float minCostProviderOnDemandTotalCostWithPenalty = minCostProviderOnDemandTotalCost
-                        + minCostProviderPerFamily.get(template.getFamily()).getScalingPenalty();
-                if (onDemandTotalCost - minCostProviderOnDemandTotalCost < (-1 * SMAUtils.EPSILON)) {
-                    // ondemand cost breaks the tie
-                    minCostProviderPerFamily.put(template.getFamily(), template);
-                } else if (Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
-                        && (discountedTotalCost - minCostProviderDiscountedTotalCost) < (-1 * SMAUtils.EPSILON)) {
-                    // ondemand cost the same. discounted cost breaks the tie.
-                    minCostProviderPerFamily.put(template.getFamily(), template);
-                } else if (Math.abs(discountedTotalCost - minCostProviderDiscountedTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
-                        && (onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty) < (-1 * SMAUtils.EPSILON)) {
-                    // ondemand cost same. discounted cost the same. penality break the tie.
-                    minCostProviderPerFamily.put(template.getFamily(), template);
-                } else if (Math.abs(discountedTotalCost - minCostProviderDiscountedTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty) < SMAUtils.EPSILON
-                        && (template.getOid() == getCurrentTemplate().getOid())) {
-                    // discounted cost the same. ondemand cost the same. penalty the same. current template breaks the tie.
-                    minCostProviderPerFamily.put(template.getFamily(), template);
-                }
-            }
-        }
-        // If no minimum  is found, then use the current as the natural one
-        naturalTemplate = naturalOptional.orElse(getCurrentTemplate());
-    }
 
 
 
@@ -280,36 +219,7 @@ public class SMAVirtualMachine {
         return providers;
     }
 
-    /**
-     * When converting from market data structures, don't know providers until after templates are
-     * processed.
-     * @param providers list of providers as SMATemplates.
-     */
-    public void setProviders(final List<SMATemplate> providers) {
-        this.providers = providers;
-        if (providers == null || providers.isEmpty()) {
-            if (this.getCurrentTemplate() != null) {
-                setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
-            }
-        } else {
-            // If currentTemplate has no cost data then the VM cannot move.
-            // and currentTemplate is still valid template the vm can move to.
-            // getOnDemandTotalCost returns Float.MAX_VALUE if there is no cost data.
-            if (this.getCurrentTemplate() != null &&
-                    providers.stream().anyMatch(p -> p.getOid() == this.getCurrentTemplate().getOid())
-                    && (this.getCurrentTemplate().getOnDemandTotalCost(getCostContext()) == Float.MAX_VALUE)) {
-                setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
-            } else {
-                setGroupProviders(providers);
-                // If the natural template is giving infinite quote then stay in the current template.
-                if (this.getNaturalTemplate() != null
-                        && (this.getNaturalTemplate().getOnDemandTotalCost(getCostContext()) == Float.MAX_VALUE)) {
-                    setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
-                }
-            }
-        }
 
-    }
 
     @Nonnull
     public long getBusinessAccountId() {
@@ -369,10 +279,7 @@ public class SMAVirtualMachine {
         return groupProviders;
     }
 
-    public void setGroupProviders(final List<SMATemplate> groupProviders) {
-        this.groupProviders = groupProviders;
-        updateNaturalTemplateAndMinCostProviderPerFamily();
-    }
+
 
     /*
      * if 0 then no RI coverage
@@ -537,13 +444,25 @@ public class SMAVirtualMachine {
     }
 
     public CostContext getCostContext() {
-        return new CostContext();
+        return new CostContext(businessAccountId,
+                osType,
+                operatingSystemLicenseModel);
     }
 
     /**
      * Class that holds together all the parameters required for looking up costs.
      */
     public class CostContext {
+        private final long businessAccountId;
+        private final OSType osType;
+        private final LicenseModel operatingSystemLicenseModel;
+        public CostContext(long businessAccountId,
+                OSType osType,
+                LicenseModel operatingSystemLicenseModel) {
+            this.businessAccountId = businessAccountId;
+            this.osType = osType;
+            this.operatingSystemLicenseModel = operatingSystemLicenseModel;
+        }
         long getBusinessAccount() {
             return businessAccountId;
         }

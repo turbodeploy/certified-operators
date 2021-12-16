@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriagePerContext.SortByRIOID;
+import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
@@ -56,10 +57,12 @@ public class StableMarriageAlgorithm {
              * Map from the group name to the virtual machine groups (auto scaling group)
              */
             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap =
-                    createVirtualMachineGroupMap(inputContext.getVirtualMachines());
+                    createVirtualMachineGroupMap(inputContext.getVirtualMachines(),
+                            input.getCloudCostCalculator());
             preProcessing(inputContext, virtualMachineGroupMap);
-            SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext,virtualMachineGroupMap);
-            postProcessing(outputContext);
+            SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext,virtualMachineGroupMap,
+                    input.getCloudCostCalculator());
+            postProcessing(outputContext, input.getCloudCostCalculator());
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
@@ -85,7 +88,7 @@ public class StableMarriageAlgorithm {
      *
      * @param outputContext the output context of interest.
      */
-    public static void postProcessing(SMAOutputContext outputContext) {
+    public static void postProcessing(SMAOutputContext outputContext, SMACloudCostCalculator cloudCostCalculator) {
         /*
             vm1 was in ri1 and template1. vm1 got discounted by ri2.
             post processing took the ri2 from vm1.we scale vm1 back to template1.
@@ -96,7 +99,7 @@ public class StableMarriageAlgorithm {
         boolean actionNegated = true;
         int iterations = 0;
         while (actionNegated && iterations < SMAUtils.MAX_ITERATIONS) {
-            actionNegated = removeRIOptimizationInvestmentAction(outputContext);
+            actionNegated = removeRIOptimizationInvestmentAction(outputContext, cloudCostCalculator);
             iterations++;
         }
     }
@@ -224,7 +227,7 @@ public class StableMarriageAlgorithm {
      * @return map from group oid to the newly created virtualMachineGroups
      */
     public static Map<String, SMAVirtualMachineGroup> createVirtualMachineGroupMap(
-            List<SMAVirtualMachine> virtualMachines) {
+            List<SMAVirtualMachine> virtualMachines, SMACloudCostCalculator smaCloudCostCalculator) {
         Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap = new HashMap<>();
         // collect all the vms for each ASG to create a smaVirtualMachineGroup
         Map<String, List<SMAVirtualMachine>> groupNameToVirtualMachineList = new HashMap<>();
@@ -242,7 +245,7 @@ public class StableMarriageAlgorithm {
             List<SMATemplate> groupProviderList = findProviderIntersection(entry.getValue());
             if (!groupProviderList.isEmpty()) {
                 SMAVirtualMachineGroup smaVirtualMachineGroup = new SMAVirtualMachineGroup(groupName,
-                        entry.getValue(), groupProviderList);
+                        entry.getValue(), groupProviderList, smaCloudCostCalculator);
                 virtualMachineGroupMap.put(groupName, smaVirtualMachineGroup);
             }
         }
@@ -280,7 +283,8 @@ public class StableMarriageAlgorithm {
      * @param outputContext the output context of interest.
      * @return true is at-least 1 RI optimization was negated.
      */
-    public static boolean removeRIOptimizationInvestmentAction(SMAOutputContext outputContext) {
+    public static boolean removeRIOptimizationInvestmentAction(SMAOutputContext outputContext,
+            SMACloudCostCalculator cloudCostCalculator) {
         boolean actionNegated = false;
         Map<Long, List<SMAMatch>> matchesWithOutgoingCoupons = new HashMap<>();
         Map<Long, List<SMAMatch>> matchesWithIncomingCoupons = new HashMap<>();
@@ -359,7 +363,7 @@ public class StableMarriageAlgorithm {
             }
         }
 
-        moveUncoveredVMBackToNaturalTemplate(outputContext);
+        moveUncoveredVMBackToNaturalTemplate(outputContext, cloudCostCalculator);
 
         return actionNegated;
 
@@ -370,7 +374,7 @@ public class StableMarriageAlgorithm {
      *
      * @param outputContext the output context of interest.
      */
-    private static void moveUncoveredVMBackToNaturalTemplate(SMAOutputContext outputContext) {
+    private static void moveUncoveredVMBackToNaturalTemplate(SMAOutputContext outputContext, SMACloudCostCalculator cloudCostCalculator) {
         // get all the matches that involve RIs. Group together the ASG.
         Map<String, Set<SMAMatch>> matchByASG = new HashMap<>();
         Set<SMAMatch> nonASGMatch = new HashSet();
@@ -393,8 +397,10 @@ public class StableMarriageAlgorithm {
         // it better be using up the RIs.
         for (SMAMatch smaMatch : nonASGMatch) {
             if (smaMatch.getReservedInstance() != null) {
-                float saving = smaMatch.getVirtualMachine().getNaturalTemplate().getOnDemandTotalCost(smaMatch.getVirtualMachine().getCostContext())
-                        - smaMatch.getTemplate().getNetCost(smaMatch.getVirtualMachine().getCostContext(), smaMatch.getDiscountedCoupons()) ;
+                float saving = cloudCostCalculator.getOnDemandTotalCost(smaMatch.getVirtualMachine().getCostContext(),
+                        smaMatch.getVirtualMachine().getNaturalTemplate())
+                        - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine().getCostContext(),
+                        smaMatch.getDiscountedCoupons(), smaMatch.getTemplate()) ;
                 if (saving <  -1 * SMAUtils.EPSILON || (saving <  SMAUtils.EPSILON &&
                         smaMatch.getVirtualMachine().getCurrentTemplate().getOid() != smaMatch.getTemplate().getOid())) {
                     float current_leftover = leftoverCoupons.getOrDefault(smaMatch
@@ -428,8 +434,8 @@ public class StableMarriageAlgorithm {
                     continue;
                 }
                 for (SMAMatch smaMatch : smaMatches) {
-                    saving += smaMatch.getVirtualMachine().getNaturalTemplate().getOnDemandTotalCost(smaMatch.getVirtualMachine().getCostContext())
-                            - smaMatch.getTemplate().getNetCost(smaMatch.getVirtualMachine().getCostContext(), smaMatch.getDiscountedCoupons()) ;
+                    saving += cloudCostCalculator.getOnDemandTotalCost(smaMatch.getVirtualMachine().getCostContext(), smaMatch.getVirtualMachine().getNaturalTemplate())
+                            - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine().getCostContext(), smaMatch.getDiscountedCoupons(), smaMatch.getTemplate()) ;
                 }
                 if (saving <  -1 * SMAUtils.EPSILON || (saving <  SMAUtils.EPSILON &&
                         matchWithCoverage.get().getVirtualMachine().getCurrentTemplate().getOid()

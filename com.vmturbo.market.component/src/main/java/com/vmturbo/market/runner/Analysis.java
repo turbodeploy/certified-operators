@@ -662,6 +662,8 @@ public class Analysis {
                             try (DataMetricTimer timer = SMA_RUNTIME_SUMMARY.labels(contextType).startTimer()) {
                                 try (TracingScope ignored = Tracing.trace("execute_sma")) {
                                     smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
+                                    smaConverter.setSmaCloudCostCalculator(
+                                            smaInput.getCloudCostCalculator());
                                 }
                             }
                         }
@@ -1166,10 +1168,8 @@ public class Analysis {
             }
             if (config.isEnableSMA()) {
                 actionLogs.addAll(externalize.logSMAOutput(smaConverter.getSmaOutput(),
-                        originalCloudTopology, projectedCloudTopology,
-                        cloudCostData,
-                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
-                        converter.getConsistentScalingHelper()));
+                        originalCloudTopology,
+                        cloudCostData, smaConverter.getSmaCloudCostCalculator()));
             }
             diagsCollector.saveActionsIfEnabled(actionLogs, topologyInfo);
         });
