@@ -60,6 +60,8 @@ spec:
     enabled: false
   hyperv:
     enabled: true
+  ibmstorage-flashsystem:
+    enabled: true
   kubeturbo:
     enabled: true
   netapp:

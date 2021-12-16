@@ -118,6 +118,11 @@ resource "helm_release" "xl" {
   }
 
   set {
+    name  = "ibmstorage-flashsystem.enabled"
+    value = "${var.ibmstorage-flashsystem ? true : false}"
+  }
+
+  set {
     name  = "istio.enabled"
     value = "${var.istio ? true : false}"
   }

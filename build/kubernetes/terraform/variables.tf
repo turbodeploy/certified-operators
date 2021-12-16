@@ -109,6 +109,10 @@ variable "hyperv" {
   default = false
 }
 
+variable "ibmstorage-flashsystem" {
+  default = false
+}
+
 variable "istio" {
   default = false
 }
