@@ -10,6 +10,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -18,6 +19,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -501,6 +503,36 @@ public abstract class MemoryVisitor<T> {
     }
 
     /**
+     * A simple pairing of a count and an example memory node for the class.
+     */
+    public static class CountAndExampleNode {
+        private long count;
+        // This can be any
+        private final MemoryReferenceNode exampleNode;
+
+        /**
+         * Construct a new {@link CountAndExampleNode} with
+         * a starting count of zero and the given class.
+         *
+         * @param example The associated example {@link CountAndExampleNode}
+         */
+        public CountAndExampleNode(@Nonnull final MemoryReferenceNode example) {
+            this.exampleNode = Objects.requireNonNull(example);
+            this.count = 0;
+        }
+
+        /**
+         * Increment the count. Increments the count by 1.
+         *
+         * @return A reference to {@link this}.
+         */
+        public CountAndExampleNode increment() {
+            this.count++;
+            return this;
+        }
+    }
+
+    /**
      * A {@link MemoryVisitor} for computing the size of objects and their descendants visited
      * during a memory walk. Retains information about individual objects so has more significant
      * overhead. Use with {@link RelationshipMemoryWalker}.
@@ -903,19 +935,42 @@ public abstract class MemoryVisitor<T> {
          *
          * @param includeToStringValues Whether to include the string representation of the objects found
          *                              in their {@link FoundPath}.
+         * @param compressArrayPaths    Whether to compress array paths. If array paths are compressed,
+         *                              we include a count on the generated {@link FoundPath}. If paths
+         *                              are compressed and strings are included, we only include the
+         *                              toString value for a single example of one of the objects at
+         *                              the shared path.
          * @return The list of {@link FoundPath}s.
          */
-        public List<FoundPath> foundPaths(final boolean includeToStringValues) {
-            return matchingNodes.stream()
-                .map(path -> {
-                    final FoundPath.Builder builder = FoundPath.newBuilder()
-                        .setClassName(path.getKlass().getName())
-                        .setPath(path.pathDescriptor());
-                    if (includeToStringValues) {
-                        builder.setToStringValue(path.getObj() == null ? "null" : path.getObj().toString());
-                    }
-                    return builder.build();
-                }).collect(Collectors.toList());
+        public List<FoundPath> foundPaths(final boolean includeToStringValues,
+                                          final boolean compressArrayPaths) {
+            final Stream<FoundPath> paths;
+            if (compressArrayPaths) {
+                paths = pathCounts().entrySet().stream()
+                    .map(entry -> {
+                        final FoundPath.Builder path =
+                            toFoundPath(includeToStringValues, entry.getKey(), entry.getValue().exampleNode);
+                        path.setObjectCount((int)entry.getValue().count);
+                        return path.build();
+                    });
+            } else {
+                paths = matchingNodes.stream()
+                    .map(path -> toFoundPath(
+                        includeToStringValues, path.pathDescriptor(), path).build());
+            }
+            return paths.collect(Collectors.toList());
+        }
+
+        private FoundPath.Builder toFoundPath(boolean includeToStringValues,
+                                              @Nonnull final String pathDescriptor,
+                                              @Nonnull final  MemoryReferenceNode node) {
+            final FoundPath.Builder builder = FoundPath.newBuilder()
+                .setClassName(node.getKlass().getName())
+                .setPath(pathDescriptor);
+            if (includeToStringValues) {
+                builder.setToStringValue(node.getObj() == null ? "null" : node.getObj().toString());
+            }
+            return builder;
         }
 
         /**
@@ -955,6 +1010,107 @@ public abstract class MemoryVisitor<T> {
 
             pw.close();
             return sw.toString();
+        }
+
+        /**
+         * Count instances of the visited classes, combining into a histogram where instances in the same
+         * data structure (array) may be merged together if their path is the same except for array indexes.
+         *
+         * <p/>
+         * Example output excerpt:
+         * 2020-06-23 12:45:00,291 INFO [grpc-default-executor-2] [MemoryMetricsRpcService] : Found paths:
+         *     COUNT    TYPE                                                     PATH
+         * 0   100      com.vmturbo.platform.analysis.economy.TraderWithSettings marketRunner.realtimeReplayActions.deactivateActions_.array[].target_
+         * 1   24       com.vmturbo.platform.analysis.economy.TraderWithSettings marketRunner.realtimeReplayActions.deactivateActions_.array[].target_[].array[].foo
+         *
+         * @return A String table describing the paths to the searchClasses found during the memory walk that
+         *         consolidates multiple found paths in the same array.
+         */
+        public String pathHistogram() {
+            final int typeLen = getMaxClassNameLength();
+            final StringWriter sw = new StringWriter();
+            final PrintWriter pw = new PrintWriter(sw);
+            final Map<String, CountAndExampleNode> pathCounts = pathCounts();
+            final String header = String.format(" %3s %12s %-" + typeLen + "s %s%n", "", "COUNT", "TYPE", "PATH");
+
+            pw.printf("Found paths:\n");
+            pw.printf(header);
+            int index = 0;
+            for (Entry<String, CountAndExampleNode> entry : pathCounts.entrySet()) {
+                pw.printf(" %-3d %12s %-" + typeLen + "s %s%n",
+                    index++,
+                    String.format("%,d", entry.getValue().count),
+                    entry.getValue().exampleNode.getKlass().getName(),
+                    entry.getKey());
+
+                if (index >= MAX_LOG_LINES) {
+                    break;
+                }
+            }
+
+            pw.close();
+            return sw.toString();
+        }
+
+        /**
+         * Group nodes by their paths. Note that it is technically possible for objects of different classes
+         * to be grouped together if they are in an array with a shared supertype. ie:
+         * Object[] { "foo", new Integer(2) } could result in a String and an Int at the same
+         * arraylessPathDescriptor. This problem is not important enough to take the performance hit
+         * necessary to correctly handle this situation for large memory walks. If necessary we can fix
+         * it later.
+         *
+         * @return A map of path to the count and a representative example node.
+         */
+        private Map<String, CountAndExampleNode> pathCounts() {
+            // Use a LinkedHashMap to preserve order so that we can iterate in depth-order.
+            final Map<String, CountAndExampleNode> pathCounts = new LinkedHashMap<>();
+            for (MemoryReferenceNode node : matchingNodes) {
+                final CountAndExampleNode countAndClass = pathCounts.compute(node.arraylessPathDescriptor(),
+                    (k, count) -> count == null ? new CountAndExampleNode(node) : count);
+                countAndClass.increment();
+            }
+
+            return pathCounts;
+        }
+
+        /**
+         * Find all visited objects whose path matches the arraylessPathDescriptor. An arrayless
+         * path descriptor has a format similar to:
+         * <p/>
+         * {@code stageInput.stitchingGraph.stitchingEntities.table[].connectedFrom.table[].m}
+         * <p/>
+         * and can be found by calling the {@link #pathHistogram()} method. You can also obtain
+         * the arraylessPathDescriptor by finding the full path and removing all array indices.
+         * Note that this method is quite computationally expensive because it requires performing
+         * a full scan over ALL objects visited by this visitor.
+         *
+         * @param arraylessPathDescriptor The path descriptor whose objects should be found.
+         * @return Objects whose {@code arraylessPathDescriptor} match the input.
+         */
+        public List<Object> findAtPath(@Nonnull final String arraylessPathDescriptor) {
+            return filterByPath(arraylessPathDescriptor)
+                .map(MemoryReferenceNode::getObj)
+                .collect(Collectors.toList());
+        }
+
+        /**
+         * Obtain a stream of all visited {@link MemoryReferenceNode}s whose path matches the arraylessPathDescriptor.
+         * An arrayless path descriptor has a format similar to:
+         * <p/>
+         * {@code stageInput.stitchingGraph.stitchingEntities.table[].connectedFrom.table[].m}
+         * <p/>
+         * and can be found by calling the {@link #pathHistogram()} method. You can also obtain
+         * the arraylessPathDescriptor by finding the full path (obtained via tabular results)
+         * and removing all array indices.
+         *
+         * @param arraylessPathDescriptor The path descriptor whose objects should be found.
+         * @return A stream of {@link MemoryReferenceNode}s whose {@code arraylessPathDescriptor} matches
+         *         the input.
+         */
+        public Stream<MemoryReferenceNode> filterByPath(@Nonnull final String arraylessPathDescriptor) {
+            return matchingNodes.stream()
+                .filter(node -> node.arraylessPathDescriptor().equals(arraylessPathDescriptor));
         }
 
         /**

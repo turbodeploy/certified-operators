@@ -160,12 +160,17 @@ public class MemoryMetricsRpcService extends MemoryMetricsServiceImplBase {
                 .maxDepth(request.getWalkDepth())
                 .findPaths(request.getMaxInstances(), request.getMinInstanceDepth(),
                     roots, resolvedClasses);
-            logger.info(paths.tabularResults());
+            if (request.getCompressArrayPaths()) {
+                logger.info(paths.pathHistogram());
+            } else {
+                logger.info(paths.tabularResults());
+            }
 
             builder.addAllResolvedClasses(resolvedClasses.stream().map(Class::getName)
                 .collect(Collectors.toList()));
             builder.addAllUnresolvedClasses(unresolvedClassNames);
-            builder.addAllPaths(paths.foundPaths(request.getIncludeStringValues()));
+            builder.addAllPaths(paths.foundPaths(request.getIncludeStringValues(),
+                request.getCompressArrayPaths()));
             builder.setRequestDuration(TimeUtil.humanReadable(
                 Duration.between(startTime, Clock.systemUTC().instant())));
             responseObserver.onNext(builder.build());

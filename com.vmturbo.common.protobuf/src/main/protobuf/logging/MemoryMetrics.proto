@@ -324,6 +324,24 @@ message FindMemoryPathRequest {
     // instances at low depth and you only care to find the ones at deeper depth,
     // pass in a min_instance_depth to exclude the shallower instances from the results.
     optional int32 min_instance_depth = 6 [default = 0];
+
+    // Whether to compress array paths. Defaults to true.
+    //
+    // Data structures (often backed by arrays) often contain the same objects at the same
+    // path with different indexes. When there are many instances of the same class at
+    // the same path, it makes it much easier to understand the results when the array
+    // paths are compressed and so instead of seeing something like:
+    //      PATH
+    // 1    myObject.foo.myInts[0].bar
+    // 2    myObject.foo.myInts[1].bar
+    // 3    myObject.foo.myInts[2].bar
+    // ...
+    // 9928  myObject.foo.myInts[9927].bar
+    //
+    // you will instead see
+    //      COUNT    PATH
+    // 1    9928     myObject.foo.myInts[].bar
+    optional bool compress_array_paths = 7 [default = true];
 }
 
 // A path to a found object.
@@ -342,6 +360,11 @@ message FoundPath {
     // This field will be absent unless the request specified
     // include_string_values=true
     optional string to_string_value = 3;
+
+    // The count of objects at the given path. Only included for requests that
+    // compress array paths, otherwise this count is implicitly 1 for every
+    // found path.
+    optional int32 object_count = 4;
 }
 
 // Response to a request to find memory paths for a class or set of classes.
