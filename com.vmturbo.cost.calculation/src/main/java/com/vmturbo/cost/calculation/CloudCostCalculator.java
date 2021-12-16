@@ -603,8 +603,13 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             entityInfoExtractor.getName(computeTier), entityInfoExtractor.getId(computeTier));
                     break;
                 }
+                Double pricingConversionFactor = basePrice.getConsumerCommodityPricesList().stream()
+                        .filter(c -> c.getCommodityType().getNumber() == commodityType.getType())
+                        .map(c -> c.getPricingConversionFactor())
+                        .collect(Collectors.toList())
+                        .get(0);
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
-                        unitPriceList.get(0), trax(entry.getValue(), "Commodities billed amount"),
+                        unitPriceList.get(0), trax(entry.getValue() / pricingConversionFactor, "Commodities billed amount"),
                         Optional.of(commodityType));
             }
         } else {
