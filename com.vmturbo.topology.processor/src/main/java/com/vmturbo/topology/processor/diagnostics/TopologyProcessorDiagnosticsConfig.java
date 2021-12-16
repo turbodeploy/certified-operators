@@ -137,6 +137,7 @@ public class TopologyProcessorDiagnosticsConfig {
             fixedFilenameBinaryDiagnosticParts,
             operationConfig.binaryDiscoveryDumper(),
             targetConfig.targetStatusTracker(),
+            topologyConfig.staleDataManager(),
             identityProviderConfig.staleOidManager());
     }
 

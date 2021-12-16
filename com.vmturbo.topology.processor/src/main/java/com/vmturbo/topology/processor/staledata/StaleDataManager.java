@@ -26,8 +26,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 
-import common.HealthCheck.HealthState;
-
 /**
  * Class that handles the scheduling of recurrent stale data checks.
  *
@@ -120,7 +118,7 @@ public class StaleDataManager implements StaleDataConsumer, StalenessInformation
     }
 
     @Override
-    public HealthState getLastKnownTargetHealth(long targetOid) {
+    public TargetHealth getLastKnownTargetHealth(long targetOid) {
         Map<Long, TargetHealth> health;
         synchronized (this) {
             health = lastKnownHealth;
@@ -134,7 +132,7 @@ public class StaleDataManager implements StaleDataConsumer, StalenessInformation
                 targetHealth = lastKnownHealth.get(targetOid);
             }
         }
-        return targetHealth == null ? null : targetHealth.getHealthState();
+        return targetHealth;
     }
 
     @Override

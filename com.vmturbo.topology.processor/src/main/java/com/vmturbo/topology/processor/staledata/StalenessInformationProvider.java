@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.staledata;
 
-import common.HealthCheck.HealthState;
+import javax.annotation.Nullable;
+
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 
 /**
  * Exposes stale data information to the interested parties.
@@ -14,5 +16,6 @@ public interface StalenessInformationProvider {
      * @param targetOid target's identifier
      * @return target health, can be null if all attempts to calculate so far failed
      */
-    HealthState getLastKnownTargetHealth(long targetOid);
+    @Nullable
+    TargetHealth getLastKnownTargetHealth(long targetOid);
 }

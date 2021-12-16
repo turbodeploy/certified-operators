@@ -57,6 +57,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer.MemoryMeasurement;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
@@ -101,6 +102,8 @@ import common.HealthCheck.HealthState;
 public class EntityStore {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final TargetHealth DEFAULT_TARGET_HEALTH =
+            TargetHealth.newBuilder().setHealthState(HealthState.NORMAL).build();
 
     /**
      * Map of entityId -> Entity object describing the entity.
@@ -383,8 +386,8 @@ public class EntityStore {
     public StitchingContext constructStitchingContext() {
         return constructStitchingContext(new StalenessInformationProvider() {
             @Override
-            public HealthState getLastKnownTargetHealth(long targetOid) {
-                return HealthState.NORMAL;
+            public TargetHealth getLastKnownTargetHealth(long targetOid) {
+                return DEFAULT_TARGET_HEALTH;
             }
         });
     }
@@ -424,7 +427,9 @@ public class EntityStore {
                                     entityBuilder, entityOid, targetId,
                                     incrementalEntities))
                             .orElse(entityBuilder);
-                    final boolean isStale = stalenessProvider.getLastKnownTargetHealth(targetId) == HealthState.CRITICAL;
+                    final TargetHealth lastKnownTargetHealth =
+                            stalenessProvider.getLastKnownTargetHealth(targetId);
+                    final boolean isStale = lastKnownTargetHealth != null && lastKnownTargetHealth.getHealthState() == HealthState.CRITICAL;
                     return StitchingEntityData.newBuilder(entityDTO)
                             .oid(entityOid)
                             .targetId(targetId)

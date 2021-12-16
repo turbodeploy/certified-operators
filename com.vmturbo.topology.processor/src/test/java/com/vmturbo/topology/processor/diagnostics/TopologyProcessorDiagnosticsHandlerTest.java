@@ -49,6 +49,8 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import common.HealthCheck.HealthState;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -72,6 +74,8 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.ResourcePath;
@@ -134,6 +138,7 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.DeploymentProfileWithTemplate;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.ProbeInfoWithId;
+import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.TargetHealthInfo;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityStore.TargetIncrementalEntities;
@@ -145,11 +150,11 @@ import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.StaleOidManager;
-import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.scheduling.UnsupportedDiscoveryTypeException;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.KvTargetDao;
@@ -171,6 +176,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     public static final String TARGET_STATUSES_DIAGS_NAME = "TargetStatuses";
+    private static final String TARGET_HEALTH_DIAGS_FILE = "TargetHealth.diags";
+    private static final long LAST_SUCCESSFUL_DISCOVERY_COMPLETION_TIME = 1639045033567L;
+    private static final long TIME_OF_FIRST_DISCOVERY_FAILURE = 1639047797788L;
 
     private final List<Target> targets = Lists.newArrayList();
     private final TargetStore targetStore = mock(TargetStore.class);
@@ -190,6 +198,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         mock(TargetIncrementalEntities.class);
     private final TargetStatusTracker targetStatusTracker = mock(TargetStatusTracker.class);
     private final StaleOidManager staleOidManager = mock(StaleOidManager.class);
+    private final StalenessInformationProvider stalenessProvider = mock(StalenessInformationProvider.class);
     private final EntityDTO nwDto =
             EntityDTO.newBuilder().setId("NW-1").setEntityType(EntityType.NETWORK).build();
 
@@ -277,7 +286,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
                         identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                                statefulEditors, binaryDiscoveryDumper, targetStatusTracker, staleOidManager);
+                                statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, staleOidManager);
         handler.dump(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
@@ -312,6 +321,12 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ze = zis.getNextEntry();
         assertEquals("Targets.diags", ze.getName());
+        bytes = new byte[20];
+        assertEquals(-1, zis.read(bytes));
+        assertEquals(0, bytes[0]); // the entry is empty
+
+        ze = zis.getNextEntry();
+        assertEquals(TARGET_HEALTH_DIAGS_FILE, ze.getName());
         bytes = new byte[20];
         assertEquals(-1, zis.read(bytes));
         assertEquals(0, bytes[0]); // the entry is empty
@@ -421,7 +436,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                 entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
                 identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                            statefulEditors, binaryDiscoveryDumper, targetStatusTracker, null);
+                            statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null);
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
@@ -458,24 +473,46 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     @Test
     public void testSomeTargets() throws IOException {
 
+        final int firstTargetId = 100001;
+        final int secondTargetId = 200001;
         TestTopology[] testTopologies = new TestTopology[]{
-            new TestTopology("123456789").withTargetId(100001).withProbeId(101).withProbeInfo()
+            new TestTopology("123456789").withTargetId(firstTargetId).withProbeId(101).withProbeInfo()
                 .withTime(12345).withEntity(IDENTIFIED_ENTITY).withDiscoveredClusterGroup()
                 .withSettingPolicy().withTemplate().withProfile().withTarget(mock(Target.class))
                 .withTargetInfo().withFullSchedule(mock(TargetDiscoverySchedule.class))
                 .withIncrementalSchedule(mock(TargetDiscoverySchedule.class))
                 .setUpMocks(),
 
-            new TestTopology("abcdefghij").withTargetId(200001).withProbeId(201).withProbeInfo()
+            new TestTopology("abcdefghij").withTargetId(secondTargetId).withProbeId(201).withProbeInfo()
                 .withTargetInfo().withTime(23456).withDiscoveredGroupGroup().withSettingPolicy()
                 .withTemplate().withTarget(mock(Target.class)).withProfile()
                 .withFullSchedule(mock(TargetDiscoverySchedule.class))
                 .withIncrementalSchedule(mock(TargetDiscoverySchedule.class))
                 .setUpMocks()
         };
-        when(entityStore.getIncrementalEntities(100001)).thenReturn(Optional.of(targetIncrementalEntities));
-        when(entityStore.getIncrementalEntities(200001)).thenReturn(Optional.of(targetIncrementalEntities));
+        when(entityStore.getIncrementalEntities(firstTargetId)).thenReturn(Optional.of(targetIncrementalEntities));
+        when(entityStore.getIncrementalEntities(secondTargetId)).thenReturn(Optional.of(targetIncrementalEntities));
 
+        //successful discovery
+        final TargetHealth normalTargetHealth = TargetHealth.newBuilder()
+                .setTargetName(TARGET_DISPLAY_NAME)
+                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                .setHealthState(HealthState.NORMAL)
+                .setLastSuccessfulDiscoveryCompletionTime(LAST_SUCCESSFUL_DISCOVERY_COMPLETION_TIME)
+                .build();
+        Mockito.when(stalenessProvider.getLastKnownTargetHealth(firstTargetId)).thenReturn(normalTargetHealth);
+
+        //discovery failed due to incorrect credentials
+        final TargetHealth criticalTargetHealth = TargetHealth.newBuilder()
+                .setTargetName(TARGET_DISPLAY_NAME)
+                .setSubcategory(TargetHealthSubCategory.VALIDATION)
+                .setHealthState(HealthState.CRITICAL)
+                .setTimeOfFirstFailure(TIME_OF_FIRST_DISCOVERY_FAILURE)
+                .setMessageText(HealthState.CRITICAL
+                        + ": Validation failed. Cannot complete login due to an incorrect user name or password.")
+                .setLastSuccessfulDiscoveryCompletionTime(LAST_SUCCESSFUL_DISCOVERY_COMPLETION_TIME)
+                .build();
+        Mockito.when(stalenessProvider.getLastKnownTargetHealth(secondTargetId)).thenReturn(criticalTargetHealth);
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
@@ -511,6 +548,20 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         for (int i = 0; i < targetJsons.length; i++) {
             assertEquals(testTopologies[i].targetInfo,
                 GSON.fromJson(targetJsons[i], TargetInfo.class));
+        }
+
+        ze = zis.getNextEntry();
+        assertEquals(TARGET_HEALTH_DIAGS_FILE, ze.getName());
+        bytes = new byte[1024];
+        assertNotEquals(-1, zis.read(bytes));
+        final String[] targetHealthJsons = new String(bytes, 0, 1024).trim().split("\n");
+
+        final TargetHealthInfo[] targetHealths = new TargetHealthInfo[]{new TargetHealthInfo(
+                firstTargetId, normalTargetHealth), new TargetHealthInfo(secondTargetId,
+                criticalTargetHealth)};
+        for (int i = 0; i < targetHealthJsons.length; i++) {
+            assertEquals(targetHealths[i],
+                    GSON.fromJson(targetHealthJsons[i], TargetHealthInfo.class));
         }
 
         ze = zis.getNextEntry();
@@ -633,7 +684,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
             groupUploader, templateDeploymentProfileUploader, identityProvider,
             discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                        statefulEditors, binaryDiscoveryDumper, targetStatusTracker, null);
+                        statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null);
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
         handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags"

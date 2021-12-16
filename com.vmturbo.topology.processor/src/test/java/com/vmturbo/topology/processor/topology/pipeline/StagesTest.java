@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -353,7 +354,7 @@ public class StagesTest {
         when(journal.shouldDumpTopologyBeforePreStitching()).thenReturn(true);
         when(stitchingContext.getStitchingGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
-        when(stalenessProvider.getLastKnownTargetHealth(Mockito.anyLong())).thenReturn(HealthState.NORMAL);
+        when(stalenessProvider.getLastKnownTargetHealth(Mockito.anyLong())).thenReturn(TargetHealth.newBuilder().setHealthState(HealthState.NORMAL).build());
 
         final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory,
                         container, stalenessProvider);
