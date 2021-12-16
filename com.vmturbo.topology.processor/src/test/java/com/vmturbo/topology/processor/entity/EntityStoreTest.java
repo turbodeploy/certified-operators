@@ -53,6 +53,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -1021,8 +1022,8 @@ public class EntityStoreTest {
         final TopologyStitchingGraph criticalStateGraph =
                         entityStore.constructStitchingContext(new StalenessInformationProvider() {
                             @Override
-                            public HealthState getLastKnownTargetHealth(long targetOid) {
-                                return HealthState.CRITICAL;
+                            public TargetHealth getLastKnownTargetHealth(long targetOid) {
+                                return TargetHealth.newBuilder().setHealthState(HealthState.CRITICAL).build();
                             }
                         }).getStitchingGraph();
         Assert.assertTrue(criticalStateGraph.entities().allMatch(StitchingEntity::isStale));
@@ -1030,8 +1031,8 @@ public class EntityStoreTest {
         final TopologyStitchingGraph majorStateGraph =
                 entityStore.constructStitchingContext(new StalenessInformationProvider() {
                     @Override
-                    public HealthState getLastKnownTargetHealth(long targetOid) {
-                        return HealthState.MAJOR;
+                    public TargetHealth getLastKnownTargetHealth(long targetOid) {
+                        return TargetHealth.newBuilder().setHealthState(HealthState.MAJOR).build();
                     }
                 }).getStitchingGraph();
         Assert.assertTrue(majorStateGraph.entities().noneMatch(StitchingEntity::isStale));
@@ -1039,8 +1040,8 @@ public class EntityStoreTest {
         final TopologyStitchingGraph minorStateGraph =
                 entityStore.constructStitchingContext(new StalenessInformationProvider() {
                     @Override
-                    public HealthState getLastKnownTargetHealth(long targetOid) {
-                        return HealthState.MINOR;
+                    public TargetHealth getLastKnownTargetHealth(long targetOid) {
+                        return TargetHealth.newBuilder().setHealthState(HealthState.MINOR).build();
                     }
                 }).getStitchingGraph();
         Assert.assertTrue(minorStateGraph.entities().noneMatch(StitchingEntity::isStale));
@@ -1048,8 +1049,8 @@ public class EntityStoreTest {
         final TopologyStitchingGraph normalStateGraph =
                 entityStore.constructStitchingContext(new StalenessInformationProvider() {
                     @Override
-                    public HealthState getLastKnownTargetHealth(long targetOid) {
-                        return HealthState.NORMAL;
+                    public TargetHealth getLastKnownTargetHealth(long targetOid) {
+                        return TargetHealth.newBuilder().setHealthState(HealthState.NORMAL).build();
                     }
                 }).getStitchingGraph();
         Assert.assertTrue(normalStateGraph.entities().noneMatch(StitchingEntity::isStale));

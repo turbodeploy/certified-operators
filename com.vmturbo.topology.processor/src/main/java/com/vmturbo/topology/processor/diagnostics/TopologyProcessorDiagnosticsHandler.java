@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Streams;
 import com.google.gson.Gson;
+import com.google.gson.JsonIOException;
 import com.google.gson.JsonParseException;
 
 import io.prometheus.client.CollectorRegistry;
@@ -41,6 +42,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
@@ -77,6 +79,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.scheduling.UnsupportedDiscoveryTypeException;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.PersistentTargetSpecIdentityStore;
@@ -99,6 +102,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private static final String TARGETS_DIAGS_FILE_NAME = "Targets.diags";
     private static final String SCHEDULES_DIAGS_FILE_NAME = "Schedules.diags";
     private static final String PROBES_DIAGS_FILE_NAME = "Probes.diags";
+    private static final String TARGET_HEALTH_DIAGS_FILE_NAME = "TargetHealth.diags";
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
@@ -116,6 +120,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts;
     private final BinaryDiscoveryDumper binaryDiscoveryDumper;
     private final TargetStatusTracker targetStatusTracker;
+    private final StalenessInformationProvider stalenessProvider;
     private final StaleOidManager staleOidManager;
 
     TopologyProcessorDiagnosticsHandler(@Nonnull final TargetStore targetStore,
@@ -131,6 +136,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts,
             final BinaryDiscoveryDumper binaryDiscoveryDumper,
             final TargetStatusTracker targetStatusTracker,
+            @Nonnull final StalenessInformationProvider stalenessProvider,
             @Nonnull final StaleOidManager staleOidManager) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
@@ -146,6 +152,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.fixedFilenameBinaryDiagnosticParts = fixedFilenameBinaryDiagnosticParts;
         this.binaryDiscoveryDumper = binaryDiscoveryDumper;
         this.targetStatusTracker = targetStatusTracker;
+        this.stalenessProvider = stalenessProvider;
         this.staleOidManager = staleOidManager;
     }
 
@@ -174,10 +181,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
 
         // Targets
         final List<Target> targets = targetStore.getAll();
-        diagsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME, targets.stream()
-                .map(Target::getNoSecretDto)
-                .map(target -> GSON.toJson(target, TargetInfo.class))
-                .iterator());
+
+        saveTargetsInfoToDiags(diagsWriter, targets);
 
         // Schedules
         diagsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME, targets.stream()
@@ -303,6 +308,28 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         diagsWriter.dumpDiagnosable(targetStatusTracker);
 
         diagsWriter.dumpDiagnosable(staleOidManager);
+    }
+
+    private void saveTargetsInfoToDiags(DiagnosticsWriter diagsWriter, List<Target> targets) {
+        final List<String> targetInfos = new ArrayList<>();
+        final List<String> targetHealth = new ArrayList<>();
+        for (Target target : targets) {
+            try {
+                targetInfos.add(GSON.toJson(target.getNoSecretDto(), TargetInfo.class));
+                final long targetId = target.getId();
+                final TargetHealth lastKnownTargetHealth =
+                        stalenessProvider.getLastKnownTargetHealth(targetId);
+                if (lastKnownTargetHealth != null) {
+                    targetHealth.add(
+                            GSON.toJson(new TargetHealthInfo(targetId, lastKnownTargetHealth),
+                                    TargetHealthInfo.class));
+                }
+            } catch (JsonIOException e) {
+                logger.error("Failed to parse information to Json for target " + target, e);
+            }
+        }
+        diagsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME, targetInfos.iterator());
+        diagsWriter.writeZipEntry(TARGET_HEALTH_DIAGS_FILE_NAME, targetHealth.iterator());
     }
 
     /**
@@ -871,6 +898,42 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
 
         public ProbeInfo getProbeInfo() {
             return probeInfo;
+        }
+    }
+
+    /**
+     * Internal class used to store information about target health to diagnostics.
+     */
+    static class TargetHealthInfo {
+        private final long targetId;
+        private final TargetHealth targetHealth;
+
+        /**
+         * Create {@link  TargetHealthInfo} instance.
+         *
+         * @param targetId target id
+         * @param targetHealth {@link TargetHealth} instance describing health target state.
+         */
+        TargetHealthInfo(long targetId, TargetHealth targetHealth) {
+            this.targetId = targetId;
+            this.targetHealth = targetHealth;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof TargetHealthInfo)) {
+                return false;
+            }
+            TargetHealthInfo that = (TargetHealthInfo)o;
+            return targetId == that.targetId && targetHealth.equals(that.targetHealth);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(targetId, targetHealth);
         }
     }
 }

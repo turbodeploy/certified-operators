@@ -8,6 +8,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -96,6 +97,8 @@ import common.HealthCheck.HealthState;
  */
 public class PlanPipelineFactory {
     private static final Logger logger = LogManager.getLogger();
+    private static final TargetHealth DEFAULT_TARGET_HEALTH =
+            TargetHealth.newBuilder().setHealthState(HealthState.NORMAL).build();
 
     private final TopoBroadcastManager topoBroadcastManager;
 
@@ -262,8 +265,8 @@ public class PlanPipelineFactory {
                                 new StitchingJournalContainer(),
                                 new StalenessInformationProvider() {
                                     @Override
-                                    public HealthState getLastKnownTargetHealth(long targetOid) {
-                                        return HealthState.NORMAL;
+                                    public TargetHealth getLastKnownTargetHealth(long targetOid) {
+                                        return DEFAULT_TARGET_HEALTH;
                                     }
                                 }))
                 .addStage(new ConstructTopologyFromStitchingContextStage())
