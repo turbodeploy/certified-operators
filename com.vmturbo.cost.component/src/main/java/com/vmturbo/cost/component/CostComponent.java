@@ -72,6 +72,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     EntityUptimeSpringConfig.class,
     CloudCommitmentStatsConfig.class,
     CloudCommitmentConfig.class,
+    BilledCostConfig.class,
 })
 public class CostComponent extends BaseVmtComponent {
     /**
@@ -135,6 +136,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private EntityUptimeSpringConfig entityUptimeSpringConfig;
+
+    @Autowired
+    private BilledCostConfig billedCostConfig;
 
     /**
      * Starts the component.
@@ -201,7 +205,8 @@ public class CostComponent extends BaseVmtComponent {
                 entityUptimeSpringConfig.entityUptimeRpcService(),
                 cloudCommitmentUploadRpcService,
                 cloudCommitmentStatsRpcService,
-                cloudCommitmentRpcService);
+                cloudCommitmentRpcService,
+                billedCostConfig.billedCostUploadRpcService());
     }
 
     @Nonnull
