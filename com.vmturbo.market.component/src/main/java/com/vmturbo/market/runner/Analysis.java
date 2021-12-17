@@ -892,9 +892,10 @@ public class Analysis {
                     actions.forEach(actionPlanBuilder::addAction);
                     //SMA is not supported for Migrate to Cloud plan
                     if (config.isSMAOnly() && isSMAEnabled) {
-                        actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
+                        List<Action> smaActions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
                          originalCloudTopology, actionSavingsCalculator);
-                            actions.forEach(actionPlanBuilder::addAction);
+                        smaActions.forEach(actionPlanBuilder::addAction);
+                        actions.addAll(smaActions);
                     }
 
                     if (!isMigrateToCloud) {

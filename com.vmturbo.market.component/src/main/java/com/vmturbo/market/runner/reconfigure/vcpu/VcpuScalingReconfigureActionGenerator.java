@@ -37,6 +37,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -226,9 +227,14 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
             Collection<Action> existingActions) {
         //If there are existing resize actions for this VM, we don't need to generate vcpu reconfigure actions,
         // as the change will be executable in resize actions.
-        List<Long> resizedEntities = existingActions.stream().filter(Action::hasInfo).map(
-                Action::getInfo).filter(ActionInfo::hasResize).map(
-                info -> info.getResize().getTarget().getId()).collect(Collectors.toList());
+        Set<Long> vcpuResizedVMs = existingActions.stream()
+                .filter(Action::hasInfo)
+                .map(Action::getInfo)
+                .filter(ActionInfo::hasResize)
+                .map(ActionInfo::getResize)
+                .filter(resize -> resize.getCommodityType().getType() == CommodityType.VCPU_VALUE)
+                .map(resize -> resize.getTarget().getId())
+                .collect(Collectors.toSet());
 
         Stream<Long> changeableVMs = topologyEntities.values().stream()
                 .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
@@ -237,6 +243,6 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
                         && vm.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketChangeable())
                 .filter(vm -> vm.getAnalysisSettings().getReconfigurable())
                 .map(TopologyEntityDTO::getOid);
-        return changeableVMs.filter(vm -> !resizedEntities.contains(vm)).collect(Collectors.toList());
+        return changeableVMs.filter(vm -> !vcpuResizedVMs.contains(vm)).collect(Collectors.toList());
     }
 }

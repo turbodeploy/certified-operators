@@ -14,10 +14,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -71,6 +73,8 @@ public class VcpuScalingReconfigureActionGeneratorTestUtils {
                                         ActionEntity.newBuilder()
                                                 .setId(targetId)
                                                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                ).setCommodityType(
+                                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).build()
                                 )
                         )
                 ).setExplanation(Explanation.newBuilder())
