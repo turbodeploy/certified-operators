@@ -26,7 +26,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -56,6 +55,8 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
@@ -74,6 +75,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
@@ -124,6 +126,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final EntityCostStore entityCostStore;
 
+    private final BilledCostStore billedCostStore;
+
     private final InMemoryEntityCostStore projectedEntityCostStore;
 
     private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
@@ -158,6 +162,7 @@ public class CostRpcService extends CostServiceImplBase {
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
                           @Nonnull final EntityCostStore costStoreHouse,
+                          @Nonnull final BilledCostStore billedCostStore,
                           @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
                           @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
@@ -169,6 +174,7 @@ public class CostRpcService extends CostServiceImplBase {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
+        this.billedCostStore = Objects.requireNonNull(billedCostStore);
         this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
         this.planProjectedEntityCostStore = Objects.requireNonNull(planProjectedEntityCostStore);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
@@ -899,6 +905,30 @@ public class CostRpcService extends CostServiceImplBase {
             }
             responseObserver.onCompleted();
         } catch (EntitySavingsException | RuntimeException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription(e.getMessage())
+                    .asException());
+        }
+    }
+
+    /**
+     * Get Cloud billed stats.
+     *
+     * @param request Cloud billed stats request.
+     * @param responseObserver Cloud billed stats response observer.
+     */
+    @Override
+    public void getCloudBilledStats(
+            @Nonnull final GetCloudBilledStatsRequest request,
+            @Nonnull final StreamObserver<GetCloudBilledStatsResponse> responseObserver) {
+        try {
+            final GetCloudBilledStatsResponse response = GetCloudBilledStatsResponse.newBuilder()
+                    .addAllBilledStatRecord(billedCostStore.getBilledCostStats(request))
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (DbException | RuntimeException e) {
+            logger.error("Failed to get Cloud billed stats", e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription(e.getMessage())
                     .asException());

@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableCleanupInfo;
@@ -235,6 +236,16 @@ public class CostCleanupConfig {
         return new RetentionPeriodFetcher(costClock(),
                 updateRetentionIntervalSeconds, TimeUnit.SECONDS,
                 numRetainedMinutes, settingServiceClient());
+    }
+
+    /**
+     * Time frame calculator bean.
+     *
+     * @return Time frame calculator bean.
+     */
+    @Bean
+    public TimeFrameCalculator timeFrameCalculator() {
+        return new TimeFrameCalculator(costClock(), retentionPeriodFetcher());
     }
 
     /**

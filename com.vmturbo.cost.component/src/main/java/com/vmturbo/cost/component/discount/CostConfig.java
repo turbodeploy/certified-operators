@@ -2,16 +2,15 @@ package com.vmturbo.cost.component.discount;
 
 import java.time.Clock;
 
-import com.vmturbo.common.protobuf.cost.CostREST;
-import com.vmturbo.cost.component.savings.EntitySavingsConfig;
-import com.vmturbo.cost.component.CostComponentGlobalConfig;
-import com.vmturbo.cost.component.rpc.ReservedInstanceCostRpcService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.cost.CostREST;
+import com.vmturbo.cost.component.BilledCostConfig;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -19,6 +18,8 @@ import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.expenses.SqlAccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.rpc.CostRpcService;
+import com.vmturbo.cost.component.rpc.ReservedInstanceCostRpcService;
+import com.vmturbo.cost.component.savings.EntitySavingsConfig;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 @Configuration
@@ -27,7 +28,8 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
         DiscountConfig.class,
         EntityCostConfig.class,
         ReservedInstanceConfig.class,
-        EntitySavingsConfig.class})
+        EntitySavingsConfig.class,
+        BilledCostConfig.class})
 public class CostConfig {
     @Autowired
     private CostDBConfig databaseConfig;
@@ -50,6 +52,9 @@ public class CostConfig {
     @Autowired
     private EntitySavingsConfig entitySavingsConfig;
 
+    @Autowired
+    private BilledCostConfig billedCostConfig;
+
     @Value("${persistEntityCostChunkSize:1000}")
     private int persistEntityCostChunkSize;
 
@@ -71,6 +76,7 @@ public class CostConfig {
         return new CostRpcService(discountConfig.discountStore(),
                 accountExpensesStore(),
                 entityCostConfig.entityCostStore(),
+                billedCostConfig.billedCostStore(),
                 entityCostConfig.projectedEntityCostStore(),
                 entityCostConfig.planProjectedEntityCostStore(),
                 reservedInstanceConfig.timeFrameCalculator(),

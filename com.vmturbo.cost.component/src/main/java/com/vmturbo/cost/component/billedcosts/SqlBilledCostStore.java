@@ -17,13 +17,18 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.db.Keys;
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.cost.component.db.tables.records.BilledCostDailyRecord;
 import com.vmturbo.platform.sdk.common.CommonCost;
 import com.vmturbo.platform.sdk.common.CostBilling;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * This object contains Sql operations for Billed Cost tables.
@@ -34,16 +39,23 @@ public class SqlBilledCostStore implements BilledCostStore {
 
     private final DSLContext dslContext;
     private final BatchInserter batchInserter;
+    private final TimeFrameCalculator timeFrameCalculator;
 
     /**
      * Creates an instance of SqlBilledCostStore.
      *
      * @param dslContext to execute sql queries.
      * @param batchInserter utility object for batch inserts.
+     * @param timeFrameCalculator Time frame calculator used to identify appropriate table
+     *                            (daily, monthly, etc.).
      */
-    public SqlBilledCostStore(@Nonnull final DSLContext dslContext, @Nonnull BatchInserter batchInserter) {
+    public SqlBilledCostStore(
+            @Nonnull final DSLContext dslContext,
+            @Nonnull final BatchInserter batchInserter,
+            @Nonnull final TimeFrameCalculator timeFrameCalculator) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.batchInserter = Objects.requireNonNull(batchInserter);
+        this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
     }
 
     @Override
@@ -108,6 +120,19 @@ public class SqlBilledCostStore implements BilledCostStore {
         } else {
             //TODO(OM-78577) Implement insertion for billed_cost_hourly table
             return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public List<CostStatsSnapshot> getBilledCostStats(
+            @Nonnull final GetCloudBilledStatsRequest request)
+            throws DbException {
+        try {
+            final BilledCostQueryExecutor queryExecutor = new BilledCostQueryExecutor(
+                    dslContext, timeFrameCalculator);
+            return queryExecutor.getBilledCostStats(request);
+        } catch (DataAccessException e) {
+            throw new DbException("Failed to get billed costs from DB", e);
         }
     }
 

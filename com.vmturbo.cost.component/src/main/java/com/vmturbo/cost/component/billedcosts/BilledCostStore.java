@@ -7,7 +7,10 @@ import java.util.concurrent.Future;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest;
 import com.vmturbo.platform.sdk.common.CostBilling;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * A type that contains data operations for a Billed Cost table.
@@ -26,4 +29,14 @@ public interface BilledCostStore {
         @Nonnull List<Cost.UploadBilledCostRequest.BillingDataPoint> points,
         @Nonnull Map<Long, Long> discoveredTagGroupIdToOid,
         @Nonnull CostBilling.CloudBillingData.CloudBillingBucket.Granularity granularity);
+
+    /**
+     * Get billed entity cost snapshots for the given request.
+     *
+     * @param request Request object.
+     * @return List of stats snapshots.
+     * @throws DbException If anything goes wrong during database operations.
+     */
+    List<CostStatsSnapshot> getBilledCostStats(@Nonnull GetCloudBilledStatsRequest request)
+            throws DbException;
 }

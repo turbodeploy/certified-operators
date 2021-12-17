@@ -198,27 +198,6 @@ public class CostStatsQueryExecutorTest {
         assertEquals(expectedResult, result);
     }
 
-    /**
-     * Test building request when {@link CostInputApiDTO} is not provided.
-     */
-    @Test
-    public void testBuildRequestWithoutCostInput() {
-        // ARRANGE
-        final CostInputApiDTO costInputApiDTO = new CostInputApiDTO();
-
-        // ACT
-        final GetCloudBilledStatsRequest result = costStatsQueryExecutor.buildGetCloudBilledStatsRequest(
-                costInputApiDTO, EntityType.VIRTUAL_MACHINE, Collections.singletonList(ENTITY_OID));
-
-        // ASSERT
-        final GetCloudBilledStatsRequest expectedResult = GetCloudBilledStatsRequest.newBuilder()
-                .setEntityFilter(EntityFilter.newBuilder()
-                        .addEntityId(ENTITY_OID)
-                        .build())
-                .build();
-        assertEquals(expectedResult, result);
-    }
-
     private static GetCloudBilledStatsResponse buildGetCloudBilledStatsResponse() {
         final GetCloudBilledStatsResponse.Builder responseBuilder = GetCloudBilledStatsResponse.newBuilder();
         final CostStatsSnapshot.Builder costStatsSnapshot1 = CostStatsSnapshot.newBuilder();

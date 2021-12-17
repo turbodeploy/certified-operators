@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.billedcosts.BatchInserter;
 import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.billedcosts.BilledCostUploadRpcService;
@@ -398,7 +399,7 @@ public class BilledCostUploadRpcServiceTest {
                 .when(batchInserter).insertAsync(anyListOf(Record.class), any(Table.class), any(DSLContext.class),
                 any(boolean.class));
         }
-        return new SqlBilledCostStore(context, batchInserter);
+        return new SqlBilledCostStore(context, batchInserter, mock(TimeFrameCalculator.class));
     }
 
     private void sendUploadRequest(final StreamObserver<Cost.UploadBilledCostRequest> requestStreamObserver) {
