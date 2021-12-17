@@ -1480,16 +1480,20 @@ public class ActionSpecMapper {
         Objects.requireNonNull(commodityType, "Commodity for number "
                 + resizeInfo.getCommodityType().getType());
 
-        if (resizeInfo.hasCommodityAttribute()) {
-            actionApiDTO.setResizeAttribute(resizeInfo.getCommodityAttribute().name());
-        }
+        final CommodityAttribute commodityAttribute =
+                        CommodityTypeMapping.transformEnum(resizeInfo,
+                                        ResizeInfo::hasCommodityAttribute,
+                                        ResizeInfo::getCommodityAttribute,
+                                        CommodityAttribute.CAPACITY,
+                                        actionApiDTO::setResizeAttribute);
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getOldCapacity()));
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         // set units if available
 
         CommodityTypeMapping.getCommodityUnitsForActions(resizeInfo.getCommodityType().getType(),
-            resizeInfo.getTarget().getType()).ifPresent(actionApiDTO::setValueUnits);
+                                        resizeInfo.getTarget().getType(), commodityAttribute.getNumber())
+                        .ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resizeInfo.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1546,15 +1550,17 @@ public class ActionSpecMapper {
 
         setReasonCommodities(actionApiDTO.getRisk(), ActionDTOUtil.getReasonCommodities(action));
 
-        if (resize.hasCommodityAttribute()) {
-            actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
-        }
+        final CommodityAttribute commodityAttribute =
+                        CommodityTypeMapping.transformEnum(resize,
+                                        Resize::hasCommodityAttribute,
+                                        Resize::getCommodityAttribute, CommodityAttribute.CAPACITY,
+                                        actionApiDTO::setResizeAttribute);
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getOldCapacity()));
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         // set units if available
-        CommodityTypeMapping.getCommodityUnitsForActions(resize.getCommodityType().getType(), null)
-                .ifPresent(actionApiDTO::setValueUnits);
+        CommodityTypeMapping.getCommodityUnitsForActions(resize.getCommodityType().getType(), null,
+                        commodityAttribute.getNumber()).ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resize.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {

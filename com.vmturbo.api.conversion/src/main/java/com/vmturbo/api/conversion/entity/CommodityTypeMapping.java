@@ -4,6 +4,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -16,6 +19,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -40,10 +44,15 @@ public class CommodityTypeMapping {
      * Core unit shown as "cores" for VCPU commodity types.
      */
     public static final String CPU_CORE = "cores";
-
-    // Unit type for vCPU on VMs.
-    private static final String VCPU_UNIT = "vCPU";
-
+    /**
+     * Name of the vCPU units that have to be used when action is going to change limit or
+     * reservation {@link CommodityAttribute} values.
+     */
+    public static final String MHZ = "MHz";
+    /**
+     * Unit type for vCPU on VMs.
+     */
+    public static final String VCPU_UNIT = "vCPU";
 
     /**
      * The map from SDK commodity type to API Commodity type.
@@ -338,15 +347,22 @@ public class CommodityTypeMapping {
     }
 
     /**
-     * Get units for the given commodity type for an action description.
+     * Get units for the given commodity type for an action description. We use integers because
+     * there is a bad dependency tree caused by the backend code (UICommodityType) mixing api and
+     * backend related functionality.
      *
      * @param commodityTypeInt proto integer type of commodity
-     * @param atomicResizeTargetEntityTypeInt type of the target entity in atomic resize action
+     * @param atomicResizeTargetEntityTypeInt type of the target entity in atomic
+     *                 resize action
+     * @param attributeNumber that is going to be changed by the action.
      * @return optional of units, or empty if no units
      */
+    // TODO Fix the dependency tree and replace integers with either direct enum mapping or remove
+    //  duplicated enumerations at all
     public static Optional<String> getCommodityUnitsForActions(int commodityTypeInt,
-                                               @Nullable Integer atomicResizeTargetEntityTypeInt) {
+                    @Nullable Integer atomicResizeTargetEntityTypeInt, int attributeNumber) {
         final CommodityType commodityType = CommodityType.forNumber(commodityTypeInt);
+        final CommodityAttribute attribute = CommodityAttribute.forNumber(attributeNumber);
         try {
             String units = atomicResizeTargetEntityTypeInt != null
                 ? getUnitForEntityCommodityType(atomicResizeTargetEntityTypeInt, commodityTypeInt)
@@ -356,7 +372,7 @@ public class CommodityTypeMapping {
             if (CPU_COMMODITY_TYPES.contains(commodityTypeInt)
                 && (atomicResizeTargetEntityTypeInt == null
                     || atomicResizeTargetEntityTypeInt != CommonDTO.EntityDTO.EntityType.CONTAINER_SPEC_VALUE)) {
-                units = VCPU_UNIT;
+                units = attribute == CommodityAttribute.Capacity ? VCPU_UNIT : MHZ;
             }
             return StringUtils.isEmpty(units) ? Optional.empty() : Optional.of(units);
         } catch (IllegalArgumentException e) {
@@ -365,6 +381,35 @@ public class CommodityTypeMapping {
             logger.warn("No units for commodity {}", commodityType);
             return Optional.empty();
         }
+    }
+
+    /**
+     * Retrieves enumeration value from the object. By default, in case object has no value, then
+     * defaultValue will be returned.
+     *
+     * @param object from which value has to be extracted
+     * @param hasValue checks whether value contained by the object.
+     * @param valueGetter extracts value from the object.
+     * @param existingValueSetter sets enumeration value name in case there is a
+     *                 value extracted from the object.
+     * @param defaultValue value that will be returned in case object has no value
+     * @param <A> type of the result value
+     * @param <T> type of the object that can provide information about the desired
+     *                 enumeration value.
+     * @return value from the provided object or defaultValue in case object has no related
+     *                 enumeration value.
+     */
+    public static <T, A extends Enum<A>> A transformEnum(@Nonnull T object,
+                    @Nonnull Predicate<T> hasValue, @Nonnull Function<T, A> valueGetter,
+                    @Nonnull A defaultValue, @Nonnull Consumer<String> existingValueSetter) {
+        final A value;
+        if (hasValue.test(object)) {
+            value = valueGetter.apply(object);
+            existingValueSetter.accept(value.name());
+        } else {
+            value = defaultValue;
+        }
+        return value;
     }
 
     /**

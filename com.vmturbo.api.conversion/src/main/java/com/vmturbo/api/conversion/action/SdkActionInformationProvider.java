@@ -38,6 +38,7 @@ import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.AnnotationNote;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
@@ -258,10 +259,17 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
     @Nonnull
     @Override
     public Optional<String> getValueUnit() {
-        final ActionItemDTO.Risk risk = getPrimaryAction().getRisk();
-        if (getPrimaryAction().hasRisk()  && risk.getAffectedCommodityCount() > 0) {
+        final ActionItemDTO primaryAction = getPrimaryAction();
+        final ActionItemDTO.Risk risk = primaryAction.getRisk();
+        if (primaryAction.hasRisk()  && risk.getAffectedCommodityCount() > 0) {
+            final CommodityAttribute attribute =
+                            CommodityTypeMapping.transformEnum(primaryAction,
+                                            ActionItemDTO::hasCommodityAttribute,
+                                            ActionItemDTO::getCommodityAttribute,
+                                            CommodityAttribute.Capacity, none -> {
+                                            });
             return CommodityTypeMapping.getCommodityUnitsForActions(risk.getAffectedCommodity(0).getNumber(),
-                getPrimaryAction().getTargetSE().getEntityType().getNumber());
+                primaryAction.getTargetSE().getEntityType().getNumber(), attribute.getNumber());
         } else {
             return Optional.empty();
         }
