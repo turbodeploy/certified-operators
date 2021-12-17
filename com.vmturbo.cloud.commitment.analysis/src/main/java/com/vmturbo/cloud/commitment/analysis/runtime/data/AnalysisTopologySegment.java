@@ -9,10 +9,10 @@ import com.google.common.collect.SetMultimap;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
-import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentCapacity;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.common.data.TimeSeriesData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 
 /**
  * A segment (e.g. 1 hour block) of the analysis topology, representing both the demand and cloud
@@ -36,7 +36,7 @@ public interface AnalysisTopologySegment extends TimeSeriesData {
      * @return The capacity for each cloud commitment within the analysis topology.
      */
     @Nonnull
-    Map<Long, CloudCommitmentCapacity> cloudCommitmentByOid();
+    Map<Long, CloudCommitmentAmount> cloudCommitmentByOid();
 
     /**
      * Converts this {@link AnalysisTopologySegment} to a {@link Builder} instance.

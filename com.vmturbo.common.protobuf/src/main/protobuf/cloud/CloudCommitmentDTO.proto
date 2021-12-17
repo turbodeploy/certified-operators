@@ -5,6 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.cloud";
 option java_outer_classname = "CloudCommitmentDTO";
 
 import "CommonCost.proto";
+import "CommonDTO.proto";
 
 enum CloudCommitmentType {
     RESERVED_INSTANCE = 1;
@@ -24,6 +25,7 @@ enum CloudCommitmentLocation {
 enum CloudCommitmentCoverageType {
     COUPONS = 1;
     SPEND_COMMITMENT = 2;
+    COMMODITY = 3;
 }
 
 enum AccountReferenceType {
@@ -47,9 +49,21 @@ message AccountReferenceFilter {
 // a quantity of coupons or money
 message CloudCommitmentAmount {
     oneof value {
-        common_dto.CurrencyAmount amount = 1;
-        double coupons = 2;
+        double coupons = 1;
+        common_dto.CurrencyAmount amount = 2;
+        common_dto.EntityDTO.CloudCommitmentData.CommittedCommoditiesBought commodities_bought = 3;
     }
+}
+
+// Contains the (coverage type, coverage subtype) tuple, where coverage type with be
+// spend amount, coupons, commodity capacity, etc and hte subtype meaning will be dependent on
+// the coverage type. For spend-based coverage, the subtype will indicate the currency. For
+// commodity capacity (e.g. GCP CUDs), the subtype will be the commodity type.
+message CloudCommitmentCoverageTypeInfo {
+
+    optional CloudCommitmentCoverageType coverage_type = 1;
+
+    optional int32 coverage_subtype = 2;
 }
 
 message CloudCommitmentCoverage {

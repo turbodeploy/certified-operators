@@ -16,8 +16,19 @@ public class FuzzyDoubleUtils {
      * @return True, if {@code value} is positive. False otherwise.
      */
     public static boolean isPositive(double value) {
+        return isPositive(value, FuzzyDouble.DEFAULT_TOLERANCE);
+    }
+
+    /**
+     * Checks whether {@code value} is a positive value. Uses a default tolerance of
+     * {@link FuzzyDouble#DEFAULT_TOLERANCE}.
+     * @param value The value to check.
+     * @param tolerance The tolerance to use for comparison.
+     * @return True, if {@code value} is positive. False otherwise.
+     */
+    public static boolean isPositive(double value, double tolerance) {
         return !Double.isNaN(value)
-                && DoubleMath.fuzzyCompare(value, 0.0, FuzzyDouble.DEFAULT_TOLERANCE) > 0;
+                && DoubleMath.fuzzyCompare(value, 0.0, tolerance) > 0;
     }
 
     /**
