@@ -104,13 +104,12 @@ class MySqlFamilyAdapter extends DbAdapter {
             throws UnsupportedDialectException, SQLException {
         try (Connection conn = getRootConnection(null)) {
             try {
-                execute(conn, String.format("CREATE USER `%s`@`%%`", name));
+                // we need to include password on CREATE USER operation in order work when
+                // MySQL password policies are active
+                execute(conn, String.format("CREATE USER `%s`@`%%` IDENTIFIED BY '%s'",
+                        name, password));
             } catch (SQLException e) {
-                if (e.getSQLState().equals("") || true) {
-                    logger.info("Role {} already exists {}", name, e.getSQLState());
-                } else {
-                    throw e;
-                }
+                logger.info("Presuming role {} already exists {}", name, e.getSQLState());
             }
             if (password != null) {
                 try {
