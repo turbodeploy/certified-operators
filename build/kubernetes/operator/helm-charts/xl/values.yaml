@@ -100,6 +100,8 @@ control:
   enabled: true
 reporting:
   enabled: false
+postgres:
+  enabled: false
 metron:
   enabled: false
 kubeturbo:

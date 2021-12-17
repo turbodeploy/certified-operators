@@ -21,7 +21,7 @@ defaultProperties:
         dbHost: db
         dbs:
             postgresDefault:
-                host: timescaledb
+                host: postgres
                 port: 5432
             mariadbDefault:
                 host: db
@@ -57,8 +57,8 @@ defaultProperties:
         com.vmturbo.communication.remote.iterator.timeout: 600000
         enableSearchApi: true
     extractor:
-        dbHost: timescaledb
-        dbPort: 5432
+        dbs.postgresDefault.host: timescaledb
+        dbs.postgresDefault.port: 5432
         enableReporting: true
     action-orchestrator:
         identityGeneratorPrefix: 9

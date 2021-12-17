@@ -45,6 +45,7 @@ volumes:
   nginx-home: *localdriver
   timescale-data: *localdriver
   grafana-data: *localdriver
+  postgres-data: *localdriver
 
 services:
   rsyslog:
@@ -645,6 +646,17 @@ services:
     ports:
       - 5432:5432
     mem_limit: ${TIMESCALE_MEM_LIMIT_BYTE}
+
+  postgres:
+    image: postgres:13.5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: vmturbo
+    volumes:
+      - postgres-data:/var/lib/postresql/data
+    ports:
+      - 5432:5432
+    mem_limit: ${POSTGRES_MEM_LIMIT_BYTE}
 
   grafana:
     extends:

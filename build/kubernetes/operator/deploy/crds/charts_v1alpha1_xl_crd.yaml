@@ -95,6 +95,12 @@ spec:
                 externalTimescaleDBIP:
                   description: IP address for external postgresql/timescaledb compliant database server
                   type: string
+                externalPostgresName:
+                  description: DNS name for external postgresql database server
+                  type: string
+                externalPostgresIP:
+                  description: IP address for external postgresql database server
+                  type: string
                 externalInfluxDBName:
                   description: DNS name for external influx database server
                   type: string
@@ -671,6 +677,12 @@ spec:
               properties:
                 enabled:
                   description: Enable timescaledb with postgress backend
+                  type: boolean
+              type: object
+            postgres:
+              properties:
+                enabled:
+                  description: Enable postgres backend
                   type: boolean
               type: object
             jaeger:

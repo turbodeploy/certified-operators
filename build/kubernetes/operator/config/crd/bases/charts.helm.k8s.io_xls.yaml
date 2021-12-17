@@ -115,6 +115,12 @@ spec:
                   externalTimescaleDBIP:
                     description: IP address for external postgresql/timescaledb compliant database server
                     type: string
+                  externalPostgresName:
+                    description: DNS name for external postgresql database server
+                    type: string
+                  externalPostgresIP:
+                    description: IP address for external postgresql database server
+                    type: string
                   externalInfluxDBName:
                     description: DNS name for external influx database server
                     type: string
@@ -611,8 +617,53 @@ spec:
                       OpenShift deployemnt
                     type: boolean
                 type: object
-              postgresql:
+              timescaledb:
                 properties:
+                  enabled:
+                    description: Enable timescaledb with postgres backend
+                    type: boolean
+                  annotations:
+                    description: component specific pod annotations list
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  image:
+                    description: component specific image options
+                    properties:
+                      registry:
+                        description: component container registry name
+                        type: string
+                      repository:
+                        description: component container repository name
+                        type: string
+                      tag:
+                        description: component container tag
+                        type: string
+                      pullPolicy:
+                        description: component image pull policy
+                        type: string
+                    type: object
+                  persistence:
+                    description: PostgreSQL persistence options
+                    properties:
+                      size:
+                        description: PostgreSQL persistent volume size
+                        type: string
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  resources:
+                    description: component resource configuration
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  serviceAccountName:
+                    description: component serviceAccountName
+                    type: string
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              postgres:
+                properties:
+                  enabled:
+                    description: Enable postgres backend
+                    type: boolean
                   annotations:
                     description: component specific pod annotations list
                     type: object
@@ -781,12 +832,6 @@ spec:
                 properties:
                   enabled:
                     description: Enable chronograf
-                    type: boolean
-                type: object
-              timescaledb:
-                properties:
-                  enabled:
-                    description: Enable timescaledb with postgress backend
                     type: boolean
                 type: object
 
