@@ -3,6 +3,7 @@ package com.vmturbo.group.setting;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING_SCHEDULE_IDS;
+import static org.jooq.impl.DSL.inline;
 import static org.jooq.impl.DSL.select;
 
 import java.util.Collection;
@@ -48,7 +49,7 @@ public class SettingPolicyFilter {
      */
     private final List<Condition> conditions;
 
-    private SettingPolicyFilter(@Nonnull final Set<Type> type,
+    private SettingPolicyFilter(@Nonnull final Set<Type> types,
                                 @Nonnull final Set<String> name,
                                 @Nonnull final Set<Long> ids,
                                 @Nonnull final Set<Long> targetIds,
@@ -56,7 +57,7 @@ public class SettingPolicyFilter {
                                 @Nonnull final Set<Long> activationSchedules,
                                 @Nonnull final Set<Long> executionSchedules,
                                 @Nonnull final Set<Long> workflowIds) {
-        this.desiredTypes = Objects.requireNonNull(type);
+        this.desiredTypes = Objects.requireNonNull(types);
         this.desiredNames = Objects.requireNonNull(name);
         this.desiredIds = Objects.requireNonNull(ids);
         this.desiredTargetIds = Objects.requireNonNull(targetIds);
@@ -66,10 +67,9 @@ public class SettingPolicyFilter {
         this.workflowIds = Objects.requireNonNull(workflowIds);
 
         final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
-        if (!type.isEmpty()) {
-            condBuilder.add(SETTING_POLICY.POLICY_TYPE.in(type.stream()
-                .map(SettingPolicyTypeConverter::typeToDb)
-                .collect(Collectors.toSet())));
+        if (!types.isEmpty()) {
+            condBuilder.add(SETTING_POLICY.POLICY_TYPE.in(types.stream()
+                    .map(type -> inline(SettingPolicyTypeConverter.typeToDb(type))).collect(Collectors.toList())));
         }
 
         if (!name.isEmpty()) {

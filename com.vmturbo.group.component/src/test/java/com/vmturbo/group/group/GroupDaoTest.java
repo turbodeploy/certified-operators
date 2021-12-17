@@ -43,6 +43,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
@@ -85,9 +86,9 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
+import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
-import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
@@ -1398,11 +1399,14 @@ public class GroupDaoTest {
                     .addGroupFilter(GroupFilter.newBuilder()
                         .addPropertyFilters(SearchProtoUtil.nameFilterRegex("*"))))
                 .build();
-        groupStore.createGroup(OID1, createUserOrigin(), badGroupDef,
-                Collections.singleton(MemberType.getDefaultInstance()), true);
-
-        expectedException.expect(BadSqlGrammarException.class);
-        groupStore.getMembers(Collections.singleton(OID1), false);
+        groupStore.createGroup(OID1, createUserOrigin(), badGroupDef, Collections.singleton(MemberType.getDefaultInstance()), true);
+        try {
+            groupStore.getMembers(Collections.singleton(OID1), false);
+            // first exception is thrown by MariaDB, second one by Postgres
+        } catch (BadSqlGrammarException | DataIntegrityViolationException e) {
+            return;
+        }
+        Assert.fail();
     }
 
     /**
@@ -1410,11 +1414,15 @@ public class GroupDaoTest {
      */
     @Test
     public void testGetGroupIdsBadRegexException() {
-        expectedException.expect(BadSqlGrammarException.class);
-        groupStore.getGroupIds(GroupFilters.newBuilder()
-            .addGroupFilter(GroupFilter.newBuilder()
-                    .addPropertyFilters(SearchProtoUtil.nameFilterRegex("*")))
-            .build());
+        try {
+            groupStore.getGroupIds(GroupFilters.newBuilder()
+                    .addGroupFilter(GroupFilter.newBuilder().addPropertyFilters(SearchProtoUtil.nameFilterRegex("*")))
+                    .build());
+            //first exception is thrown by MariaDB, second one by Postgres
+        } catch (BadSqlGrammarException | DataIntegrityViolationException e) {
+        return;
+    }
+        Assert.fail();
     }
 
     /**

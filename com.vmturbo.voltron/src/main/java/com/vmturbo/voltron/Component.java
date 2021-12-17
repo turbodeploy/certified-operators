@@ -126,7 +126,9 @@ public enum Component {
      */
     GROUP("group", "com.vmturbo.group.component",
             GroupComponent.class,
-            Optional.of(com.vmturbo.group.db.GroupComponent.GROUP_COMPONENT)),
+            Optional.of(com.vmturbo.group.db.GroupComponent.GROUP_COMPONENT),
+            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
+            "com.vmturbo.group.component/src/main/resources/db/migration"))),
 
     /**
      * The repository component.

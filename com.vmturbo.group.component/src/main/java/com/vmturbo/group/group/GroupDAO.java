@@ -9,6 +9,7 @@ import static com.vmturbo.group.db.tables.GroupSupplementaryInfo.GROUP_SUPPLEMEN
 import static com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS;
 import static com.vmturbo.group.db.tables.Grouping.GROUPING;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -136,13 +137,6 @@ public class GroupDAO implements IGroupStore {
 
     private static final String DELETE_LABEL = "delete";
 
-    // The display_name field in GROUPING table is stored with a case insensitive collation by
-    // default (utfmb4_unicode_ci). Thus, queries asking for case sensitive filtering by display
-    // name cannot be done. To bypass this, we use a case sensitive collation on the fly for case
-    // sensitive queries.
-    // For more details see https://dev.mysql.com/doc/refman/8.0/en/adding-collation.html
-    private static final String CASE_SENSITIVE_COLLATION = "utf8mb4_bin";
-
     private final GroupPaginationParams groupPaginationParams;
 
     private static final DataMetricCounter GROUP_STORE_ERROR_COUNT = DataMetricCounter.builder()
@@ -267,10 +261,8 @@ public class GroupDAO implements IGroupStore {
     public void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups) {
         // read records to ensure that they still exist in the database and place locks
         Collection<Long> existingGroupIds = dslContext.select(GROUPING.ID)
-                .from(GROUPING)
-                .leftJoin(GROUP_SUPPLEMENTARY_INFO)
-                .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
-                .where(GROUPING.ID.in(groups.keySet()))
+                .from(GROUPING, GROUP_SUPPLEMENTARY_INFO)
+                .where(GROUPING.ID.in(groups.keySet()).and(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID)))
                 .forUpdate()
                 .fetch()
                 .stream()
@@ -705,9 +697,9 @@ public class GroupDAO implements IGroupStore {
     @Override
     public Collection<DiscoveredGroupId> getDiscoveredGroupsIds() {
         // This grouping is aimed to fetch groups with a count of associated targets
-        final Result<Record6<Long, String, GroupType, byte[], Integer, Long>> records =
+        final Result<Record6<Long, String, GroupType, String, Integer, Long>> records =
                 dslContext.select(GROUPING.ID, DSL.max(GROUPING.ORIGIN_DISCOVERED_SRC_ID),
-                        DSL.max(GROUPING.GROUP_TYPE), DSL.max(GROUPING.HASH),
+                        DSL.max(GROUPING.GROUP_TYPE), DSL.max(GROUPING.HASH.cast(String.class)),
                         DSL.count(GROUP_DISCOVER_TARGETS.TARGET_ID),
                         DSL.max(GROUP_DISCOVER_TARGETS.TARGET_ID))
                         .from(GROUPING)
@@ -717,9 +709,10 @@ public class GroupDAO implements IGroupStore {
                         .groupBy(GROUPING.ID)
                         .fetch();
         final Collection<DiscoveredGroupId> result = new ArrayList<>(records.size());
-        for (Record6<Long, String, GroupType, byte[], Integer, Long> record: records) {
+        for (Record6<Long, String, GroupType, String, Integer, Long> record: records) {
             final Long targetId = record.value5() != 1 ? null : record.value6();
-            final DiscoveredObjectVersionIdentity identity = new DiscoveredObjectVersionIdentity(record.value1(), record.value4());
+            final DiscoveredObjectVersionIdentity identity = new DiscoveredObjectVersionIdentity(record.value1(), record.value4().getBytes(
+                    StandardCharsets.UTF_8));
             final DiscoveredGroupId id = new DiscoveredGroupIdImpl(identity, targetId,
                     record.value2(), record.value3());
             result.add(id);
@@ -732,12 +725,12 @@ public class GroupDAO implements IGroupStore {
     public Multimap<Long, Long> getDiscoveredGroupsWithTargets() {
         final Result<Record2<Long, Long>> records =
                 dslContext.select(GROUPING.ID,
-                        GROUP_DISCOVER_TARGETS.TARGET_ID)
+                        DSL.max(GROUP_DISCOVER_TARGETS.TARGET_ID))
                         .from(GROUPING)
                         .leftJoin(GROUP_DISCOVER_TARGETS)
                         .on(GROUPING.ID.eq(GROUP_DISCOVER_TARGETS.GROUP_ID))
                         .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())
-                        .groupBy(GROUPING.ID)
+                        .groupBy(GROUPING.ID, GROUP_DISCOVER_TARGETS.TARGET_ID)
                         .fetch();
         final Multimap<Long, Long> result = ArrayListMultimap.create();
         records.forEach(record -> result.put(record.value1(), record.value2()));
@@ -1429,8 +1422,8 @@ public class GroupDAO implements IGroupStore {
             case GROUP_NAME:
             default:
                 return ascendingOrder
-                        ? GROUPING.DISPLAY_NAME.asc()
-                        : GROUPING.DISPLAY_NAME.desc();
+                        ? DSL.upper(GROUPING.DISPLAY_NAME).asc()
+                        : DSL.upper(GROUPING.DISPLAY_NAME).desc();
         }
     }
 
@@ -1727,17 +1720,17 @@ public class GroupDAO implements IGroupStore {
         if (filter.hasStringPropertyRegex()) {
             if (filter.getPositiveMatch()) {
                 return filter.getCaseSensitive()
-                        ? Optional.of(GROUPING.DISPLAY_NAME.collate(CASE_SENSITIVE_COLLATION)
+                        ? Optional.of(GROUPING.DISPLAY_NAME
                         .likeRegex(filter.getStringPropertyRegex()))
-                        : Optional.of(GROUPING.DISPLAY_NAME
-                        .likeRegex(filter.getStringPropertyRegex()));
+                        : Optional.of(DSL.upper(GROUPING.DISPLAY_NAME)
+                        .likeRegex(DSL.upper(filter.getStringPropertyRegex())));
             } else {
                 // if filter has the positive_match flag set to false, negate the regex matching
                 return filter.getCaseSensitive()
-                        ? Optional.of(GROUPING.DISPLAY_NAME.collate(CASE_SENSITIVE_COLLATION)
+                        ? Optional.of(GROUPING.DISPLAY_NAME
                         .notLikeRegex(filter.getStringPropertyRegex()))
-                        : Optional.of(GROUPING.DISPLAY_NAME
-                        .notLikeRegex(filter.getStringPropertyRegex()));
+                        : Optional.of(GROUPING.DISPLAY_NAME.upper()
+                        .notLikeRegex(DSL.upper(filter.getStringPropertyRegex())));
             }
         } else if (filter.getOptionsCount() != 0) {
             final Optional<Condition> condition;

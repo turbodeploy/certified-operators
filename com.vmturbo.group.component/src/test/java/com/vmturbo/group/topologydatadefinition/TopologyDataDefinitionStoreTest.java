@@ -37,8 +37,8 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Topolo
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.db.GroupComponent;
-import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.identity.store.CachingIdentityStore;

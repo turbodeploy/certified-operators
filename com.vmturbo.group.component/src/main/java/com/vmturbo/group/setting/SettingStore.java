@@ -9,6 +9,8 @@ import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_GROUPS;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING;
 
+import static org.jooq.impl.DSL.inline;
+
 import java.sql.SQLException;
 import java.sql.SQLTransientException;
 import java.util.ArrayList;
@@ -50,6 +52,7 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Insert;
 import org.jooq.InsertOnDuplicateStep;
+import org.jooq.InsertSetMoreStep;
 import org.jooq.Param;
 import org.jooq.Query;
 import org.jooq.Record;
@@ -59,6 +62,7 @@ import org.jooq.Result;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 
@@ -172,11 +176,11 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
     }
 
     @Nonnull
-    private SettingPolicyRecord createSettingPolicyRecord(long oid,
+    private InsertSetMoreStep<SettingPolicyRecord> createSettingPolicyRecord(long oid,
             @Nonnull SettingPolicyInfo settingPolicyInfo,
-            @Nonnull SettingProto.SettingPolicy.Type type) {
+            @Nonnull SettingProto.SettingPolicy.Type type, @Nonnull DSLContext context) {
         final byte[] hash = SettingPolicyHash.hash(settingPolicyInfo);
-        return new SettingPolicyRecord(
+        SettingPolicyRecord policyRecord =  new SettingPolicyRecord(
                 oid,
                 settingPolicyInfo.getName(),
                 settingPolicyInfo.getEntityType(),
@@ -189,6 +193,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                 settingPolicyInfo.hasDeleteAfterScheduleExpiration()
                         ? settingPolicyInfo.getDeleteAfterScheduleExpiration() : null
         );
+        return context.insertInto(SETTING_POLICY).set(policyRecord).set(SETTING_POLICY.POLICY_TYPE, inline(SettingPolicyTypeConverter.typeToDb(type)));
     }
 
     @Nonnull
@@ -233,7 +238,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                 .collect(Collectors.toSet());
         final List<String> duplicated = context.select(SETTING_POLICY.NAME)
                 .from(SETTING_POLICY)
-                .where(SETTING_POLICY.POLICY_TYPE.notEqual(SettingPolicyPolicyType.discovered))
+                .where(SETTING_POLICY.POLICY_TYPE.notEqual(inline(SettingPolicyPolicyType.discovered)))
                 .and(SETTING_POLICY.NAME.in(namesToCheck))
                 .fetch()
                 .stream()
@@ -243,13 +248,13 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             throw new StoreOperationException(Status.ALREADY_EXISTS,
                     "Setting policies already exist with names: " + duplicated);
         }
-        final Collection<TableRecord<?>> inserts = new ArrayList<>();
+        final List<InsertSetMoreStep<?>> inserts = new ArrayList<>();
         for (SettingProto.SettingPolicy policy : policies) {
-            inserts.addAll(createSettingPolicy(policy));
+            inserts.addAll(createSettingPolicy(policy, context));
         }
         logger.debug("Inserting {} records to add {} setting policies", inserts.size(),
                 policies.size());
-        context.batchInsert(inserts).execute();
+        context.batch(inserts).execute();
     }
 
     @Nonnull
@@ -266,41 +271,40 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
     }
 
     @Nonnull
-    private Collection<TableRecord<?>> createSettingPolicy(
-            @Nonnull SettingProto.SettingPolicy policy) throws StoreOperationException {
-        final Collection<TableRecord<?>> records = new ArrayList<>();
+    private Collection<InsertSetMoreStep<?>> createSettingPolicy(
+            @Nonnull SettingProto.SettingPolicy policy, @Nonnull DSLContext context) throws StoreOperationException {
+        final Collection<InsertSetMoreStep<?>> records = new ArrayList<>();
         records.add(createSettingPolicyRecord(policy.getId(), policy.getInfo(),
-                policy.getSettingPolicyType()));
-        records.addAll(attachChildRecords(policy.getId(), policy.getInfo()));
+                policy.getSettingPolicyType(), context));
+        records.addAll(attachChildRecords(policy.getId(), policy.getInfo(), context));
         return records;
     }
 
     @Nonnull
-    private Collection<TableRecord<?>> attachChildRecords(long policyId,
-            @Nonnull SettingPolicyInfo policy) throws StoreOperationException {
-        final Collection<TableRecord<?>> records = new ArrayList<>();
-        records.addAll(attachGroupsToPolicy(policyId, policy.getScope()));
-        records.addAll(attachSettingsToPolicy(policyId, policy.getSettingsList()));
+    private Collection<InsertSetMoreStep<?>> attachChildRecords(long policyId,
+            @Nonnull SettingPolicyInfo policy, @Nonnull DSLContext context) throws StoreOperationException {
+        final Collection<InsertSetMoreStep<?>> records = new ArrayList<>();
+        records.addAll(attachGroupsToPolicy(policyId, policy.getScope(), context));
+        records.addAll(attachSettingsToPolicy(policyId, policy.getSettingsList(), context));
         return records;
     }
 
     @Nonnull
-    private Collection<SettingPolicyGroupsRecord> attachGroupsToPolicy(@Nonnull Long policyId,
-                                                                       @Nonnull Scope policyScope) {
-        final Collection<SettingPolicyGroupsRecord> allGroups =
-                new ArrayList<>(policyScope.getGroupsCount());
+    private Collection<InsertSetMoreStep<SettingPolicyGroupsRecord>> attachGroupsToPolicy(@Nonnull Long policyId,
+                                                                       @Nonnull Scope policyScope, @Nonnull DSLContext context) {
+        final Collection<InsertSetMoreStep<SettingPolicyGroupsRecord>> groupInserts = new ArrayList<>();
         for (long groupIds : policyScope.getGroupsList()) {
             final SettingPolicyGroupsRecord group =
                     new SettingPolicyGroupsRecord(groupIds, policyId);
-            allGroups.add(group);
+            groupInserts.add(context.insertInto(SETTING_POLICY_GROUPS).set(group));
         }
-        return allGroups;
+        return groupInserts;
     }
 
     @Nonnull
-    private List<TableRecord<?>> attachSettingsToPolicy(@Nonnull Long policyId,
-            @Nonnull Collection<Setting> settings) throws StoreOperationException {
-        final List<TableRecord<?>> allSettings = new ArrayList<>(settings.size());
+    private Collection<InsertSetMoreStep<?>>  attachSettingsToPolicy(@Nonnull Long policyId,
+            @Nonnull Collection<Setting> settings, @Nonnull DSLContext context) throws StoreOperationException {
+        final Collection<InsertSetMoreStep<?>> policyInserts = new ArrayList<>();
         for (Setting setting : settings) {
             final SettingValueConverter converter =
                     SETTING_VALUE_CONVERTERS.get(setting.getValueCase());
@@ -308,9 +312,11 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                 throw new StoreOperationException(Status.INVALID_ARGUMENT,
                         "Could not find a suitable converter for setting " + setting);
             }
-            allSettings.addAll(converter.createDbRecords(setting, policyId));
+            converter.createDbRecords(setting, policyId).forEach(dbSetting -> {
+                policyInserts.add(context.insertInto(dbSetting.getTable()).set(dbSetting));
+            });
         }
-        return allSettings;
+        return policyInserts;
     }
 
     /**
@@ -859,7 +865,6 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
         if (policy.getInfo().hasTargetId()) {
             record.setTargetId(policy.getInfo().getTargetId());
         }
-        record.setPolicyType(SettingPolicyTypeConverter.typeToDb(policy.getSettingPolicyType()));
         record.setEnabled(policy.getInfo().getEnabled());
         if (policy.getInfo().hasScheduleId()) {
             record.setScheduleId(policy.getInfo().getScheduleId());
@@ -867,10 +872,9 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             record.setScheduleId(null);
         }
 
-        final Collection<TableRecord<?>> inserts =
-                attachChildRecords(policy.getId(), policy.getInfo());
-
-        final int modifiedRecords = record.update();
+        final Collection<InsertSetMoreStep<?>> inserts =
+                attachChildRecords(policy.getId(), policy.getInfo(), context);
+        final int modifiedRecords = dslContext.update(SETTING_POLICY).set(record).set(SETTING_POLICY.POLICY_TYPE, inline(SettingPolicyTypeConverter.typeToDb(policy.getSettingPolicyType()))).execute();
         if (modifiedRecords == 0) {
             // This should never happen, because we overwrote fields in the record,
             // and update() should always execute an UPDATE statement if some fields
@@ -878,7 +882,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             throw new StoreOperationException(Status.INVALID_ARGUMENT, "Failed to update record.");
         }
         context.batch(deleteChildRecords(context, policy.getId())).execute();
-        context.batchInsert(inserts).execute();
+        context.batch(inserts).execute();
         return policy;
     }
 
@@ -1199,7 +1203,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             deleteAllSettingPolicies(context);
             insertAllSettingPolicies(settingPoliciesToRestore, context, true);
 
-        } catch (DataAccessException | StoreOperationException e) {
+        } catch (DataAccessException | StoreOperationException | DataIntegrityViolationException e) {
             errors.add("Failed to restore setting policies: " + e.getMessage() + ": " +
                 ExceptionUtils.getStackTrace(e));
         }
@@ -1252,7 +1256,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                 .from(SETTING_POLICY)
                 .where(SETTING_POLICY.ID.in(oids)
                         .and(SETTING_POLICY.POLICY_TYPE.ne(
-                                SettingPolicyTypeConverter.typeToDb(allowedType))))
+                                inline(SettingPolicyTypeConverter.typeToDb(allowedType)))))
                 .fetchSet(SETTING_POLICY.ID);
         if (!forbiddenOids.isEmpty()) {
             throw new StoreOperationException(Status.INVALID_ARGUMENT,
@@ -1281,16 +1285,32 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             @Nonnull DSLContext context,
             boolean ignoreFailures)
             throws StoreOperationException {
-        final Collection<TableRecord<?>> records = new ArrayList<>();
+        final Collection<InsertSetMoreStep<?>> records = new ArrayList<>();
         for (SettingProto.SettingPolicy settingPolicy : settingPolicies) {
-            records.addAll(createSettingPolicy(settingPolicy));
+            records.addAll(createSettingPolicy(settingPolicy, context));
         }
 
         // execute inserts
         List<Insert<?>> inserts = records.stream()
-            .map(r -> recordToBatchQuery(context, r, ignoreFailures))
+            .map(r -> {
+                if (ignoreFailures) {
+                    return r.onConflictDoNothing();
+                }
+                return r;
+            })
             .collect(Collectors.toList());
-        int[] rowsAffected = context.batch(inserts).execute();
+
+        int[] rowsAffected = new int[inserts.size()];
+        for (int i=0; i < inserts.size(); i++) {
+            try {
+                rowsAffected[i] = context.execute(inserts.get(i));
+            } catch (Exception e){
+                if(!ignoreFailures) {
+                   throw e;
+                }
+            }
+        }
+
         for (int idx = 0; idx < rowsAffected.length; idx++) {
             // all the queries are insert so if no row was changes there is something wrong.
             if (rowsAffected[idx] == 0) {
@@ -1350,7 +1370,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
         final Collection<Record4<String, Long, byte[], Long>> discoveredPolicies =
                 dslContext.select(SETTING_POLICY.NAME, SETTING_POLICY.ID, SETTING_POLICY.HASH,
                         SETTING_POLICY.TARGET_ID).from(SETTING_POLICY).where(
-                        SETTING_POLICY.POLICY_TYPE.eq(SettingPolicyPolicyType.discovered)).fetch();
+                        SETTING_POLICY.POLICY_TYPE.eq(inline(SettingPolicyPolicyType.discovered))).fetch();
         final Map<Long, Map<String, DiscoveredObjectVersionIdentity>> resultMap = new HashMap<>();
         for (Record4<String, Long, byte[], Long> policy: discoveredPolicies) {
             final String name = policy.value1();
