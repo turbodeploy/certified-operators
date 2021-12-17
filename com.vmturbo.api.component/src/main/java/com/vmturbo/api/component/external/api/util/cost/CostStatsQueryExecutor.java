@@ -176,14 +176,15 @@ public class CostStatsQueryExecutor {
                     .collect(Collectors.toList()));
         }
         final List<CostGroupBy> costGroupBys = costInputApiDTO.getCostGroupBys();
-        if (costGroupBys != null) {
-            if (costGroupBys.size() != 1) {
-                throw new UnsupportedOperationException("Currently only support one group by!");
-            }
-            requestBuilder.addAllGroupBy(costGroupBys.stream()
-                    .map(CostGroupByMapper::toGroupByType)
-                    .collect(Collectors.toList()));
+        if (costGroupBys == null || costGroupBys.isEmpty()) {
+            throw new UnsupportedOperationException("Group by field is required!");
         }
+        if (costGroupBys.size() != 1) {
+            throw new UnsupportedOperationException("Currently only support one group by!");
+        }
+        requestBuilder.addAllGroupBy(costGroupBys.stream()
+                .map(CostGroupByMapper::toGroupByType)
+                .collect(Collectors.toList()));
         return requestBuilder;
     }
 }

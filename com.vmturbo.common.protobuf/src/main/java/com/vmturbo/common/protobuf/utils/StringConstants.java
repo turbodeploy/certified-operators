@@ -323,6 +323,7 @@ public class StringConstants {
     public static final String MONTHLY_GROWTH = "monthlyGrowth";
     public static final String DOLLARS_PER_DAY = "$/day";
     public static final String COST_PRICE = "costPrice";
+    public static final String BILLED_COST = "billedCost";
     public static final String TOTAL_COST_FOR_DURATION = "totalCostForDuration";
     public static final String SUPER_SAVINGS = "superSavings";
     public static final String RI_DISCOUNT = "riDiscount";

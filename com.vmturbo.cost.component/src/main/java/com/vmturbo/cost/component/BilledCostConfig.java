@@ -15,6 +15,7 @@ import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagGroupStore;
 import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
+import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
 
 /**
  * Configuration for BilledCostUploadRpcService.
@@ -27,6 +28,9 @@ public class BilledCostConfig {
 
     @Autowired
     private CostDBConfig dbConfig;
+
+    @Autowired
+    private CostCleanupConfig costCleanupConfig;
 
     @Value("${billedCostDataBatchSize:500}")
     private int billedCostDataBatchSize;
@@ -51,7 +55,8 @@ public class BilledCostConfig {
      */
     @Bean
     public BilledCostStore billedCostStore() {
-        return new SqlBilledCostStore(dbConfig.dsl(), batchInserter());
+        return new SqlBilledCostStore(dbConfig.dsl(), batchInserter(),
+                costCleanupConfig.timeFrameCalculator());
     }
 
     /**

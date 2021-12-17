@@ -84,6 +84,7 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
@@ -225,6 +226,7 @@ public class CostRpcServiceTest {
     private DiscountStore discountStore = mock(DiscountStore.class);
     private AccountExpensesStore accountExpenseStore = mock(AccountExpensesStore.class);
     private EntityCostStore entityCostStore = mock(EntityCostStore.class);
+    private BilledCostStore billedCostStore = mock(BilledCostStore.class);
     private InMemoryEntityCostStore projectedEntityCostStore = mock(InMemoryEntityCostStore.class);
     private PlanProjectedEntityCostStore planProjectedEntityCostStore = mock(PlanProjectedEntityCostStore.class);
     private BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
@@ -241,8 +243,9 @@ public class CostRpcServiceTest {
             "Pay as you go - Engineering", ImmutableList.of(ASSOCIATED_TARGET_ID));
         businessAccountHelper.storeDiscoveredBusinessAccount(ACCOUNT_DTO);
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
-            projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator,
-            businessAccountHelper, clock, RT_TOPO_CONTEXT_ID, MAX_INNER_STAT_RECORDS, null);
+            billedCostStore, projectedEntityCostStore, planProjectedEntityCostStore,
+            timeFrameCalculator, businessAccountHelper, clock, RT_TOPO_CONTEXT_ID,
+            MAX_INNER_STAT_RECORDS, null);
         repositoryClient = mock(RepositoryClient.class);
         serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);
