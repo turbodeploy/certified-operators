@@ -19,7 +19,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
@@ -31,9 +30,8 @@ import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustom
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.group.GroupDBEndpointConfig;
+import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.db.GroupComponent;
-import com.vmturbo.group.entitytags.EntityCustomTagsStoreTest.TestGroupDBEndpointConfig;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -301,11 +299,4 @@ public class EntityCustomTagsStoreTest {
                 Arrays.asList(tagName1)
         );
     }
-
-    /**
-     * Test Endpoint.
-     */
-    @Configuration
-    public static class TestGroupDBEndpointConfig
-            extends GroupDBEndpointConfig {}
 }

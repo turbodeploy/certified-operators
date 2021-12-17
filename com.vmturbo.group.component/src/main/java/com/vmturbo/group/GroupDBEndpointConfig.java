@@ -35,8 +35,6 @@ public class GroupDBEndpointConfig extends DbEndpointsConfig {
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true))
                 .withUserName(groupDbUsername)
-                //TODO: remove once we're done with the postgres integration
-                .withMigrationLocations("db.migration")
                 .build();
     }
 }
