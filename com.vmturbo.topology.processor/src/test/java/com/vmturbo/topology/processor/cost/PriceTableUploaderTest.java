@@ -13,11 +13,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -45,6 +48,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -367,6 +371,63 @@ public class PriceTableUploaderTest {
         final Map<Long, PricingDTO.PriceTable> newSrcTables = newUploader.getSourcePriceTables();
 
         assertThat(newSrcTables, is(originalSrcTables));
+    }
+
+    /**
+     * Test the case where two CSPs both have empty key sets in the price table. In this case,
+     * the correct price table should still be restored for each CSP. The service provider ID is
+     * included in the identifier.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testTwoPriceTablesEmptyKeySet() throws Exception {
+        long targetId1 = 100L;
+        long targetId2 = 200L;
+        PricingDTO.PriceTable sourcePriceTable1 = createPriceTable("SERVICE_PROVIDER::GCP");
+        PricingDTO.PriceTable sourcePriceTable2 = createPriceTable("SERVICE_PROVIDER::AWS");
+        priceTableUploader.recordPriceTable(targetId1, SDKProbeType.GCP_COST,
+                Optional.of(ProbeCategory.COST), sourcePriceTable1);
+        priceTableUploader.recordPriceTable(targetId2, SDKProbeType.AWS_COST,
+                Optional.of(ProbeCategory.COST), sourcePriceTable2);
+
+        final Map<Long, PricingDTO.PriceTable> originalSrcTables = priceTableUploader.getSourcePriceTables();
+
+        TestAppender appender = new TestAppender();
+        priceTableUploader.collectDiags(appender);
+
+        PriceTableUploader targetPriceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(),
+                100, targetStore, spotPriceTableConverter);
+        targetPriceTableUploader.restoreDiags(appender.getDiagLines(), null);
+
+        final Map<Long, PricingDTO.PriceTable> restoredPriceTables = targetPriceTableUploader.getSourcePriceTables();
+        assertThat(originalSrcTables.get(targetId1), is(restoredPriceTables.get(targetId1)));
+        assertThat(originalSrcTables.get(targetId2), is(restoredPriceTables.get(targetId2)));
+    }
+
+    private PricingDTO.PriceTable createPriceTable(String serviceProviderId) {
+        return PricingDTO.PriceTable.newBuilder()
+                .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
+                        .setRelatedRegion(REGION_ENTITY_BUILDER)
+                        .setIpPrices(IpPriceList.newBuilder()
+                                .addIpPrice(IpConfigPrice.newBuilder().addPrices(Price.newBuilder()
+                                        .setPriceAmount(CurrencyAmount.newBuilder()
+                                                .setAmount(IP_PRICE_AMOUNT))))))
+                .setServiceProviderId(serviceProviderId)
+                .build();
+    }
+
+    private static class TestAppender implements DiagnosticsAppender {
+        List<String> diagLines = new ArrayList<>();
+
+        @Override
+        public void appendString(@Nonnull final String line) throws DiagnosticsException {
+            diagLines.add(line);
+        }
+
+        List<String> getDiagLines() {
+            return diagLines;
+        }
     }
 
     /**

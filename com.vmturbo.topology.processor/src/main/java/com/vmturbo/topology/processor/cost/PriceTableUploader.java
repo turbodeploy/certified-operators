@@ -65,6 +65,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
@@ -709,6 +710,25 @@ public class PriceTableUploader implements DiagsRestorable<Void> {
     /**
      * Create a stream of pairs of JSON-formatted String values corresponding to the probe type and
      * corresponding priceTable to be saved to the diagnostics file.
+     *
+     * The structure of the price table diags is as follows:
+     *
+     * The file starts with pairs of target ID and price table ID, each value on a new line.
+     * Note that different targets can point to the same price table.
+     * After the last target ID to price table ID pair, a separator with text
+     * "END_OF_TARGET_ID_TO_PRICETABLE_MAPPING" follows.
+     * Then comes a list of price table ID and the corresponding price table, each on a new line.
+     *
+     * Example:
+     * target ID1
+     * price table ID1
+     * target ID2
+     * price table ID2
+     * END_OF_TARGET_ID_TO_PRICETABLE_MAPPING
+     * price table ID1
+     * price table1
+     * price table ID2
+     * price table2
      */
     @Override
     public void collectDiags(@Nonnull DiagnosticsAppender diagnostics)
@@ -717,20 +737,33 @@ public class PriceTableUploader implements DiagsRestorable<Void> {
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Printer printer =
                     JsonFormat.printer().omittingInsignificantWhitespace();
-            Map<Collection<PricingIdentifier>, PricingDTO.PriceTable> priceTableToKeyMap =
-                    new HashMap<>();
-            sourcePriceTableByTargetId.values()
-                    .forEach(priceTable -> priceTableToKeyMap.putIfAbsent(
-                            priceTable.getPriceTableKeysList(), priceTable));
+
+            Map<Collection<PricingIdentifier>, PricingDTO.PriceTable> priceTableMap = new HashMap<>();
+
             for (Entry<Long, PricingDTO.PriceTable> probeTypePriceTableEntry : sourcePriceTableByTargetId
                     .entrySet()) {
                 final long targetId = probeTypePriceTableEntry.getKey();
                 final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
+
+                Set<PricingIdentifier> priceTableIds = new HashSet<>();
+                priceTableIds.addAll(priceTable.getPriceTableKeysList());
+                // The CSP of a price table is not indicated as a field in the pricing identifier. The
+                // price table keys are mainly used for CSP specific values (e.g. offer ID).
+                // The key list can also be empty.
+                // However, if two price tables from two different CSPs are the same (e.g. both have
+                // empty key lists), the price table keys can no longer uniquely identify the price
+                // tables. Therefore we add the CSP identifier in the key list.
+                priceTableIds.add(PricingIdentifier.newBuilder()
+                        .setIdentifierName(PricingIdentifierName.CLOUD_PROVIDER_ID)
+                        .setIdentifierValue(priceTable.getServiceProviderId())
+                        .build());
                 diagnostics.appendString(String.valueOf(targetId));
-                diagnostics.appendString(gson.toJson(priceTable.getPriceTableKeysList()));
+                diagnostics.appendString(gson.toJson(priceTableIds));
+
+                priceTableMap.putIfAbsent(priceTableIds, priceTable);
             }
             diagnostics.appendString(END_OF_TARGET_ID_MAPPINGS);
-            for (Entry<Collection<PricingIdentifier>, PricingDTO.PriceTable> pricingData : priceTableToKeyMap
+            for (Entry<Collection<PricingIdentifier>, PricingDTO.PriceTable> pricingData : priceTableMap
                     .entrySet()) {
                 final Collection<PricingIdentifier> pricingIdentifiers = pricingData.getKey();
                 final PricingDTO.PriceTable priceTable = pricingData.getValue();
