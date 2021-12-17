@@ -18,7 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentCapacity;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopologySegment;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AggregateDemandPreference.AggregateDemandPreferenceFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AnalysisCoverageTopology.AnalysisCoverageTopologyFactory;
@@ -26,12 +25,14 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCal
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.CoverageInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountUtils;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -163,7 +164,7 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
             @Nonnull Set<CloudCommitmentAggregate> commitmentAggregateSet,
             @Nonnull AnalysisTopologySegment analysisSegment) {
 
-        final Map<Long, CloudCommitmentCapacity> capacityByCommitmentId = analysisSegment.cloudCommitmentByOid();
+        final Map<Long, CloudCommitmentAmount> capacityByCommitmentId = analysisSegment.cloudCommitmentByOid();
         return commitmentAggregateSet.stream()
                 .collect(ImmutableMap.toImmutableMap(
                         CloudCommitmentAggregate::aggregateId,
@@ -171,8 +172,8 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
                                 .stream()
                                 .map(commitmentData -> capacityByCommitmentId.getOrDefault(
                                         commitmentData.commitmentId(),
-                                        CloudCommitmentCapacity.ZERO_CAPACITY))
-                                .mapToDouble(CloudCommitmentCapacity::capacityAvailable)
+                                        CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT))
+                                .mapToDouble(CloudCommitmentAmount::getCoupons)
                                 .reduce(0.0, Double::sum)));
 
     }
@@ -225,7 +226,7 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
 
         final double totalCapacity = analysisSegment.cloudCommitmentByOid().values()
                 .stream()
-                .mapToDouble(CloudCommitmentCapacity::capacityAvailable)
+                .mapToDouble(CloudCommitmentAmount::getCoupons)
                 .sum();
 
         return CoverageCalculationSummary.builder()
