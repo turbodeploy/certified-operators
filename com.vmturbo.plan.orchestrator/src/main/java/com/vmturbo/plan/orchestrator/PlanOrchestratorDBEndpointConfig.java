@@ -34,12 +34,9 @@ public class PlanOrchestratorDBEndpointConfig extends DbEndpointsConfig {
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true)
-                // workaround since the Environment doesn't contain topologyProcessorDbUsername
+                // workaround since the Environment doesn't contain planOrchestratorDbUsername
                 // fixEndpointForMultiDb can't find this property from spring environment
-                .withUserName(planOrchestratorDbUsername)
-                // TODO this is needed because we have not created the new migration structure yet
-                //  remove once the integration with postgres is done
-                .withMigrationLocations("db.migration"))
+                .withUserName(planOrchestratorDbUsername))
                 .build();
     }
 

@@ -6,6 +6,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.spy;
 
 import java.util.Arrays;
 import java.util.List;
@@ -49,6 +52,7 @@ import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 
@@ -80,7 +84,7 @@ public class DeploymentProfileDaoImplTest {
      * Test rule to use {@link DbEndpoint}s in test.
      */
     @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("plan");
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("plan-orchestrator");
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
@@ -330,6 +334,13 @@ public class DeploymentProfileDaoImplTest {
      */
     @Configuration
     public static class TestPlanOrchestratorDBEndpointConfig
-            extends PlanOrchestratorDBEndpointConfig {}
-
+            extends PlanOrchestratorDBEndpointConfig {
+        @Override
+        public DbEndpointCompleter endpointCompleter() {
+            // prevent actual completion of the DbEndpoint
+            DbEndpointCompleter dbEndpointCompleter = spy(super.endpointCompleter());
+            doNothing().when(dbEndpointCompleter).setEnvironment(any());
+            return dbEndpointCompleter;
+        }
+    }
 }
