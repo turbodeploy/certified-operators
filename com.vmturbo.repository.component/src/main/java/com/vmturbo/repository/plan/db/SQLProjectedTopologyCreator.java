@@ -35,7 +35,7 @@ import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
 /**
  * Responsible for ingesting the projected topology.
  */
-class MySQLProjectedTopologyCreator extends MySQLTopologyCreator<ProjectedTopologyEntity> {
+class SQLProjectedTopologyCreator extends SQLTopologyCreator<ProjectedTopologyEntity> {
     /**
      * Traversal rules for the production of a scoped supply chain.
      */
@@ -52,7 +52,7 @@ class MySQLProjectedTopologyCreator extends MySQLTopologyCreator<ProjectedTopolo
 
     private final CompressionStatsByType scopeCompressionByType = new CompressionStatsByType();
 
-    MySQLProjectedTopologyCreator(final long projectedTopologyId,
+    SQLProjectedTopologyCreator(final long projectedTopologyId,
             final TopologyInfo topologyInfo,
             final DSLContext dsl,
             final int insertionChunkSize,

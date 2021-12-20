@@ -48,7 +48,7 @@ import com.vmturbo.sql.utils.jooq.JooqUtil;
  *         or
  *         {@link ProjectedTopologyEntity}.
  */
-abstract class MySQLTopologyCreator<T extends AbstractMessage> implements TopologyCreator<T> {
+abstract class SQLTopologyCreator<T extends AbstractMessage> implements TopologyCreator<T> {
     protected final Logger logger = LogManager.getLogger(getClass());
 
     protected final long planId;
@@ -73,7 +73,7 @@ abstract class MySQLTopologyCreator<T extends AbstractMessage> implements Topolo
 
     private static final String ENTITY_STAGE = "entity_ingestion";
 
-    MySQLTopologyCreator(final TopologyInfo topologyInfo, final long topologyId,
+    SQLTopologyCreator(final TopologyInfo topologyInfo, final long topologyId,
             final TopologyType topologyType,
             DSLContext dsl,
             final int insertionChunkSize,

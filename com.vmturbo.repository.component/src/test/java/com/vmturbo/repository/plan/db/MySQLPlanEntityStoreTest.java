@@ -25,7 +25,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
@@ -55,7 +54,6 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.repository.db.Repository;
 import com.vmturbo.repository.db.Tables;
-import com.vmturbo.repository.plan.db.MySQLPlanEntityStoreTest.TestRepositoryDbEndpointConfig;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
@@ -68,7 +66,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
- * Unit tests for the {@link MySQLPlanEntityStore}.
+ * Unit tests for the {@link SQLPlanEntityStore}.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {TestRepositoryDbEndpointConfig.class})
@@ -94,8 +92,8 @@ public class MySQLPlanEntityStoreTest {
     /**
      * Test rule to use {@link DbEndpoint}s in test.
      */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("repository");
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("repository");
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
@@ -105,7 +103,7 @@ public class MySQLPlanEntityStoreTest {
             FeatureFlags.POSTGRES_PRIMARY_DB);
 
 
-    private MySQLPlanEntityStore planEntityStore;
+    private SQLPlanEntityStore planEntityStore;
 
     private PartialEntityConverter partialEntityConverter = mock(PartialEntityConverter.class);
 
@@ -181,7 +179,7 @@ public class MySQLPlanEntityStoreTest {
         } else {
             dsl = dbConfig.getDslContext();
         }
-        planEntityStore = new MySQLPlanEntityStore(dsl, partialEntityConverter,
+        planEntityStore = new SQLPlanEntityStore(dsl, partialEntityConverter,
                 supplyChainCalculator, 1, 1, mock(UserSessionContext.class));
         doAnswer(invocationOnMock -> {
             TopologyEntityDTOOrBuilder dto = invocationOnMock.getArgumentAt(0, TopologyEntityDTOOrBuilder.class);
@@ -511,17 +509,4 @@ public class MySQLPlanEntityStoreTest {
         assertThat(retVms, containsInAnyOrder(vm));
 
     }
-
-    /**
-     * Workaround for {@link RepositoryDBEndpointConfig} (remove conditional annotation), since
-     * it's conditionally initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we
-     * test all combinations of it using {@link FeatureFlagTestRule}, first it's false, so
-     * {@link RepositoryDBEndpointConfig} is not created; then second it's true,
-     * {@link RepositoryDBEndpointConfig} is created, but the endpoint inside is also eagerly
-     * initialized due to the same FF, which results in several issues like: it doesn't go through
-     * DbEndpointTestRule, making call to auth to get root password, etc.
-     */
-    @Configuration
-    public static class TestRepositoryDbEndpointConfig extends RepositoryDBEndpointConfig {}
-
 }

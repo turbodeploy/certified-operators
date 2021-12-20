@@ -257,7 +257,7 @@ public class RepositoryComponent extends BaseVmtComponent {
             planStatsService(),
             repositoryComponentConfig.partialEntityConverter(),
             maxEntitiesPerChunk,
-            repositoryComponentConfig.mySQLPlanEntityStore(),
+            repositoryComponentConfig.sqlPlanEntityStore(),
             new PlanEntityFilterConverter(), userSessionConfig.userSessionContext());
 
         // Return a topology-graph backed rpc service, which will fall back to arango for
@@ -315,7 +315,7 @@ public class RepositoryComponent extends BaseVmtComponent {
                 repositoryComponentConfig.supplyChainService(),
             userSessionConfig.userSessionContext(),
                 repositoryComponentConfig.getRealtimeTopologyContextId(),
-            repositoryComponentConfig.mySQLPlanEntityStore());
+            repositoryComponentConfig.sqlPlanEntityStore());
        return new TopologyGraphSupplyChainRpcService(userSessionConfig.userSessionContext(),
                repositoryComponentConfig.liveTopologyStore(),
                 arangoService,

@@ -16,9 +16,9 @@ import com.vmturbo.components.api.FormattedString;
 /**
  * Responsible for ingesting the source topology.
  */
-class MySQLSourceTopologyCreator extends MySQLTopologyCreator<TopologyEntityDTO> {
+class SQLSourceTopologyCreator extends SQLTopologyCreator<TopologyEntityDTO> {
 
-    MySQLSourceTopologyCreator(final DSLContext dsl,
+    SQLSourceTopologyCreator(final DSLContext dsl,
             final TopologyInfo topologyInfo,
             final int insertionChunkSize,
             final int deletionChunkSize) {
