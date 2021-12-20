@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class DefaultCloudCommitmentAggregatorTest {
 
@@ -74,6 +75,12 @@ public class DefaultCloudCommitmentAggregatorTest {
 
         when(computeTierFamilyResolver.getCoverageFamily(anyLong())).thenReturn(Optional.empty());
         when(billingFamilyRetriever.getBillingFamilyForAccount(anyLong())).thenReturn(Optional.empty());
+
+        when(cloudTierTopology.getServiceProvider(anyLong())).thenReturn(Optional.of(
+                TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
+                        .setOid(123L)
+                        .build()));
     }
 
     /**
@@ -86,7 +93,7 @@ public class DefaultCloudCommitmentAggregatorTest {
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setId(1)
                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
-                                            .setSizeFlexible(false))
+                        .setSizeFlexible(false))
                 .build();
 
         final long purchasingAccountA = 4;
@@ -134,7 +141,7 @@ public class DefaultCloudCommitmentAggregatorTest {
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setId(1)
                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
-                                                .setSizeFlexible(false))
+                        .setSizeFlexible(false))
                 .build();
 
         final long scopedAccount = 5;

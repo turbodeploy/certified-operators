@@ -40,6 +40,13 @@ class AwsAllocationTopologyTest {
 
     protected static final AtomicLong OID_PROVIDER = new AtomicLong();
 
+    protected static final TopologyEntityDTO AWS_SERVICE_PROVIDER_TEST = TopologyEntityDTO.newBuilder()
+            .setOid(OID_PROVIDER.incrementAndGet())
+            .setDisplayName("AWS")
+            .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+
     protected static final TopologyEntityDTO COMPUTE_TIER_SMALL = TopologyEntityDTO.newBuilder()
             .setOid(OID_PROVIDER.incrementAndGet())
             .setDisplayName("COMPUTE_TIER_SMALL")

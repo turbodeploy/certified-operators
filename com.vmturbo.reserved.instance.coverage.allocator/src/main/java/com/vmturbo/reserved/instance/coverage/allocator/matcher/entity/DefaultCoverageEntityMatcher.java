@@ -18,7 +18,7 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCoverageKey;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCoverageKey.Builder;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey;
@@ -93,10 +93,11 @@ public class DefaultCoverageEntityMatcher implements CoverageEntityMatcher {
         if (requiredDataAvailable) {
 
             final CloudAggregationInfo aggregationInfo = entityContext.aggregationInfo();
-            final Builder keyBuilder = ComputeCoverageKey.builder()
-                    .billingFamilyId(aggregationInfo.billingFamilyId());
+            final Builder keyBuilder = ComputeCoverageKey.builder();
 
-            if (config.scope() == CloudCommitmentScope.ACCOUNT) {
+            if (config.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
+                keyBuilder.billingFamilyId(aggregationInfo.billingFamilyId());
+            } else {
                 keyBuilder.accountOid(aggregationInfo.accountOid());
             }
 

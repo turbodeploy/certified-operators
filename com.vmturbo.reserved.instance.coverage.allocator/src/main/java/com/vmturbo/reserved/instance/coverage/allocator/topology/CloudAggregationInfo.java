@@ -17,6 +17,12 @@ import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 public interface CloudAggregationInfo {
 
     /**
+     * The service provider OID.
+     * @return the service provider OID.
+     */
+    long serviceProviderOid();
+
+    /**
      * The billing family ID.
      * @return The billing family ID. May be empty, if the corresponding entity is not related to
      * a billing family.
