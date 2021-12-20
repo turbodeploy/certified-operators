@@ -113,23 +113,33 @@ public final class InitialPlacementUtils {
         originalEconomy.getTraders().stream()
                 .filter(trader -> PROVIDER_ENTITY_TYPES.contains(trader.getType()) || cloneForDiags)
                 .forEach(trader -> {
-                    Trader cloneTrader = cloneEconomy.addTrader(trader.getType(), trader.getState(),
-                            new Basket(trader.getBasketSold()), trader.getCliques());
-                    cloneTrader.setOid(trader.getOid());
-
-                    // Copy traderOids in clone economy
+                    Trader cloneTrader = cloneTraderForInitialPlacement(trader, cloneEconomy);
                     cloneTraderToOidMap.put(trader.getOid(), cloneTrader);
-
-                    // Copy bare minimum trader properties
-                    cloneTrader.setDebugInfoNeverUseInCode(
-                            trader.getDebugInfoNeverUseInCode());
-                    cloneTrader.getSettings().setQuoteFunction(
-                            trader.getSettings().getQuoteFunction());
-                    cloneTrader.getSettings().setCanAcceptNewCustomers(true);
-                    cloneTrader.getSettings().setIsShopTogether(true);
-                    cloneCommoditiesSold(trader, cloneTrader);
                 });
         return cloneEconomy;
+    }
+
+    /**
+     * Clone a trader into economy.
+     *
+     * @param trader source trader
+     * @param into economy to create clone in
+     * @return new trader
+     */
+    public static Trader cloneTraderForInitialPlacement(Trader trader, Economy into) {
+        Trader cloneTrader = into.addTrader(trader.getType(), trader.getState(),
+                        new Basket(trader.getBasketSold()), trader.getCliques());
+        cloneTrader.setOid(trader.getOid());
+
+        // Copy bare minimum trader properties
+        cloneTrader.setDebugInfoNeverUseInCode(
+                trader.getDebugInfoNeverUseInCode());
+        cloneTrader.getSettings().setQuoteFunction(
+                trader.getSettings().getQuoteFunction());
+        cloneTrader.getSettings().setCanAcceptNewCustomers(true);
+        cloneTrader.getSettings().setIsShopTogether(true);
+        cloneCommoditiesSold(trader, cloneTrader);
+        return cloneTrader;
     }
 
     /**

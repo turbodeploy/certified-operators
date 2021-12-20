@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Lists;
@@ -32,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationGrouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationMode;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -350,9 +352,9 @@ public class EconomyCaches {
             // NOTE: the cloned economy has only host and storages, but the utilization of them
             // includes the reservation utils.
             Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
+            addNewTradersToHistoricalEconomy(realtimeCachedEconomy, newHistEconomy);
             // In case of traders are deleted in the real time, historical cache may not catch it up
             // immediately, so we have to mark those traders in historical cache canAcceptNewCustomers false.
-            // NOTE: We are not handling the case of traders are recently added in the real time.
             updateTradersInHistoricalEconomyCache(realtimeCachedEconomy, newHistEconomy);
             addExistingReservationEntities(newHistEconomy, historicalCachedCommTypeMap,
                     buyerOidToPlacement, existingReservations, true, false);
@@ -382,6 +384,27 @@ public class EconomyCaches {
             if (!realtimeTraderOids.contains(oid)) {
                 Trader t = histEconomy.getTopology().getTradersByOid().get(oid);
                 t.getSettings().setCanAcceptNewCustomers(false);
+            }
+        }
+    }
+
+    private void addNewTradersToHistoricalEconomy(Economy realtimeEconomy, Economy histEconomy) {
+        if (FeatureFlags.HEADROOM_ADD_PROVISIONED_RESOURCES.isEnabled()) {
+            Stopwatch sw = Stopwatch.createStarted();
+            Set<Long> histTraderOids = histEconomy.getTopology().getTradersByOid().keySet();
+            int added = 0;
+            for (Map.Entry<Long, Trader> oid2trader : realtimeEconomy.getTopology().getTradersByOid().entrySet()) {
+                Trader trader = oid2trader.getValue();
+                if (!histTraderOids.contains(oid2trader.getKey())
+                                && InitialPlacementUtils.PROVIDER_ENTITY_TYPES
+                                                .contains(trader.getType())) {
+                    Trader clone = InitialPlacementUtils.cloneTraderForInitialPlacement(trader, histEconomy);
+                    histEconomy.getTopology().getModifiableTraderOids().put(oid2trader.getKey(), clone);
+                    ++added;
+                }
+            }
+            if (added > 0) {
+                logger.info("{}added {} new traders to historical economy cache in {}", logPrefix, added, sw);
             }
         }
     }
