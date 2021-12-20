@@ -14,6 +14,7 @@
     <artifactId>market-component</artifactId>
 
     <properties>
+        <maven.build.timestamp.format>yyyyMMddHHmmssSSS</maven.build.timestamp.format>
         <swagger.component.name>Market</swagger.component.name>
         <db.url>jdbc:mysql://localhost:3306</db.url>
         <db.username>root</db.username>

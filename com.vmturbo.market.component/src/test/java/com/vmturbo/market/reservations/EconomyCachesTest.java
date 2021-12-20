@@ -13,11 +13,13 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableList;
 
 import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -28,6 +30,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -53,11 +56,18 @@ import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link EconomyCaches}.
  */
 public class EconomyCachesTest {
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.HEADROOM_ADD_PROVISIONED_RESOURCES);
 
     private static final int PM_TYPE = EntityType.PHYSICAL_MACHINE_VALUE;
     private static final int ST_TYPE = EntityType.STORAGE_VALUE;
@@ -1298,6 +1308,27 @@ public class EconomyCachesTest {
         Assert.assertTrue(economyCaches.getHistoricalCachedCommTypeMap().size() == 1);
         Assert.assertTrue(
                 economyCaches.getHistoricalCachedCommTypeMap().inverse().get(MEM_TYPE).getType() == CommodityType.MEM_VALUE);
+    }
+
+    /**
+     * Test that the new realtime traders are added to historical cache.
+     */
+    @Test
+    public void testAddTradersToHistoricalEconomyCache() {
+        Economy economy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed});
+        economyCaches.getState().setReservationReceived(true);
+        economyCaches.updateHistoricalCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
+        Trader pm5 = economy.addTrader(PM_TYPE, TraderState.ACTIVE,
+                        new Basket(Collections.singleton(new CommoditySpecification(MEM_TYPE))),
+                        ImmutableList.of(455L));
+        final long oid = 237612L;
+        pm5.setOid(oid);
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(), new HashMap<>());
+        Assert.assertEquals(1, economyCaches.historicalCachedEconomy.getTraders().stream()
+                .filter(t -> t.getOid() == oid).count());
     }
 
     /**
