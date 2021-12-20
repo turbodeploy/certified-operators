@@ -2,6 +2,7 @@ package com.vmturbo.reserved.instance.coverage.allocator;
 
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -16,12 +17,13 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
-import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
@@ -41,7 +43,7 @@ import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.CoverageE
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.DefaultCoverageEntityMatcher.DefaultCoverageEntityMatcherFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ConfigurableCoverageRule.ConfigurableCoverageRuleFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.CloudCommitmentFilterFactory;
+import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilterFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
@@ -87,6 +89,7 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
 
     protected CoverageTopology generateCoverageTopology(
             SDKProbeType cspType,
+            @Nonnull TopologyEntityDTO serviceProvider,
             @Nonnull Set<ReservedInstanceBought> reservedInstances,
             @Nonnull Set<ReservedInstanceSpec> riSpecs,
             @Nonnull GroupMemberRetriever groupMemberRetriever,
@@ -110,7 +113,9 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
         when(mockTargetCache.getTargetInfo(anyLong())).thenReturn(Optional.of(targetInfo));
 
         final CloudTopology<TopologyEntityDTO> cloudTopology =
-                cloudTopologyFactory.newCloudTopology(Arrays.stream(entityDtos));
+                spy(cloudTopologyFactory.newCloudTopology(Arrays.stream(
+                        ArrayUtils.add(entityDtos, serviceProvider))));
+        when(cloudTopology.getServiceProvider(anyLong())).thenReturn(Optional.of(serviceProvider));
         final Set<CloudCommitmentAggregate> commitmentAggregates =
                 createRIAggregates(reservedInstances, riSpecs, cloudTopology);
 

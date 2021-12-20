@@ -1,6 +1,7 @@
 package com.vmturbo.reserved.instance.coverage.allocator;
 
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.AVAILIBILITY_ZONE_A;
+import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.AWS_SERVICE_PROVIDER_TEST;
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.BILLING_FAMILY_GROUPS;
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.BUSINESS_ACCOUNT;
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.BUSINESS_ACCOUNT_B;
@@ -66,6 +67,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(zonalRiBought),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 groupMemberRetriever,
@@ -105,6 +107,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(zonalRiBoughtB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 groupMemberRetriever,
@@ -141,6 +144,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 groupMemberRetriever,
@@ -183,6 +187,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(regionalRIB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 groupMemberRetriever,
@@ -226,6 +231,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 groupMemberRetriever,
@@ -267,6 +273,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 groupMemberRetriever,
@@ -329,6 +336,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(sizeFlexibleRI),
                 Collections.singleton(riSpec),
                 groupMemberRetriever,
@@ -372,6 +380,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
+                AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 groupMemberRetriever,

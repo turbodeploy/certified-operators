@@ -158,13 +158,15 @@ public class DelegatingCoverageTopology implements CoverageTopology {
         return Optional.ofNullable(
                 aggregationInfoMap.computeIfAbsent(entityOid, oid -> {
                     final OptionalLong billingFamilyId = getBillingFamilyForEntity(entityOid);
+                    final Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
                     final Optional<TopologyEntityDTO> account = cloudTopology.getOwner(entityOid);
                     final Optional<TopologyEntityDTO> region = cloudTopology.getConnectedRegion(entityOid);
                     final Optional<TopologyEntityDTO> zone = cloudTopology.getConnectedAvailabilityZone(entityOid);
 
-                    if (account.isPresent() && region.isPresent()) {
+                    if (serviceProvider.isPresent() && account.isPresent() && region.isPresent()) {
                         return CloudAggregationInfo.builder()
                                 .billingFamilyId(billingFamilyId)
+                                .serviceProviderOid(serviceProvider.get().getOid())
                                 .accountOid(account.get().getOid())
                                 .regionOid(region.get().getOid())
                                 .zoneOid(zone.map(TopologyEntityDTO::getOid)

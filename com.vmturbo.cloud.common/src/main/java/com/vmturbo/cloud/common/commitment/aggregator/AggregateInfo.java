@@ -2,6 +2,10 @@ package com.vmturbo.cloud.common.commitment.aggregator;
 
 import java.util.OptionalLong;
 
+import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 
 /**
@@ -10,16 +14,16 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 public interface AggregateInfo {
 
     /**
+     * The service provider OID.
+     * @return The service provider OID.
+     */
+    long serviceProviderOid();
+
+    /**
      * The cloud commitment type.
      * @return The cloud commitment type.
      */
     CloudCommitmentType commitmentType();
-
-    /**
-     * The billing family ID. This will be set as long as the commitment is associated with a billing family.
-     * @return The billing family ID of the cloud commitment.
-     */
-    OptionalLong billingFamilyId();
 
     /**
      * The purchasing account ID of the commitment. This will be set if the commitment is shared across
@@ -30,4 +34,18 @@ public interface AggregateInfo {
      * @return The purchasing account ID of the commitment.
      */
     OptionalLong purchasingAccountOid();
+
+    /**
+     * The coverage type.
+     * @return The coverage type.
+     */
+    @Nonnull
+    CloudCommitmentCoverageType coverageType();
+
+    /**
+     * The entity scope of this aggregate. Entity scope encapsulates the root of the coverable entities.
+     * @return The entity scope of this aggregate.
+     */
+    @Nonnull
+    CloudCommitmentEntityScope entityScope();
 }

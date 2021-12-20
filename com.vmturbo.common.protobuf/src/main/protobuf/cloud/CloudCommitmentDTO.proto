@@ -93,3 +93,21 @@ message CloudCommitmentMapping {
 
     optional CloudCommitmentAmount commitment_amount = 4;
 }
+
+message CloudCommitmentEntityScope {
+
+    optional common_dto.EntityDTO.CloudCommitmentData.CloudCommitmentScope scope_type = 1;
+
+    oneof scope {
+        EntityScope entity_scope = 10;
+        GroupScope group_scope = 11;
+    }
+
+    message EntityScope {
+        repeated int64 entity_oid = 1;
+    }
+
+    message GroupScope {
+        repeated int64 group_id = 1;
+    }
+}
