@@ -302,12 +302,14 @@ public class BilledCostUploadRpcServiceTest {
 
     /**
      * Test that tags with trailing spaces are de-duplicated to a single tag rather than separate tags. This follows
-     * from not having NO PAD collation for the Cost Tag table.
+     * from not having NO PAD collation for the Cost Tag table. Further, 2 tag groups with the same constituent Tags on
+     * ignoring trailing / leading spaces must resolve to a single Tag group oid. Billing items referring to each
+     * such tag group should be inserted against a single durable tag group oid.
      */
     @Test
     public void testTagsWithTrailingSpaces() {
-        final Map<String, String> tagGroup1 = Collections.singletonMap("Owner ", "Bob");
-        final Map<String, String> tagGroup2 = Collections.singletonMap("Owner", "Bob");
+        final Map<String, String> tagGroup1 = Collections.singletonMap("Owner ", "Bob ");
+        final Map<String, String> tagGroup2 = Collections.singletonMap(" Owner", " Bob");
         final Cost.UploadBilledCostRequest.Builder request = createUploadRequest();
         addTagGroup(request, TAG_GROUP_ID, tagGroup1);
         addTagGroup(request, TAG_GROUP_ID_2, tagGroup2);
@@ -318,6 +320,9 @@ public class BilledCostUploadRpcServiceTest {
         final long tagId = verifyTagPersistedAndGetTagId("Owner", "Bob");
         Assert.assertEquals(tagId, verifyTagPersistedAndGetTagId("Owner ", "Bob"));
         verifyTagGroupsPersisted(tagId, 1);
+        final long expectedTagGroupId = retrieveTagGroupId(tagGroup1);
+        verifyBilledCostPointPersisted(ENTITY_ID, COST, expectedTagGroupId);
+        verifyBilledCostPointPersisted(ENTITY_ID_2, COST, expectedTagGroupId);
     }
 
     /**

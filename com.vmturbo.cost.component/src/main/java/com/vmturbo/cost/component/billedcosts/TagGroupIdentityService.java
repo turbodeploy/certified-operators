@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.billedcosts;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -72,26 +73,25 @@ public class TagGroupIdentityService {
                     Map.Entry::getKey)));
             cacheInitialized.ensureSet(() -> true);
         }
-
-        final Set<TagGroup> tagGroups = tagGroupsByTagGroupId.entrySet().stream()
+        // Collect to List (instead of Set) - 2 Tag groups may resolve to the same durable Tag group oid if their
+        // constituent Tags are identical when trailing / leading spaces are ignored.
+        final List<TagGroup> tagGroups = tagGroupsByTagGroupId.entrySet().stream()
             .map(entry -> new TagGroup(entry.getKey(), tagMapToSet(entry.getValue().getTagsMap())))
-            .collect(Collectors.toSet());
-
+            .collect(Collectors.toList());
         final Map<Tag, Long> resolvedTagIds = tagIdentityService.resolveIdForDiscoveredTags(
             tagGroups.stream().map(TagGroup::getTags).flatMap(Set::stream).collect(Collectors.toSet())
         );
         final Set<TagGroup> unseenTagGroups = tagGroups.stream()
             .filter(tagGroup -> !tagGroupIdentityCache.containsKey(tagsToTagIds(tagGroup.getTags(), resolvedTagIds)))
             .collect(Collectors.toSet());
-        final Map<Long, TagGroup> unseenTagGroupsByOid = generateOidPerTagGroup(unseenTagGroups);
         if (!unseenTagGroups.isEmpty()) {
+            final Map<Long, TagGroup> unseenTagGroupsByOid = generateOidPerTagGroup(unseenTagGroups);
             logger.debug("Inserting the following newly discovered tag groups: {}", unseenTagGroupsByOid::values);
             final Set<CostTagGroupingRecord> newTagGroupRecords =
                 convertTagGroupsToRecords(unseenTagGroupsByOid, resolvedTagIds);
             tagGroupStore.insertCostTagGroups(newTagGroupRecords);
-            unseenTagGroupsByOid.forEach((oid, tagGroup) -> {
-                tagGroupIdentityCache.put(tagsToTagIds(tagGroup.getTags(), resolvedTagIds), oid);
-            });
+            unseenTagGroupsByOid.forEach((oid, tagGroup) ->
+                tagGroupIdentityCache.put(tagsToTagIds(tagGroup.getTags(), resolvedTagIds), oid));
         }
         return tagGroups.stream().collect(Collectors.toMap(TagGroup::getDiscoveredTagGroupId,
             tagGroup -> tagGroupIdentityCache.get(tagsToTagIds(tagGroup.getTags(), resolvedTagIds))));
