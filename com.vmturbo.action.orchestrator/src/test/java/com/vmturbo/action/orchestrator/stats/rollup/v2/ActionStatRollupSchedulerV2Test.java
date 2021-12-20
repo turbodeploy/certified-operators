@@ -10,6 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -24,19 +25,40 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockitoAnnotations;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.stats.rollup.RollupTestUtils;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link ActionStatRollupSchedulerV2}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class ActionStatRollupSchedulerV2Test {
+
+    @Autowired(required = false)
+    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -49,7 +71,20 @@ public class ActionStatRollupSchedulerV2Test {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule =
+            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
 
     private static final int ACTION_GROUP_ID = 1123;
 
@@ -61,20 +96,31 @@ public class ActionStatRollupSchedulerV2Test {
 
     private ExecutorService executorService = MoreExecutors.newDirectExecutorService();
 
-    private HourActionRollupFactory rollupFactory = mock(HourActionRollupFactory.class);
+    private HourActionRollupFactory rollupFactory;
 
-    private ActionRollupAlgorithmMigrator algorithmMigrator = mock(ActionRollupAlgorithmMigrator.class);
+    private ActionRollupAlgorithmMigrator algorithmMigrator;
 
     /**
-     * Common setup before every test.
+     * Set up for tests.
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if thread has been interrupted
      */
     @Before
-    public void setup() {
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
         MockitoAnnotations.initMocks(this);
+        algorithmMigrator = mock(ActionRollupAlgorithmMigrator.class);
+        rollupFactory = mock(HourActionRollupFactory.class);
         HourActionStatRollup mockRollup = mock(HourActionStatRollup.class);
         when(rollupFactory.newRollup(any(), any(), anyInt()))
                 .thenReturn(mockRollup);
 
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
+            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
 
         rollupTestUtils = new RollupTestUtils(dsl);
         scheduler = new ActionStatRollupSchedulerV2(rollupFactory, algorithmMigrator, executorService, dsl, clock);

@@ -10,9 +10,11 @@ import org.apache.logging.log4j.util.Strings;
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
+import com.vmturbo.sql.utils.ConditionalDbConfig.SQLDatabaseConfigCondition;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.sql.utils.flyway.ResetMigrationChecksumCallback;
 
@@ -20,6 +22,7 @@ import com.vmturbo.sql.utils.flyway.ResetMigrationChecksumCallback;
  * Configuration for action-orchestrator component interaction with a schema.
  */
 @Configuration
+@Conditional(SQLDatabaseConfigCondition.class)
 public class ActionOrchestratorDBConfig extends SQLDatabaseConfig {
 
     /**
