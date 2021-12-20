@@ -1,11 +1,12 @@
 package com.vmturbo.mediation.webhook;
 
+import static com.vmturbo.mediation.webhook.WebhookProbeLocalServerTest.ON_PREM_RESIZE_ACTION;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -13,9 +14,11 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.webhook.WebhookProbeTest.WebhookProperties.WebhookPropertiesBuilder;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -38,6 +41,25 @@ import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
  * Tests the WebhookProbeTest.
  */
 public class WebhookProbeTest {
+    final IProgressTracker progressTracker = mock(IProgressTracker.class);
+    final WebhookAccount account = new WebhookAccount();
+
+    private WebhookProbe probe;
+
+    /**
+     * Prepares for the testing.
+     */
+    @Before
+    public void prepareTest() {
+        IProbeContext probeContext = mock(IProbeContext.class);
+        // set up probe related stuff
+        IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
+        when(propertyProvider.getProperty(any())).thenReturn(30000);
+        when(probeContext.getPropertyProvider()).thenReturn(propertyProvider);
+        probe = new WebhookProbe();
+        probe.initialize(probeContext, null);
+    }
+
     /**
      * If validation fails, then discovery should also fail.
      */
@@ -77,27 +99,81 @@ public class WebhookProbeTest {
      */
     @Test
     public void testWebhookDataNotProvided() throws Exception {
-
-        final IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
-        when(propertyProvider.getProperty(any())).thenReturn(30000);
-        final IProbeContext probeContext = mock(IProbeContext.class);
-        when(probeContext.getPropertyProvider()).thenReturn(propertyProvider);
-
-        final WebhookProbe probe = new WebhookProbe();
-        probe.initialize(probeContext, null);
-        final IProgressTracker progressTracker = mock(IProgressTracker.class);
-
         ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO(new WebhookPropertiesBuilder()
                 .setTemplatedActionBody("test")
                 .build());
 
         // this method should throw an exception
         final ActionResult result = probe.executeAction(actionExecutionDTO,
-                new WebhookAccount(),
-                new HashMap<>(),
+                account,
+                Collections.emptyMap(),
                 progressTracker);
         Assert.assertEquals(ActionResponseState.FAILED, result.getState());
     }
+
+    /**
+     * Test the case that an invalid url is sent to probe.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testWebhookWithInvalidUrl() throws Exception {
+        // ARRANGE
+        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
+          createWorkflow(new WebhookPropertiesBuilder()
+            .setUrl("https://127.0.0.1/{cloud=com.vmturbo.api.dto.entityaspect."
+                    + "Cloud@91302a19}. cloudAspect.resourceGroup.displayName/")
+            .setHttpMethod(HttpMethodType.GET.name())
+            .build()))
+        .build();
+
+        // ACT
+        ActionResult result = probe.executeAction(actionExecutionDTO,
+                account,
+                Collections.emptyMap(),
+                progressTracker);
+
+        // ASSERT
+        Assert.assertEquals(ActionResponseState.FAILED, result.getState());
+        Assert.assertEquals("The url \"https://127.0.0.1/{cloud=com.vmturbo.api.dto.entityaspect"
+                + ".Cloud@91302a19}. cloudAspect.resourceGroup.displayName/\" is not valid.",
+                result.getDescription());
+    }
+
+    /**
+     * Test the case that an invalid url is sent to probe.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testWebhookWithInvalidOAuthUrl() throws Exception {
+        // ARRANGE
+        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
+            createWorkflow(new WebhookPropertiesBuilder()
+                .setUrl("http://127.0.0.1/")
+                .setHttpMethod(HttpMethodType.GET.name())
+                .setAuthenticationMethod(WebhookConstants.AuthenticationMethod.OAUTH.name())
+                .setOAuthUrl("https://127.0.0.1/{cloud=com.vmturbo.api.dto.entityaspect."
+                        + "Cloud@91302a19}. cloudAspect.resourceGroup.displayName/")
+                .setClientId("testClient")
+                .setClientSecret("testSecret")
+                .setGrantType(WebhookConstants.GrantType.CLIENT_CREDENTIALS.name())
+                .build()))
+                .build();
+
+        // ACT
+        ActionResult result = probe.executeAction(actionExecutionDTO,
+                account,
+                Collections.emptyMap(),
+                progressTracker);
+
+        // ASSERT
+        Assert.assertEquals(ActionResponseState.FAILED, result.getState());
+        Assert.assertEquals("The OAuth authorization server url \"https://127.0.0.1/"
+                + "{cloud=com.vmturbo.api.dto.entityaspect.Cloud@91302a19}. cloudAspect."
+                + "resourceGroup.displayName/\" is not valid.", result.getDescription());
+    }
+
 
     private ActionExecutionDTO createActionExecutionDTO(WebhookProperties webhookProperties) {
         return ActionExecutionDTO.newBuilder().setActionType(ActionType.RESIZE)

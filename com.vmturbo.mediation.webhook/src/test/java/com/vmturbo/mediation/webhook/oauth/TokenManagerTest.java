@@ -35,8 +35,17 @@ public class TokenManagerTest {
     private static HttpServer server;
     private static ThreadPoolExecutor executor;
 
-    private final OAuthCredentials oAuthCredentials = new OAuthCredentials("http://localhost:28121",
-            "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
+    private final OAuthCredentials oAuthCredentials;
+
+    /**
+     * creates an instance of {@link TokenManagerTest}.
+     *
+     * @throws WebhookException if something goes wrong.
+     */
+    public TokenManagerTest() throws WebhookException {
+        oAuthCredentials = new OAuthCredentials("http://localhost:28121",
+                "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
+    }
 
     /**
      * Setup an http server for test.

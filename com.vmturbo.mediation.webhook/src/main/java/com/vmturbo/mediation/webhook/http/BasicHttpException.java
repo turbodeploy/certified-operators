@@ -39,7 +39,11 @@ public class BasicHttpException extends HttpConnectorException {
 
     @Override
     public String toString() {
-        return getClass().getName() + "{ responseCode=" + responseCode
-                + ", responseBody='" + responseBody + "'}";
+        if (responseCode != null) {
+            return getClass().getName() + "{ responseCode=" + responseCode
+                    + ", responseBody='" + responseBody + "'}";
+        } else {
+            return super.toString();
+        }
     }
 }
