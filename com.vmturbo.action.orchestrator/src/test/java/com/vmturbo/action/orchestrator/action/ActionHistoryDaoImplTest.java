@@ -72,7 +72,7 @@ public class ActionHistoryDaoImplTest {
         MockConnection connection = new MockConnection(provider);
 
         // Pass the mock connection to a jOOQ DSLContext:
-        DSLContext dslContext = DSL.using(connection, SQLDialect.MARIADB);
+        DSLContext dslContext = DSL.using(connection, SQLDialect.DEFAULT);
 
         ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
         List<ActionView> actuals = dao.getActionHistoryByDate(LocalDateTime.now(CLOCK), LocalDateTime.now(CLOCK));
@@ -96,7 +96,7 @@ public class ActionHistoryDaoImplTest {
          */
         @Override
         public MockResult[] execute(MockExecuteContext ctx) throws SQLException {
-            DSLContext create = DSL.using(SQLDialect.MARIADB);
+            DSLContext create = DSL.using(SQLDialect.DEFAULT);
 
             ActionHistory actionHistory = new ActionHistory(
                 0L,

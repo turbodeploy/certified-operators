@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.temporal.ChronoUnit;
@@ -27,10 +28,18 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotDayRecord;
@@ -46,13 +55,26 @@ import com.vmturbo.action.orchestrator.stats.rollup.RolledUpStatCalculator;
 import com.vmturbo.action.orchestrator.stats.rollup.RollupTestUtils;
 import com.vmturbo.action.orchestrator.stats.rollup.export.RollupExporter;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link HourActionStatRollup}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class HourActionStatRollupTest {
+
+    @Autowired(required = false)
+    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -65,14 +87,27 @@ public class HourActionStatRollupTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule =
+            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
 
     private RollupTestUtils rollupTestUtils;
 
     private RollupExporter rollupExporter = mock(RollupExporter.class);
 
     // We use a real one instead of mocking for simplicity.
-    private RolledUpStatCalculator statCalculator = mock(RolledUpStatCalculator.class);
+    private RolledUpStatCalculator statCalculator;
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
@@ -89,9 +124,9 @@ public class HourActionStatRollupTest {
 
     private final LocalDateTime t2 = LocalDateTime.of(2018, Month.SEPTEMBER, 30, 1, 20);
 
-    private final ActionStatsLatestRecord msu1ag1t1 = new ActionStatsLatestRecord(t1, msu1, ag1, 5, 2, 3, BigDecimal.valueOf(4), BigDecimal.valueOf(5));
+    private ActionStatsLatestRecord msu1ag1t1;
 
-    private final ActionStatsLatestRecord msu1ag1t2 = new ActionStatsLatestRecord(t2, msu1, ag1, 7, 2, 5, BigDecimal.valueOf(6), BigDecimal.valueOf(7));
+    private ActionStatsLatestRecord msu1ag1t2;
 
     private final RolledUpActionGroupStat groupStat = ImmutableRolledUpActionGroupStat.builder()
             .avgActionCount(1)
@@ -128,12 +163,26 @@ public class HourActionStatRollupTest {
             .build();
 
     /**
-     * Common setup before every test.
+     * Set up for tests.
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if thread has been interrupted
      */
     @Before
-    public void setup() {
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
         MockitoAnnotations.initMocks(this);
+
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
+            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
         rollupTestUtils = new RollupTestUtils(dsl);
+        statCalculator = mock(RolledUpStatCalculator.class);
+
+        msu1ag1t1 = new ActionStatsLatestRecord(t1, msu1, ag1, 5, 2, 3, BigDecimal.valueOf(4), BigDecimal.valueOf(5));
+        msu1ag1t2 = new ActionStatsLatestRecord(t2, msu1, ag1, 7, 2, 5, BigDecimal.valueOf(6), BigDecimal.valueOf(7));
     }
 
     /**
@@ -149,8 +198,7 @@ public class HourActionStatRollupTest {
                 .thenReturn(Optional.of(groupStat));
 
         // ACT
-        HourActionStatRollup rollup = new HourActionStatRollup(t1.truncatedTo(ChronoUnit.HOURS), 2, rollupExporter, statCalculator, dsl, clock);
-        rollup.run();
+        new HourActionStatRollup(t1.truncatedTo(ChronoUnit.HOURS), 2, rollupExporter, statCalculator, dsl, clock).run();
 
         // ASSERT
         // Verify that the inserted latest records got passed to the rollup stats calculator
