@@ -3995,6 +3995,9 @@ spec:
                     openIdClientSecret:
                       description: A secret string identifier for the SSO client
                       type: string
+                    openIdIssuerLocation:
+                      description: URI for well-known endpoints
+                      type: string
                     openIdAccessTokenUri:
                       description: URI for the SSO provider Access Token endpoint
                       type: string

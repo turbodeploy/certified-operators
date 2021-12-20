@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClient
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.registration.ClientRegistrations;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.oauth2.core.AuthenticationMethod;
@@ -57,6 +58,9 @@ public class OpenIdApiSecurityConfig extends ApiSecurityConfig {
     // OpenID userAuthentication such as “header”, “form”, “query”:
     @Value("${openIdUserAuthentication:header}")
     private String openIdUserAuthentication;
+    // OpenID well known Issuer Location such as “https://accounts.google.com”:
+    @Value("${openIdIssuerLocation:}")
+    private String openIdIssuerLocation;
     @Value("${openIdAccessTokenUri:https://www.googleapis.com/oauth2/v4/token}")
     private String openIdAccessTokenUri;
     @Value("${openIdUserAuthorizationUri:https://accounts.google.com/o/oauth2/v2/auth}")
@@ -158,6 +162,13 @@ public class OpenIdApiSecurityConfig extends ApiSecurityConfig {
                 .authorizationUri(openIdUserAuthorizationUri)
                 .userInfoUri(openIdUserInfoUri)
                 .jwkSetUri(openIdJwkSetUri)
+                .redirectUriTemplate(DEFAULT_REDIRECT_URL)
+                .clientId(openIdClientId).clientSecret(openIdClientSecret).build();
+        } else if (!openIdIssuerLocation.isEmpty()) {
+            return ClientRegistrations.fromIssuerLocation(openIdIssuerLocation)
+                .clientAuthenticationMethod(new ClientAuthenticationMethod(openIdClientAuthentication))
+                .userInfoAuthenticationMethod(new AuthenticationMethod(openIdUserAuthentication))
+                .scope(openIdClientScope)
                 .redirectUriTemplate(DEFAULT_REDIRECT_URL)
                 .clientId(openIdClientId).clientSecret(openIdClientSecret).build();
         } else {
