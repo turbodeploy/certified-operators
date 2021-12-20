@@ -65,7 +65,6 @@ import com.vmturbo.platform.sdk.probe.IProbeDataStoreEntry;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
 import com.vmturbo.platform.sdk.probe.TargetOperationException;
-import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
  * Webhook probe supports sending HTTP requests to specified URL endpoint for PRE,POST, and REPLACE events.
@@ -75,25 +74,34 @@ public class WebhookProbe
         IActionAudit<WebhookAccount> {
     private static final String WEBHOOK_PROBE_PERSISTENT_DATA = "webhook-probe-persistent-data";
 
+    /**
+     * Responsible for managing request's access tokens.
+     *
+     * <p>Don't forget to call "com.vmturbo.mediation.webhook.WebhookProbe#initializeTokenManager()"
+     * for the operations where it required (e.g. now it is used for
+     * {@link WebhookProbe#auditActions(WebhookAccount, Collection)} and
+     * {@link WebhookProbe#executeAction(ActionExecutionDTO, WebhookAccount, Map,
+     * IProgressTracker)}
+     * </p>
+     *
+     * <p>NOTE: we don't initialize tokenManager in the {@link WebhookProbe#initialize(IProbeContext,
+     * ProbeConfiguration)}, because this method is called before every probe operation, but not
+     * each operation supports probe persistent storage feature.
+     * </p>
+     */
     private TokenManager tokenManager;
 
     private WebhookProperties webhookProperties;
+
+    private IProbeContext probeContext;
 
     private final Logger logger = LogManager.getLogger(getClass());
 
     @Override
     public void initialize(@Nonnull IProbeContext probeContext,
             @Nullable ProbeConfiguration configuration) {
-        final IPropertyProvider propertyProvider = probeContext.getPropertyProvider();
-        webhookProperties = new WebhookProperties(propertyProvider);
-        IProbeDataStoreEntry<byte[]> probePersistentData;
-        try {
-            probePersistentData = probeContext.getTargetFeatureCategoryData(WEBHOOK_PROBE_PERSISTENT_DATA);
-        } catch (TargetOperationException e) {
-            logger.error("Was not able to get Webhook probe persistent data.", e);
-            probePersistentData = null;
-        }
-        tokenManager = new TokenManager(probePersistentData);
+        this.probeContext = probeContext;
+        this.webhookProperties = new WebhookProperties(probeContext.getPropertyProvider());
     }
 
     @Nonnull
@@ -147,6 +155,7 @@ public class WebhookProbe
     public Collection<ActionErrorDTO> auditActions(@Nonnull final WebhookAccount account,
             @Nonnull final Collection<ActionEventDTO> actionEvents)
             throws InterruptedException {
+        initializeTokenManager();
         for (ActionEventDTO actionEventDTO : actionEvents) {
             ActionExecutionDTO action = actionEventDTO.getAction();
             if (actionEventDTO.getNewState() == ActionResponseState.CLEARED) {
@@ -174,6 +183,7 @@ public class WebhookProbe
             @Nullable final Map<String, Discovery.AccountValue> secondaryAccountValuesMap,
             @Nonnull final IProgressTracker progressTracker) throws InterruptedException {
         final String exceptionMessage;
+        initializeTokenManager();
         try {
             prepareAndExecuteWebhookQuery(actionExecutionDto);
             return new ActionResult(ActionResponseState.SUCCEEDED,
@@ -182,6 +192,21 @@ public class WebhookProbe
             exceptionMessage = handleException(ex, actionExecutionDto);
             return new ActionResult(ActionResponseState.FAILED, exceptionMessage);
         }
+    }
+
+    /**
+     * Initialize {@link TokenManager} with probe persistent data.
+     */
+    private void initializeTokenManager() {
+        IProbeDataStoreEntry<byte[]> probePersistentData;
+        try {
+            probePersistentData = this.probeContext.getTargetFeatureCategoryData(
+                    WEBHOOK_PROBE_PERSISTENT_DATA);
+        } catch (TargetOperationException e) {
+            logger.error("Was not able to get Webhook probe persistent data.", e);
+            probePersistentData = null;
+        }
+        tokenManager = new TokenManager(probePersistentData);
     }
 
     /**
