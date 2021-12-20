@@ -1,8 +1,14 @@
 package com.vmturbo.history.stats.projected;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
 import static com.vmturbo.common.protobuf.utils.StringConstants.KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY;
+import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_CONNECTION_NAME;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE;
+import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_CONNECTION;
+import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_CONNECTION_WITH_KEY;
+import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_CONNECTION_WITH_KEY_2;
+import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_CONNECTION_WITH_NO_KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_WITH_KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_UNITS;
 import static org.hamcrest.Matchers.is;
@@ -57,6 +63,27 @@ public class SoldCommoditiesInfoTest {
         .record(4)
         .record(4)
         .toStatValue();
+
+    public static final TopologyEntityDTO CLOUD_TIER_1 = TopologyEntityDTO.newBuilder()
+        .setEntityType(EntityType.DATABASE_SERVER_TIER_VALUE)
+        .setOid(1)
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(COMMODITY_TYPE_CONNECTION_WITH_KEY)
+            .setUsed(2)
+            .setPeak(3)
+            .setCapacity(3))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(COMMODITY_TYPE_CONNECTION_WITH_KEY_2)
+            .setUsed(2)
+            .setPeak(3)
+            .setCapacity(3))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(COMMODITY_TYPE_CONNECTION_WITH_NO_KEY)
+            .setUsed(2)
+            .setPeak(3)
+            .setCapacity(3))
+
+        .build();
 
     @Test
     public void testEmpty() {
@@ -122,6 +149,27 @@ public class SoldCommoditiesInfoTest {
         assertEquals(Double.valueOf(4), info.getCapacity(COMMODITY, 1L)
                 .orElseThrow(() -> new RuntimeException("expected capacity")));
     }
+
+    /**
+     * In this test we test getCapacityByKey.
+     */
+    @Test
+    public void testSoldCommoditiesMultipleKeys() {
+
+        SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(
+            Collections.emptySet(),
+            new LongDataPack(), new DataPack<>())
+            .addEntity(CLOUD_TIER_1)
+            .build();
+
+        final long commodityKey = 0L; // "maria-sql"
+
+        assertEquals(Double.valueOf(9), info.getCapacity(COMMODITY_CONNECTION_NAME, 1L)
+            .orElseThrow(() -> new RuntimeException("expected capacity") ));
+        assertEquals(Double.valueOf(3), info.getCapacityByKey(COMMODITY_CONNECTION_NAME, 1L, commodityKey)
+            .orElseThrow(() -> new RuntimeException("expected capacity") ));
+    }
+
 
     @Test
     public void testSoldCommoditiesWholeMarket() {

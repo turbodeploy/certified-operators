@@ -55,13 +55,13 @@ public class AccumulatedCommodityTest {
     public void testAccumulatedSoldCommodity() {
         final AccumulatedSoldCommodity commodity =
                 new AccumulatedSoldCommodity(COMMODITY, null, null);
-        SoldCommodity soldCommodity = new SoldCommodity(CommoditySoldDTO.newBuilder()
+        SoldCommodity soldCommodity = newSoldCommodityWithKeyPack(CommoditySoldDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
                 .setCapacity(5)
                 .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
-                .build(), new DataPack<>());
+                .build());
         // Add two of the same commodity (to make the math easier)
         commodity.recordSoldCommodity(soldCommodity);
         commodity.recordSoldCommodity(soldCommodity);
@@ -99,7 +99,7 @@ public class AccumulatedCommodityTest {
         final AccumulatedBoughtCommodity commodity =
                 new AccumulatedBoughtCommodity(COMMODITY, null);
 
-        final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
+        final BoughtCommodity boughtComm = newBoughtCommodityWithKeyPack(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
@@ -141,7 +141,7 @@ public class AccumulatedCommodityTest {
         final AccumulatedBoughtCommodity commodity =
             new AccumulatedBoughtCommodity(COMMODITY, null);
 
-        final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
+        final BoughtCommodity boughtComm = newBoughtCommodityWithKeyPack(CommodityBoughtDTO.newBuilder()
             .setCommodityType(MEM_COMMODITY_TYPE)
             .setUsed(3)
             .setPeak(4)
@@ -178,7 +178,7 @@ public class AccumulatedCommodityTest {
         final AccumulatedBoughtCommodity commodity =
                 new AccumulatedBoughtCommodity(COMMODITY, null);
 
-        final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
+        final BoughtCommodity boughtComm = newBoughtCommodityWithKeyPack(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
@@ -190,5 +190,13 @@ public class AccumulatedCommodityTest {
 
         final StatRecord record = commodity.toStatRecord().get();
         assertEquals(Long.toString(1), record.getProviderUuid());
+    }
+
+    private SoldCommodity newSoldCommodityWithKeyPack(CommoditySoldDTO commoditySoldDTO){
+        return new SoldCommodity(commoditySoldDTO, new DataPack<>());
+    }
+
+    private BoughtCommodity newBoughtCommodityWithKeyPack(CommodityBoughtDTO commodityBoughtDTO){
+        return new BoughtCommodity(commodityBoughtDTO, new DataPack<>());
     }
 }

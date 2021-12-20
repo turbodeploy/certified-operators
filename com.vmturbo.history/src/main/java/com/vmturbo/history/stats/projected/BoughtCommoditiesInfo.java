@@ -82,6 +82,7 @@ class BoughtCommoditiesInfo implements MemReporter {
     // data pack of entity oids
     private final IDataPack<Long> oidPack;
     private final IDataPack<BoughtCommodity> cbPack;
+    private final IDataPack<String> keyPack;
     /**
      * Map of packed entity ID to entity type.
      */
@@ -90,18 +91,20 @@ class BoughtCommoditiesInfo implements MemReporter {
     private BoughtCommoditiesInfo(@Nonnull final SoldCommoditiesInfo soldCommoditiesInfo,
             @Nonnull final Map<Integer, Map<Integer, List<Long>>> boughtCommodities,
             @Nonnull final Map<Integer, Integer> entityIdToTypeMap,
-            @Nonnull final IDataPack<Long> oidPack, @Nonnull final IDataPack<BoughtCommodity> cbPack) {
+            @Nonnull final IDataPack<Long> oidPack, @Nonnull final IDataPack<BoughtCommodity> cbPack,
+            @Nonnull final IDataPack<String> keyPack) {
         this.boughtCommodities = Collections.unmodifiableMap(boughtCommodities);
         this.soldCommoditiesInfo = soldCommoditiesInfo;
         this.entityIdToTypeMap = entityIdToTypeMap;
         this.oidPack = oidPack;
         this.cbPack = cbPack;
+        this.keyPack = keyPack;
     }
 
     @Nonnull
     static Builder newBuilder(Set<CommodityType> excludedCommodityTypes,
-            IDataPack<String> commodityNamePack, IDataPack<Long> oidPack) {
-        return new Builder(excludedCommodityTypes, commodityNamePack, oidPack);
+            IDataPack<String> commodityNamePack, IDataPack<Long> oidPack, IDataPack<String> keyPack) {
+        return new Builder(excludedCommodityTypes, commodityNamePack, oidPack, keyPack);
     }
 
     /**
@@ -177,7 +180,7 @@ class BoughtCommoditiesInfo implements MemReporter {
                     long providerId = oidPack.fromIndex(unpacked[0]);
                     BoughtCommodity commodityBought = cbPack.fromIndex(unpacked[1]);
                     final Optional<Double> capacity = providerId == NO_PROVIDER_ID ? Optional.empty()
-                            : soldCommoditiesInfo.getCapacity(commodityName, providerId);
+                            : soldCommoditiesInfo.getCapacityByKey(commodityName, providerId, commodityBought.getKeyIndex());
                     if (providerId == NO_PROVIDER_ID || capacity.isPresent()) {
                         overallCommoditiesBought.recordBoughtCommodity(commodityBought, providerId,
                                 capacity.orElse(0.0));
@@ -234,12 +237,23 @@ class BoughtCommoditiesInfo implements MemReporter {
         private final float peak;
         private final float usedPercentile;
         private final boolean hasUsedPercentile;
+        private final int keyIndex;
 
-        BoughtCommodity(CommodityBoughtDTO commBought) {
+
+        BoughtCommodity(CommodityBoughtDTO commBought, IDataPack<String> keyPack) {
+            this.keyIndex = keyPack.toIndex(commBought.getCommodityType().getKey());
             this.used = (float)commBought.getUsed();
             this.peak = (float)commBought.getPeak();
             this.usedPercentile = (float)commBought.getHistoricalUsed().getPercentile();
             this.hasUsedPercentile = commBought.getHistoricalUsed().hasPercentile();
+        }
+
+        public String getKey(IDataPack<String> keyPack) {
+            return keyPack.fromIndex(keyIndex);
+        }
+
+        public long getKeyIndex() {
+            return keyIndex;
         }
 
         public double getUsed() {
@@ -270,12 +284,13 @@ class BoughtCommoditiesInfo implements MemReporter {
             return Double.compare(that.used, used) == 0
                     && Double.compare(that.peak, peak) == 0
                     && Double.compare(that.usedPercentile, usedPercentile) == 0
-                    && hasUsedPercentile == that.hasUsedPercentile;
+                    && hasUsedPercentile == that.hasUsedPercentile
+                    && keyIndex == that.keyIndex;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(used, peak, usedPercentile, hasUsedPercentile);
+            return Objects.hash(used, peak, usedPercentile, hasUsedPercentile, keyIndex);
         }
     }
 
@@ -293,6 +308,7 @@ class BoughtCommoditiesInfo implements MemReporter {
         private final IDataPack<Long> oidPack;
         private final Set<Integer> excludedCommodityTypeNos;
         IDataPack<BoughtCommodity> bcPack = new DataPack<>();
+        private final IDataPack<String> keyPack;
 
         /**
          * Map of packed entity ID to entity type.
@@ -300,11 +316,12 @@ class BoughtCommoditiesInfo implements MemReporter {
         private final Map<Integer, Integer> entityIdToTypeMap = new Int2IntOpenHashMap();
 
         private Builder(Set<CommodityType> excludedCommodityTypes,
-                IDataPack<String> commodityNamePack, IDataPack<Long> oidPack) {
+                IDataPack<String> commodityNamePack, IDataPack<Long> oidPack, IDataPack<String> keyPack) {
             this.excludedCommodityTypeNos = excludedCommodityTypes.stream()
                     .map(CommodityType::getNumber)
                     .collect(Collectors.toSet());
             this.oidPack = oidPack;
+            this.keyPack = keyPack;
         }
 
         /**
@@ -357,7 +374,7 @@ class BoughtCommoditiesInfo implements MemReporter {
                     entitiesBought.computeIfAbsent(oidPack.toIndex(entityOid),
                             _oid -> new LongArrayList());
             long packed = DataPacks.packInts(oidPack.toIndex(providerOid),
-                    bcPack.toIndex(new BoughtCommodity(cb)));
+                    bcPack.toIndex(new BoughtCommodity(cb, keyPack)));
             entityBought.add(packed);
         }
 
@@ -389,7 +406,7 @@ class BoughtCommoditiesInfo implements MemReporter {
             duplicateCommoditiesBought.clear();
             ((Int2ObjectOpenHashMap<?>)duplicateCommoditiesBought).trim();
             return new BoughtCommoditiesInfo(soldCommoditiesInfo, boughtCommodities,
-                entityIdToTypeMap, oidPack, bcPack);
+                entityIdToTypeMap, oidPack, bcPack, keyPack);
         }
 
         @Override

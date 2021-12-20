@@ -219,6 +219,19 @@ class SoldCommoditiesInfo implements MemReporter {
                         .sum());
     }
 
+    @Nonnull
+    public Optional<Double> getCapacityByKey(@Nonnull final String commodityName,
+                                                final long providerId,
+                                                final long key) {
+        return Optional.ofNullable(soldCommodities.get(toCommodityTypeNo(commodityName)))
+            .map(providers -> providers.get(oidPack.toIndex(providerId)))
+            .map(scIndexes -> scIndexes.stream()
+                .map(scPack::fromIndex)
+                .filter( soldCommodity -> soldCommodity.getKeyIndex() == key)
+                .mapToDouble(SoldCommodity::getCapacity)
+                .sum());
+    }
+
     /**
      * Utility class to capture the commodity information we need for projected stats. This
      * saves a LOT of memory compared to keeping the full {@link CommodityBoughtDTO} around in
@@ -248,6 +261,10 @@ class SoldCommoditiesInfo implements MemReporter {
 
         public String getKey(IDataPack<String> keyPack) {
             return keyPack.fromIndex(keyIndex);
+        }
+
+        public long getKeyIndex() {
+            return keyIndex;
         }
 
         public double getUsed() {
