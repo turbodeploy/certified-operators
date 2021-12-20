@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalTime;
 import java.util.Set;
@@ -15,6 +16,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -31,9 +33,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
@@ -41,6 +43,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.event.library.TopologyEventProvider;
 
 /**
@@ -64,7 +67,7 @@ public class EntitySavingsConfig {
      * DB config for DSL access.
      */
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private CostComponentGlobalConfig costComponentGlobalConfig;
@@ -183,7 +186,14 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntityStateStore<DSLContext> entityStateStore() {
-        return new SqlEntityStateStore(databaseConfig.dsl(), persistEntityCostChunkSize);
+        try {
+            return new SqlEntityStateStore(dbAccessConfig.dsl(), persistEntityCostChunkSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntityStateStore bean", e);
+        }
     }
 
     /**
@@ -241,9 +251,16 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntitySavingsTracker entitySavingsTracker() {
-        return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateStore(),
-                getClock(), cloudTopologyFactory(), repositoryClient, getDslContext(),
-                realtimeTopologyContextId, persistEntityCostChunkSize);
+        try {
+            return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(),
+                    entityStateStore(), getClock(), cloudTopologyFactory(), repositoryClient,
+                    dbAccessConfig.dsl(), realtimeTopologyContextId, persistEntityCostChunkSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntitySavingsTracker bean", e);
+        }
     }
 
     /**
@@ -304,8 +321,15 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntitySavingsStore<DSLContext> entitySavingsStore() {
-        return new SqlEntitySavingsStore(getDslContext(), getClock(),
-                persistEntityCostChunkSize);
+        try {
+            return new SqlEntitySavingsStore(dbAccessConfig.dsl(), getClock(),
+                    persistEntityCostChunkSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntitySavingsStore bean", e);
+        }
     }
 
     /**
@@ -362,17 +386,15 @@ public class EntitySavingsConfig {
      */
     @Bean
     public AuditLogWriter auditLogWriter() {
-        return new SqlAuditLogWriter(getDslContext(), getClock(),
-                persistEntityCostChunkSize, entitySavingsAuditLogEnabled);
-    }
-
-    /**
-     * DB DSL context.
-     *
-     * @return DSL context.
-     */
-    DSLContext getDslContext() {
-        return databaseConfig.dsl();
+        try {
+            return new SqlAuditLogWriter(dbAccessConfig.dsl(), getClock(),
+                    persistEntityCostChunkSize, entitySavingsAuditLogEnabled);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create AuditLogWriter bean", e);
+        }
     }
 
     /**

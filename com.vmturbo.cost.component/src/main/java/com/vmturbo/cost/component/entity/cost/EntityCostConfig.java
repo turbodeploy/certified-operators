@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -7,6 +8,7 @@ import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,26 +16,27 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cloud.commitment.analysis.util.LogContextExecutorService;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 @Configuration
 @Import({MarketClientConfig.class,
         MarketListenerConfig.class,
-        CostDBConfig.class,
+        DbAccessConfig.class,
         CostNotificationConfig.class,
         RepositoryClientConfig.class,
         SupplyChainServiceConfig.class})
 public class EntityCostConfig {
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private CostNotificationConfig costNotificationConfig;
@@ -77,13 +80,16 @@ public class EntityCostConfig {
 
     @Bean
     public EntityCostStore entityCostStore() {
-        return new SqlEntityCostStore(
-                databaseConfig.dsl(),
-                Clock.systemUTC(),
-                bulkEntityCostExecutorService(),
-                persistEntityCostChunkSize,
-                latestEntityCostStore(),
-                ingestionBouncer);
+        try {
+            return new SqlEntityCostStore(dbAccessConfig.dsl(), Clock.systemUTC(),
+                    bulkEntityCostExecutorService(), persistEntityCostChunkSize,
+                    latestEntityCostStore(), ingestionBouncer);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntityCostStore bean", e);
+        }
     }
 
     @Bean
@@ -101,8 +107,14 @@ public class EntityCostConfig {
 
     @Bean
     public PlanProjectedEntityCostStore planProjectedEntityCostStore() {
-        return new PlanProjectedEntityCostStore(databaseConfig.dsl(),
-                persistEntityCostChunkSize);
+        try {
+            return new PlanProjectedEntityCostStore(dbAccessConfig.dsl(), persistEntityCostChunkSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanProjectedEntityCostStore bean", e);
+        }
     }
 
     @Bean

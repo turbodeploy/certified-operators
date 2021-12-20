@@ -1,9 +1,11 @@
 package com.vmturbo.cost.component.pricing;
 
+import java.sql.SQLException;
 import java.time.Clock;
 
 import javax.annotation.PostConstruct;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,21 +14,22 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.PricingREST.PricingServiceController;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecCleanup;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 @Configuration
-@Import({CostDBConfig.class,
+@Import({DbAccessConfig.class,
         ReservedInstanceSpecConfig.class})
 public class PricingConfig {
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
@@ -53,16 +56,28 @@ public class PricingConfig {
 
     @Bean
     public PriceTableStore priceTableStore() {
-        return new SQLPriceTableStore(Clock.systemUTC(),
-                databaseConfig.dsl(),
-                priceTableKeyIdentityStore(),
-                priceTableMergeFactory());
+        try {
+            return new SQLPriceTableStore(Clock.systemUTC(), dbAccessConfig.dsl(),
+                    priceTableKeyIdentityStore(), priceTableMergeFactory());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PriceTableStore bean", e);
+        }
     }
 
     @Bean
     public BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore() {
-        return new BusinessAccountPriceTableKeyStore(databaseConfig.dsl(),
-                priceTableKeyIdentityStore());
+        try {
+            return new BusinessAccountPriceTableKeyStore(dbAccessConfig.dsl(),
+                    priceTableKeyIdentityStore());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create BusinessAccountPriceTableKeyStore bean", e);
+        }
     }
 
     /**
@@ -72,9 +87,14 @@ public class PricingConfig {
      */
     @Bean
     public PriceTableKeyIdentityStore priceTableKeyIdentityStore() {
-        return new PriceTableKeyIdentityStore(
-                databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+        try {
+            return new PriceTableKeyIdentityStore(dbAccessConfig.dsl(), identityProviderConfig.identityProvider());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PriceTableKeyIdentityStore bean", e);
+        }
     }
 
     /**

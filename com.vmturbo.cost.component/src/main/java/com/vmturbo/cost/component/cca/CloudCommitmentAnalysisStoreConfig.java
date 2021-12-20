@@ -1,11 +1,13 @@
 package com.vmturbo.cost.component.cca;
 
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,22 +18,23 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriterImpl;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.event.library.TopologyEventProvider;
 
 /**
  * The Cloud Commitment Demand Stats Config class.
  */
 @Lazy
-@Import({CostDBConfig.class,
+@Import({DbAccessConfig.class,
         TopologyProcessorListenerConfig.class})
 @Configuration
 public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
-    private CostDBConfig dbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
@@ -59,15 +62,17 @@ public class CloudCommitmentAnalysisStoreConfig {
      */
     @Bean
     public SQLComputeTierAllocationStore computeTierAllocationStore() {
-        return new SQLComputeTierAllocationStore(dbConfig.dsl(),
-                topologyProcessorListenerConfig.liveTopologyInfoTracker(),
-                Executors.newFixedThreadPool(1,
-                        new ThreadFactoryBuilder()
-                                .setNameFormat("ComputeTierAllocation-listener-%d")
-                                .build()),
-                recordUpdateBatchSize,
-                recordCommitBatchSize,
-                recordFetchBatchSize);
+        try {
+            return new SQLComputeTierAllocationStore(dbAccessConfig.dsl(),
+                    topologyProcessorListenerConfig.liveTopologyInfoTracker(), Executors.newFixedThreadPool(1,
+                    new ThreadFactoryBuilder().setNameFormat("ComputeTierAllocation-listener-%d").build()),
+                    recordUpdateBatchSize, recordCommitBatchSize, recordFetchBatchSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create SQLComputeTierAllocationStore bean", e);
+        }
     }
 
     @Bean(destroyMethod = "shutdown")
@@ -91,10 +96,16 @@ public class CloudCommitmentAnalysisStoreConfig {
      */
     @Bean
     public SQLCloudScopeStore cloudScopeStore() {
-        return new SQLCloudScopeStore(dbConfig.dsl(), cloudScopeCleanupScheduler(),
-                Duration.ofSeconds(cloudScopeCleanupPeriodSeconds),
-                recordCommitBatchSize,
-                recordFetchBatchSize);
+        try {
+            return new SQLCloudScopeStore(dbAccessConfig.dsl(), cloudScopeCleanupScheduler(),
+                    Duration.ofSeconds(cloudScopeCleanupPeriodSeconds), recordCommitBatchSize,
+                    recordFetchBatchSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create SQLCloudScopeStore bean", e);
+        }
     }
 
     /**

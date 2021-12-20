@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -7,19 +10,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Config class for ReservedInstanceSpec.
  */
 @Configuration
 @Import({IdentityProviderConfig.class,
-        CostDBConfig.class})
+        DbAccessConfig.class})
 public class ReservedInstanceSpecConfig {
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -37,8 +41,14 @@ public class ReservedInstanceSpecConfig {
      */
     @Bean
     public ReservedInstanceSpecStore reservedInstanceSpecStore() {
-        return new ReservedInstanceSpecStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), riBatchSize);
+        try {
+            return new ReservedInstanceSpecStore(dbAccessConfig.dsl(), identityProviderConfig.identityProvider(), riBatchSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ReservedInstanceSpecStore bean", e);
+        }
     }
 
     /**
@@ -48,8 +58,14 @@ public class ReservedInstanceSpecConfig {
      */
     @Bean
     public ReservedInstanceSpecRpcService reservedInstanceSpecRpcService() {
-        return new ReservedInstanceSpecRpcService(reservedInstanceSpecStore(),
-                databaseConfig.dsl());
+        try {
+            return new ReservedInstanceSpecRpcService(reservedInstanceSpecStore(), dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ReservedInstanceSpecRpcService", e);
+        }
     }
 
     /**

@@ -28,7 +28,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
@@ -42,7 +49,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
@@ -59,11 +68,22 @@ import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Class to test ReservedInstanceBoughtStore methods.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestCostDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class ReservedInstanceBoughtStoreTest {
+
+    @Autowired(required = false)
+    private TestCostDbEndpointConfig dbEndpointConfig;
+
     private static final long BA_1 = 123L;
     /**
      * Rule to create the DB schema and migrate it.
@@ -77,20 +97,31 @@ public class ReservedInstanceBoughtStoreTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("cost");
 
-    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new DefaultIdentityProvider(0), 10);
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
 
-    private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
+    private DSLContext dsl;
 
-    private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
-    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore = Mockito.mock(EntityReservedInstanceMappingStore.class);
-    private AccountRIMappingStore accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
-    private BusinessAccountHelper businessAccountHelper = Mockito.mock(BusinessAccountHelper.class);
+    private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
-                new DefaultIdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
-            entityReservedInstanceMappingStore, accountRIMappingStore, businessAccountHelper);
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+
+    private PriceTableStore priceTableStore;
+    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+    private AccountRIMappingStore accountRIMappingStore;
+    private BusinessAccountHelper businessAccountHelper;
+
+    private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     private static final int REGION_VALUE = 54;
     private static final int AVAILABILITYZONE_VALUE = 55;
@@ -162,6 +193,22 @@ public class ReservedInstanceBoughtStoreTest {
 
     @Before
     public void setup() throws Exception {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.costEndpoint());
+            dsl = dbEndpointConfig.costEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new DefaultIdentityProvider(0), 10);
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
+        priceTableStore = Mockito.mock(PriceTableStore.class);
+        entityReservedInstanceMappingStore = Mockito.mock(EntityReservedInstanceMappingStore.class);
+        accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
+        businessAccountHelper = Mockito.mock(BusinessAccountHelper.class);
+        reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
+                new DefaultIdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
+                entityReservedInstanceMappingStore, accountRIMappingStore, businessAccountHelper);
+
         Map<Long, PricingDTO.ReservedInstancePrice> map = new HashMap<>();
         ReservedInstancePriceTable riPriceTable = ReservedInstancePriceTable.newBuilder()
                 .putAllRiPricesBySpecId(map).build();

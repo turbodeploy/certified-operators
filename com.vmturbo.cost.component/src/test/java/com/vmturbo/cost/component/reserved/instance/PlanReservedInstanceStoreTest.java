@@ -18,13 +18,22 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
@@ -36,11 +45,22 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests for the {@link PlanReservedInstanceStore}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestCostDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class PlanReservedInstanceStoreTest {
+
+    @Autowired(required = false)
+    private TestCostDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -52,6 +72,19 @@ public class PlanReservedInstanceStoreTest {
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("cost");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
 
     private static final long PLAN_ID = 112345L;
     private static final double DELTA = 0.01;
@@ -90,19 +123,14 @@ public class PlanReservedInstanceStoreTest {
 
     private static final Map<Long, Long> TIER_ID_TO_COUNT_MAP = createTierIdToCountMap();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private DSLContext dsl;
 
-    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new DefaultIdentityProvider(0), 10);
-
-    private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
-
-    private BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
-    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
-    private AccountRIMappingStore accountRIMappingStore = new AccountRIMappingStore(dsl);
-    private PlanReservedInstanceStore planReservedInstanceStore =
-            new PlanReservedInstanceStore(dsl, new DefaultIdentityProvider(0),
-            reservedInstanceCostCalculator, businessAccountHelper,
-                    entityReservedInstanceMappingStore, accountRIMappingStore);
+    private ReservedInstanceSpecStore reservedInstanceSpecStore;
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+    private BusinessAccountHelper businessAccountHelper;
+    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+    private AccountRIMappingStore accountRIMappingStore;
+    private PlanReservedInstanceStore planReservedInstanceStore;
 
     /**
      * Initialize instances before test.
@@ -111,11 +139,26 @@ public class PlanReservedInstanceStoreTest {
      */
     @Before
     public void setup() throws Exception {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.costEndpoint());
+            dsl = dbEndpointConfig.costEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new DefaultIdentityProvider(0), 10);
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
+        businessAccountHelper = new BusinessAccountHelper();
+        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
+        accountRIMappingStore = new AccountRIMappingStore(dsl);
+        planReservedInstanceStore =
+                new PlanReservedInstanceStore(dsl, new DefaultIdentityProvider(0),
+                        reservedInstanceCostCalculator, businessAccountHelper,
+                        entityReservedInstanceMappingStore, accountRIMappingStore);
         insertDefaultReservedInstanceSpec();
         final List<ReservedInstanceBought> reservedInstanceBoughtInfos =
-                        Arrays.asList(ReservedInstanceBought.newBuilder().setId(riId_1).setReservedInstanceBoughtInfo(RI_INFO_1).build(),
-                                        ReservedInstanceBought.newBuilder().setId(riId_2).setReservedInstanceBoughtInfo(RI_INFO_2)
-                                                        .build());
+                Arrays.asList(ReservedInstanceBought.newBuilder().setId(riId_1).setReservedInstanceBoughtInfo(RI_INFO_1).build(),
+                        ReservedInstanceBought.newBuilder().setId(riId_2).setReservedInstanceBoughtInfo(RI_INFO_2)
+                                .build());
         planReservedInstanceStore.insertPlanReservedInstanceBought(reservedInstanceBoughtInfos, PLAN_ID);
     }
 

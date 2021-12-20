@@ -1,23 +1,27 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cost.component.CostDBConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Configuration of computer tier demand stats.
  */
-@Import({CostDBConfig.class})
+@Import({DbAccessConfig.class})
 @Configuration
 public class ComputeTierDemandStatsConfig {
 
     @Autowired
-    private CostDBConfig dbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Value("${statsRecordsCommitBatchSize:100}")
     private int statsRecordsCommitBatchSize;
@@ -33,10 +37,15 @@ public class ComputeTierDemandStatsConfig {
 
     @Bean
     public ComputeTierDemandStatsStore riDemandStatsStore() {
-        return new ComputeTierDemandStatsStore(
-                dbConfig.dsl(),
-                statsRecordsCommitBatchSize,
-                statsRecordsQueryBatchSize);
+        try {
+            return new ComputeTierDemandStatsStore(dbAccessConfig.dsl(), statsRecordsCommitBatchSize,
+                    statsRecordsQueryBatchSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ComputeTierDemandStatsStore bean", e);
+        }
     }
 
     @Bean

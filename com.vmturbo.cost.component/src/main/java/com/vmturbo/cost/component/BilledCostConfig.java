@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,18 +19,20 @@ import com.vmturbo.cost.component.billedcosts.TagGroupStore;
 import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
 import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Configuration for BilledCostUploadRpcService.
  */
 @Configuration
-@Import({IdentityProviderConfig.class, CostDBConfig.class})
+@Import({IdentityProviderConfig.class, DbAccessConfig.class})
 public class BilledCostConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
-    private CostDBConfig dbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private CostCleanupConfig costCleanupConfig;
@@ -55,8 +60,15 @@ public class BilledCostConfig {
      */
     @Bean
     public BilledCostStore billedCostStore() {
-        return new SqlBilledCostStore(dbConfig.dsl(), batchInserter(),
+        try {
+            return new SqlBilledCostStore(dbAccessConfig.dsl(), batchInserter(),
                 costCleanupConfig.timeFrameCalculator());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create billedCostStore", e);
+        }
     }
 
     /**
@@ -86,7 +98,14 @@ public class BilledCostConfig {
      */
     @Bean
     public TagGroupStore tagGroupStore() {
-        return new TagGroupStore(dbConfig.dsl(), batchInserter());
+        try {
+            return new TagGroupStore(dbAccessConfig.dsl(), batchInserter());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create tagGroupStore", e);
+        }
     }
 
     /**
@@ -96,7 +115,14 @@ public class BilledCostConfig {
      */
     @Bean
     public TagStore tagStore() {
-        return new TagStore(dbConfig.dsl(), batchInserter());
+        try {
+            return new TagStore(dbAccessConfig.dsl(), batchInserter());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create tagGroupStore", e);
+        }
     }
 
     /**

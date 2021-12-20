@@ -25,6 +25,7 @@ import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CoverageInfo;
 import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
@@ -38,7 +39,7 @@ import com.vmturbo.cost.component.stores.DiagnosableSingleFieldDataStore;
         EntityCostConfig.class,
         ReservedInstanceConfig.class,
         ComputeTierDemandStatsConfig.class,
-        CostDBConfig.class,
+        DbAccessConfig.class,
         ReservedInstanceSpecConfig.class,
         CloudCommitmentStatsConfig.class})
 @Configuration

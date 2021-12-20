@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.topology;
 
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.ThreadFactory;
@@ -8,6 +9,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +18,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
@@ -30,11 +31,11 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -50,8 +51,8 @@ import com.vmturbo.cost.component.topology.cloud.listener.CCADemandCollector;
 import com.vmturbo.cost.component.topology.cloud.listener.EntityCostWriter;
 import com.vmturbo.cost.component.topology.cloud.listener.RIBuyRunner;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
 
 /**
@@ -70,7 +71,7 @@ import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
         RepositoryClientConfig.class,
         BuyRIAnalysisConfig.class,
         ReservedInstanceSpecConfig.class,
-        CostDBConfig.class,
+        DbAccessConfig.class,
         SupplyChainServiceConfig.class,
         GroupClientConfig.class,
         CloudCommitmentAnalysisStoreConfig.class,
@@ -83,7 +84,7 @@ public class TopologyListenerConfig {
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
@@ -168,10 +169,15 @@ public class TopologyListenerConfig {
 
     @Bean
     public IngestedTopologyStore ingestedTopologyStore() {
-        return new IngestedTopologyStore(
-                liveTopologyCleanupScheduler(),
-                Duration.parse(liveTopologyCleanupInterval),
-                databaseConfig.dsl());
+        try {
+            return new IngestedTopologyStore(liveTopologyCleanupScheduler(), Duration.parse(liveTopologyCleanupInterval),
+                    dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create IngestedTopologyStore bean", e);
+        }
     }
 
     @Bean
@@ -217,9 +223,14 @@ public class TopologyListenerConfig {
      */
     @Bean
     public PriceTableKeyIdentityStore priceTableKeyIdentityStore() {
-        return new PriceTableKeyIdentityStore(
-                databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+        try {
+            return new PriceTableKeyIdentityStore(dbAccessConfig.dsl(), identityProviderConfig.identityProvider());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PriceTableKeyIdentityStore bean", e);
+        }
     }
 
     /**
@@ -229,8 +240,15 @@ public class TopologyListenerConfig {
      */
     @Bean
     public BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore() {
-        return new BusinessAccountPriceTableKeyStore(databaseConfig.dsl(),
-                priceTableKeyIdentityStore());
+        try {
+            return new BusinessAccountPriceTableKeyStore(dbAccessConfig.dsl(),
+                    priceTableKeyIdentityStore());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create BusinessAccountPriceTableKeyStore bean", e);
+        }
     }
 
     @Bean

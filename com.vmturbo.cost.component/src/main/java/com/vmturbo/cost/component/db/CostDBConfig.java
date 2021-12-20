@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component;
+package com.vmturbo.cost.component.db;
 
 import java.util.Optional;
 
@@ -7,14 +7,17 @@ import javax.sql.DataSource;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.sql.utils.ConditionalDbConfig.SQLDatabaseConfigCondition;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Configuration for cost component interaction with a schema.
  */
 @Configuration
+@Conditional(SQLDatabaseConfigCondition.class)
 public class CostDBConfig extends SQLDatabaseConfig {
 
     /**

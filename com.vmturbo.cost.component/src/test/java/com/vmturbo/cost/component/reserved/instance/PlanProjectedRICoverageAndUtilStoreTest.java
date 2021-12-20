@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -23,7 +24,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -46,8 +54,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
@@ -56,8 +66,20 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestCostDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class PlanProjectedRICoverageAndUtilStoreTest {
+
+    @Autowired(required = false)
+    private TestCostDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -70,10 +92,23 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("cost");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
     private static final long PLAN_ID = 20L;
     private static final double DELTA = 0.01;
 
-    private final DSLContext dsl = dbConfig.getDslContext();
+    private DSLContext dsl;
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore = mock(
             ReservedInstanceSpecStore.class);
@@ -124,8 +159,21 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     public GrpcTestServer planGrpcServer = GrpcTestServer.newServer(planRiService);
 
 
+    /**
+     * Set up before each test.
+     *
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
+     */
     @Before
-    public void setup() {
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.costEndpoint());
+            dsl = dbEndpointConfig.costEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
         planReservedInstanceService = PlanReservedInstanceServiceGrpc.newBlockingStub(planGrpcServer.getChannel());
         // set time out on topology available or failure for 1 seconds
         store = Mockito.spy(new PlanProjectedRICoverageAndUtilStore(dsl,

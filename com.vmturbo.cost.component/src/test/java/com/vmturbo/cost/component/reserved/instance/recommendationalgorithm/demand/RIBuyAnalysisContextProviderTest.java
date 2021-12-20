@@ -6,6 +6,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +24,13 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -49,12 +57,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
+import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ImmutableReservedInstanceSpecData;
@@ -73,11 +84,23 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * This class tests methods in the ReservedInstanceSpecStore class.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestCostDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class RIBuyAnalysisContextProviderTest {
+
+    @Autowired(required = false)
+    private TestCostDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -89,6 +112,19 @@ public class RIBuyAnalysisContextProviderTest {
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("cost");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
 
     private static final long REGION_ID = 111;
     private static final Long MASTER_ACCOUNT_1_OID = 222L;
@@ -103,13 +139,30 @@ public class RIBuyAnalysisContextProviderTest {
 
     private static final long CONTEXT_ID = 9999L;
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private DSLContext dsl;
 
     private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private final ReservedInstanceCatalogMatcherFactory reservedInstanceCatalogMatcherFactory =
             mock(ReservedInstanceCatalogMatcherFactory.class);
     private final ReservedInstanceCatalogMatcher reservedInstanceCatalogMatcher =
             mock(ReservedInstanceCatalogMatcher.class);
+
+    /**
+     * Set up before each test.
+     *
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
+     */
+    @Before
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.costEndpoint());
+            dsl = dbEndpointConfig.costEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+    }
 
     /**
      * gRPC test server.

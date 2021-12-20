@@ -1,7 +1,9 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -13,7 +15,6 @@ import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceCo
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -24,11 +25,11 @@ import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
@@ -36,17 +37,17 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
     GroupClientConfig.class,
     MarketClientConfig.class,
     MarketListenerConfig.class,
-    CostDBConfig.class,
+    DbAccessConfig.class,
     RepositoryClientConfig.class,
     ComputeTierDemandStatsConfig.class,
     CostNotificationConfig.class,
@@ -86,7 +87,7 @@ public class ReservedInstanceConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -145,12 +146,17 @@ public class ReservedInstanceConfig {
         if (ignoreReservedInstanceInventory) {
             return new EmptyReservedInstanceBoughtStore();
         } else {
-            return new SQLReservedInstanceBoughtStore(databaseConfig.dsl(),
-                    identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
-                    pricingConfig.priceTableStore(),
-                    entityReservedInstanceMappingStore(),
-                    accountRIMappingStore(),
-                    costConfig.businessAccountHelper());
+            try {
+                return new SQLReservedInstanceBoughtStore(dbAccessConfig.dsl(),
+                        identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
+                        pricingConfig.priceTableStore(), entityReservedInstanceMappingStore(),
+                        accountRIMappingStore(), costConfig.businessAccountHelper());
+            } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new BeanCreationException("Failed to create ReservedInstanceBoughtStore bean", e);
+            }
         }
     }
 
@@ -161,42 +167,79 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public PlanReservedInstanceStore planReservedInstanceStore() {
-        return new PlanReservedInstanceStore(databaseConfig.dsl(), identityProviderConfig.identityProvider(),
-                        repositoryInstanceCostCalculator(),
-                costConfig.businessAccountHelper(), entityReservedInstanceMappingStore(), accountRIMappingStore());
+        try {
+            return new PlanReservedInstanceStore(dbAccessConfig.dsl(), identityProviderConfig.identityProvider(),
+                    repositoryInstanceCostCalculator(), costConfig.businessAccountHelper(), entityReservedInstanceMappingStore(),
+                    accountRIMappingStore());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create planReservedInstanceStore bean", e);
+        }
     }
 
     @Bean
     public BuyReservedInstanceStore buyReservedInstanceStore() {
-        return new BuyReservedInstanceStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+        try {
+            return new BuyReservedInstanceStore(dbAccessConfig.dsl(), identityProviderConfig.identityProvider());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create BuyReservedInstanceStore bean", e);
+        }
     }
 
     @Bean
     public EntityReservedInstanceMappingStore entityReservedInstanceMappingStore() {
-        return new EntityReservedInstanceMappingStore(databaseConfig.dsl());
+        try {
+            return new EntityReservedInstanceMappingStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntityReservedInstanceMappingStore bean", e);
+        }
     }
 
     @Bean
     public AccountRIMappingStore accountRIMappingStore() {
-        return new AccountRIMappingStore(databaseConfig.dsl());
+        try {
+            return new AccountRIMappingStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create AccountRIMappingStore bean", e);
+        }
     }
 
     @Bean
     public ReservedInstanceUtilizationStore reservedInstanceUtilizationStore() {
-        return new ReservedInstanceUtilizationStore(databaseConfig.dsl(),
-                reservedInstanceBoughtStore(),
-                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
-                normalizeCouponSamples,
-                couponNormalizationFactor);
+        try {
+            return new ReservedInstanceUtilizationStore(dbAccessConfig.dsl(),
+                    reservedInstanceBoughtStore(), reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                    normalizeCouponSamples, couponNormalizationFactor);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ReservedInstanceUtilizationStore bean", e);
+        }
     }
 
     @Bean
     public ReservedInstanceCoverageStore reservedInstanceCoverageStore() {
-        return new ReservedInstanceCoverageStore(
-                databaseConfig.dsl(),
-                normalizeCouponSamples,
-                couponNormalizationFactor);
+        try {
+            return new ReservedInstanceCoverageStore(dbAccessConfig.dsl(), normalizeCouponSamples,
+                    couponNormalizationFactor);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ReservedInstanceCoverageStore bean", e);
+        }
     }
 
     /**
@@ -274,11 +317,18 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ReservedInstanceCoverageUpdate reservedInstanceCoverageUpload() {
-        return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(),
-                entityReservedInstanceMappingStore(), accountRIMappingStore(),
-                reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
-                reservedInstanceCoverageValidatorFactory(), supplementalRICoverageAnalysisFactory,
-                costNotificationConfig.costNotificationSender(), riCoverageCacheExpireMinutes);
+        try {
+            return new ReservedInstanceCoverageUpdate(dbAccessConfig.dsl(),
+                    entityReservedInstanceMappingStore(), accountRIMappingStore(),
+                    reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
+                    reservedInstanceCoverageValidatorFactory(),
+                    supplementalRICoverageAnalysisFactory, costNotificationConfig.costNotificationSender(), riCoverageCacheExpireMinutes);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ReservedInstanceCoverageUpdate bean", e);
+        }
     }
 
     /**
@@ -325,20 +375,30 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore() {
-        final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore
-                = new PlanProjectedRICoverageAndUtilStore(databaseConfig.dsl(),
-                                                   repositoryServiceClient(),
-                                                   planReservedInstanceService(),
-                                                   reservedInstanceSpecConfig
-                                                           .reservedInstanceSpecStore(),
-                                                   accountRIMappingStore(),
-                                                   persistEntityCostChunkSize);
-        return planProjectedRICoverageAndUtilStore;
+        try {
+            final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore = new PlanProjectedRICoverageAndUtilStore(dbAccessConfig.dsl(),
+                    repositoryServiceClient(), planReservedInstanceService(),
+                    reservedInstanceSpecConfig.reservedInstanceSpecStore(), accountRIMappingStore(),
+                    persistEntityCostChunkSize);
+            return planProjectedRICoverageAndUtilStore;
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanProjectedRICoverageAndUtilStore bean", e);
+        }
     }
 
     @Bean
     public ActionContextRIBuyStore actionContextRIBuyStore() {
-        return new ActionContextRIBuyStore(databaseConfig.dsl());
+        try {
+            return new ActionContextRIBuyStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create ActionContextRIBuyStore bean", e);
+        }
     }
 
     @Bean
