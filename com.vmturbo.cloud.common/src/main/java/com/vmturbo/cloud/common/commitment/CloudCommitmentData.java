@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Auxiliary;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 
 /**
@@ -40,6 +41,13 @@ public interface CloudCommitmentData<CommitmentTypeT, SpecificationTypeT> {
      * @return The commitment specification ID.
      */
     long specId();
+
+    /**
+     * The commitment capacity.
+     * @return The commitment capacity.
+     */
+    @Nonnull
+    CloudCommitmentAmount capacity();
 
     /**
      * The commitment type.

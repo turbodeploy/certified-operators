@@ -4,6 +4,7 @@ import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -41,6 +42,17 @@ public interface ReservedInstanceData extends CloudCommitmentData<ReservedInstan
     default CloudCommitmentType type() {
         return CloudCommitmentType.RESERVED_INSTANCE;
     }
+
+    @Derived
+    @Override
+    default CloudCommitmentAmount capacity() {
+        return CloudCommitmentAmount.newBuilder()
+                .setCoupons(commitment().getReservedInstanceBoughtInfo()
+                        .getReservedInstanceBoughtCoupons()
+                        .getNumberOfCoupons())
+                .build();
+    }
+
 
     /**
      * Constructs and returns a new {@link Builder} instance.

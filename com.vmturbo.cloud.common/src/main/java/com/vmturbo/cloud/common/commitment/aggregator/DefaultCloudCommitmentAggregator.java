@@ -28,6 +28,10 @@ import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope.EntityScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope.GroupScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
@@ -36,6 +40,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -52,15 +57,19 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
 
     private final BillingFamilyRetriever billingFamilyRetriever;
 
-    private final ConcurrentMap<AggregateInfo, Set<CloudCommitmentData>> commitmentAggregateMap =
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
+
+    private final ConcurrentMap<AggregateInfo, Set<CloudCommitmentData<?, ?>>> commitmentAggregateMap =
             new ConcurrentHashMap<>();
 
     private DefaultCloudCommitmentAggregator(@Nonnull IdentityProvider identityProvider,
                                              @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
-                                             @Nonnull BillingFamilyRetriever billingFamilyRetriever) {
+                                             @Nonnull BillingFamilyRetriever billingFamilyRetriever,
+                                             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.billingFamilyRetriever = Objects.requireNonNull(billingFamilyRetriever);
+        this.cloudTopology = Objects.requireNonNull(cloudTopology);
     }
 
     /**
@@ -133,6 +142,10 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
             final ReservedInstanceScopeInfo scopeInfo = riBoughtInfo.getReservedInstanceScopeInfo();
             final ReservedInstanceSpecInfo riSpecInfo = commitmentData.spec().getReservedInstanceSpecInfo();
 
+            final long serviceProviderOid = cloudTopology.getServiceProvider(riSpecInfo.getTierId())
+                    .map(TopologyEntityDTO::getOid)
+                    .orElse(0L);
+
             // Determine the purchasing account/billing family scope. If the commitment does not
             // have a billing family or the commitment is shared across the BF/group of accounts including
             // the purchasing account, the aggregate info will include the purchasing account.
@@ -142,24 +155,48 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
                     .map(Grouping::getId)
                     .map(OptionalLong::of)
                     .orElse(OptionalLong.empty());
+
             final boolean isPurchasingAccountScoped = !billingFamilyId.isPresent()
                     || scopeInfo.getShared()
                     || scopeInfo.getApplicableBusinessAccountIdList().contains(purchasingAccount);
+
             final OptionalLong purchaseAccountScope = isPurchasingAccountScoped
                     ? OptionalLong.of(purchasingAccount)
                     : OptionalLong.empty();
 
+            final CloudCommitmentEntityScope entityScope;
+            if (scopeInfo.getShared() && billingFamilyId.isPresent()) {
+                entityScope = CloudCommitmentEntityScope.newBuilder()
+                        .setScopeType(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
+                        .setGroupScope(GroupScope.newBuilder()
+                                .addGroupId(billingFamilyId.getAsLong())
+                                .build())
+                        .build();
+            } else if (scopeInfo.getApplicableBusinessAccountIdCount() != 0) {
+                entityScope = CloudCommitmentEntityScope.newBuilder()
+                        .setScopeType(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
+                        .setEntityScope(EntityScope.newBuilder()
+                                .addAllEntityOid(scopeInfo.getApplicableBusinessAccountIdList())
+                                .build())
+                        .build();
+            } else {
+                entityScope = CloudCommitmentEntityScope.newBuilder()
+                        .setScopeType(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_UNKNOWN)
+                        .setEntityScope(EntityScope.newBuilder()
+                                .addEntityOid(purchasingAccount)
+                                .build())
+                        .build();
+            }
+
             return ReservedInstanceAggregateInfo.builder()
-                    .billingFamilyId(billingFamilyId)
+                    .serviceProviderOid(serviceProviderOid)
+                    .purchasingAccountOid(purchaseAccountScope)
+                    .coverageType(CloudCommitmentCoverageType.COUPONS)
+                    .entityScope(entityScope)
                     .platformInfo(PlatformInfo.builder()
                             .isPlatformFlexible(riSpecInfo.getPlatformFlexible())
                             // platform will be ignored if the RI is platform flexible
                             .platform(riSpecInfo.getOs())
-                            .build())
-                    .scopeInfo(ReservedInstanceScopeInfo.newBuilder()
-                            .setShared(riBoughtInfo.getReservedInstanceScopeInfo().getShared())
-                            .addAllApplicableBusinessAccountId(
-                                    riBoughtInfo.getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList())
                             .build())
                     .tierInfo(TierInfo.builder()
                             .tierType(EntityType.COMPUTE_TIER)
@@ -171,7 +208,6 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
                     .zoneOid(riBoughtInfo.hasAvailabilityZoneId()
                             ? OptionalLong.of(riBoughtInfo.getAvailabilityZoneId())
                             : OptionalLong.empty())
-                    .purchasingAccountOid(purchaseAccountScope)
                     .tenancy(riSpecInfo.hasTenancy() ? riSpecInfo.getTenancy() : Tenancy.DEFAULT)
                     .build();
         } catch (Exception e) {
@@ -193,8 +229,9 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
 
         private DefaultIdentityAggregator(@Nonnull IdentityProvider identityProvider,
                                           @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
-                                          @Nonnull BillingFamilyRetriever billingFamilyRetriever) {
-            super(identityProvider, computeTierFamilyResolver, billingFamilyRetriever);
+                                          @Nonnull BillingFamilyRetriever billingFamilyRetriever,
+                                          @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
+            super(identityProvider, computeTierFamilyResolver, billingFamilyRetriever, cloudTopology);
         }
 
         /**
@@ -268,7 +305,8 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
             return new DefaultCloudCommitmentAggregator(
                     identityProvider,
                     computeTierFamilyResolverFactory.createResolver(tierTopology),
-                    billingFamilyRetrieverFactory.newInstance());
+                    billingFamilyRetrieverFactory.newInstance(),
+                    tierTopology);
         }
 
         /**
@@ -282,7 +320,8 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
             return new DefaultIdentityAggregator(
                     identityProvider,
                     computeTierFamilyResolverFactory.createResolver(tierTopology),
-                    billingFamilyRetrieverFactory.newInstance());
+                    billingFamilyRetrieverFactory.newInstance(),
+                    tierTopology);
         }
     }
 }

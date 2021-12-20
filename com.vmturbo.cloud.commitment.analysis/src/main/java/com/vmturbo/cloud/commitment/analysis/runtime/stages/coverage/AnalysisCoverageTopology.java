@@ -241,6 +241,7 @@ public class AnalysisCoverageTopology implements CoverageTopology {
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
             final ScopedCloudTierInfo cloudTierInfo = aggregateDemand.cloudTierInfo();
             return Optional.of(CloudAggregationInfo.builder()
+                    .serviceProviderOid(cloudTierInfo.serviceProviderOid())
                     .billingFamilyId(cloudTierInfo.billingFamilyId()
                             .map(OptionalLong::of)
                             .orElse(OptionalLong.empty()))

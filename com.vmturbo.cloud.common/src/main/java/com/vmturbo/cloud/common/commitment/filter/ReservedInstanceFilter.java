@@ -1,4 +1,4 @@
-package com.vmturbo.reserved.instance.coverage.allocator.rules.filter;
+package com.vmturbo.cloud.common.commitment.filter;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -12,9 +12,10 @@ import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 
 /**
  * An implementation of {@link CloudCommitmentFilter}, specific to accepting reserved instances. Any
@@ -52,9 +53,7 @@ public class ReservedInstanceFilter implements CloudCommitmentFilter {
 
     private boolean filterScope(@Nonnull ReservedInstanceAggregateInfo aggregateInfo) {
 
-        final CloudCommitmentScope riScope = aggregateInfo.scopeInfo().getShared()
-                ? CloudCommitmentScope.BILLING_FAMILY
-                : CloudCommitmentScope.ACCOUNT;
+        final CloudCommitmentScope riScope = aggregateInfo.entityScope().getScopeType();
         return filterConfig.scopes().isEmpty() || filterConfig.scopes().contains(riScope);
 
     }
@@ -95,6 +94,12 @@ public class ReservedInstanceFilter implements CloudCommitmentFilter {
         @Derived
         default CloudCommitmentType type() {
             return CloudCommitmentType.RESERVED_INSTANCE;
+        }
+
+        @Derived
+        @Override
+        default CloudCommitmentCoverageType coverageType() {
+            return CloudCommitmentCoverageType.COUPONS;
         }
 
         /**
