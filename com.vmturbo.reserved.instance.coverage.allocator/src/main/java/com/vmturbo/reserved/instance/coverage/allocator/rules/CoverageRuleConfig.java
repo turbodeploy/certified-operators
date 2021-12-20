@@ -4,9 +4,9 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilter.CloudCommitmentFilterConfig;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatcherConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.CloudCommitmentFilter.CloudCommitmentFilterConfig;
 
 /**
  * A configuration for a {@link CoverageRule}, specifying which cloud commitments are applicable

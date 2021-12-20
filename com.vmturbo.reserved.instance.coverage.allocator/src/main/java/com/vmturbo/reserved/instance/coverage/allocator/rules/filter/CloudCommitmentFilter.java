@@ -1,14 +1,13 @@
-package com.vmturbo.cloud.common.commitment.filter;
+package com.vmturbo.reserved.instance.coverage.allocator.rules.filter;
 
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 
 /**
  * A filter of cloud commitments, based on the commitment attributes.
@@ -33,9 +32,6 @@ public interface CloudCommitmentFilter {
          */
         @Nonnull
         CloudCommitmentType type();
-
-        @Nonnull
-        CloudCommitmentCoverageType coverageType();
 
         /**
          * The locations allowed to pass the filter.

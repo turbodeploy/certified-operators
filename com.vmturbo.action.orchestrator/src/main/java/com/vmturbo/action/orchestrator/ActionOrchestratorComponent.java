@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -15,7 +14,6 @@ import io.grpc.ServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -34,9 +32,8 @@ import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * The component for the action orchestrator.
@@ -52,12 +49,12 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         ActionStoreConfig.class,
         ApiSecurityConfig.class,
         ActionOrchestratorGlobalConfig.class,
-        DbAccessConfig.class,
+        ActionOrchestratorDBConfig.class,
         SpringSecurityConfig.class,
         WorkflowConfig.class})
 public class ActionOrchestratorComponent extends BaseVmtComponent {
 
-    private Logger logger = LogManager.getLogger();
+    private Logger log = LogManager.getLogger();
 
     @Autowired
     private ActionOrchestratorDiagnosticsConfig diagnosticsConfig;
@@ -66,7 +63,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     private RpcConfig rpcConfig;
 
     @Autowired
-    private DbAccessConfig dbAccessConfig;
+    private ActionOrchestratorDBConfig dbConfig;
 
     @Autowired
     private ActionOrchestratorApiConfig actionOrchestratorApiConfig;
@@ -88,20 +85,14 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        try {
-            logger.info("Adding {} health check to the component health monitor.", dbAccessConfig.dsl().dialect().getName());
-            getHealthMonitor().addHealthCheck(
-                    new SQLDBHealthMonitor(dbAccessConfig.dsl().dialect().getName(), mariaHealthCheckIntervalSeconds, dbAccessConfig.dataSource()::getConnection));
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create SQLDBHealthMonitor", e);
-        }
-
+        log.info("Adding MariaDB health check to the component health monitor.");
+        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+            dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(actionOrchestratorApiConfig.messageProducerHealthMonitor());
 
-        dbAccessConfig.startDbMonitor();
+        if (dbConfig.isDbMonitorEnabled()) {
+            dbConfig.startDbMonitor();
+        }
     }
 
     @Override

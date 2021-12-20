@@ -15,13 +15,13 @@ import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
-import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilter;
-import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilterFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatcher;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCommitmentMatcher.ComputeCommitmentMatcherFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.CloudCommitmentFilter;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.CloudCommitmentFilterFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 /**

@@ -4,7 +4,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 import java.math.BigDecimal;
-import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.temporal.ChronoUnit;
@@ -18,16 +17,8 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotDayRecord;
@@ -38,26 +29,13 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByHourRecord
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByMonthRecord;
 import com.vmturbo.action.orchestrator.stats.rollup.RollupTestUtils;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for the migration.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class ActionRollupAlgorithmMigratorTest {
-
-    @Autowired(required = false)
-    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
-
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -70,20 +48,7 @@ public class ActionRollupAlgorithmMigratorTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private RollupTestUtils rollupTestUtils = new RollupTestUtils(dsl);
 
@@ -98,20 +63,10 @@ public class ActionRollupAlgorithmMigratorTest {
     private MutableFixedClock clock = new MutableFixedClock(todayH1);
 
     /**
-     * Set up for tests.
-     * @throws SQLException if there is db error
-     * @throws UnsupportedDialectException if the dialect is not supported
-     * @throws InterruptedException if thread has been interrupted
+     * Common setup before every test.
      */
     @Before
-    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
-            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
-
+    public void setup() {
         MockitoAnnotations.initMocks(this);
         rollupTestUtils = new RollupTestUtils(dsl);
 

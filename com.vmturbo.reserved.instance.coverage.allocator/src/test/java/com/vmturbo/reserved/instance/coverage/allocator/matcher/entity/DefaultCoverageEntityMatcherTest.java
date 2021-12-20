@@ -20,8 +20,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCoverageKey;
@@ -43,7 +43,6 @@ public class DefaultCoverageEntityMatcherTest {
     private final long entityOid = 1L;
 
     private final CloudAggregationInfo aggregateInfo = CloudAggregationInfo.builder()
-            .serviceProviderOid(6L)
             .accountOid(2L)
             .billingFamilyId(3L)
             .regionOid(4L)
@@ -74,7 +73,7 @@ public class DefaultCoverageEntityMatcherTest {
 
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
-                .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
+                .addScopes(CloudCommitmentScope.BILLING_FAMILY)
                 .addLocations(CloudCommitmentLocation.REGION)
                 .addTierMatchers(TierMatcher.FAMILY)
                 .includePlatform(true)
@@ -110,7 +109,7 @@ public class DefaultCoverageEntityMatcherTest {
 
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
-                .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
+                .addScopes(CloudCommitmentScope.ACCOUNT)
                 .addLocations(CloudCommitmentLocation.REGION)
                 .addTierMatchers(TierMatcher.FAMILY)
                 .includePlatform(true)
@@ -127,7 +126,7 @@ public class DefaultCoverageEntityMatcherTest {
         assertThat(coverageKeys, hasSize(1));
 
         final CoverageKey coverageKey = Iterables.getOnlyElement(coverageKeys);
-        assertThat(coverageKey.billingFamilyId(), equalTo(OptionalLong.empty()));
+        assertThat(coverageKey.billingFamilyId(), equalTo(aggregateInfo.billingFamilyId()));
         assertThat(coverageKey.accountOid(), equalTo(OptionalLong.of(aggregateInfo.accountOid())));
     }
 
@@ -136,7 +135,7 @@ public class DefaultCoverageEntityMatcherTest {
 
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
-                .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
+                .addScopes(CloudCommitmentScope.BILLING_FAMILY)
                 .addLocations(CloudCommitmentLocation.REGION)
                 .addTierMatchers(TierMatcher.TIER)
                 .includePlatform(true)
@@ -164,7 +163,7 @@ public class DefaultCoverageEntityMatcherTest {
 
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
-                .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
+                .addScopes(CloudCommitmentScope.BILLING_FAMILY)
                 .addLocations(CloudCommitmentLocation.REGION)
                 .addTierMatchers(TierMatcher.TIER)
                 .includePlatform(false)

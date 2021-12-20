@@ -14,8 +14,8 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 
 /**
  * A {@link CommitmentMatcher} implementation, responsible for generating {@link CoverageKey} instances
@@ -45,6 +45,7 @@ public class ComputeCommitmentMatcher implements CommitmentMatcher {
             final ReservedInstanceAggregateInfo aggregateInfo = riAggregate.aggregateInfo();
 
             final ComputeCoverageKey.Builder keyBuilder = ComputeCoverageKey.builder()
+                    .billingFamilyId(aggregateInfo.billingFamilyId())
                     .tenancy(aggregateInfo.tenancy())
                     .regionOid(aggregateInfo.regionOid())
                     .zoneOid(aggregateInfo.zoneOid());
@@ -60,26 +61,23 @@ public class ComputeCommitmentMatcher implements CommitmentMatcher {
                 keyBuilder.platform(aggregateInfo.platformInfo().platform());
             }
 
+            // Add scope info
+            final ReservedInstanceScopeInfo scopeInfo = aggregateInfo.scopeInfo();
+
             // Add account scope, if required
-            final CloudCommitmentEntityScope commitmentScope = aggregateInfo.entityScope();
-            if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP
-                    && commitmentScope.getScopeType() != CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP ) {
+            if (matcherConfig.scope() == CloudCommitmentScope.BILLING_FAMILY
+                    && !scopeInfo.getShared()) {
                 logger.error("Mismatch in scope configuration. Scope is configured to match against "
-                                + "billing family, but commitment is not shared (Commitment Aggregate ID={})",
+                        + "billing family, but commitment is not shared (Commitment Aggregate ID={})",
                         commitmentAggregate.aggregateId());
             } else {
-                if (commitmentScope.getScopeType() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
-
-                    if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
-                        // Add the billing family ID
-                        keyBuilder.billingFamilyId(commitmentScope.getGroupScope().getGroupId(0));
-                    } else {
+                if (scopeInfo.getShared()) {
+                    if (matcherConfig.scope() == CloudCommitmentScope.ACCOUNT) {
                         keyBuilder.accountOid(aggregateInfo.purchasingAccountOid());
                     }
-
                     keySet.add(keyBuilder.build());
                 } else { // must be account scoped RI for account matching
-                    commitmentScope.getEntityScope().getEntityOidList().forEach(scopedAccountOid -> {
+                    scopeInfo.getApplicableBusinessAccountIdList().forEach(scopedAccountOid -> {
                         keyBuilder.accountOid(scopedAccountOid);
                         keySet.add(keyBuilder.build());
                     });

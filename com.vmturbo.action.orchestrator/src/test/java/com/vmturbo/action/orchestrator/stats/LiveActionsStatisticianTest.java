@@ -20,7 +20,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -39,21 +38,12 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.jooq.DSLContext;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
@@ -90,26 +80,10 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
-/**
- * Tests for {@link LiveActionsStatistician}.
- */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class LiveActionsStatisticianTest {
-
-    @Autowired(required = false)
-    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
-
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -122,20 +96,7 @@ public class LiveActionsStatisticianTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private StatsActionViewFactory snapshotFactory = mock(StatsActionViewFactory.class);
 
@@ -146,9 +107,9 @@ public class LiveActionsStatisticianTest {
 
     private MgmtUnitSubgroupStore mgmtUnitSubgroupStore = mock(MgmtUnitSubgroupStore.class);
 
-    private ActionStatRollupScheduler rollupScheduler;
+    private ActionStatRollupScheduler rollupScheduler = mock(ActionStatRollupScheduler.class);
 
-    private ActionStatCleanupScheduler cleanupScheduler;
+    private ActionStatCleanupScheduler cleanupScheduler = mock(ActionStatCleanupScheduler.class);
 
     /**
      * The clock can't start at too small of a number because TIMESTAMP starts in 1970, but
@@ -156,28 +117,9 @@ public class LiveActionsStatisticianTest {
      */
     private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
 
-    private LiveActionsStatistician statistician;
-
-    /**
-     * Set up for tests.
-     * @throws SQLException if there is db error
-     * @throws UnsupportedDialectException if the dialect is not supported
-     * @throws InterruptedException if thread has been interrupted
-     */
-    @Before
-    public void setUp() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
-            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
-        rollupScheduler = mock(ActionStatRollupScheduler.class);
-        cleanupScheduler = mock(ActionStatCleanupScheduler.class);
-        statistician = new LiveActionsStatistician(dsl, 2, actionGroupStore,
-                mgmtUnitSubgroupStore, snapshotFactory, Collections.singletonList(aggregatorFactory),
-                clock, rollupScheduler, cleanupScheduler);
-    }
+    private LiveActionsStatistician statistician = new LiveActionsStatistician(dsl, 2, actionGroupStore,
+           mgmtUnitSubgroupStore, snapshotFactory, Collections.singletonList(aggregatorFactory),
+            clock, rollupScheduler, cleanupScheduler);
 
     @Test
     public void testRecordActions() throws UnsupportedActionException {

@@ -341,7 +341,6 @@ public class CloudCommitmentAnalysisContextTest {
                 .setReturnType(Type.FULL)
                 .setTopologyType(TopologyType.SOURCE)
                 .addEntityType(EntityType.COMPUTE_TIER_VALUE)
-                .addEntityType(EntityType.SERVICE_PROVIDER_VALUE)
                 .build();
 
         // Check assertions

@@ -1,12 +1,12 @@
-package com.vmturbo.cloud.common.commitment.filter;
+package com.vmturbo.reserved.instance.coverage.allocator.rules.filter;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilter.CloudCommitmentFilterConfig;
-import com.vmturbo.cloud.common.commitment.filter.ReservedInstanceFilter.ReservedInstanceFilterConfig;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.CloudCommitmentFilter.CloudCommitmentFilterConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.ReservedInstanceFilter.ReservedInstanceFilterConfig;
 
 /**
  * A factory class for producing {@link CloudCommitmentFilter} implementations. The filter implementation
@@ -24,7 +24,7 @@ public class CloudCommitmentFilterFactory {
     public CloudCommitmentFilter createFilter(@Nonnull CloudCommitmentFilterConfig filterConfig) {
         Preconditions.checkNotNull(filterConfig);
 
-        if (filterConfig.coverageType() == CloudCommitmentCoverageType.COUPONS) {
+        if (filterConfig.type() == CloudCommitmentType.RESERVED_INSTANCE) {
             return new ReservedInstanceFilter((ReservedInstanceFilterConfig)filterConfig);
         } else {
             throw new UnsupportedOperationException("Unsupported cloud commitment type");

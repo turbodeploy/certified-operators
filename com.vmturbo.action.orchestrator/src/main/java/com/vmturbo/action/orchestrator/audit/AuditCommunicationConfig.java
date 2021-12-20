@@ -1,21 +1,19 @@
 package com.vmturbo.action.orchestrator.audit;
 
-import java.sql.SQLException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
-import com.vmturbo.action.orchestrator.DbAccessConfig;
 import com.vmturbo.action.orchestrator.action.AuditActionsPersistenceManager;
 import com.vmturbo.action.orchestrator.action.AuditActionsStore;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
@@ -27,7 +25,6 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration to perform external audit functionality.
@@ -48,13 +45,10 @@ public class AuditCommunicationConfig {
     private WorkflowConfig workflowConfig;
     @Autowired
     private ActionTranslationConfig actionTranslationConfig;
-
     @Autowired
     private TopologyProcessorConfig tpConfig;
-
     @Autowired
-    private DbAccessConfig dbAccessConfig;
-
+    private ActionOrchestratorDBConfig databaseConfig;
     @Autowired
     private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
     @Autowired
@@ -132,14 +126,7 @@ public class AuditCommunicationConfig {
      */
     @Bean
     public AuditActionsPersistenceManager auditedActionsStore() {
-        try {
-            return new AuditActionsStore(dbAccessConfig.dsl());
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create auditedActionsStore", e);
-        }
+        return new AuditActionsStore(databaseConfig.dsl());
     }
 
     /**

@@ -17,10 +17,8 @@ import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.PlatformInfo;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.TierInfo;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope.GroupScope;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCommitmentMatcher.ComputeCommitmentMatcherFactory;
 
@@ -34,8 +32,7 @@ public class ComputeCommitmentMatcherTest {
 
         // Setup the RI aggregate
         final ReservedInstanceAggregateInfo riAggregateInfo = ReservedInstanceAggregateInfo.builder()
-                .coverageType(CloudCommitmentCoverageType.COUPONS)
-                .serviceProviderOid(7L)
+                .billingFamilyId(1L)
                 .purchasingAccountOid(2L)
                 .regionOid(3L)
                 .tierInfo(TierInfo.builder()
@@ -47,11 +44,8 @@ public class ComputeCommitmentMatcherTest {
                 .platformInfo(PlatformInfo.builder()
                         .isPlatformFlexible(true)
                         .build())
-                .entityScope(CloudCommitmentEntityScope.newBuilder()
-                        .setScopeType(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                        .setGroupScope(GroupScope.newBuilder()
-                                .addGroupId(1L)
-                                .build())
+                .scopeInfo(ReservedInstanceScopeInfo.newBuilder()
+                        .setShared(true)
                         .build())
                 .build();
         final ReservedInstanceAggregate riAggregate = ReservedInstanceAggregate.builder()
@@ -61,7 +55,7 @@ public class ComputeCommitmentMatcherTest {
 
         // setup the matcher config
         final CommitmentMatcherConfig matcherConfig = CommitmentMatcherConfig.builder()
-                .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
+                .scope(CloudCommitmentScope.BILLING_FAMILY)
                 .build();
 
         // setup and invoke the matcher
@@ -72,7 +66,7 @@ public class ComputeCommitmentMatcherTest {
         assertThat(coverageKeys, hasSize(1));
         final CoverageKey coverageKey = Iterables.getOnlyElement(coverageKeys);
 
-        assertThat(coverageKey.billingFamilyId(), equalTo(OptionalLong.of(1L)));
+        assertThat(coverageKey.billingFamilyId(), equalTo(riAggregateInfo.billingFamilyId()));
         assertFalse(coverageKey.accountOid().isPresent());
         assertThat(coverageKey.regionOid(), equalTo(OptionalLong.of(riAggregateInfo.regionOid())));
 
@@ -87,8 +81,7 @@ public class ComputeCommitmentMatcherTest {
 
         // Setup the RI aggregate
         final ReservedInstanceAggregateInfo riAggregateInfo = ReservedInstanceAggregateInfo.builder()
-                .coverageType(CloudCommitmentCoverageType.COUPONS)
-                .serviceProviderOid(7L)
+                .billingFamilyId(1L)
                 .purchasingAccountOid(2L)
                 .regionOid(3L)
                 .tierInfo(TierInfo.builder()
@@ -100,11 +93,8 @@ public class ComputeCommitmentMatcherTest {
                 .platformInfo(PlatformInfo.builder()
                         .isPlatformFlexible(true)
                         .build())
-                .entityScope(CloudCommitmentEntityScope.newBuilder()
-                        .setScopeType(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                        .setGroupScope(GroupScope.newBuilder()
-                                .addGroupId(1L)
-                                .build())
+                .scopeInfo(ReservedInstanceScopeInfo.newBuilder()
+                        .setShared(true)
                         .build())
                 .build();
         final ReservedInstanceAggregate riAggregate = ReservedInstanceAggregate.builder()
@@ -114,7 +104,7 @@ public class ComputeCommitmentMatcherTest {
 
         // setup the matcher config
         final CommitmentMatcherConfig matcherConfig = CommitmentMatcherConfig.builder()
-                .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
+                .scope(CloudCommitmentScope.BILLING_FAMILY)
                 .build();
 
         // setup and invoke the matcher

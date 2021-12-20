@@ -27,7 +27,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class DefaultCloudCommitmentIdentityAggregatorTest {
 
@@ -56,12 +55,6 @@ public class DefaultCloudCommitmentIdentityAggregatorTest {
                 identityProvider,
                 computeTierFamilyResolverFactory,
                 billingFamilyRetrieverFactory);
-
-        when(cloudTierTopology.getServiceProvider(anyLong())).thenReturn(Optional.of(
-                TopologyEntityDTO.newBuilder()
-                        .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
-                        .setOid(123L)
-                        .build()));
     }
 
     @Test
@@ -71,7 +64,7 @@ public class DefaultCloudCommitmentIdentityAggregatorTest {
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setId(1)
                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
-                        .setSizeFlexible(false))
+                                                .setSizeFlexible(false))
                 .build();
 
         final ReservedInstanceBought riBoughtA = ReservedInstanceBought.newBuilder()

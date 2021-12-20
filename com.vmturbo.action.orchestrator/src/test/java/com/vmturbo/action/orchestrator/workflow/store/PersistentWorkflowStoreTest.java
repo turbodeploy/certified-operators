@@ -17,7 +17,6 @@ import static org.mockito.Matchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
@@ -34,46 +33,25 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.tables.records.WorkflowRecord;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test the class {@link PersistentWorkflowStore} persisting a list of
  * WorkflowInfo items. The WorkflowIdentityStore is mocked.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class PersistentWorkflowStoreTest {
-
-    @Autowired(required = false)
-    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
-
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -107,19 +85,9 @@ public class PersistentWorkflowStoreTest {
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     /**
-     * Test rule to use {@link DbEndpoint}s in test.
+     * the jooq context for running DB operations
      */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private IdentityStore mockIdentityStore;
 
@@ -139,23 +107,13 @@ public class PersistentWorkflowStoreTest {
     /**
      * Sets up the persistentWorkflowStore with mocks.
      *
-     * @throws SQLException if there is db error
-     * @throws UnsupportedDialectException if the dialect is not supported
-     * @throws InterruptedException if thread has been interrupted
      * @throws IdentityStoreException should not be thrown.
      */
     @Before
-    public void setup() throws IdentityStoreException, SQLException, UnsupportedDialectException,
-                               InterruptedException {
+    public void setup() throws IdentityStoreException {
         // Set up a mock for the IdentityStore
         mockIdentityStore = mock(IdentityStore.class);
 
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
-            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         persistentWorkflowIdentityStore = new PersistentWorkflowIdentityStore(dsl);
         cachingIdentityStore = new CachingIdentityStore(new WorkflowAttributeExtractor(),
             persistentWorkflowIdentityStore, new IdentityInitializer(1L));

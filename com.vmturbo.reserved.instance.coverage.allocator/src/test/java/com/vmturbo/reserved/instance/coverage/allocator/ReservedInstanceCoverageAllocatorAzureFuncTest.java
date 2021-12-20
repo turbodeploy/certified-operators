@@ -1,6 +1,5 @@
 package com.vmturbo.reserved.instance.coverage.allocator;
 
-import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.AZURE_SERVICE_PROVIDER_TEST;
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.BILLING_FAMILY_GROUPS;
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.BUSINESS_ACCOUNT;
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.COMPUTE_TIER_SMALL;
@@ -50,7 +49,6 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
     public void testDirectNonSizeFlexibleAssignment() {
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AZURE,
-                AZURE_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL),
                 Collections.singleton(RI_SPEC_SMALL),
                 groupMemberRetriever,
@@ -95,7 +93,6 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AZURE,
-                AZURE_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL),
                 Collections.singleton(RI_SPEC_SMALL),
                 groupMemberRetriever,

@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.stats;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -14,15 +13,14 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
-import com.vmturbo.action.orchestrator.DbAccessConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
@@ -57,13 +55,12 @@ import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 @Configuration
 @Import({GroupClientConfig.class,
         RepositoryClientConfig.class,
-        DbAccessConfig.class,
+        ActionOrchestratorDBConfig.class,
         ActionTranslationConfig.class,
         ActionOrchestratorApiConfig.class,
         ActionOrchestratorGlobalConfig.class,
@@ -78,7 +75,7 @@ public class ActionStatsConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
-    private DbAccessConfig dbAccessConfig;
+    private ActionOrchestratorDBConfig sqlDatabaseConfig;
 
     @Autowired
     private ActionTranslationConfig actionTranslationConfig;
@@ -220,26 +217,12 @@ public class ActionStatsConfig {
 
     @Bean
     public ActionGroupStore actionGroupStore() {
-        try {
-            return new ActionGroupStore(dbAccessConfig.dsl());
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create actionGroupStore", e);
-        }
+        return new ActionGroupStore(sqlDatabaseConfig.dsl());
     }
 
     @Bean
     public MgmtUnitSubgroupStore mgmtUnitSubgroupStore() {
-        try {
-            return new MgmtUnitSubgroupStore(dbAccessConfig.dsl());
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create mgmtUnitSubgroupStore", e);
-        }
+        return new MgmtUnitSubgroupStore(sqlDatabaseConfig.dsl());
     }
 
     @Bean
@@ -276,24 +259,17 @@ public class ActionStatsConfig {
 
     @Bean
     public LiveActionsStatistician actionsStatistician() {
-        try {
-            return new LiveActionsStatistician(dbAccessConfig.dsl(),
-                    actionStatsWriteBatchSize,
-                    actionGroupStore(),
-                    mgmtUnitSubgroupStore(),
-                    snapshotFactory(),
-                    Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(),
-                            businessAccountActionAggregatorFactory(), resourceGroupActionAggregatorFactory(),
-                            propagatedActionsAggregatorFactory()),
-                    globalConfig.actionOrchestratorClock(),
-                    rollupScheduler(),
-                    cleanupScheduler());
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create actionsStatistician", e);
-        }
+        return new LiveActionsStatistician(sqlDatabaseConfig.dsl(),
+                actionStatsWriteBatchSize,
+                actionGroupStore(),
+                mgmtUnitSubgroupStore(),
+                snapshotFactory(),
+                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(),
+                    businessAccountActionAggregatorFactory(), resourceGroupActionAggregatorFactory(),
+                              propagatedActionsAggregatorFactory()),
+                globalConfig.actionOrchestratorClock(),
+                rollupScheduler(),
+                cleanupScheduler());
     }
 
     /**
@@ -324,34 +300,27 @@ public class ActionStatsConfig {
 
     @Bean
     public IActionStatRollupScheduler rollupScheduler() {
-        try {
-            if (enableNewActionStatRollups) {
-                return new ActionStatRollupSchedulerV2(dbAccessConfig.dsl(),
-                        globalConfig.actionOrchestratorClock(),
-                        rollupExporter(),
-                        rolledUpStatCalculator());
-            } else {
-                final List<RollupDirection> rollupDependencies = new ArrayList<>();
-                rollupDependencies.add(ImmutableRollupDirection.builder().fromTableReader(latestTable().reader()).toTableWriter(hourlyTable().writer()).exporter(
-                        rollupExporter()).description("latest to hourly").build());
-                rollupDependencies.add(ImmutableRollupDirection.builder()
-                                                               .fromTableReader(hourlyTable().reader())
-                                                               .toTableWriter(dailyTable().writer())
-                                                               .description("hourly to daily")
-                                                               .build());
-                rollupDependencies.add(ImmutableRollupDirection.builder()
-                                                               .fromTableReader(dailyTable().reader())
-                                                               .toTableWriter(monthlyTable().writer())
-                                                               .description("daily to monthly")
-                                                               .build());
-                return new ActionStatRollupScheduler(rollupDependencies, dbAccessConfig.dsl(),
-                        globalConfig.actionOrchestratorClock(), rollupExecutorService());
-            }
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create rollupScheduler", e);
+        if (enableNewActionStatRollups) {
+            return new ActionStatRollupSchedulerV2(sqlDatabaseConfig.dsl(),
+                    globalConfig.actionOrchestratorClock(),
+                    rollupExporter(),
+                    rolledUpStatCalculator());
+        } else {
+            final List<RollupDirection> rollupDependencies = new ArrayList<>();
+            rollupDependencies.add(ImmutableRollupDirection.builder().fromTableReader(latestTable().reader()).toTableWriter(hourlyTable().writer()).exporter(
+                    rollupExporter()).description("latest to hourly").build());
+            rollupDependencies.add(ImmutableRollupDirection.builder()
+                    .fromTableReader(hourlyTable().reader())
+                    .toTableWriter(dailyTable().writer())
+                    .description("hourly to daily")
+                    .build());
+            rollupDependencies.add(ImmutableRollupDirection.builder()
+                    .fromTableReader(dailyTable().reader())
+                    .toTableWriter(monthlyTable().writer())
+                    .description("daily to monthly")
+                    .build());
+            return new ActionStatRollupScheduler(rollupDependencies, sqlDatabaseConfig.dsl(),
+                    globalConfig.actionOrchestratorClock(), rollupExecutorService());
         }
     }
 
@@ -394,57 +363,29 @@ public class ActionStatsConfig {
 
     @Bean
     public LatestActionStatTable latestTable() {
-        try {
-            return new LatestActionStatTable(dbAccessConfig.dsl(),
-                    globalConfig.actionOrchestratorClock(),
-                    rolledUpStatCalculator(), HourActionStatTable.HOUR_TABLE_INFO);
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create latestTable", e);
-        }
+        return new LatestActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock(),
+                rolledUpStatCalculator(), HourActionStatTable.HOUR_TABLE_INFO);
     }
 
     @Bean
     public HourActionStatTable hourlyTable() {
-        try {
-            return new HourActionStatTable(dbAccessConfig.dsl(),
-                    globalConfig.actionOrchestratorClock(),
-                    rolledUpStatCalculator(), DayActionStatTable.DAY_TABLE_INFO);
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create hourlyTable", e);
-        }
+        return new HourActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock(),
+                rolledUpStatCalculator(), DayActionStatTable.DAY_TABLE_INFO);
     }
 
     @Bean
     public DayActionStatTable dailyTable() {
-        try {
-            return new DayActionStatTable(dbAccessConfig.dsl(),
-                    globalConfig.actionOrchestratorClock(),
-                    rolledUpStatCalculator(), MonthActionStatTable.MONTH_TABLE_INFO);
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create dailyTable", e);
-        }
+        return new DayActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock(),
+                rolledUpStatCalculator(), MonthActionStatTable.MONTH_TABLE_INFO);
     }
 
     @Bean
     public MonthActionStatTable monthlyTable() {
-        try {
-            return new MonthActionStatTable(dbAccessConfig.dsl(),
-                    globalConfig.actionOrchestratorClock());
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create monthlyTable", e);
-        }
+        return new MonthActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock());
     }
 
     @Bean

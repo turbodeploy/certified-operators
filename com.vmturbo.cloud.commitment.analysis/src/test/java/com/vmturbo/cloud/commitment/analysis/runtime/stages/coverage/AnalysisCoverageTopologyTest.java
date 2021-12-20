@@ -40,15 +40,12 @@ import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope.GroupScope;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -78,8 +75,7 @@ public class AnalysisCoverageTopologyTest {
 
 
     private final ReservedInstanceAggregateInfo riAggregateInfoA = ReservedInstanceAggregateInfo.builder()
-            .coverageType(CloudCommitmentCoverageType.COUPONS)
-            .serviceProviderOid(8L)
+            .billingFamilyId(1L)
             .purchasingAccountOid(2L)
             .regionOid(3L)
             .tierInfo(TierInfo.builder()
@@ -91,11 +87,8 @@ public class AnalysisCoverageTopologyTest {
             .platformInfo(PlatformInfo.builder()
                     .isPlatformFlexible(true)
                     .build())
-            .entityScope(CloudCommitmentEntityScope.newBuilder()
-                    .setScopeType(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                    .setGroupScope(GroupScope.newBuilder()
-                            .addGroupId(1L)
-                            .build())
+            .scopeInfo(ReservedInstanceScopeInfo.newBuilder()
+                    .setShared(true)
                     .build())
             .build();
     private final ReservedInstanceAggregateInfo riAggregateInfoB = ReservedInstanceAggregateInfo.builder()

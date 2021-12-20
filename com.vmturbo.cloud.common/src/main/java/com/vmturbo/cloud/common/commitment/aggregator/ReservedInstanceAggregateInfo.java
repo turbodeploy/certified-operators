@@ -17,6 +17,7 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -41,6 +42,13 @@ public interface ReservedInstanceAggregateInfo extends AggregateInfo {
      */
     @Nonnull
     TierInfo tierInfo();
+
+    /**
+     * The scope info of the aggregate.
+     * @return The scope info of the aggregate.
+     */
+    @Nonnull
+    ReservedInstanceScopeInfo scopeInfo();
 
     /**
      * The region OID of the aggregate.
