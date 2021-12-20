@@ -6,10 +6,10 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.HistoryServiceConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.PlanOrchestratorConfig;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.history.HistoricalStatsService;
 import com.vmturbo.cost.component.plan.PlanService;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -29,17 +29,17 @@ import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisSer
 @Import({
         HistoryServiceConfig.class,
         PlanOrchestratorConfig.class,
-        CostDBConfig.class,
+        DbAccessConfig.class,
         ReservedInstanceActionsSenderConfig.class,
         PricingConfig.class,
         IdentityProviderConfig.class})
 public class MigratedWorkloadCloudCommitmentConfig {
     /**
-     * The CostDBConfig includes a DSLContext that will be wired into the repository classes, used for querying the
+     * The DBAccessConfig includes a DSLContext that will be wired into the repository classes, used for querying the
      * cost database.
      */
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     /**
      * Provides access to the cost component's identify generator.

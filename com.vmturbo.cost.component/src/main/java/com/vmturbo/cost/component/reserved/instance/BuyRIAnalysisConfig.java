@@ -1,8 +1,10 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.sql.SQLException;
 import java.util.concurrent.Executors;
 
 import org.jooq.DSLContext;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,7 +12,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisConfig;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostREST.BuyRIAnalysisServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -19,18 +20,18 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisRunner;
 import com.vmturbo.cost.component.cca.CloudCommitmentSettingsFetcher;
 import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Buy RI Analysis Configuration bean.
@@ -43,7 +44,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         RepositoryClientConfig.class,
         PricingConfig.class,
         CloudCommitmentAnalysisConfig.class,
-        CostDBConfig.class})
+        DbAccessConfig.class})
 public class BuyRIAnalysisConfig {
 
     @Value("${normalBuyRIAnalysisIntervalHours:336}")
@@ -56,7 +57,7 @@ public class BuyRIAnalysisConfig {
     private boolean enableRIBuyAfterPricingChange;
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
@@ -179,8 +180,14 @@ public class BuyRIAnalysisConfig {
      */
     @Bean
     public BuyReservedInstanceStore buyReservedInstanceStore() {
-        return new BuyReservedInstanceStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+        try {
+            return new BuyReservedInstanceStore(dbAccessConfig.dsl(), identityProviderConfig.identityProvider());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create BuyReservedInstanceStore bean", e);
+        }
     }
 
     /**
@@ -230,15 +237,6 @@ public class BuyRIAnalysisConfig {
                 disableRealtimeRIBuyAnalysis, stopAndRunRIBuyOnNewRequest);
         groupClientConfig.settingsClient().addSettingsListener(reservedInstanceAnalysisInvoker);
         return reservedInstanceAnalysisInvoker;
-    }
-
-    /**
-     * Gets Dsl context.
-     *
-     * @return Dsl context.
-     */
-    public DSLContext getDsl() {
-        return databaseConfig.dsl();
     }
 
     /**

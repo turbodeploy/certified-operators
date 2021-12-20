@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,6 +17,7 @@ import io.grpc.ServerInterceptor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -35,6 +37,7 @@ import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentRpcService;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsRpcService;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentUploadRpcService;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.flyway.CostFlywayCallback;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -44,6 +47,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.event.library.uptime.EntityUptimeSpringConfig;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
@@ -60,7 +64,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostServiceConfig.class,
     PricingConfig.class,
     ReservedInstanceConfig.class,
-    CostDBConfig.class,
+    DbAccessConfig.class,
     SpringSecurityConfig.class,
     TopologyListenerConfig.class,
     CostDebugConfig.class,
@@ -81,7 +85,7 @@ public class CostComponent extends BaseVmtComponent {
     private final Logger logger = LogManager.getLogger();
 
     @Autowired
-    private CostDBConfig dbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private PricingConfig pricingConfig;
@@ -154,9 +158,16 @@ public class CostComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         logger.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor()
-                .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                    dbConfig.dataSource()::getConnection));
+        try {
+            getHealthMonitor()
+                    .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                            dbAccessConfig.dataSource()::getConnection));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create MariaDBHealthMonitor", e);
+        }
 
         // Configure Trax to randomly sample a certain number of calculations per day for
         // tracking and debugging purposes.
@@ -166,9 +177,7 @@ public class CostComponent extends BaseVmtComponent {
             new TraxThrottlingLimit(defaultTraxCalculationsTrackedPerDay, Clock.systemUTC(), new Random()),
             Collections.singletonList(TraxConfiguration.DEFAULT_TOPIC_NAME)));
 
-        if (dbConfig.isDbMonitorEnabled()) {
-            dbConfig.startDbMonitor();
-        }
+        dbAccessConfig.startDbMonitor();
     }
 
     /**

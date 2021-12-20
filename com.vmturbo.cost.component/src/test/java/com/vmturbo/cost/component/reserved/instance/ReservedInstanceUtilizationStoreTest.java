@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -20,7 +21,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -33,8 +41,10 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
@@ -51,8 +61,20 @@ import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestCostDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class ReservedInstanceUtilizationStoreTest {
+
+    @Autowired(required = false)
+    private TestCostDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -65,9 +87,22 @@ public class ReservedInstanceUtilizationStoreTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("cost");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
     private static final double DELTA = 0.000001;
 
-    private final DSLContext dsl = dbConfig.getDslContext();
+    private DSLContext dsl;
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
@@ -153,8 +188,21 @@ public class ReservedInstanceUtilizationStoreTest {
             .setNumBought(30)
             .build();
 
+    /**
+     * Set up before each test.
+     *
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if interrupted
+     */
     @Before
-    public void setup() {
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.costEndpoint());
+            dsl = dbEndpointConfig.costEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
         Map<Long, PricingDTO.ReservedInstancePrice> map = new HashMap<>();
         ReservedInstancePriceTable riPriceTable = ReservedInstancePriceTable.newBuilder()
                 .putAllRiPricesBySpecId(map).build();

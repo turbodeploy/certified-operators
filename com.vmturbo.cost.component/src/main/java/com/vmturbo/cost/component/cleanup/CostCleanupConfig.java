@@ -15,6 +15,7 @@ import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION_BY_MONTH;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION_LATEST;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -31,6 +32,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,20 +48,21 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableCleanupInfo;
 import com.vmturbo.cost.component.cleanup.TableCleanupWorker.TableCleanupWorkerFactory;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
 import com.vmturbo.cost.component.persistence.DataIngestionBouncer.DataIngestionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * A spring configuration for cleanup of cost tables.
  */
 @Configuration
-@Import({CostDBConfig.class,
+@Import({DbAccessConfig.class,
         GroupClientConfig.class,
         CloudCommitmentAnalysisStoreConfig.class})
 public class CostCleanupConfig {
@@ -122,7 +125,7 @@ public class CostCleanupConfig {
     private String computeTierAllocationDeleteInterval;
 
     @Autowired
-    private CostDBConfig sqlDatabaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -254,15 +257,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatMonthlyTable coverageMonthlyStatTable() {
-        return new CostStatMonthlyTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_COVERAGE_BY_MONTH.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_COVERAGE_BY_MONTH)
-                        .numRowsToBatchDelete(riCoverageBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatMonthlyTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_COVERAGE_BY_MONTH.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_COVERAGE_BY_MONTH)
+                    .numRowsToBatchDelete(riCoverageBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatMonthlyTable bean", e);
+        }
     }
 
     /**
@@ -271,15 +277,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatHourTable coverageHourStatTable() {
-        return new CostStatHourTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_COVERAGE_BY_HOUR.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_COVERAGE_BY_HOUR)
-                        .numRowsToBatchDelete(riCoverageBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatHourTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_COVERAGE_BY_HOUR.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_COVERAGE_BY_HOUR)
+                    .numRowsToBatchDelete(riCoverageBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatHourTable bean", e);
+        }
     }
 
     /**
@@ -288,15 +297,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatDayTable coverageDayStatTable() {
-        return new CostStatDayTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_COVERAGE_BY_DAY.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_COVERAGE_BY_DAY)
-                        .numRowsToBatchDelete(riCoverageBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatDayTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_COVERAGE_BY_DAY.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_COVERAGE_BY_DAY)
+                    .numRowsToBatchDelete(riCoverageBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatDayTable bean", e);
+        }
     }
 
     /**
@@ -305,14 +317,19 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatLatestTable coverageLatestStatTable() {
-        return new CostStatLatestTable(sqlDatabaseConfig.dsl(), costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_COVERAGE_LATEST)
-                        .numRowsToBatchDelete(riCoverageBatchDelete)
-                        .cleanupRate(Duration.parse(riCoverageLatestDeleteInterval))
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatLatestTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_COVERAGE_LATEST)
+                    .numRowsToBatchDelete(riCoverageBatchDelete)
+                    .cleanupRate(Duration.parse(riCoverageLatestDeleteInterval))
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatLatestTable bean", e);
+        }
     }
 
     /**
@@ -321,15 +338,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatMonthlyTable utilizationMonthlyStatTable() {
-        return new CostStatMonthlyTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_UTILIZATION_BY_MONTH.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_UTILIZATION_BY_MONTH)
-                        .numRowsToBatchDelete(riUtilizationBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatMonthlyTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_UTILIZATION_BY_MONTH.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_UTILIZATION_BY_MONTH)
+                    .numRowsToBatchDelete(riUtilizationBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatMonthlyTable bean", e);
+        }
     }
 
     /**
@@ -338,15 +358,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatHourTable utilizationHourStatTable() {
-        return new CostStatHourTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_UTILIZATION_BY_HOUR.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_UTILIZATION_BY_HOUR)
-                        .numRowsToBatchDelete(riUtilizationBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatHourTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_UTILIZATION_BY_HOUR.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_UTILIZATION_BY_HOUR)
+                    .numRowsToBatchDelete(riUtilizationBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatHourTable bean", e);
+        }
     }
 
     /**
@@ -355,15 +378,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatDayTable utilizationDayStatTable() {
-        return new CostStatDayTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_UTILIZATION_BY_DAY.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_UTILIZATION_BY_DAY)
-                        .numRowsToBatchDelete(riUtilizationBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatDayTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_UTILIZATION_BY_DAY.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_UTILIZATION_BY_DAY)
+                    .numRowsToBatchDelete(riUtilizationBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatDayTable bean", e);
+        }
     }
 
     /**
@@ -372,16 +398,19 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatLatestTable utilizationLatestTable() {
-        return new CostStatLatestTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME)
-                        .table(RESERVED_INSTANCE_UTILIZATION_LATEST)
-                        .numRowsToBatchDelete(riUtilizationBatchDelete)
-                        .cleanupRate(Duration.parse(riUtilizationLatestDeleteInterval))
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatLatestTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME)
+                    .table(RESERVED_INSTANCE_UTILIZATION_LATEST)
+                    .numRowsToBatchDelete(riUtilizationBatchDelete)
+                    .cleanupRate(Duration.parse(riUtilizationLatestDeleteInterval))
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatLatestTable bean", e);
+        }
     }
 
     /**
@@ -390,18 +419,21 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatLatestTable entityCostTable() {
-        return new CostStatLatestTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(ENTITY_COST.CREATED_TIME)
-                        .table(ENTITY_COST)
-                        .numRowsToBatchDelete(entityCostBatchDelete)
-                        .cleanupRate(Duration.parse(entityCostLatestDeleteInterval))
-                        .blockIngestionOnLongRunning(entityCostBlockIngestionOnLongDelete)
-                        .longRunningDuration(Duration.parse(entityCostLatestLongRunningDuration))
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatLatestTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(ENTITY_COST.CREATED_TIME)
+                    .table(ENTITY_COST)
+                    .numRowsToBatchDelete(entityCostBatchDelete)
+                    .cleanupRate(Duration.parse(entityCostLatestDeleteInterval))
+                    .blockIngestionOnLongRunning(entityCostBlockIngestionOnLongDelete)
+                    .longRunningDuration(Duration.parse(entityCostLatestLongRunningDuration))
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatLatestTable bean", e);
+        }
     }
 
     /**
@@ -410,15 +442,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatHourTable entityCostHourTable() {
-        return new CostStatHourTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(ENTITY_COST_BY_HOUR.CREATED_TIME)
-                        .table(ENTITY_COST_BY_HOUR)
-                        .numRowsToBatchDelete(entityCostBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatHourTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(ENTITY_COST_BY_HOUR.CREATED_TIME)
+                    .table(ENTITY_COST_BY_HOUR)
+                    .numRowsToBatchDelete(entityCostBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatHourTable bean", e);
+        }
     }
 
     /**
@@ -427,15 +462,17 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatDayTable entityCostDayTable() {
-        return new CostStatDayTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(ENTITY_COST_BY_DAY.CREATED_TIME)
-                        .table(ENTITY_COST_BY_DAY)
-                        .numRowsToBatchDelete(entityCostBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatDayTable(dbAccessConfig.dsl(), costClock(),
+                    TableCleanupInfo.builder().timeField(ENTITY_COST_BY_DAY.CREATED_TIME).table(
+                            ENTITY_COST_BY_DAY).numRowsToBatchDelete(entityCostBatchDelete).build(),
+                    retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatDayTable bean", e);
+        }
     }
 
     /**
@@ -444,15 +481,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostStatMonthlyTable entityCostMonthlyTable() {
-        return new CostStatMonthlyTable(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(ENTITY_COST_BY_MONTH.CREATED_TIME)
-                        .table(ENTITY_COST_BY_MONTH)
-                        .numRowsToBatchDelete(entityCostBatchDelete)
-                        .build(),
-                retentionPeriodFetcher());
+        try {
+            return new CostStatMonthlyTable(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(ENTITY_COST_BY_MONTH.CREATED_TIME)
+                    .table(ENTITY_COST_BY_MONTH)
+                    .numRowsToBatchDelete(entityCostBatchDelete)
+                    .build(), retentionPeriodFetcher());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostStatMonthlyTable bean", e);
+        }
     }
 
     /**
@@ -461,14 +501,18 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostTableCleanup coverageHistoricalRiPerEntityTable() {
-        return new CustomRetentionCleanup(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .timeField(HIST_ENTITY_RESERVED_INSTANCE_MAPPING.SNAPSHOT_TIME)
-                        .table(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
-                        .build(),
-                RetentionDurationFetcher.staticFetcher(histEntityRiCoverageRecordsRollingWindowDays, ChronoUnit.DAYS));
+        try {
+            return new CustomRetentionCleanup(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .timeField(HIST_ENTITY_RESERVED_INSTANCE_MAPPING.SNAPSHOT_TIME)
+                    .table(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
+                    .build(), RetentionDurationFetcher.staticFetcher(
+                    histEntityRiCoverageRecordsRollingWindowDays, ChronoUnit.DAYS));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostTableCleanup bean", e);
+        }
     }
 
     /**
@@ -477,20 +521,21 @@ public class CostCleanupConfig {
      */
     @Bean
     public CostTableCleanup computeTierAllocationCleanup() {
-        return new CustomRetentionCleanup(
-                sqlDatabaseConfig.dsl(),
-                costClock(),
-                TableCleanupInfo.builder()
-                        .table(ENTITY_COMPUTE_TIER_ALLOCATION)
-                        .timeField(ENTITY_COMPUTE_TIER_ALLOCATION.END_TIME)
-                        .numRowsToBatchDelete(computeTierAllocationBatchDelete)
-                        .cleanupRate(Duration.parse(computeTierAllocationDeleteInterval))
-                        .build(),
-                new SettingsRetentionFetcher(
-                        settingServiceClient(),
-                        GlobalSettingSpecs.CloudCommitmentAllocationRetentionDays.createSettingSpec(),
-                        ChronoUnit.DAYS,
-                        Duration.ofSeconds(updateRetentionIntervalSeconds)));
+        try {
+            return new CustomRetentionCleanup(dbAccessConfig.dsl(), costClock(), TableCleanupInfo.builder()
+                    .table(ENTITY_COMPUTE_TIER_ALLOCATION)
+                    .timeField(ENTITY_COMPUTE_TIER_ALLOCATION.END_TIME)
+                    .numRowsToBatchDelete(computeTierAllocationBatchDelete)
+                    .cleanupRate(Duration.parse(computeTierAllocationDeleteInterval))
+                    .build(),
+                    new SettingsRetentionFetcher(settingServiceClient(), GlobalSettingSpecs.CloudCommitmentAllocationRetentionDays.createSettingSpec(),
+                            ChronoUnit.DAYS, Duration.ofSeconds(updateRetentionIntervalSeconds)));
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create CostTableCleanup bean", e);
+        }
     }
 
 
