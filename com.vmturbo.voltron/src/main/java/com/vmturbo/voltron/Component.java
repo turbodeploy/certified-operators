@@ -111,9 +111,10 @@ public enum Component {
     /**
      * The plan orchestrator.
      */
-    PLAN_ORCHESTRATOR("plan-orchestrator",
-            "com.vmturbo.plan.orchestrator", PlanOrchestratorComponent.class,
-            Optional.of(Plan.PLAN)),
+    PLAN_ORCHESTRATOR("plan-orchestrator", "com.vmturbo.plan.orchestrator",
+            PlanOrchestratorComponent.class, Optional.of(Plan.PLAN),
+            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
+                    "com.vmturbo.plan.orchestrator/src/main/resources/db/migration"))),
 
     /**
      * The cost component.

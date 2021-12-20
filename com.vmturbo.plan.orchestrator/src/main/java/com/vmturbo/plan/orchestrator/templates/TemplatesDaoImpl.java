@@ -96,10 +96,9 @@ public class TemplatesDaoImpl implements TemplatesDao {
             //TODO OM-52188 - temporarily hard-coding filtering results by name to avoid duplicate
             // templates being returned for cloud targets.
             // This should be removed when proper solution OM-52827 is implemented.
-            .groupBy(TEMPLATE.NAME)
             .fetch()
             .into(Template.class);
-        return templatesToProto(allTemplates);
+        return distinctTemplatesToProto(allTemplates);
     }
 
     @Nonnull
@@ -446,7 +445,9 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     @Nonnull
-    private Set<TemplateDTO.Template> templatesToProto(@Nonnull List<Template> pojTemplates) {
+    private Set<TemplateDTO.Template> distinctTemplatesToProto(@Nonnull List<Template> pojTemplates) {
+        final HashSet<String> seen = new HashSet<>();
+        pojTemplates.removeIf(e -> !seen.add(e.getName()));
         return pojTemplates.stream()
             .map(this::templateToProto)
             .collect(Collectors.toSet());

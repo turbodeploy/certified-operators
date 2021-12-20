@@ -87,7 +87,7 @@ public class PlanProjectSchedulerTest {
      * Test rule to use {@link DbEndpoint}s in test.
      */
     @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("tp");
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("plan-orchestrator");
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.

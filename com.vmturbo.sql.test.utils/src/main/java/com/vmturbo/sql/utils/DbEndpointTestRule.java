@@ -235,7 +235,8 @@ public class DbEndpointTestRule implements TestRule {
         bytes.putLong(Thread.currentThread().getId());
         bytes.position(0);
         int hash = hash32.hash(bytes, 0);
-        return Strings.truncate(original, 8) + "_" + base36(hash);
+        // by default MariaDB don't allow "-" in the DB name, replacing it to "_".
+        return Strings.truncate(original, 8).replaceAll("-", "_") + "_" + base36(hash);
     }
 
     private String base36(int i) {
