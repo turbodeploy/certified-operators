@@ -1,6 +1,5 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -24,7 +23,6 @@ import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 
 /**
  * This stage is responsible for retrieving ReservedInstances describes in the CCA protobuf and returning
@@ -47,9 +45,9 @@ public class CloudCommitmentInventoryResolverStage extends AbstractStage<Aggrega
      * @param cloudCommitmentBoughtResolver The cloud commitment bought resolver.
      */
     public CloudCommitmentInventoryResolverStage(long id,
-            @Nonnull final CloudCommitmentAnalysisConfig config,
-            @Nonnull final CloudCommitmentAnalysisContext context,
-            @Nonnull final CloudCommitmentBoughtResolver cloudCommitmentBoughtResolver) {
+                                                 @Nonnull final CloudCommitmentAnalysisConfig config,
+                                                 @Nonnull final CloudCommitmentAnalysisContext context,
+                                                 @Nonnull final CloudCommitmentBoughtResolver cloudCommitmentBoughtResolver) {
         super(id, config, context);
         this.cloudCommitmentBoughtResolver = cloudCommitmentBoughtResolver;
     }
@@ -91,16 +89,12 @@ public class CloudCommitmentInventoryResolverStage extends AbstractStage<Aggrega
     private Map<Long, CloudCommitmentAmount> getCloudCommitmentCapacityByOid(List<CloudCommitmentData> cloudCommitmentDataList) {
         // Currently this method does not filter the available capacity bu historical usage. That will be implemented
         // as part of OM-62160
-        final Map<Long, CloudCommitmentAmount> map = new HashMap<>();
-        for (CloudCommitmentData ccData: cloudCommitmentDataList) {
-            ReservedInstanceBoughtCoupons riCoupons = ccData.asReservedInstance().commitment().getReservedInstanceBoughtInfo().getReservedInstanceBoughtCoupons();
-            map.put(
-                    ccData.commitmentId(),
-                    CloudCommitmentAmount.newBuilder()
-                            .setCoupons(riCoupons.getNumberOfCoupons())
-                            .build());
+        final ImmutableMap.Builder<Long, CloudCommitmentAmount> capacityMap = ImmutableMap.builder();
+        for (CloudCommitmentData commitmentData: cloudCommitmentDataList) {
+
+            capacityMap.put(commitmentData.commitmentId(), commitmentData.capacity());
         }
-        return map;
+        return capacityMap.build();
     }
 
     @Nonnull
@@ -130,8 +124,8 @@ public class CloudCommitmentInventoryResolverStage extends AbstractStage<Aggrega
         @Nonnull
         @Override
         public AnalysisStage<AggregateAnalysisDemand, AnalysisTopology> createStage(long id,
-                @Nonnull CloudCommitmentAnalysisConfig config,
-                @Nonnull CloudCommitmentAnalysisContext context) {
+                                                                                    @Nonnull CloudCommitmentAnalysisConfig config,
+                                                                                    @Nonnull CloudCommitmentAnalysisContext context) {
             return new CloudCommitmentInventoryResolverStage(id, config, context, cloudCommitmentBoughtResolver);
         }
     }

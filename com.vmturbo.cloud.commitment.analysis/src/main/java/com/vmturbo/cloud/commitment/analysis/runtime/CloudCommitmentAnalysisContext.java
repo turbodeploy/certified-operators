@@ -274,7 +274,7 @@ public class CloudCommitmentAnalysisContext {
     private CloudTopology<TopologyEntityDTO> createCloudTierTopology() {
 
         final Set<Integer> entityTypes = ImmutableSet.of(
-                EntityType.COMPUTE_TIER_VALUE);
+                EntityType.COMPUTE_TIER_VALUE, EntityType.SERVICE_PROVIDER_VALUE);
 
         final Stream<TopologyEntityDTO> entities =
                 retrieveTopologyEntities(Type.FULL, TopologyType.SOURCE, entityTypes)
