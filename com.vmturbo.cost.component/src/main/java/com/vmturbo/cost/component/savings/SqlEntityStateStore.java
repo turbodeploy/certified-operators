@@ -262,6 +262,11 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid,
             TopologyEntityCloudTopology cloudTopology, boolean isTestEntity) {
 
+        if ((!cloudTopology.getEntity(entityOid).isPresent()) && !isTestEntity) {
+            logger.debug("Cannot create entity cloud scope record because some of the required information is missing ; EntityOid={}", entityOid);
+            return null;
+        }
+
         Integer entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
 
         // Get the service provider OID.
@@ -304,10 +309,10 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
             return createCloudScopeRecord(entityOid, entityType, accountOid, regionOid,
                     availabilityZoneOid, serviceProviderOid, resourceGroupOid, LocalDateTime.now());
         }
-
-        logger.error("Cannot create entity cloud scope record because required information is missing."
+        logger.warn("Cannot create entity cloud scope record because required information is missing."
                         + " EntityOid={}, EntityType={}, serviceProviderOid={}, regionOid={}, accountOid={}",
                 entityOid, entityType, serviceProviderOid, regionOid, accountOid);
+
         return null;
     }
 }
