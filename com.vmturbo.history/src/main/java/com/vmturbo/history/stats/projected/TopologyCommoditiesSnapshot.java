@@ -261,7 +261,7 @@ class TopologyCommoditiesSnapshot implements MemReporter {
             soldCommoditiesBuilder = SoldCommoditiesInfo.newBuilder(
                     excludedCommodityTypes, oidPack, keyPack);
             boughtCommoditiesBuilder = BoughtCommoditiesInfo.newBuilder(excludedCommodityTypes,
-                    commodityNamePack, oidPack);
+                    commodityNamePack, oidPack, keyPack);
         }
 
         /**

@@ -8,6 +8,8 @@ import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +32,7 @@ import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.IDataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.projected.SoldCommoditiesInfo.SoldCommodity;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -70,7 +73,7 @@ public class BoughtCommoditiesInfoTest {
     @Test
     public void testBoughtCommodityEmpty() {
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .build(Mockito.mock(SoldCommoditiesInfo.class));
         assertFalse(info.getAccumulatedRecord(COMMODITY, Collections.emptySet(), Collections.emptySet()).isPresent());
     }
@@ -80,7 +83,7 @@ public class BoughtCommoditiesInfoTest {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -110,10 +113,10 @@ public class BoughtCommoditiesInfoTest {
 
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
         final double providerCapacity = 5.0;
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(7L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(7L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
         final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder(
-                Collections.emptySet(), keyPack, oidPack)
+                Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                 .addEntity(vm)
                 .build(soldCommoditiesInfo);
 
@@ -165,10 +168,10 @@ public class BoughtCommoditiesInfoTest {
 
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
         final double providerCapacity = 5.0;
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(7L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(7L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
         final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder(
-                Collections.emptySet(), keyPack, oidPack)
+                Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                 .addEntity(vm)
                 .build(soldCommoditiesInfo);
 
@@ -230,10 +233,10 @@ public class BoughtCommoditiesInfoTest {
                 .addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider2)
                 .build();
 
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(7L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(7L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
         final BoughtCommoditiesInfo boughtTwiceSameProvider = BoughtCommoditiesInfo.newBuilder(
-                Collections.emptySet(), keyPack, oidPack)
+                Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                 .addEntity(vmBuyingTwiceSameProvider)
                 .build(soldCommoditiesInfo);
 
@@ -268,13 +271,13 @@ public class BoughtCommoditiesInfoTest {
     public void testBoughtCommodityWholeMarket() {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
         final double providerCapacity = 5.0;
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(7L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(7L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(8L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(8L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -307,11 +310,11 @@ public class BoughtCommoditiesInfoTest {
     public void testBoughtCommoditySingleEntity() {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
         final double providerCapacity = 5.0;
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(7L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(7L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -357,7 +360,7 @@ public class BoughtCommoditiesInfoTest {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_NO_PROVIDER)
                         .addEntity(VM_1)
                         .build(soldCommoditiesInfo);
@@ -399,13 +402,13 @@ public class BoughtCommoditiesInfoTest {
 
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
         final double providerCapacity = 5.0;
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(7L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(7L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(4L)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY), eq(4L), anyLong()))
                 .thenReturn(Optional.of(providerCapacity));
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_NO_PROVIDER)
                         .addEntity(VM_1)
                         .build(soldCommoditiesInfo);
@@ -437,11 +440,11 @@ public class BoughtCommoditiesInfoTest {
     @Test
     public void testBoughtCommodityWholeMarketProviderNotFound() {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+        when(soldCommoditiesInfo.getCapacityByKey(Mockito.anyString(), anyLong(), anyLong()))
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -458,7 +461,7 @@ public class BoughtCommoditiesInfoTest {
         final String commodityName = HistoryStatsUtils.formatCommodityName(commType);
 
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        Mockito.when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+        Mockito.when(soldCommoditiesInfo.getCapacityByKey(Mockito.anyString(), anyLong(), anyLong()))
                 .thenReturn(Optional.empty());
         final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
@@ -473,13 +476,13 @@ public class BoughtCommoditiesInfoTest {
                 .build();
 
         final BoughtCommoditiesInfo noExclusionInfo =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(vm)
                         .build(soldCommoditiesInfo);
         assertThat(noExclusionInfo.getValue(vm.getOid(), commodityName), is(2.0));
 
         final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder(
-                Collections.singleton(CommodityDTO.CommodityType.CLUSTER), keyPack, oidPack)
+                Collections.singleton(CommodityDTO.CommodityType.CLUSTER), keyPack, oidPack, new DataPack<>())
                 .addEntity(vm)
                 .build(soldCommoditiesInfo);
         assertThat(info.getValue(vm.getOid(), commodityName), is(0.0));
@@ -488,11 +491,11 @@ public class BoughtCommoditiesInfoTest {
     @Test
     public void testBoughtCommoditySpecificEntityProviderNotFound() {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+        when(soldCommoditiesInfo.getCapacityByKey(Mockito.anyString(), anyLong(), anyLong()))
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -504,7 +507,7 @@ public class BoughtCommoditiesInfoTest {
     @Test
     public void testBoughtCommodityGetValue() {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+        when(soldCommoditiesInfo.getCapacityByKey(Mockito.anyString(), anyLong(), anyLong()))
                 .thenReturn(Optional.empty());
 
         final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
@@ -523,7 +526,7 @@ public class BoughtCommoditiesInfoTest {
                 .build();
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(vm)
                         .build(soldCommoditiesInfo);
 
@@ -534,11 +537,11 @@ public class BoughtCommoditiesInfoTest {
     @Test
     public void testBoughtCommodityGetValueMissingCommodity() {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+        when(soldCommoditiesInfo.getCapacityByKey(Mockito.anyString(), anyLong(), anyLong()))
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_1)
                         .build(soldCommoditiesInfo);
         assertThat(info.getValue(VM_1.getOid(), "random commodity"), is(0.0));
@@ -547,11 +550,11 @@ public class BoughtCommoditiesInfoTest {
     @Test
     public void testBoughtCommodityGetValueMissingEntity() {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+        when(soldCommoditiesInfo.getCapacityByKey(Mockito.anyString(), anyLong(), anyLong()))
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(VM_1)
                         .build(soldCommoditiesInfo);
         assertThat(info.getValue(1234L, COMMODITY), is(0.0));
@@ -594,13 +597,13 @@ public class BoughtCommoditiesInfoTest {
                         ))
                 .build();
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider1Oid)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider1Oid), anyLong()))
                 .thenReturn(provider1Capacity);
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider2Oid)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider2Oid), anyLong()))
                 .thenReturn(provider2Capacity);
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(vmProvider1)
                         .addEntity(vmProvider2)
                         .build(soldCommoditiesInfo);
@@ -669,13 +672,13 @@ public class BoughtCommoditiesInfoTest {
                         ))
                 .build();
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider1Oid)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider1Oid), anyLong()))
                 .thenReturn(provider1Capacity);
-        when(soldCommoditiesInfo.getCapacity(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider2Oid)))
+        when(soldCommoditiesInfo.getCapacityByKey(eq(COMMODITY_TYPE_WITH_KEY.getKey()), eq(provider2Oid), anyLong()))
                 .thenReturn(provider2Capacity);
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack)
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet(), keyPack, oidPack, new DataPack<>())
                         .addEntity(vmProvider1)
                         .addEntity(vmProvider2)
                         .build(soldCommoditiesInfo);
@@ -745,7 +748,7 @@ public class BoughtCommoditiesInfoTest {
             .build();
         DataPack<String> commodityNameDataPack = new DataPack<>();
         BoughtCommoditiesInfo boughtCommoditiesInfo = BoughtCommoditiesInfo
-            .newBuilder(Collections.emptySet(), commodityNameDataPack, oidDataPack)
+            .newBuilder(Collections.emptySet(), commodityNameDataPack, oidDataPack, new DataPack<>())
             .addEntity(VM_2)
             .build(soldCommoditiesInfo);
 
