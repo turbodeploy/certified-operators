@@ -425,7 +425,7 @@ public class WebhookProbe
             return handleWebhookException((WebhookException)ex, actionExecutionDTO);
         } else {
             logger.error("Calling webhook endpoint failed for action with id {} because of an exception.",
-                    actionExecutionDTO, ex);
+                    actionExecutionDTO.getActionOid(), ex);
             return "Failed as the result of an exception";
         }
     }
@@ -438,7 +438,8 @@ public class WebhookProbe
             return "Status code " + ex.getResponseCode() + " was returned from server with body:\n"
                     + ex.getResponseBody();
         } else {
-            logger.error("Calling webhook endpoint failed for action with id {}", actionExecutionDto, ex);
+            logger.error("Calling webhook endpoint failed for action with id {}",
+                    actionExecutionDto.getActionOid(), ex);
             // there another cause for the exception. Just return exception message
             return ex.getMessage();
         }

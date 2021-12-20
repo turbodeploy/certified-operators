@@ -63,7 +63,7 @@ public class AccessTokenConnector implements HttpConnector, Closeable {
                                     @Nonnull OAuthCredentials credentials) {
                                 HttpRequestWithEntity httpRequestWithEntity =
                                         new HttpRequestWithEntity(HttpMethodType.POST.name(),
-                                                credentials.getOAuthUrl());
+                                                credentials.getOAuthUri());
                                 httpQuery.getBody().ifPresent(body -> {
                                     DefaultParametersBasedBodyTransformer
                                             defaultParametersBasedBodyTransformer =

@@ -2,6 +2,7 @@ package com.vmturbo.mediation.webhook.connector;
 
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 
+import java.net.URI;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -26,6 +27,7 @@ public class WebhookCredentials
     private static final Pattern HOST_PATTERN = Pattern.compile("(https?://[^/]*)(?:/.*|$)");
 
     private final String webhookUrl;
+    private final URI webhookUri;
     private final String methodType;
     private final long timeout;
     private final AuthenticationMethod authenticationMethod;
@@ -50,13 +52,19 @@ public class WebhookCredentials
      * @param clientSecret the oAuth client secret.
      * @param grantType the grant type used for the oauth request.
      * @param scope the scope.
+     * @throws WebhookException if the webhook url is invalid.
      */
     public WebhookCredentials(@Nonnull String webhookUrl, @Nonnull String httpMethodType, long timeout,
                               @Nonnull AuthenticationMethod authenticationMethod, @Nullable String userName,
                               @Nullable String password, boolean trustSelfSignedCertificates, @Nullable String oAuthUrl,
                               @Nullable String clientID, @Nullable String clientSecret, @Nullable GrantType grantType,
-                              @Nullable String scope) {
+                              @Nullable String scope) throws WebhookException {
         this.webhookUrl = Objects.requireNonNull(webhookUrl);
+        try {
+            webhookUri = URI.create(webhookUrl);
+        } catch (IllegalArgumentException ex) {
+            throw new WebhookException("The url \"" + webhookUrl + "\" is not valid.");
+        }
         this.methodType = Objects.requireNonNull(httpMethodType);
         this.timeout = timeout;
         this.authenticationMethod = Objects.requireNonNull(authenticationMethod);
@@ -70,6 +78,10 @@ public class WebhookCredentials
 
     public String getWebhookUrl() {
         return webhookUrl;
+    }
+
+    public URI getWebhookUri() {
+        return webhookUri;
     }
 
     public String getMethod() {

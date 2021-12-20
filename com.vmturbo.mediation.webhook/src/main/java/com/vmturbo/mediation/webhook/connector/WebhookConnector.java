@@ -207,7 +207,7 @@ public class WebhookConnector implements HttpConnector, Closeable {
          */
         public WebhookQueryConverter(WebhookCredentials webhookCredentials) {
             httpRequestWithEntity = new HttpRequestWithEntity(webhookCredentials.getMethod(),
-                    webhookCredentials.getWebhookUrl());
+                    webhookCredentials.getWebhookUri());
         }
 
         @Nonnull
@@ -247,10 +247,10 @@ public class WebhookConnector implements HttpConnector, Closeable {
          * HttpRequestWithEntity constructor.
          *
          * @param methodType the method type to be used for the http request.
-         * @param url the url to make the http request to.
+         * @param uri the url to make the http request to.
          */
-        public HttpRequestWithEntity(String methodType, String url) {
-            this.setURI(URI.create(url));
+        public HttpRequestWithEntity(String methodType, URI uri) {
+            this.setURI(uri);
             this.methodType = methodType;
         }
 

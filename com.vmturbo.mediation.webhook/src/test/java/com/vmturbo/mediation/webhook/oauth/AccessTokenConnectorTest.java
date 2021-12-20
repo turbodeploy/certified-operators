@@ -33,9 +33,10 @@ public class AccessTokenConnectorTest {
 
     /**
      * Initial set up for tests.
+     * @throws WebhookException if something goes wrong.
      */
     @Before
-    public void init() {
+    public void init() throws WebhookException {
         credentials = new OAuthCredentials("http://google.com", "abc", "123", GrantType.CLIENT_CREDENTIALS, "wide", false);
         connectorFactory = Mockito.spy(
                 AccessTokenConnector.createConnectorFactory(credentials, 30000));

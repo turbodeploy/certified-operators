@@ -99,7 +99,10 @@ public class WebhookProbeLocalServerTest {
             + "  \"expires_in\": 3599,\n"
             + "  \"access_token\": \"%s\"}";
 
-    private static final ActionExecutionDTO ON_PREM_RESIZE_ACTION =
+    /**
+     * An action that is used for testing webhook probe.
+     */
+    public static final ActionExecutionDTO ON_PREM_RESIZE_ACTION =
             ActionExecutionDTO.newBuilder()
                     .setActionOid(ACTION_UUID)
                     .setActionState(ActionResponseState.IN_PROGRESS)

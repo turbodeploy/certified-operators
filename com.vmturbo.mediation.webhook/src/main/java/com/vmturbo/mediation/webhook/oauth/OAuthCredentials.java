@@ -1,5 +1,7 @@
 package com.vmturbo.mediation.webhook.oauth;
 
+import java.net.URI;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -8,6 +10,7 @@ import org.apache.http.annotation.Immutable;
 import com.vmturbo.mediation.connector.common.credentials.PortAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.SecureAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.TargetAwareCredentials;
+import com.vmturbo.mediation.webhook.connector.WebhookException;
 
 /**
  * Class that holds OAuth related fields.
@@ -16,6 +19,7 @@ import com.vmturbo.mediation.connector.common.credentials.TargetAwareCredentials
 public class OAuthCredentials
         implements TargetAwareCredentials, SecureAwareCredentials, PortAwareCredentials {
     private final String oAuthUrl;
+    private final URI oAuthUri;
     private final String clientID;
     private final String clientSecret;
     private final GrantType grantType;
@@ -31,11 +35,19 @@ public class OAuthCredentials
      * @param grantType the grant type.
      * @param scope the scope.
      * @param trustSelfSignedCertificates if the request should trust any certificate.
+     * @throws WebhookException if the url is not valid.
      */
     public OAuthCredentials(@Nonnull String oAuthUrl, @Nonnull String clientID,
                             @Nonnull String clientSecret, @Nonnull GrantType grantType,
-                            @Nullable String scope, boolean trustSelfSignedCertificates) {
+                            @Nullable String scope, boolean trustSelfSignedCertificates)
+                            throws WebhookException {
         this.oAuthUrl = oAuthUrl;
+        try {
+            oAuthUri = URI.create(oAuthUrl);
+        } catch (IllegalArgumentException ex) {
+            throw new WebhookException("The OAuth authorization server url \""
+                    + oAuthUrl + "\" is not valid.");
+        }
         this.clientID = clientID;
         this.clientSecret = clientSecret;
         this.grantType = grantType;
@@ -45,6 +57,10 @@ public class OAuthCredentials
 
     public String getOAuthUrl() {
         return oAuthUrl;
+    }
+
+    public URI getOAuthUri() {
+        return oAuthUri;
     }
 
     public String getClientID() {

@@ -32,9 +32,10 @@ public class WebhookConnectorTest {
 
     /**
      * Initial set up for tests.
+     * @throws WebhookException if something is wrong.
      */
     @Before
-    public void init() {
+    public void init() throws WebhookException {
         webhookCredentials = new WebhookCredentials("http://fake_webhook:142/endpoint",
                 HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null,
                 null, false, null, null, null,
