@@ -48,7 +48,7 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
  * Responsible for the storage and retrieval of plan source and projected topologies in
- * MySQL.
+ * MySQL/Postgres.
  *
  * <p/>For the time being we keep everything in once class to abstract away the details of the
  * database schema, which drives both the ingestion and the query implementation.
@@ -56,7 +56,7 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
  * <p/>We store the source and projected {@link TopologyEntityDTO} blobs. We also calculate the
  * supply chains of each entity in the projected topology and store them.
  */
-public class MySQLPlanEntityStore implements PlanEntityStore {
+public class SQLPlanEntityStore implements PlanEntityStore {
     private static final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
     private final PartialEntityConverter partialEntityConverter;
@@ -78,7 +78,7 @@ public class MySQLPlanEntityStore implements PlanEntityStore {
      * @param deletionChunkSize Batch delete chunk size for plan deletion.
      * @param userSessionContext the session of the user.
      */
-    public MySQLPlanEntityStore(final DSLContext dsl,
+    public SQLPlanEntityStore(final DSLContext dsl,
             final PartialEntityConverter partialEntityConverter,
             final SupplyChainCalculator supplyChainCalculator,
             final int insertionChunkSize,
@@ -100,7 +100,7 @@ public class MySQLPlanEntityStore implements PlanEntityStore {
      * @return The {@link TopologyCreator}.
      */
     public TopologyCreator<TopologyEntityDTO> newSourceTopologyCreator(TopologyInfo topologyInfo) {
-        return new MySQLSourceTopologyCreator(dsl, topologyInfo, insertionChunkSize, deletionChunkSize);
+        return new SQLSourceTopologyCreator(dsl, topologyInfo, insertionChunkSize, deletionChunkSize);
     }
 
     /**
@@ -112,7 +112,7 @@ public class MySQLPlanEntityStore implements PlanEntityStore {
      * @return The {@link TopologyCreator}.
      */
     public TopologyCreator<ProjectedTopologyEntity> newProjectedTopologyCreator(final long projectedTopologyId, TopologyInfo topologyInfo) {
-        return new MySQLProjectedTopologyCreator(projectedTopologyId, topologyInfo, dsl,
+        return new SQLProjectedTopologyCreator(projectedTopologyId, topologyInfo, dsl,
                 insertionChunkSize, deletionChunkSize, supplyChainCalculator);
     }
 
@@ -173,7 +173,7 @@ public class MySQLPlanEntityStore implements PlanEntityStore {
         });
 
         if (planEntityFilter.getUnplacedOnly()) {
-            conditions.add(Tables.PLAN_ENTITY.IS_PLACED.eq((byte)0));
+            conditions.add(Tables.PLAN_ENTITY.IS_PLACED.isFalse());
         }
 
         return conditions;

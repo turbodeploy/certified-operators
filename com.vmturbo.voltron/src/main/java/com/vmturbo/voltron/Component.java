@@ -134,7 +134,9 @@ public enum Component {
      * The repository component.
      */
     REPOSITORY("repository", "com.vmturbo.repository.component",
-            RepositoryComponent.class, Optional.of(Repository.REPOSITORY)),
+            RepositoryComponent.class, Optional.of(Repository.REPOSITORY),
+            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
+                    "com.vmturbo.repository.component/src/main/resources/db/migration"))),
 
     /**
      * The extractor component.

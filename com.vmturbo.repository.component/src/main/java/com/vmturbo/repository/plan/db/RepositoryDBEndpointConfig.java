@@ -34,10 +34,7 @@ public class RepositoryDBEndpointConfig extends DbEndpointsConfig {
                 .withRootAccessEnabled(true)
                 // workaround since the Environment doesn't contain repositoryDbUsername
                 // fixEndpointForMultiDb can't find this property from spring environment
-                .withUserName(repositoryDbUsername)
-                // TODO this is needed because we have not created the new migration structure yet
-                //  remove once the integration with postgres is done
-                .withMigrationLocations("db.migration"))
+                .withUserName(repositoryDbUsername))
                 .build();
     }
 }

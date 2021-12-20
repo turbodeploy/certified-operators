@@ -33,7 +33,7 @@ import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
-import com.vmturbo.repository.plan.db.MySQLPlanEntityStore;
+import com.vmturbo.repository.plan.db.SQLPlanEntityStore;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.RegisteredTopologyLoader;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
@@ -61,7 +61,7 @@ public class TopologyLifecycleManagerTest {
 
     private GraphDBExecutor graphDBExecutor = mock(GraphDBExecutor.class);
 
-    private MySQLPlanEntityStore mySQLPlanEntityStore = mock(MySQLPlanEntityStore.class);
+    private SQLPlanEntityStore sqlPlanEntityStore = mock(SQLPlanEntityStore.class);
 
     private static final String DATABASE_NAME = "Tturbonomic";
 
@@ -70,7 +70,7 @@ public class TopologyLifecycleManagerTest {
         topologyLifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
             graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler,
             liveTopologyStore, 0, 2, 2, 1,
-            globalSupplyChainManager, graphDBExecutor, false, mySQLPlanEntityStore, false);
+            globalSupplyChainManager, graphDBExecutor, false, sqlPlanEntityStore, false);
         when(graphDBExecutor.getArangoDatabaseName()).thenReturn(DATABASE_NAME);
     }
 

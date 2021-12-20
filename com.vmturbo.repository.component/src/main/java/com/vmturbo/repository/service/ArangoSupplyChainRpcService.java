@@ -142,7 +142,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                 return true;
             } catch (TopologyNotFoundException e) {
                 // Move up to warn when we deprecate Arango.
-                logger.debug("Topology not found in MySQL database: {}", e.toString());
+                logger.debug("Topology not found in SQL database: {}", e.toString());
                 return false;
             }
         } else {

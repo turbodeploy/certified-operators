@@ -50,7 +50,7 @@ import com.vmturbo.repository.listener.RepositoryPlanGarbageCollector;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.plan.db.DbAccessConfig;
-import com.vmturbo.repository.plan.db.MySQLPlanEntityStore;
+import com.vmturbo.repository.plan.db.SQLPlanEntityStore;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.SupplyChainService;
@@ -220,18 +220,18 @@ public class RepositoryComponentConfig {
     /**
      * Stores and allows queries on information about entities in plans.
      *
-     * @return The {@link MySQLPlanEntityStore}.
+     * @return The {@link SQLPlanEntityStore}.
      */
     @Bean
-    public MySQLPlanEntityStore mySQLPlanEntityStore() {
+    public SQLPlanEntityStore sqlPlanEntityStore() {
         try {
-            return new MySQLPlanEntityStore(dbAccessConfig.dsl(), partialEntityConverter(), new SupplyChainCalculator(), sqlInsertionChunkSize, sqlDeletionChunkSize,
+            return new SQLPlanEntityStore(dbAccessConfig.dsl(), partialEntityConverter(), new SupplyChainCalculator(), sqlInsertionChunkSize, sqlDeletionChunkSize,
                     userSessionConfig.userSessionContext());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw new BeanCreationException("Failed to create mySQLPlanEntityStore", e);
+            throw new BeanCreationException("Failed to create SQLPlanEntityStore", e);
         }
     }
 
@@ -255,7 +255,7 @@ public class RepositoryComponentConfig {
     @Bean
     public PlanGarbageDetector repositoryPlanGarbageDetector() {
         final RepositoryPlanGarbageCollector collector =
-            new RepositoryPlanGarbageCollector(topologyManager(), mySQLPlanEntityStore());
+            new RepositoryPlanGarbageCollector(topologyManager(), sqlPlanEntityStore());
         return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
     }
 
@@ -274,7 +274,7 @@ public class RepositoryComponentConfig {
                 new ScheduledThreadPoolExecutor(1), liveTopologyStore(),
                 repositoryRealtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
                 numberOfExpectedRealtimeProjectedDB, collectionReplicaCount, globalSupplyChainManager(),
-                arangoDBExecutor(), mySQLPlanEntityStore(), useSqlForPLans);
+                arangoDBExecutor(), sqlPlanEntityStore(), useSqlForPLans);
     }
 
     /**
