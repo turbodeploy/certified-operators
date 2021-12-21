@@ -261,8 +261,10 @@ public class GroupDAO implements IGroupStore {
     public void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups) {
         // read records to ensure that they still exist in the database and place locks
         Collection<Long> existingGroupIds = dslContext.select(GROUPING.ID)
-                .from(GROUPING, GROUP_SUPPLEMENTARY_INFO)
-                .where(GROUPING.ID.in(groups.keySet()).and(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID)))
+                .from(GROUPING)
+                .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                .where(GROUPING.ID.in(groups.keySet()))
                 .forUpdate()
                 .fetch()
                 .stream()
