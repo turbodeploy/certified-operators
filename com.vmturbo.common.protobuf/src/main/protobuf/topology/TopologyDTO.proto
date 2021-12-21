@@ -758,7 +758,8 @@ message PartialEntity {
 
         repeated RelatedEntity connected_to = 22;
 
-        map<int64, PerTargetEntityInformation> discovered_target_data = 23;
+        // this is deprecated since this information can be obtained from origin
+        map<int64, PerTargetEntityInformation> discovered_target_data = 23 [deprecated = true];
 
         message RelatedEntity {
 
@@ -775,6 +776,8 @@ message PartialEntity {
         // whether the entity is 'outdated' i.e. successfully discovered too long ago
         // defined at entity level although different parts of entity may have different 'staleness'
         optional bool stale = 18 [default = false];
+
+        optional TopologyEntityDTO.Origin origin = 9;
     }
 
     // Contains the fields required by cluster headroom plan.
@@ -1045,6 +1048,9 @@ message TopologyEntityDTO {
     // refer to the plan id the entity was added to support.
     message PlanScenarioOrigin {
         required int64 plan_id = 1;
+
+        // the id of the entity it was cloned from.
+        optional int64 original_entity_id = 2;
     }
 
     // An entity created by the market's analysis, and included in the projected topology.

@@ -752,6 +752,7 @@ public class TopologyEditorTest {
         assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
             is(PlanScenarioOrigin.newBuilder()
                 .setPlanId(topologyInfo.getTopologyContextId())
+                    .setOriginalEntityId(pmId)
                 .build()));
 
     }
@@ -828,9 +829,10 @@ public class TopologyEditorTest {
         final TopologyEntity.Builder cloneBuilder = topology.get(stCloneId);
         assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(stEntity.getDisplayName()));
         assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
-            is(PlanScenarioOrigin.newBuilder()
-                .setPlanId(topologyInfo.getTopologyContextId())
-                .build()));
+                is(PlanScenarioOrigin.newBuilder()
+                        .setPlanId(topologyInfo.getTopologyContextId())
+                        .setOriginalEntityId(stId)
+                        .build()));
 
     }
 
@@ -902,6 +904,7 @@ public class TopologyEditorTest {
         assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
             is(PlanScenarioOrigin.newBuilder()
                 .setPlanId(topologyInfo.getTopologyContextId())
+                    .setOriginalEntityId(vmId)
                 .build()));
     }
 
@@ -1096,9 +1099,10 @@ public class TopologyEditorTest {
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
         assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(vmEntity.getDisplayName()));
         assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
-            is(PlanScenarioOrigin.newBuilder()
-                .setPlanId(topologyInfo.getTopologyContextId())
-                .build()));
+                is(PlanScenarioOrigin.newBuilder()
+                        .setPlanId(topologyInfo.getTopologyContextId())
+                        .setOriginalEntityId(vmId)
+                        .build()));
         assertTrue(cloneBuilder.getEntityBuilder().getAnalysisSettings().getShopTogether());
     }
 
@@ -1219,7 +1223,7 @@ public class TopologyEditorTest {
         final Map<Long, Long> topologyAdditionEmpty = Collections.emptyMap();
         when(templateConverterFactory
                 .generateTopologyEntityFromTemplates(eq(topologyAdditionEmpty),
-                        eq(templateToReplacedEntity), eq(topology)))
+                        eq(templateToReplacedEntity), eq(topology), eq(context.getTopologyInfo().getTopologyId())))
                 .thenReturn(Stream.of(pm.getEntityBuilder().clone()
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));

@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.components.api.CompressedProtobuf;
 import com.vmturbo.components.api.SharedByteBuffer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -56,6 +57,7 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
     private final CompressedProtobuf<TopologyEntityDTO, TopologyEntityDTO.Builder> entity;
 
     private final boolean stale;
+    private final Origin origin;
 
     private RepoGraphEntity(@Nonnull final TopologyEntityDTO src,
             @Nonnull final DefaultTagIndex tags,
@@ -89,6 +91,7 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
                                                         cbfp.getProviderEntityType(), type))));
         boughtCommodityTypes = builder.build();
         stale = src.getStale();
+        origin = src.getOrigin();
     }
 
     /**
@@ -248,6 +251,10 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
 
     public boolean isStale() {
         return stale;
+    }
+
+    public Origin getOrigin() {
+        return origin;
     }
 
     /**

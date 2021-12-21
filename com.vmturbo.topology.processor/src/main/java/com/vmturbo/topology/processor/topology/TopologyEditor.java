@@ -292,21 +292,21 @@ public class TopologyEditor {
             }
         }
 
-        // entities added in this stage will have a plan origin pointed to the context id of this topology
-        Origin entityOrigin = Origin.newBuilder()
-            .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder()
-                    .setPlanId(topologyInfo.getTopologyContextId()))
-            .build();
-
         entityAdditions.forEach((oid, addCount) -> {
             TopologyEntity.Builder entity = topology.get(oid);
             if (entity != null) {
                 for (int i = 0; i < addCount; ++i) {
                     // Create the new entity being added, but set the plan origin so these added
                     // entities aren't counted in plan "current" stats
-                    TopologyEntityDTO.Builder clone =
-                        topologyEntityCloneFactory.clone(entity.getEntityBuilder(),
-                            identityProvider, i, topology).setOrigin(entityOrigin);
+
+                    // entities added in this stage will have a plan origin pointed to the context id of this topology
+                    final Origin entityOrigin = Origin.newBuilder().setPlanScenarioOrigin(
+                            PlanScenarioOrigin.newBuilder()
+                                    .setPlanId(topologyInfo.getTopologyContextId())
+                                    .setOriginalEntityId(entity.getOid())).build();
+                    TopologyEntityDTO.Builder clone = topologyEntityCloneFactory.clone(
+                            entity.getEntityBuilder(), identityProvider, i, topology).setOrigin(
+                            entityOrigin);
                     final TopologyEntity.Builder clonedEntityBuilder = TopologyEntity.newBuilder(clone)
                             .setClonedFromEntity(entity.getEntityBuilder());
                     // Set shop together true for added VMs
@@ -349,12 +349,9 @@ public class TopologyEditor {
 
         // Mark added entities with the Plan Origin so they aren't counted in "before" plan
         // stats
-        addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity, topology)
-            .forEach(entity -> {
-                        // entities added in plan are marked with a plan origin
-                        entity.setOrigin(entityOrigin);
-                        topology.put(entity.getOid(), TopologyEntity.newBuilder(entity));
-                    });
+        addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity, topology,
+                topologyInfo.getTopologyContextId()).forEach(
+                entity -> topology.put(entity.getOid(), TopologyEntity.newBuilder(entity)));
     }
 
     /**
@@ -765,13 +762,13 @@ public class TopologyEditor {
     private Stream<TopologyEntityDTO.Builder> addTemplateTopologyEntities(
         @Nonnull Map<Long, Long> templateAdditions,
         @Nonnull Multimap<Long, Long> templateToReplacedEntity,
-        @Nonnull Map<Long, TopologyEntity.Builder> topology) {
+        @Nonnull Map<Long, TopologyEntity.Builder> topology, long topologyId) {
         // Check if there are templates additions or replaced
         if (templateAdditions.isEmpty() && templateToReplacedEntity.isEmpty()) {
             return Stream.empty();
         } else {
             return templateConverterFactory.generateTopologyEntityFromTemplates(templateAdditions,
-                templateToReplacedEntity, topology);
+                templateToReplacedEntity, topology, topologyId);
         }
     }
 

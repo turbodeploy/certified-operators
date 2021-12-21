@@ -12,9 +12,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -141,15 +138,7 @@ public class PartialEntityConverter {
                 final ApiPartialEntity.Builder apiBldr = ApiPartialEntity.newBuilder().setOid(
                         graphEntity.getOid()).setDisplayName(graphEntity.getDisplayName()).setEntityState(
                         graphEntity.getEntityState()).setEntityType(graphEntity.getEntityType()).setEnvironmentType(
-                        graphEntity.getEnvironmentType()).setStale(graphEntity.isStale());
-                graphEntity.getDiscoveringTargetIds().forEach(id -> {
-                    String vendorId = graphEntity.getVendorId(id);
-                    PerTargetEntityInformation.Builder info = PerTargetEntityInformation.newBuilder();
-                    if (vendorId != null) {
-                        info.setVendorId(vendorId);
-                    }
-                    apiBldr.putDiscoveredTargetData(id, info.build());
-                });
+                        graphEntity.getEnvironmentType()).setStale(graphEntity.isStale()).setOrigin(graphEntity.getOrigin());
                 apiBldr.addAllConnectedTo(graphEntity.getBroadcastRelatedEntities());
                 if (tagsForEntity != null) {
                     final Tags.Builder tags = Tags.newBuilder();
@@ -248,8 +237,7 @@ public class PartialEntityConverter {
                     .setEntityType(topoEntity.getEntityType())
                     .setEnvironmentType(topoEntity.getEnvironmentType())
                     .setTags(topoEntity.getTags())
-                    .putAllDiscoveredTargetData(topoEntity.getOrigin()
-                                    .getDiscoveryOrigin().getDiscoveredTargetDataMap());
+                    .setOrigin(topoEntity.getOrigin());
 
                 topoEntity.getConnectedEntityListList().forEach(connectedEntity ->
                         apiBldr.addConnectedTo(RelatedEntity.newBuilder()
