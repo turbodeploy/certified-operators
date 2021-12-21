@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -31,17 +32,41 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
+/**
+ * Tests for {@link PersistentWorkflowIdentityStore}.
+ */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class PersistentWorkflowIdentityStoreTest {
+
+    @Autowired(required = false)
+    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -54,11 +79,35 @@ public class PersistentWorkflowIdentityStoreTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
 
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule =
+            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
+
+    /**
+     * Set up for tests.
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if thread has been interrupted
+     */
     @Before
-    public void setup() {
-
+    public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
+            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
         IdentityGenerator.initPrefix(0);
     }
 

@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -9,14 +10,16 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.action.orchestrator.DbAccessConfig;
 import com.vmturbo.action.orchestrator.execution.affected.entities.EntitiesInCoolDownPeriodCache;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
@@ -55,6 +58,7 @@ import com.vmturbo.components.common.utils.RteLoggingRunnable;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
@@ -62,7 +66,7 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
  */
 @Configuration
 @Import({ActionOrchestratorApiConfig.class,
-    ActionOrchestratorDBConfig.class,
+    DbAccessConfig.class,
     ActionOrchestratorGlobalConfig.class,
     ActionExecutionConfig.class,
     GroupClientConfig.class,
@@ -80,7 +84,7 @@ public class ActionStoreConfig {
     private ActionOrchestratorApiConfig actionOrchestratorApiConfig;
 
     @Autowired
-    private ActionOrchestratorDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
@@ -272,8 +276,15 @@ public class ActionStoreConfig {
      */
     @Bean
     public RecommendationIdentityStore recommendationIdentityStore() {
-        return new RecommendationIdentityStore(databaseConfig.dsl(),
-                actionIdentityModelRequestChunkSize);
+        try {
+            return new RecommendationIdentityStore(dbAccessConfig.dsl(),
+                    actionIdentityModelRequestChunkSize);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create recommendationIdentityStore", e);
+        }
     }
 
     /**
@@ -340,25 +351,32 @@ public class ActionStoreConfig {
      */
     @Bean
     public IActionStoreFactory actionStoreFactory() {
-        return ActionStoreFactory.newBuilder()
-            .withActionFactory(actionFactory())
-            .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
-            .withDatabaseDslContext(databaseConfig.dsl())
-            .withActionHistoryDao(actionHistory())
-            .withActionTargetSelector(actionExecutionConfig.actionTargetSelector())
-            .withEntitySettingsCache(entitySettingsCache())
-            .withActionTranslator(actionTranslationConfig.actionTranslator())
-            .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
-            .withUserSessionContext(userSessionConfig.userSessionContext())
-            .withSeverityCache(entitySeverityCache())
-            .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
-            .withAcceptedActionsStore(acceptedActionsStore())
-            .withRejectedActionsStore(rejectedActionsStore())
-            .withActionIdentityService(actionIdentityService())
-            .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
-            .withRiskPropagationEnabledFlag(riskPropagationEnabled)
-            .withWorkflowStore(workflowConfig.workflowStore())
-            .build();
+        try {
+            return ActionStoreFactory.newBuilder()
+                                     .withActionFactory(actionFactory())
+                                     .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
+                                     .withDatabaseDslContext(dbAccessConfig.dsl())
+                                     .withActionHistoryDao(actionHistory())
+                                     .withActionTargetSelector(actionExecutionConfig.actionTargetSelector())
+                                     .withEntitySettingsCache(entitySettingsCache())
+                                     .withActionTranslator(actionTranslationConfig.actionTranslator())
+                                     .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
+                                     .withUserSessionContext(userSessionConfig.userSessionContext())
+                                     .withSeverityCache(entitySeverityCache())
+                                     .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
+                                     .withAcceptedActionsStore(acceptedActionsStore())
+                                     .withRejectedActionsStore(rejectedActionsStore())
+                                     .withActionIdentityService(actionIdentityService())
+                                     .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
+                                     .withRiskPropagationEnabledFlag(riskPropagationEnabled)
+                                     .withWorkflowStore(workflowConfig.workflowStore())
+                                     .build();
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create actionStoreFactory", e);
+        }
     }
 
     /**
@@ -381,14 +399,21 @@ public class ActionStoreConfig {
     public IActionStoreLoader actionStoreLoader() {
         // For now, only plan action stores (kept in PersistentImmutableActionStores)
         // need to be re-loaded at startup.
-        return new PlanActionStore.StoreLoader(databaseConfig.dsl(),
-            actionFactory(),
-            actionModeCalculator(),
-            entitySettingsCache(),
-            actionTranslationConfig.actionTranslator(),
-            tpConfig.realtimeTopologyContextId(),
-            actionExecutionConfig.actionTargetSelector(),
-            licenseCheckClientConfig.licenseCheckClient());
+        try {
+            return new PlanActionStore.StoreLoader(dbAccessConfig.dsl(),
+                    actionFactory(),
+                    actionModeCalculator(),
+                    entitySettingsCache(),
+                    actionTranslationConfig.actionTranslator(),
+                    tpConfig.realtimeTopologyContextId(),
+                    actionExecutionConfig.actionTargetSelector(),
+                    licenseCheckClientConfig.licenseCheckClient());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create actionStoreLoader", e);
+        }
     }
 
     @Bean
@@ -404,9 +429,7 @@ public class ActionStoreConfig {
      */
     @Bean
     public ActionStorehouse actionStorehouse() {
-        ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory(),
-                actionStoreLoader(), automationManager());
-        return actionStorehouse;
+        return new ActionStorehouse(actionStoreFactory(), actionStoreLoader(), automationManager());
     }
 
     /**
@@ -422,8 +445,15 @@ public class ActionStoreConfig {
 
     @Bean
     public ActionHistoryDao actionHistory() {
-        return new ActionHistoryDaoImpl(databaseConfig.dsl(), actionModeCalculator(),
-                actionOrchestratorGlobalConfig.actionOrchestratorClock());
+        try {
+            return new ActionHistoryDaoImpl(dbAccessConfig.dsl(), actionModeCalculator(),
+                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create actionHistory", e);
+        }
     }
 
     /**
@@ -433,7 +463,14 @@ public class ActionStoreConfig {
      */
     @Bean
     public AcceptedActionsDAO acceptedActionsStore() {
-        return new AcceptedActionsStore(databaseConfig.dsl());
+        try {
+            return new AcceptedActionsStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create acceptedActionsStore", e);
+        }
     }
 
     /**
@@ -443,7 +480,14 @@ public class ActionStoreConfig {
      */
     @Bean
     public RejectedActionsDAO rejectedActionsStore() {
-        return new RejectedActionsStore(databaseConfig.dsl());
+        try {
+            return new RejectedActionsStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create rejectedActionsStore", e);
+        }
     }
 
     @Bean

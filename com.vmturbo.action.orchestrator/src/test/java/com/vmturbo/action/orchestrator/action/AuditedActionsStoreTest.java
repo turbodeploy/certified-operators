@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -11,26 +12,47 @@ import java.util.TimeZone;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests for {@link AuditActionsStore}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class AuditedActionsStoreTest {
+
+    @Autowired(required = false)
+    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
 
     /**
      * Rule to create the DB schema and migrate it.
@@ -49,6 +71,21 @@ public class AuditedActionsStoreTest {
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @Rule
+    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule =
+            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
 
     private AuditActionsPersistenceManager auditedActionsStore;
 
@@ -72,10 +109,19 @@ public class AuditedActionsStoreTest {
 
     /**
      * Set up for tests.
+     * @throws SQLException if there is db error
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if thread has been interrupted
      */
     @Before
-    public void setUp() {
-        auditedActionsStore = new AuditActionsStore(dbConfig.getDslContext());
+    public void setUp() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
+            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
+        } else {
+            dsl = dbConfig.getDslContext();
+        }
+        auditedActionsStore = new AuditActionsStore(dsl);
     }
 
     /**
