@@ -100,7 +100,7 @@ public class TemplateConverterFactoryTest {
                     .build()));
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateTopologyEntityFromTemplates(templateAdditions,
-                        ArrayListMultimap.create(), topology);
+                        ArrayListMultimap.create(), topology, 777777L);
         final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
                 .map(Builder::build)
                 .collect(Collectors.toList());
@@ -162,7 +162,7 @@ public class TemplateConverterFactoryTest {
         templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityTwo.getOid());
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateTopologyEntityFromTemplates(Collections.emptyMap(),
-                        templateToReplacedEntity, topology);
+                        templateToReplacedEntity, topology, 777777L);
         final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
                 .map(Builder::build)
                 .collect(Collectors.toList());

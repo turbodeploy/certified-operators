@@ -231,7 +231,9 @@ public class ActionStatsQueryExecutor {
 
                     final Map<Long, String> tempCspLookup = new HashMap<>();
                     repositoryApi.entitiesRequest(cspsToLookup).getEntities().forEach(apiEntity -> {
-                        tempCspLookup.put(apiEntity.getOid(), getCloudTypeFromProbeType(apiEntity::getDiscoveredTargetDataMap));
+                        tempCspLookup.put(apiEntity.getOid(), getCloudTypeFromProbeType(
+                                apiEntity.getOrigin()
+                                        .getDiscoveryOrigin()::getDiscoveredTargetDataMap));
                     });
                     cspLookup = ImmutableMap.copyOf(tempCspLookup);
                 } else {

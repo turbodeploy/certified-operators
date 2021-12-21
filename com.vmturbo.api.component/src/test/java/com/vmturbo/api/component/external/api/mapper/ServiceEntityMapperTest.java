@@ -168,10 +168,14 @@ public class ServiceEntityMapperTest {
                 .setOid(oid)
                 .setEntityType(entityType.getNumber())
                 .setEntityState(entityState)
-                .setEnvironmentType(environmentType)
-                .putDiscoveredTargetData(TARGET_ID,
-                        PerTargetEntityInformation.newBuilder().setVendorId(localName).build())
-                .setTags(Tags.newBuilder()
+                .setEnvironmentType(environmentType).setOrigin(Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                .putDiscoveredTargetData(TARGET_ID,
+                                        PerTargetEntityInformation.newBuilder()
+                                                .setVendorId(localName)
+                                                .build())
+                                .build())
+                        .build()).setTags(Tags.newBuilder()
                         .putTags(tagKey, TagValuesDTO.newBuilder().addValues(tagValue).build()))
                 .addConsumers(RelatedEntity.newBuilder()
                         .setOid(consumerOid)

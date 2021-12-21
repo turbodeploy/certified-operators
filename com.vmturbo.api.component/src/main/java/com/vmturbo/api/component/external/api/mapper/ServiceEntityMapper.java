@@ -196,7 +196,9 @@ public class ServiceEntityMapper {
             final Set<BaseApiDTO> connectedEntities = connectedEntityMapper.mapConnectedEntities(apiEntity);
             result.setConnectedEntities(new ArrayList<>(connectedEntities));
 
-            setDiscoveredBy(apiEntity::getDiscoveredTargetDataMap, result);
+            setDiscoveredBy(
+                    () -> apiEntity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap(),
+                    result);
 
             //tags
             result.setTags(
@@ -319,6 +321,9 @@ public class ServiceEntityMapper {
         result.setUuid(serviceEntityApiDTO.getUuid());
         result.setState(serviceEntityApiDTO.getState());
         result.setEnvironmentType(serviceEntityApiDTO.getEnvironmentType());
+        if (serviceEntityApiDTO.getRealtimeMarketReference() != null) {
+            result.setRealtimeMarketReference(serviceEntityApiDTO.getRealtimeMarketReference());
+        }
 
         // aspects, if required
         result.setAspects(serviceEntityApiDTO.getAspects());

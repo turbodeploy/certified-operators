@@ -77,6 +77,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -624,6 +625,33 @@ public class ActionSpecMappingContextFactory {
             .getEntities()
             .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
 
+        final HashSet<Long> originOids = new HashSet<>();
+        for (ApiPartialEntity apiEntity : retMap.values()) {
+            // api entity always has one of origin types:
+            //            DiscoveryOrigin
+            //            ReservationOrigin
+            //            PlanScenarioOrigin
+            //            AnalysisOrigin
+            if (apiEntity.hasOrigin()) {
+                final Origin apiEntityOrigin = apiEntity.getOrigin();
+                if (apiEntityOrigin.hasAnalysisOrigin()) {
+                    originOids.add(apiEntityOrigin.getAnalysisOrigin().getOriginalEntityId());
+                }
+                if (apiEntityOrigin.hasPlanScenarioOrigin()) {
+                    originOids.add(apiEntityOrigin.getPlanScenarioOrigin().getOriginalEntityId());
+                }
+            }
+        }
+        originOids.removeAll(retMap.keySet());
+        if (!originOids.isEmpty()) {
+            final Set<ApiPartialEntity> apiPartialEntities = repositoryApi.entitiesRequest(
+                    originOids).contextId(contextId).getEntities().collect(Collectors.toSet());
+            logger.debug("{} oid originals were obtained from clones", apiPartialEntities.size());
+            for (ApiPartialEntity apiEntity : apiPartialEntities) {
+                retMap.putIfAbsent(apiEntity.getOid(), apiEntity);
+            }
+        }
+
         // Check if we could not get any mappings.
         Set<Long> missingEntities = new HashSet<>(Sets.difference(involvedEntities, retMap.keySet()));
 
@@ -814,10 +842,26 @@ public class ActionSpecMappingContextFactory {
              */
             Map<Long, ServiceEntityApiDTO> seMap = serviceEntityMapper.toServiceEntityApiDTOMap(topologyEntityDTOs.values());
             this.serviceEntityApiDTOs = new HashMap<>();
-            topologyEntityDTOs.entrySet().forEach(entry -> {
-                this.serviceEntityApiDTOs.put(entry.getKey(), seMap.get(entry.getValue().getOid()));
-            });
-
+            for (Entry<Long, ApiPartialEntity> entry : topologyEntityDTOs.entrySet()) {
+                final ApiPartialEntity apiPartialEntity = entry.getValue();
+                final ServiceEntityApiDTO se = seMap.get(apiPartialEntity.getOid());
+                if (apiPartialEntity.hasOrigin()) {
+                    ServiceEntityApiDTO originalSe = null;
+                    final Origin entityOrigin = apiPartialEntity.getOrigin();
+                    if (entityOrigin.hasAnalysisOrigin()) {
+                        originalSe = seMap.get(
+                                entityOrigin.getAnalysisOrigin().getOriginalEntityId());
+                    }
+                    if (entityOrigin.hasPlanScenarioOrigin()) {
+                        originalSe = seMap.get(
+                                entityOrigin.getPlanScenarioOrigin().getOriginalEntityId());
+                    }
+                    if (originalSe != null) {
+                        se.setRealtimeMarketReference(originalSe);
+                    }
+                }
+                this.serviceEntityApiDTOs.put(entry.getKey(), se);
+            }
             this.entityIdToRegion = Objects.requireNonNull(entityIdToRegion);
             this.volumeAspectsByEntity = Objects.requireNonNull(volumeAspectsByEntity);
             this.cloudAspects = Objects.requireNonNull(cloudAspects);

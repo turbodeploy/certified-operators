@@ -207,7 +207,7 @@ public class PartialEntityConverterTest {
         assertThat(apiEntity.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(apiEntity.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(apiEntity.getEntityState(), is(ENTITY.getEntityState()));
-        assertThat(apiEntity.getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
+        assertThat(apiEntity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
         assertThat(apiEntity.getTags(), is(ENTITY.getTags()));
         Assert.assertThat(apiEntity.getStale(), Matchers.is(ENTITY.getStale()));
         assertThat(apiEntity.getProvidersList(), contains(RelatedEntity.newBuilder()
@@ -269,7 +269,7 @@ public class PartialEntityConverterTest {
         assertThat(apiEntity.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(apiEntity.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(apiEntity.getEntityState(), is(ENTITY.getEntityState()));
-        assertThat(apiEntity.getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
+        assertThat(apiEntity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
         assertThat(apiEntity.getTags(), is(ENTITY.getTags()));
         Assert.assertThat(apiEntity.getStale(), Matchers.is(ENTITY.getStale()));
         assertThat(apiEntity.getProvidersList(), contains(RelatedEntity.newBuilder()
