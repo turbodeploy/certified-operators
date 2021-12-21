@@ -165,10 +165,10 @@ public class TopologyListenerConfig {
     @Value("${searchBatchSize:1000}")
     private int searchBatchSize;
 
-    @Value("${scopeUpdateBatchSize:0}")
+    @Value("${scopeUpdateBatchSize:250000}")
     private int scopeUpdateBatchSize;
 
-    @Value("${scopeInsertBatchSize:0}")
+    @Value("${scopeInsertBatchSize:250000}")
     private int scopeInsertBatchSize;
 
     /**
