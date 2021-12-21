@@ -1,8 +1,9 @@
 package com.vmturbo.action.orchestrator.stats.aggregator;
 
+import static com.vmturbo.common.protobuf.GroupProtoUtil.CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING;
+import static com.vmturbo.common.protobuf.GroupProtoUtil.CLUSTER_GROUP_TYPES;
+
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -10,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -38,7 +40,9 @@ import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -47,6 +51,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.FormattedString;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -78,10 +83,18 @@ public class ClusterActionAggregator extends ActionAggregator {
      * entityId -> clusters the entity is in
      *
      * This includes the actual members of the cluster - i.e. the hosts/storages in the cluster
-     * definition - as well as entities in the cluster scope with entity type in
-     * {@link ClusterActionAggregator#EXPANDED_SCOPE_ENTITY_TYPES}.
+     * definition.
      */
     private final Long2ObjectMap<LongSet> clustersOfEntity = new Long2ObjectOpenHashMap<>();
+
+    /**
+     * The map from entities in the cluster scope with entity type in
+     * {@link ClusterActionAggregator#EXPANDED_SCOPE_ENTITY_TYPES} to cluster. This is needed for
+     * stats that we need to collect for a cluster where the primary entity of the action is not
+     * directly member of the cluster. For example, we capture the stats for action targeting vms
+     * consuming from hosts in a cluster for cluster stats.
+     */
+    private final Long2ObjectMap<LongSet> indirectClustersOfEntity = new Long2ObjectOpenHashMap<>();
 
     private final SupplyChainCalculator supplyChainCalculator;
     private final TraversalRulesLibrary<ActionGraphEntity> traversalRules = new TraversalRulesLibrary<>();
@@ -116,7 +129,7 @@ public class ClusterActionAggregator extends ActionAggregator {
             final AtomicReference<Exception> firstError = new AtomicReference<>(null);
             final Set<String> failedClusterDescriptors = new HashSet<>();
 
-            GroupProtoUtil.CLUSTER_GROUP_TYPES.forEach(type -> groupService.getGroups(GetGroupsRequest.newBuilder()
+            CLUSTER_GROUP_TYPES.forEach(type -> groupService.getGroups(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .setGroupType(type)).build())
                 .forEachRemaining(group -> {
@@ -137,9 +150,10 @@ public class ClusterActionAggregator extends ActionAggregator {
                             EXPANDED_SCOPE_ENTITY_TYPES.forEach(entityType -> {
                                 final SupplyChainNode node = nodes.getOrDefault(entityType,
                                         SupplyChainNode.getDefaultInstance());
-                                RepositoryDTOUtil.getAllMemberOids(node).forEach(memberOid -> {
-                                    clustersOfEntity.computeIfAbsent(memberOid, k -> new LongOpenHashSet()).add(clusterId);
-                                });
+                                RepositoryDTOUtil.getAllMemberOids(node).forEach(memberOid ->
+                                    indirectClustersOfEntity.computeIfAbsent((long)memberOid,
+                                            k -> new LongOpenHashSet()).add(clusterId)
+                                );
                             });
                         } catch (RuntimeException e) {
                             final String clusterDescriptor = FormattedString.format("{} (id: {})",
@@ -175,10 +189,10 @@ public class ClusterActionAggregator extends ActionAggregator {
         final ActionEntity primaryEntity = actionSnapshot.primaryEntity();
         final int entityType = primaryEntity.getType();
 
-        // Probably not going to be in multiple clusters, but generically speaking can't be sure.
-        final LongSet clusterIds = clustersOfEntity.getOrDefault(primaryEntity.getId(), LongSets.EMPTY_SET);
         final boolean newAction = actionIsNew(actionSnapshot, previousBroadcastActions);
-        clusterIds.forEach((long clusterId) -> {
+        Stream.concat(clustersOfEntity.getOrDefault(primaryEntity.getId(), LongSets.EMPTY_SET).stream(),
+                determineIndirectEntityClusters(primaryEntity.getId(), actionSnapshot.recommendation()))
+            .forEach((clusterId) -> {
             // Note - we may end up creating a lot of these objects as we process an
             // action plan. If it becomes a problem we can keep them saved somewhere -
             // we only need 2 per cluster (one for PMs, and one for VMs).
@@ -209,6 +223,36 @@ public class ClusterActionAggregator extends ActionAggregator {
             final ActionStat globalStat = getStat(globalSubgroupKey, actionSnapshot.actionGroupKey());
             globalStat.recordAction(actionSnapshot.recommendation(), primaryEntity, newAction);
         });
+    }
+
+    /**
+     * Determines the set of clusters that action stats should be captured for input action.
+     *
+     * @param id the id of primary target of the input action.
+     * @param recommendation the input action.
+     * @return the set of clusters
+     */
+    @Nonnull
+    private Stream<Long> determineIndirectEntityClusters(final long id,
+                                                         @Nonnull final ActionDTO.Action recommendation) {
+        if (recommendation.getInfo().getActionTypeCase() == ActionTypeCase.MOVE) {
+            // if the action is move, we look at the cluster for the source location of action
+            // rather than the target entity of action.
+            return recommendation
+                    .getInfo()
+                    .getMove()
+                    .getChangesList()
+                    .stream()
+                    .filter(ActionDTO.ChangeProvider::hasSource)
+                    .map(ActionDTO.ChangeProvider::getSource)
+                    .filter(x -> CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING
+                            .containsKey(EntityType.forNumber(x.getType())))
+                    .map(ActionEntity::getId)
+                    .map(x -> clustersOfEntity.getOrDefault((long)x, LongSets.EMPTY_SET))
+                    .flatMap(Set::stream);
+        } else {
+            return indirectClustersOfEntity.getOrDefault(id, LongSets.EMPTY_SET).stream();
+        }
     }
 
     @Nonnull
