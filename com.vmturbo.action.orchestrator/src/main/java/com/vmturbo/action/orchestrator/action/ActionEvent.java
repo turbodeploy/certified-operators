@@ -262,10 +262,17 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * Indicated that an action missed active status of execution window while waiting in the queue.
-     * And it was removed from queue without executing.
+     * Indicates that an action missed active status of execution window while waiting in the queue.
+     * and was removed from queue without executing it. The new action state will be set to ACCEPTED.
      */
     public static class RollBackToAcceptedEvent extends ActionEvent {
+    }
+
+    /**
+     * Indicates that an action missed execution window while waiting in the queue and it
+     * was removed from queue without executing it. The new action state will be set to READY.
+     */
+    public static class RollBackToReadyEvent extends ActionEvent {
     }
 
     /**
