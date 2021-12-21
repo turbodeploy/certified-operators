@@ -12,47 +12,116 @@ import static java.time.temporal.ChronoUnit.HOURS;
 import static java.time.temporal.ChronoUnit.MONTHS;
 import static org.junit.Assert.assertEquals;
 
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
+
+import javax.sql.DataSource;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.RetentionPoliciesRecord;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests of the {@link RetentionPolicy} class.
  *
- * <p>These tests are executed in a test database constructed from history component migrations.</p>
+ * <p>These tests are executed in a test database constructed from history component
+ * migrations.</p>
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestHistoryDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class RetentionPolicyTest {
 
+    @Autowired(required = false)
+    private TestHistoryDbEndpointConfig dbEndpointConfig;
+
     /**
-     * Provision and provide access to a test database.
+     * Rule to set up the database before running the tests.
      */
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
 
     /**
-     * Clean up tables in the test database before each test.
+     * Rule to clean up the database after each test.
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    DSLContext dsl = dbConfig.getDslContext();
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("history");
 
-    /** Initialize retention policies before each test. */
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
+    private DataSource dataSource;
+    private static List<RetentionPoliciesRecord> refData;
+
+    /**
+     * Set up and populate live database for tests, and create required mocks.
+     *
+     * @throws SQLException If a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     */
     @Before
-    public void before() {
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.historyEndpoint());
+            dsl = dbEndpointConfig.historyEndpoint().dslContext();
+            dataSource = dbEndpointConfig.historyEndpoint().datasource();
+        } else {
+            dsl = dbConfig.getDslContext();
+            dataSource = dbConfig.getDataSource();
+        }
+        handleRefData();
         RetentionPolicy.init(dsl);
+    }
+
+    // temporary support for restoring initial data in ref data; this will not be needed once
+    // test rule changes are installed, but for now, the DbEndpointTestRule does not detect nor
+    // handle reference data, so we handle it manually here to avoid test failures
+    private void handleRefData() {
+        if (refData == null) {
+            refData = dsl.selectFrom(RETENTION_POLICIES).fetch();
+        } else {
+            dsl.truncateTable(RETENTION_POLICIES).execute();
+            refData.forEach(r -> r.changed(true));
+            dsl.batchInsert(refData).execute();
+        }
     }
 
     /**

@@ -149,7 +149,7 @@ public class RetentionPolicy {
             return RetentionUtil.getExpiration(t, unit, period);
         } else {
             throw new IllegalStateException(
-                    String.format("No retention policy data loaded for policy %s", key));
+                    String.format("No retention policy data loaded for policy %s", this));
         }
     }
 

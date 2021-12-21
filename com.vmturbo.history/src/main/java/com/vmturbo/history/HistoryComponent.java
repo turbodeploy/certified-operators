@@ -1,5 +1,6 @@
 package com.vmturbo.history;
 
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.zip.ZipOutputStream;
@@ -13,6 +14,7 @@ import io.grpc.ServerInterceptor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -24,20 +26,20 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.history.api.ApiSecurityConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
-import com.vmturbo.history.db.HistoryDbConfig;
+import com.vmturbo.history.db.DbAccessConfig;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.bulk.BulkInserterFactory;
 import com.vmturbo.history.diagnostics.HistoryDiagnosticsConfig;
 import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.stats.StatsConfig;
-import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration for history component.
  */
 @Configuration("theComponent")
 @Import({
-        HistoryDbConfig.class,
+        DbAccessConfig.class,
         IngestersConfig.class,
         StatsConfig.class,
         HistoryApiConfig.class,
@@ -50,7 +52,7 @@ public class HistoryComponent extends BaseVmtComponent {
     private static final Logger log = LogManager.getLogger();
 
     @Autowired
-    private HistoryDbConfig historyDbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private HistoryApiConfig historyApiConfig;
@@ -63,9 +65,6 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @Autowired
     private HistoryDiagnosticsConfig diagnosticsConfig;
-
-    @Autowired
-    private DbMonitor dbMonitorLoop;
 
     /**
      * This gives us access to the TopologyCoordinator instance, which manages ingestion and
@@ -92,7 +91,14 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        RetentionPolicy.init(historyDbConfig.dsl());
+        try {
+            RetentionPolicy.init(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to initialize RetentionPolicy", e);
+        }
     }
 
     @Override
@@ -112,25 +118,33 @@ public class HistoryComponent extends BaseVmtComponent {
     @Override
     protected void onStartComponent() {
         // drop any transient tables that would be orphaned by this shutdown
-        if (historyDbConfig != null) {
+        if (dbAccessConfig != null) {
             try {
-                BulkInserterFactory.cleanupTransientTables(historyDbConfig.dsl());
-            } catch (DataAccessException e) {
+                BulkInserterFactory.cleanupTransientTables(dbAccessConfig.dsl());
+            } catch (DataAccessException | SQLException | UnsupportedDialectException | InterruptedException e) {
                 log.warn("Failed to look for and clean up any orphaned transient tables", e);
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
         log.info("Starting topology coordinator");
         ingestersConfig.topologyCoordinator().startup();
 
-        log.info(
-                "Adding MariaDB and Kafka producer health checks to the component health monitor.");
-        getHealthMonitor().addHealthCheck(
-                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                        historyDbConfig.dataSource()::getConnection));
-        getHealthMonitor().addHealthCheck(historyApiConfig.messageProducerHealthMonitor());
-
-        if (historyDbConfig.isDbMonitorEnabled()) {
-            historyDbConfig.startDbMonitor();
+        log.info("Adding DB and Kafka producer health checks to the component health monitor.");
+        try {
+            getHealthMonitor().addHealthCheck(
+                    new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                            dbAccessConfig.dataSource()::getConnection));
+            getHealthMonitor().addHealthCheck(historyApiConfig.messageProducerHealthMonitor());
+        } catch (InterruptedException | SQLException | UnsupportedDialectException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to start DB health monitor", e);
+        }
+        if (dbAccessConfig.isDbMonitorEnabled()) {
+            dbAccessConfig.startDbMonitor();
         }
     }
 

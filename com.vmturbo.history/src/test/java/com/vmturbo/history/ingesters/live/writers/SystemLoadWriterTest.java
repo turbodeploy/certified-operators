@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
@@ -15,6 +16,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+
+import javax.sql.DataSource;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -37,6 +40,13 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -53,6 +63,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -65,11 +77,78 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests of the {@link SystemLoadWriter} class.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestHistoryDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class SystemLoadWriterTest {
+
+    @Autowired(required = false)
+    private TestHistoryDbEndpointConfig dbEndpointConfig;
+
+    /**
+     * Rule to set up the database before running the tests.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /**
+     * Rule to clean up the database after each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("history");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
+    private DataSource dataSource;
+    private GroupServiceBlockingStub groupService;
+
+    /**
+     * Set up and populate live database for tests, and create required mocks.
+     *
+     * @throws SQLException If a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     * @throws IOException if there's an issues setting up grpc service
+     */
+    @Before
+    public void before()
+            throws SQLException, UnsupportedDialectException, InterruptedException, IOException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.historyEndpoint());
+            dsl = dbEndpointConfig.historyEndpoint().dslContext();
+            dataSource = dbEndpointConfig.historyEndpoint().datasource();
+        } else {
+            dsl = dbConfig.getDslContext();
+            dataSource = dbConfig.getDataSource();
+        }
+        if (groupService == null) {
+            this.groupService = createGroupService();
+         }
+        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
+        this.writerFactory = new SystemLoadWriter.Factory(groupService, dsl, dsl);
+    }
+
     private static final Logger logger = LogManager.getLogger();
 
     private static final String DAY1_245PM = "2020-01-01T14:25:00Z";
@@ -139,28 +218,6 @@ public class SystemLoadWriterTest {
             .maxBatchRetries(3)
             .maxRetryBackoffMsec(1000)
             .build();
-
-    /** Manage database provisioning and access. */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
-
-    /** Remove any data inserted during a test. */
-    @Rule
-    public DbCleanupRule cleanup = dbConfig.cleanupRule();
-
-    private DSLContext dsl = dbConfig.getDslContext();
-
-    /**
-     * Setup for each test.
-     *
-     * @throws IOException if trouble setting up group service
-     */
-    @Before
-    public void before() throws IOException {
-        final GroupServiceBlockingStub groupService = createGroupService();
-        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
-        this.writerFactory = new SystemLoadWriter.Factory(groupService, dsl, dsl);
-    }
 
     /**
      * Make sure all our bulk loaders are closed and flushed after each test.

@@ -27,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.sql.Date;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.sql.DataSource;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -57,7 +59,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
@@ -72,9 +81,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -88,11 +99,88 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRang
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test for {@link ClusterStatsReader}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestHistoryDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class ClusterStatsReaderTest {
+    @Autowired(required = false)
+    private TestHistoryDbEndpointConfig dbEndpointConfig;
+
+    /**
+     * Rule to set up the database before running the tests.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /**
+     * Rule to clean up the database after each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("history");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
+    private DataSource dataSource;
+    private HistorydbIO historydbIO;
+
+    /**
+     * Set up and populate live database for tests, and create required mocks.
+     *
+     * @throws SQLException if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     */
+    @Before
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.historyEndpoint());
+            dsl = dbEndpointConfig.historyEndpoint().dslContext();
+            dataSource = dbEndpointConfig.historyEndpoint().datasource();
+        } else {
+            dsl = dbConfig.getDslContext();
+            dataSource = dbConfig.getDataSource();
+        }
+        historydbIO = new HistorydbIO(dsl, dsl);
+        final Clock clock = mock(Clock.class);
+        final RetentionPeriodFetcher retentionPeriodFetcher =
+                mock(RetentionPeriodFetcher.class);
+        Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(NOW.getTime()));
+        Mockito.when(retentionPeriodFetcher.getRetentionPeriods())
+                .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+        TimeFrameCalculator timeFrameCalculator = new TimeFrameCalculator(clock,
+                retentionPeriodFetcher);
+
+        final ClusterTimeRangeFactory clusterTimeRangeFactory = new ClusterTimeRangeFactory(
+                historydbIO, dsl, timeFrameCalculator);
+        final DefaultTimeRangeFactory defaultTimeRangeFactory = new DefaultTimeRangeFactory(
+                historydbIO, timeFrameCalculator, 15, TimeUnit.MINUTES);
+
+        final ComputedPropertiesProcessorFactory computedPropertiesFactory =
+                ComputedPropertiesProcessor::new;
+        clusterStatsReader = new ClusterStatsReader(dsl, clusterTimeRangeFactory,
+                defaultTimeRangeFactory, computedPropertiesFactory, 500);
+    }
 
     private static final long ONE_DAY_IN_MILLIS = 86_400_000;
 
@@ -126,48 +214,6 @@ public class ClusterStatsReaderTest {
             Timestamp.valueOf("2020-01-02 00:00:00");
     private static final Timestamp DAY_TIMESTAMP2 =
             Timestamp.valueOf("2020-01-01 00:00:00");
-
-    /**
-     * Provision and provide access to a test database.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
-
-    /**
-     * Clean up tables in the test database before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    private final DSLContext dsl = dbConfig.getDslContext();
-    private final HistorydbIO historydbIO = new HistorydbIO(dsl, dsl);
-
-    /**
-     * Set up and populate live database for tests, and create required mocks.
-     *
-     * @throws Exception if any problem occurs
-     */
-    @Before
-    public void setup() throws Exception {
-        final Clock clock = mock(Clock.class);
-        final RetentionPeriodFetcher retentionPeriodFetcher =
-                mock(RetentionPeriodFetcher.class);
-        Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(NOW.getTime()));
-        Mockito.when(retentionPeriodFetcher.getRetentionPeriods())
-                .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
-        TimeFrameCalculator timeFrameCalculator = new TimeFrameCalculator(clock,
-                retentionPeriodFetcher);
-
-        final ClusterTimeRangeFactory clusterTimeRangeFactory = new ClusterTimeRangeFactory(
-                historydbIO, dsl, timeFrameCalculator);
-        final DefaultTimeRangeFactory defaultTimeRangeFactory = new DefaultTimeRangeFactory(
-                historydbIO, timeFrameCalculator, 15, TimeUnit.MINUTES);
-
-        final ComputedPropertiesProcessorFactory computedPropertiesFactory =
-                ComputedPropertiesProcessor::new;
-        clusterStatsReader = new ClusterStatsReader(dsl, clusterTimeRangeFactory,
-                defaultTimeRangeFactory, computedPropertiesFactory, 500);
-    }
 
     /**
      * Performed after each unit test, to clean up data to avoid conflict with other tests.

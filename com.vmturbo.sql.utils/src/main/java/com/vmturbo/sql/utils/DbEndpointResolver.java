@@ -18,6 +18,7 @@ import com.google.common.base.Functions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
@@ -194,7 +195,7 @@ public class DbEndpointResolver {
      */
     private void resolveHost() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getHost);
-        config.setHost(firstNonNull(configuredPropValue(HOST_PROPERTY),
+        config.setHost(firstNonEmpty(configuredPropValue(HOST_PROPERTY),
                 config.getHost(), fromTemplate,
                 // backward compatibility for customers who are still using old operator
                 // this should be dropped when we have no at-risk customers
@@ -210,7 +211,7 @@ public class DbEndpointResolver {
         String fromTemplate = getFromTemplate(DbEndpointConfig::getPort);
         String fromDefault = Integer.toString(getDefaultPort(dialect));
         String currentValue = config.getPort() != null ? config.getPort().toString() : null;
-        String propValue = firstNonNull(configuredPropValue(PORT_PROPERTY),
+        String propValue = firstNonEmpty(configuredPropValue(PORT_PROPERTY),
                 currentValue, fromTemplate, fromDefault);
         config.setPort(Integer.parseInt(propValue));
     }
@@ -222,7 +223,7 @@ public class DbEndpointResolver {
      */
     public void resolveDatabaseName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getDatabaseName);
-        final String value = firstNonNull(configuredPropValue(DATABASE_NAME_PROPERTY),
+        final String value = firstNonEmpty(configuredPropValue(DATABASE_NAME_PROPERTY),
                 config.getDatabaseName(), fromTemplate, getComponentName());
         config.setDatabaseName(config.isAbstract() ? value : config.mangleIdentifier(value));
     }
@@ -234,7 +235,7 @@ public class DbEndpointResolver {
      */
     public void resolveSchemaName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getSchemaName);
-        final String value = firstNonNull(configuredPropValue(SCHEMA_NAME_PROPERTY),
+        final String value = firstNonEmpty(configuredPropValue(SCHEMA_NAME_PROPERTY),
                 config.getSchemaName(), fromTemplate, getComponentName());
         config.setSchemaName(config.isAbstract() ? value : config.mangleIdentifier(value));
     }
@@ -246,7 +247,7 @@ public class DbEndpointResolver {
      */
     public void resolveUserName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUserName);
-        final String value = firstNonNull(configuredPropValue(USER_NAME_PROPERTY),
+        final String value = firstNonEmpty(configuredPropValue(USER_NAME_PROPERTY),
                 config.getUserName(), fromTemplate, getComponentName());
         config.setUserName(config.isAbstract() ? value : config.mangleIdentifier(value));
     }
@@ -258,7 +259,7 @@ public class DbEndpointResolver {
      */
     public void resolvePassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getPassword);
-        config.setPassword(Optional.ofNullable(firstNonNull(configuredPropValue(PASSWORD_PROPERTY),
+        config.setPassword(Optional.ofNullable(firstNonEmpty(configuredPropValue(PASSWORD_PROPERTY),
                 config.getPassword(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootPassword()));
     }
 
@@ -271,7 +272,7 @@ public class DbEndpointResolver {
         String currentValue = config.getAccess() != null ? config.getAccess().name() : null;
         String fromTemplate = getFromTemplate(DbEndpointConfig::getAccess);
         config.setAccess(DbEndpointAccess.valueOf(
-                firstNonNull(configuredPropValue(ACCESS_PROPERTY),
+                firstNonEmpty(configuredPropValue(ACCESS_PROPERTY),
                         currentValue, fromTemplate, DEFAULT_ACCESS_VALUE)));
     }
 
@@ -282,7 +283,7 @@ public class DbEndpointResolver {
      */
     public void resolveRootUserName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootUserName);
-        config.setRootUserName(Optional.ofNullable(firstNonNull(configuredPropValue(ROOT_USER_NAME_PROPERTY),
+        config.setRootUserName(Optional.ofNullable(firstNonEmpty(configuredPropValue(ROOT_USER_NAME_PROPERTY),
                 config.getRootUserName(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootUsername(dialect.toString())));
     }
 
@@ -296,7 +297,7 @@ public class DbEndpointResolver {
                 ? Boolean.toString(config.isRootAccessEnabled()) : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::isRootAccessEnabled);
         config.setRootAccessEnabled(Boolean.parseBoolean(
-                firstNonNull(configuredPropValue(ROOT_ACCESS_ENABLED_PROPERTY),
+                firstNonEmpty(configuredPropValue(ROOT_ACCESS_ENABLED_PROPERTY),
                         configuredValue, fromTemplate, "false")));
     }
 
@@ -307,7 +308,7 @@ public class DbEndpointResolver {
      */
     public void resolveRootPassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootPassword);
-        config.setRootPassword(Optional.ofNullable(firstNonNull(configuredPropValue(ROOT_PASSWORD_PROPERTY),
+        config.setRootPassword(Optional.ofNullable(firstNonEmpty(configuredPropValue(ROOT_PASSWORD_PROPERTY),
                 config.getRootPassword(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootPassword()));
     }
 
@@ -350,7 +351,7 @@ public class DbEndpointResolver {
         final String currentValue = config.getUseConnectionPool() != null
                 ? config.getUseConnectionPool().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUseConnectionPool);
-        config.setUseConnectionPool(Boolean.parseBoolean(firstNonNull(
+        config.setUseConnectionPool(Boolean.parseBoolean(firstNonEmpty(
                 configuredPropValue(USE_CONNECTION_POOL),
                 currentValue, fromTemplate, Boolean.toString(DEFAULT_USE_CONNECTION_POOL))));
     }
@@ -364,7 +365,7 @@ public class DbEndpointResolver {
         String fromTemplate = getFromTemplate(DbEndpointConfig::getMinPoolSize);
         String fromDefault = Integer.toString(DEFAULT_MIN_POOL_SIZE);
         String currentValue = config.getMinPoolSize() != null ? config.getMinPoolSize().toString() : null;
-        String propValue = firstNonNull(configuredPropValue(MIN_POOL_SIZE_PROPERTY),
+        String propValue = firstNonEmpty(configuredPropValue(MIN_POOL_SIZE_PROPERTY),
                 currentValue, fromTemplate, fromDefault);
         int minPoolSize = Integer.parseInt(propValue);
         minPoolSize =
@@ -383,7 +384,7 @@ public class DbEndpointResolver {
         String currentValue = config.getMaxPoolSize() != null
                 ? config.getMaxPoolSize().toString()
                 : null;
-        String propValue = firstNonNull(configuredPropValue(MAX_POOL_SIZE_PROPERTY),
+        String propValue = firstNonEmpty(configuredPropValue(MAX_POOL_SIZE_PROPERTY),
                 currentValue, fromTemplate, fromDefault);
         int maxPoolSize = Integer.parseInt(propValue);
         // Enforce guardrails on the final maximum pool size.
@@ -403,7 +404,7 @@ public class DbEndpointResolver {
         String currentValue = config.getKeepAliveIntervalMinutes() != null
                 ? config.getKeepAliveIntervalMinutes().toString()
                 : null;
-        String propValue = firstNonNull(configuredPropValue(POOL_KEEP_ALIVE_INTERVAL_MINUTES),
+        String propValue = firstNonEmpty(configuredPropValue(POOL_KEEP_ALIVE_INTERVAL_MINUTES),
                 currentValue, fromTemplate, fromDefault);
         int keepAliveIntervalMinutes = Integer.parseInt(propValue);
         config.setKeepAliveIntervalMinutes(keepAliveIntervalMinutes);
@@ -417,7 +418,7 @@ public class DbEndpointResolver {
     public void resolveSecure() throws UnsupportedDialectException {
         final String currentValue = config.getSecure() != null ? config.getSecure().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getSecure);
-        config.setSecure(Boolean.parseBoolean(firstNonNull(configuredPropValue(SECURE_PROPERTY_NAME),
+        config.setSecure(Boolean.parseBoolean(firstNonEmpty(configuredPropValue(SECURE_PROPERTY_NAME),
                 currentValue, fromTemplate, DEFAULT_SECURE_VALUE.toString())));
     }
 
@@ -457,7 +458,7 @@ public class DbEndpointResolver {
         final String currentValue = config.getEndpointEnabledFn() != null
                 ? config.getEndpointEnabledFn().apply(resolver).toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getEndpointEnabled);
-        config.setEndpointEnabled(Boolean.parseBoolean(firstNonNull(
+        config.setEndpointEnabled(Boolean.parseBoolean(firstNonEmpty(
                 configuredPropValue(ENDPOINT_ENABLED_PROPERTY),
                 currentValue, fromTemplate, Boolean.TRUE.toString())));
     }
@@ -472,7 +473,7 @@ public class DbEndpointResolver {
         final String currentValue = config.getShouldProvisionDatabase() != null
                 ? config.getShouldProvisionDatabase().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getShouldProvisionDatabase);
-        config.setShouldProvisionDatabase(Boolean.parseBoolean(firstNonNull(
+        config.setShouldProvisionDatabase(Boolean.parseBoolean(firstNonEmpty(
                 configuredPropValue(SHOULD_PROVISION_DATABASE_PROPERTY),
                 currentValue, fromTemplate, Boolean.toString(false))));
     }
@@ -486,7 +487,7 @@ public class DbEndpointResolver {
         final String currentValue = config.getShouldProvisionUser() != null
                                     ? config.getShouldProvisionUser().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getShouldProvisionUser);
-        config.setShouldProvisionUser(Boolean.parseBoolean(firstNonNull(
+        config.setShouldProvisionUser(Boolean.parseBoolean(firstNonEmpty(
                 configuredPropValue(SHOULD_PROVISION_USER_PROPERTY),
                 currentValue, fromTemplate, Boolean.toString(false))));
     }
@@ -547,6 +548,10 @@ public class DbEndpointResolver {
 
     private String firstNonNull(String... choices) {
         return Stream.of(choices).filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private String firstNonEmpty(String... choices) {
+        return Stream.of(choices).filter(StringUtils::isNotEmpty).findFirst().orElse(null);
     }
 
     private <T> String getFromTemplate(Function<DbEndpointConfig, T> getter) {
