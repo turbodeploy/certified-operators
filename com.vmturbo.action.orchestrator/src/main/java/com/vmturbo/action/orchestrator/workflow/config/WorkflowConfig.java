@@ -1,17 +1,19 @@
 package com.vmturbo.action.orchestrator.workflow.config;
 
+import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 
 import io.grpc.Channel;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.action.orchestrator.DbAccessConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.workflow.WorkflowDiagnostics;
 import com.vmturbo.action.orchestrator.workflow.rpc.DiscoveredWorkflowRpcService;
@@ -29,12 +31,13 @@ import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.PersistentIdentityStore;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration for Workflow processing - rpc, store.
  **/
 @Configuration
-@Import({ActionOrchestratorDBConfig.class, ActionOrchestratorGlobalConfig.class})
+@Import({DbAccessConfig.class, ActionOrchestratorGlobalConfig.class})
 public class WorkflowConfig {
 
     @Autowired
@@ -64,7 +67,7 @@ public class WorkflowConfig {
     private boolean useInMemoryWorkflowCache;
 
     @Autowired
-    private ActionOrchestratorDBConfig databaseConfig;
+    private DbAccessConfig dbAccessConfig;
 
     /**
      * Service responsible for storing discovered workflows.
@@ -125,12 +128,19 @@ public class WorkflowConfig {
      */
     @Bean
     public WorkflowStore workflowStore() {
-        if (useInMemoryWorkflowCache) {
-            return new InMemoryWorkflowStore(databaseConfig.dsl(), identityStore(),
-                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
-        } else {
-            return new PersistentWorkflowStore(databaseConfig.dsl(), identityStore(),
-                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
+        try {
+            if (useInMemoryWorkflowCache) {
+                return new InMemoryWorkflowStore(dbAccessConfig.dsl(), identityStore(),
+                        actionOrchestratorGlobalConfig.actionOrchestratorClock());
+            } else {
+                return new PersistentWorkflowStore(dbAccessConfig.dsl(), identityStore(),
+                        actionOrchestratorGlobalConfig.actionOrchestratorClock());
+            }
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create workflowStore", e);
         }
     }
 
@@ -172,7 +182,14 @@ public class WorkflowConfig {
      */
     @Bean
     public PersistentIdentityStore workflowPersistentIdentityStore() {
-        return new PersistentWorkflowIdentityStore(databaseConfig.dsl());
+        try {
+            return new PersistentWorkflowIdentityStore(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create workflowPersistentIdentityStore", e);
+        }
     }
 
     /**
