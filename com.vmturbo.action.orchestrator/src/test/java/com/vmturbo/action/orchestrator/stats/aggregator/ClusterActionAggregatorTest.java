@@ -78,15 +78,6 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 public class ClusterActionAggregatorTest {
 
-    private static final ActionDTO.Action SAVINGS_ACTION = ActionDTO.Action.newBuilder()
-            .setId(1)
-            .setInfo(ActionInfo.getDefaultInstance())
-            .setDeprecatedImportance(1)
-            .setExplanation(Explanation.getDefaultInstance())
-            .setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(1.0))
-            .build();
-
     private static final LocalDateTime TIME = LocalDateTime.MAX;
 
     private GroupServiceMole groupServiceMole = Mockito.spy(new GroupServiceMole());
@@ -124,6 +115,11 @@ public class ClusterActionAggregatorTest {
 
     private static final ActionEntity CLUSTER_2_VM = ActionEntity.newBuilder()
             .setId(72)
+            .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .build();
+
+    private static final ActionEntity VM_MOVING_FROM_CLUSTER_1_TO_2 = ActionEntity.newBuilder()
+            .setId(712)
             .setType(EntityType.VIRTUAL_MACHINE_VALUE)
             .build();
 
@@ -434,47 +430,11 @@ public class ClusterActionAggregatorTest {
         when(groupServiceMole.getGroups(expectedRequest))
                 .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
 
-        final GetMultiSupplyChainsRequest expectedSupplyChainRequest = GetMultiSupplyChainsRequest.newBuilder()
-                .addSeeds(SupplyChainSeed.newBuilder()
-                    .setSeedOid(CLUSTER_1.getId())
-                    .setScope(SupplyChainScope.newBuilder()
-                        .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                        .addStartingEntityOid(CLUSTER_1_PM_1.getId())
-                        .addStartingEntityOid(CLUSTER_1_PM_2.getId())))
-                .addSeeds(SupplyChainSeed.newBuilder()
-                    .setSeedOid(CLUSTER_2.getId())
-                    .setScope(SupplyChainScope.newBuilder()
-                        .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                        .addStartingEntityOid(CLUSTER_2_PM.getId())))
-                .build();
-        when(scCalculator.getSupplyChainNodes(any(), eq(Sets.newHashSet(CLUSTER_1_PM_1.getId(), CLUSTER_1_PM_2.getId())), any(), any()))
-                .thenReturn(Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-                        SupplyChainNode.newBuilder()
-                            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                            .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
-                                MemberList.newBuilder()
-                                    .addMemberOids(CLUSTER_1_VM_1.getId())
-                                    .addMemberOids(CLUSTER_1_VM_2.getId())
-                                    .build()))
-                        .build()));
-        when(scCalculator.getSupplyChainNodes(any(), eq(Sets.newHashSet(CLUSTER_2_PM.getId())), any(), any()))
-            .thenReturn(Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-                SupplyChainNode.newBuilder()
-                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                    .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
-                        MemberList.newBuilder()
-                            .addMemberOids(CLUSTER_2_VM.getId())
-                            .build()))
-                    .build()));
+        setupSupplyChainCalculator();
 
         clusterActionAggregator.start();
 
         verify(groupServiceMole).getGroups(expectedRequest);
-
-        // Because the seeds get added in random order (iterating hashmap), and there are no
-        // order-insensitive protobuf comparators, capture the request and check it's contents.
-        ArgumentCaptor<GetMultiSupplyChainsRequest> supplyChainRequestCaptor =
-                ArgumentCaptor.forClass(GetMultiSupplyChainsRequest.class);
 
         // Process action snapshots involving a VM in cluster 1, as well as a random VM not
         // in the cluster.
@@ -506,11 +466,122 @@ public class ClusterActionAggregatorTest {
         assertThat(cluster2Record.getTotalActionCount(), is(1));
     }
 
-    private StatsActionView fakeSnapshot(@Nonnull final ActionEntity primaryEntity) {
-        final ImmutableStatsActionView.Builder actionSnapshotBuilder = ImmutableStatsActionView.builder()
+    /**
+     * Test the case where a vm has moved from cluster 1 to cluster 2. The vm is already on
+     * cluster 2 but the stats should be counted for cluster 1.
+     */
+    @Test
+    public void testCrossClusterVmMove() {
+        // ARRANGE
+        final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
+        final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                .build();
+        when(groupServiceMole.getGroups(expectedRequest))
+                .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
+
+        setupSupplyChainCalculator();
+
+        clusterActionAggregator.start();
+
+        verify(groupServiceMole).getGroups(expectedRequest);
+
+        // ACT
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_VM_1), previousBroadcastActions);
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_VM_2), previousBroadcastActions);
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_VM), previousBroadcastActions);
+        clusterActionAggregator.processAction(fakeSnapshot(VM_MOVING_FROM_CLUSTER_1_TO_2,
+                createAction(createMoveActionInfo(VM_MOVING_FROM_CLUSTER_1_TO_2, CLUSTER_1_PM_1))),
+                previousBroadcastActions);
+
+
+        // ASSERT
+        final Map<Integer, ActionStatsLatestRecord> recordsByMgtmtUnitSubgroup =
+                clusterActionAggregator.createRecords(ImmutableMap.of(
+                                        CLUSTER_1_VM_SUBGROUP.key(), CLUSTER_1_VM_SUBGROUP,
+                                        CLUSTER_2_VM_SUBGROUP.key(), CLUSTER_2_VM_SUBGROUP),
+                                ImmutableMap.of(ACTION_GROUP_KEY, ACTION_GROUP))
+                        .collect(Collectors.toMap(ActionStatsLatestRecord::getMgmtUnitSubgroupId, Function.identity()));
+        assertThat(recordsByMgtmtUnitSubgroup.keySet(),
+                containsInAnyOrder(CLUSTER_1_VM_SUBGROUP.id(), CLUSTER_2_VM_SUBGROUP.id()));
+
+        final ActionStatsLatestRecord cluster1Record = recordsByMgtmtUnitSubgroup.get(CLUSTER_1_VM_SUBGROUP.id());
+        assertThat(cluster1Record.getTotalEntityCount(), is(3));
+        assertThat(cluster1Record.getTotalActionCount(), is(3));
+
+        final ActionStatsLatestRecord cluster2Record = recordsByMgtmtUnitSubgroup.get(CLUSTER_2_VM_SUBGROUP.id());
+        assertThat(cluster2Record.getTotalEntityCount(), is(1));
+        assertThat(cluster2Record.getTotalActionCount(), is(1));
+    }
+
+    private void setupSupplyChainCalculator() {
+        when(scCalculator.getSupplyChainNodes(any(), eq(Sets.newHashSet(CLUSTER_1_PM_1.getId(),
+                    CLUSTER_1_PM_2.getId())), any(), any()))
+                .thenReturn(Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                        SupplyChainNode.newBuilder()
+                                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                                .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
+                                        MemberList.newBuilder()
+                                            .addMemberOids(CLUSTER_1_VM_1.getId())
+                                            .addMemberOids(CLUSTER_1_VM_2.getId())
+                                            .build()))
+                                .build()));
+        when(scCalculator.getSupplyChainNodes(any(), eq(Sets.newHashSet(CLUSTER_2_PM.getId())),
+                    any(), any()))
+                .thenReturn(Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                        SupplyChainNode.newBuilder()
+                                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                                .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
+                                        MemberList.newBuilder()
+                                            .addMemberOids(CLUSTER_2_VM.getId())
+                                            .addMemberOids(VM_MOVING_FROM_CLUSTER_1_TO_2.getId())
+                                            .build()))
+                                .build()));
+    }
+
+    private static StatsActionView fakeSnapshot(@Nonnull final ActionEntity primaryEntity) {
+        return fakeSnapshot(primaryEntity, createAction(createScaleActionInfo(primaryEntity)));
+    }
+
+    private static StatsActionView fakeSnapshot(@Nonnull final ActionEntity primaryEntity,
+                                                @Nonnull final ActionDTO.Action recommendation) {
+        final ImmutableStatsActionView.Builder actionSnapshotBuilder = ImmutableStatsActionView
+                .builder()
                 .actionGroupKey(ACTION_GROUP_KEY)
-                .recommendation(SAVINGS_ACTION);
+                .recommendation(recommendation);
         actionSnapshotBuilder.primaryEntity(primaryEntity);
         return actionSnapshotBuilder.build();
+    }
+
+    private static ActionDTO.Action createAction(@Nonnull final ActionInfo actionInfo) {
+        return ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setInfo(actionInfo)
+                .setDeprecatedImportance(1)
+                .setExplanation(Explanation.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(1.0))
+                .build();
+    }
+
+    private static ActionInfo createScaleActionInfo(@Nonnull final ActionEntity primaryEntity) {
+        return ActionInfo.newBuilder()
+                .setScale(ActionDTO.Scale.newBuilder()
+                        .setTarget(primaryEntity)
+                        .build())
+                .build();
+    }
+
+    private static ActionInfo createMoveActionInfo(@Nonnull final ActionEntity primaryEntity,
+                                                   @Nonnull final ActionEntity sourceEntity) {
+        return ActionInfo.newBuilder()
+                .setMove(ActionDTO.Move.newBuilder()
+                        .setTarget(primaryEntity)
+                        .addChanges(ActionDTO.ChangeProvider.newBuilder()
+                                .setSource(sourceEntity)
+                                .build())
+                        .build())
+                .build();
     }
 }

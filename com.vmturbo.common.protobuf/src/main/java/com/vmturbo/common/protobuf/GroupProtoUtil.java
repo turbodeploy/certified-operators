@@ -78,7 +78,7 @@ public class GroupProtoUtil {
      * {@link GroupType#COMPUTE_HOST_CLUSTER} to represent host cluster.
      * Todo: this should be removed once all probes are changed to set new GroupType
      */
-    private static final Map<EntityType, GroupType> CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING =
+    public static final Map<EntityType, GroupType> CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING =
             ImmutableMap.of(
                     EntityType.PHYSICAL_MACHINE, GroupType.COMPUTE_HOST_CLUSTER,
                     EntityType.STORAGE, GroupType.STORAGE_CLUSTER,
