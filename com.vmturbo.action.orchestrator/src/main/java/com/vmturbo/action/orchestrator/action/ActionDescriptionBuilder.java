@@ -290,7 +290,9 @@ public class ActionDescriptionBuilder {
         ActionVirtualMachineInfo vmInfo = entity.getTypeSpecificInfo().getVirtualMachine();
 
         if (commodityType == CommodityType.VCPU && vmInfo.getCpuCoreMhz() != 0.0) {
-            if (resize.hasOldCpsr() && resize.hasNewCpsr()) {
+            if (resize.hasOldCpsr()
+                            && resize.hasNewCpsr()
+                            && resize.getOldCpsr() != resize.getNewCpsr()) {
                 return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_VCPU_CPS.format(
                                 resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
                                 commodity, beautifyEntityTypeAndName(entity),
