@@ -874,7 +874,11 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
 
         final Collection<InsertSetMoreStep<?>> inserts =
                 attachChildRecords(policy.getId(), policy.getInfo(), context);
-        final int modifiedRecords = dslContext.update(SETTING_POLICY).set(record).set(SETTING_POLICY.POLICY_TYPE, inline(SettingPolicyTypeConverter.typeToDb(policy.getSettingPolicyType()))).execute();
+        final int modifiedRecords = dslContext.update(SETTING_POLICY)
+                .set(record)
+                .set(SETTING_POLICY.POLICY_TYPE, inline(SettingPolicyTypeConverter.typeToDb(policy.getSettingPolicyType())))
+                .where(SETTING_POLICY.ID.eq(policy.getId()))
+                .execute();
         if (modifiedRecords == 0) {
             // This should never happen, because we overwrote fields in the record,
             // and update() should always execute an UPDATE statement if some fields
