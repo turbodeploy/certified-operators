@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -357,7 +358,9 @@ public class ActionDescriptionBuilderTest {
                 SupportLevel.SUPPORTED).build();
         resizeMemReservationRecommendation = makeRec(makeResizeReservationMemInfo(VM1_ID),
                 SupportLevel.SUPPORTED).build();
-        resizeVcpuRecommendationForVM = makeRec(makeResizeVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build();
+        resizeVcpuRecommendationForVM =
+                        makeRec(makeResizeInfo(VM1_ID, CommodityDTO.CommodityType.VCPU_VALUE, null,
+                                        16, 8, 1, 1), SupportLevel.SUPPORTED).build();
         resizeVcpuReservationRecommendationForVM = makeRec(
                 makeResizeReservationVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build();
         resizeVcpuRecommendationForContainer = makeRec(makeResizeVcpuInfo(CONTAINER1_ID, 16.111f, 8.111f), SupportLevel.SUPPORTED).build();
@@ -562,15 +565,32 @@ public class ActionDescriptionBuilderTest {
      */
     private static ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, String key,
             float oldCapacity, float newCapacity) {
+        return makeResizeInfo(targetId, commodityType, key, oldCapacity, newCapacity, 1, 1);
+    }
+
+    /**
+     * Create a resize action info.
+     *
+     * @param targetId the target entity id
+     * @param commodityType type of the commodity to resize
+     * @param key key of the commodity to resize
+     * @param oldCapacity old capacity
+     * @param newCapacity new capacity
+     * @return {@link ActionInfo.Builder}
+     */
+    private static ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, String key,
+                    float oldCapacity, float newCapacity, int oldCps, int newCps) {
         CommodityType.Builder commType = CommodityType.newBuilder().setType(commodityType);
         if (key != null) {
             commType.setKey(key);
         }
         return ActionInfo.newBuilder().setResize(Resize.newBuilder()
-                .setCommodityType(commType)
-                .setOldCapacity(oldCapacity)
-                .setNewCapacity(newCapacity)
-                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+                        .setCommodityType(commType)
+                        .setOldCapacity(oldCapacity)
+                        .setNewCapacity(newCapacity)
+                        .setOldCpsr(oldCps)
+                        .setNewCpsr(newCps)
+                        .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
     }
 
     /**
@@ -1436,6 +1456,24 @@ public class ActionDescriptionBuilderTest {
 
         assertEquals(description,
             "Resize down VCPU for Virtual Machine vm1_test from 16 to 8 cores");
+    }
+
+    /**
+     * Test resize VCPU action description for the case when CPS value has to be adjusted as well
+     * for VM.
+     */
+    @Test
+    public void testBuildResizeVcpuCpsActionDescriptionForVM() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
+                        (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(),
+                                        VM1_DISPLAY_NAME, 0, 0)));
+        resizeVcpuRecommendationForVM =
+                        makeRec(makeResizeInfo(VM1_ID, CommodityDTO.CommodityType.VCPU_VALUE, null,
+                                        8, 16, 1, 2), SupportLevel.SUPPORTED).build();
+        String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
+                        resizeVcpuRecommendationForVM);
+        Assert.assertThat(description,
+                        Matchers.stringContainsInOrder("VCPU", "vm1_test", "8", "16", "1", "2"));
     }
 
     /**
