@@ -1,5 +1,6 @@
 package com.vmturbo.history.ingesters;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -16,6 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -29,7 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
-import com.vmturbo.history.db.HistoryDbConfig;
+import com.vmturbo.history.db.DbAccessConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.ImmutableTopologyIngesterConfig;
 import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
@@ -56,6 +58,7 @@ import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -74,7 +77,7 @@ public class IngestersConfig {
     private HistoryApiConfig historyApiConfig;
 
     @Autowired
-    private HistoryDbConfig historyDbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private HistoryApiConfig apiConfig;
@@ -196,15 +199,22 @@ public class IngestersConfig {
      */
     @Bean
     public TopologyCoordinator topologyCoordinator() {
-        return new TopologyCoordinator(
-                sourceRealtimeTopologyIngester(),
-                projectedRealtimeTopologyIngester(),
-                sourcePlanTopologyIngester(),
-                projectedPlanTopologyIngester(),
-                rollupProcessor(),
-                historyApiConfig.statsAvailabilityTracker(),
-                historyDbConfig.dsl(),
-                topologyCoordinatorConfig());
+        try {
+            return new TopologyCoordinator(
+                    sourceRealtimeTopologyIngester(),
+                    projectedRealtimeTopologyIngester(),
+                    sourcePlanTopologyIngester(),
+                    projectedPlanTopologyIngester(),
+                    rollupProcessor(),
+                    historyApiConfig.statsAvailabilityTracker(),
+                    dbAccessConfig.dsl(),
+                    topologyCoordinatorConfig());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create topologyCoordinator bean", e);
+        }
     }
 
     @Bean
@@ -225,31 +235,38 @@ public class IngestersConfig {
      */
     @Bean
     SourceRealtimeTopologyIngester sourceRealtimeTopologyIngester() {
-        return new SourceRealtimeTopologyIngester(
-                Arrays.asList(
-                        new EntityStatsWriter.Factory(
-                                historyDbConfig.historyDbIO(),
-                                excludedCommodities(),
-                                getEntitiesFilter(),
-                                statsConfig.liveStatsStore()
-                        ),
-                        new SystemLoadWriter.Factory(
-                                groupServiceBlockingStub(),
-                                historyDbConfig.dsl(),
-                                historyDbConfig.unpooledDsl()
-                        ),
-                        new EntitiesWriter.Factory(
-                                historyDbConfig.historyDbIO()
-                        ),
-                        new ClusterStatsWriter.Factory(
-                                groupServiceBlockingStub()
-                        ),
-                        new VolumeAttachmentHistoryWriter.Factory(
-                            volumeAttachmentHistoryIntervalBetweenInsertsInHours)
-                ),
-                ingesterConfig(TopologyIngesterType.sourceRealtime),
-                bulkLoaderFactorySupplier()
-        );
+        try {
+            return new SourceRealtimeTopologyIngester(
+                    Arrays.asList(
+                            new EntityStatsWriter.Factory(
+                                    dbAccessConfig.historyDbIO(),
+                                    excludedCommodities(),
+                                    getEntitiesFilter(),
+                                    statsConfig.liveStatsStore()
+                            ),
+                            new SystemLoadWriter.Factory(
+                                    groupServiceBlockingStub(),
+                                    dbAccessConfig.dsl(),
+                                    dbAccessConfig.unpooledDsl()
+                            ),
+                            new EntitiesWriter.Factory(
+                                    dbAccessConfig.historyDbIO()
+                            ),
+                            new ClusterStatsWriter.Factory(
+                                    groupServiceBlockingStub()
+                            ),
+                            new VolumeAttachmentHistoryWriter.Factory(
+                                volumeAttachmentHistoryIntervalBetweenInsertsInHours)
+                    ),
+                    ingesterConfig(TopologyIngesterType.sourceRealtime),
+                    bulkLoaderFactorySupplier()
+            );
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create sourceRealtimeTopologyIngester bean", e);
+        }
     }
 
     /**
@@ -281,7 +298,7 @@ public class IngestersConfig {
     SourcePlanTopologyIngester sourcePlanTopologyIngester() {
         return new SourcePlanTopologyIngester(
                 Collections.singletonList(
-                        new PlanStatsWriter.Factory(historyDbConfig.historyDbIO())
+                        new PlanStatsWriter.Factory(dbAccessConfig.historyDbIO())
                 ),
                 ingesterConfig(TopologyIngesterType.sourcePlan),
                 bulkLoaderFactorySupplier()
@@ -297,7 +314,7 @@ public class IngestersConfig {
     ProjectedPlanTopologyIngester projectedPlanTopologyIngester() {
         return new ProjectedPlanTopologyIngester(
                 Collections.singletonList(
-                        new Factory(historyDbConfig.historyDbIO())
+                        new Factory(dbAccessConfig.historyDbIO())
                 ),
                 ingesterConfig(TopologyIngesterType.projectedPlan),
                 bulkLoaderFactorySupplier()
@@ -398,9 +415,16 @@ public class IngestersConfig {
      */
     @Bean
     RollupProcessor rollupProcessor() {
-        return new RollupProcessor(
-                historyDbConfig.dsl(), historyDbConfig.dsl(),
-                historyDbConfig.bulkLoaderThreadPool());
+        try {
+            return new RollupProcessor(
+                    dbAccessConfig.dsl(), dbAccessConfig.dsl(),
+                    dbAccessConfig.bulkLoaderThreadPool());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create rollupProcessor bean", e);
+        }
     }
 
     /**
@@ -480,7 +504,7 @@ public class IngestersConfig {
      */
     @Bean
     DBPriceIndexVisitorFactory priceIndexVisitorFactory() {
-        return new DBPriceIndexVisitorFactory(historyDbConfig.historyDbIO());
+        return new DBPriceIndexVisitorFactory(dbAccessConfig.historyDbIO());
     }
 
     /**
@@ -490,8 +514,18 @@ public class IngestersConfig {
      */
     @Bean
     Supplier<SimpleBulkLoaderFactory> bulkLoaderFactorySupplier() {
-        return () -> new SimpleBulkLoaderFactory(historyDbConfig.dsl(),
-                historyDbConfig.bulkLoaderConfig(), historyDbConfig.bulkLoaderThreadPool());
+        return () -> {
+            try {
+                return new SimpleBulkLoaderFactory(dbAccessConfig.dsl(),
+                        dbAccessConfig.bulkLoaderConfig(), dbAccessConfig.bulkLoaderThreadPool());
+            } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new BeanCreationException("Failed to create bulkLoaderFactorySupplier bean",
+                        e);
+            }
+        };
     }
 
     private Predicate<TopologyDTO.TopologyEntityDTO> getEntitiesFilter() {

@@ -15,6 +15,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 import java.sql.Date;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,11 +50,20 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.history.db.EntityType;
+import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.BulkLoader;
@@ -76,11 +87,78 @@ import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Class to test the rollup processor and the stored procs it depends on.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestHistoryDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class RollupProcessorTest {
+    @Autowired(required = false)
+    private TestHistoryDbEndpointConfig dbEndpointConfig;
+
+    /**
+     * Rule to set up the database before running the tests.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /**
+     * Rule to clean up the database after each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("history");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
+    private DataSource dataSource;
+
+    /**
+     * Set up and populate live database for tests, and create required mocks.
+     *
+     * @throws SQLException If a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     */
+    @Before
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.historyEndpoint());
+            dsl = dbEndpointConfig.historyEndpoint().dslContext();
+            dataSource = dbEndpointConfig.historyEndpoint().datasource();
+        } else {
+            dsl = dbConfig.getDslContext();
+            dataSource = dbConfig.getDataSource();
+        }
+        BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
+                .batchSize(10)
+                .maxBatchRetries(1)
+                .maxRetryBackoffMsec(1000)
+                .maxPendingBatches(1)
+                .build();
+        loaders = new SimpleBulkLoaderFactory(dsl, config, Executors.newSingleThreadExecutor());
+        rollupProcessor = new RollupProcessor(dsl, dsl, Executors.newFixedThreadPool(8));
+        RetentionPolicy.init(dsl);
+        IdentityGenerator.initPrefix(1L);
+    }
 
     private static final String UUID_FIELD = "uuid";
     private static final String PRODUCER_UUID_FIELD = "producer_uuid";
@@ -117,43 +195,10 @@ public class RollupProcessorTest {
      */
     private static final long RANDOM_SEED = 0L;
 
-    /**
-     * Provision and provide access to a test database.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
-
-    /**
-     * Clean up tables in the test database before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    private DSLContext dsl = dbConfig.getDslContext();
-
     private static String testDbName;
     private SimpleBulkLoaderFactory loaders;
     private RollupProcessor rollupProcessor;
     private final Random rand = new Random(RANDOM_SEED);
-
-    /**
-     * Create a history database to be used by all tests.
-     *
-     * @throws DataAccessException if an error occurs during migrations
-     */
-    @Before
-    public void before() throws DataAccessException {
-        BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
-                .batchSize(10)
-                .maxBatchRetries(1)
-                .maxRetryBackoffMsec(1000)
-                .maxPendingBatches(1)
-                .build();
-        loaders = new SimpleBulkLoaderFactory(dsl, config, Executors.newSingleThreadExecutor());
-        rollupProcessor = new RollupProcessor(dsl, dsl, Executors.newFixedThreadPool(8));
-        RetentionPolicy.init(dsl);
-        IdentityGenerator.initPrefix(1L);
-    }
 
     /**
      * Delete any records inserted during this test.

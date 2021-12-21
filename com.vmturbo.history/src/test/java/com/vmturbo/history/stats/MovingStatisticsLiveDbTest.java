@@ -6,6 +6,7 @@ package com.vmturbo.history.stats;
 import static com.vmturbo.history.schema.abstraction.Tables.MOVING_STATISTICS_BLOBS;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,44 +27,98 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetMovingStatisticsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.SetMovingStatisticsResponse;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.stats.readers.MovingStatisticsReader;
 import com.vmturbo.history.stats.writers.MovingStatisticsWriter;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Checks that {@link MovingStatisticsWriter} works as expected with live db configuration.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestHistoryDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class MovingStatisticsLiveDbTest {
-    private static final String OLD_CHUNK_DATA = "old chunk data";
-    private static final long OLD_START_TIMESTAMP = 11L;
-    private static final long NEW_START_TIMESTAMP = OLD_START_TIMESTAMP + 10;
-    private static final List<String> NEW_CHUNK_DATA = Arrays.asList("first chunk", "second chunk");
+
+    @Autowired(required = false)
+    private TestHistoryDbEndpointConfig dbEndpointConfig;
 
     /**
-     * Provision and provide access to a test database.
+     * Rule to set up the database before running the tests.
      */
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
 
     /**
-     * Clean up tables in the test database before each test.
+     * Rule to clean up the database after each test.
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private final DSLContext dsl = dbConfig.getDslContext();
-    private final DataSource dataSource = dbConfig.getDataSource();
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("history");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
+    private DataSource dataSource;
+
+    /**
+     * Perform DB setup and cleanup as needed.
+     *
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    @Before
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.historyEndpoint());
+            dsl = dbEndpointConfig.historyEndpoint().dslContext();
+            dataSource = dbEndpointConfig.historyEndpoint().datasource();
+        } else {
+            dsl = dbConfig.getDslContext();
+            dataSource = dbConfig.getDataSource();
+        }
+    }
+
+    private static final String OLD_CHUNK_DATA = "old chunk data";
+    private static final long OLD_START_TIMESTAMP = 11L;
+    private static final long NEW_START_TIMESTAMP = OLD_START_TIMESTAMP + 10;
+    private static final List<String> NEW_CHUNK_DATA = Arrays.asList("first chunk", "second chunk");
 
     /**
      * Clear the moving statistics table after each test.

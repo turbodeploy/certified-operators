@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -22,6 +23,8 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+
+import javax.sql.DataSource;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -39,8 +42,17 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory.RollupKeyTransfomer;
@@ -52,11 +64,78 @@ import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.NotificationsRecord;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.DbEndpointTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests of BulkInserter and related classes.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {TestHistoryDbEndpointConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class BulkInserterTest extends Assert {
+
+    @Autowired(required = false)
+    private TestHistoryDbEndpointConfig dbEndpointConfig;
+
+    /**
+     * Rule to set up the database before running the tests.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+
+    /**
+     * Rule to clean up the database after each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Test rule to use {@link DbEndpoint}s in test.
+     */
+    @ClassRule
+    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("history");
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
+            FeatureFlags.POSTGRES_PRIMARY_DB);
+
+    private DSLContext dsl;
+    private DataSource dataSource;
+
+    /**
+     * Set up and populate live database for tests, and create required mocks.
+     *
+     * @throws SQLException if a DB operation fials
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     */
+    @Before
+    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+            dbEndpointTestRule.addEndpoints(dbEndpointConfig.historyEndpoint());
+            dsl = dbEndpointConfig.historyEndpoint().dslContext();
+            dataSource = dbEndpointConfig.historyEndpoint().datasource();
+        } else {
+            dsl = dbConfig.getDslContext();
+            dataSource = dbConfig.getDataSource();
+        }
+        // entities table starts out with a couple of records during migration that make
+        // the tests a little clumsier, so we just get rid of them during setup.
+        try {
+            dsl.deleteFrom(ENTITIES).execute();
+        } catch (DataAccessException e) {
+            e.printStackTrace();
+        }
+        config = mkConfig(2);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
+    }
 
     private static ExecutorService threadPool;
     private static BulkInserterConfig config;
@@ -72,47 +151,11 @@ public class BulkInserterTest extends Assert {
     }
 
     /**
-     * Provision and provide access to a test database.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
-
-    /**
-     * Clean up tables in the test database before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    private final DSLContext dsl = dbConfig.getDslContext();
-
-    /**
      * Set up a thread pool for bulk inserters.
      */
     @BeforeClass
     public static void beforeClass() {
         threadPool = Executors.newFixedThreadPool(2);
-    }
-
-    /**
-     * Set up temporary database for use in tests.
-     *
-     * <p>We only do this for the first test that runs, even though it's in the @Before method.
-     * Tables that are actually changed by any given tests are cleared out after that test, which
-     * is much lest costly than tearing the database down and recreating it.</p>
-     *
-     * @throws DataAccessException if a database operation fails
-     */
-    @Before
-    public void before() throws DataAccessException {
-        // entities table starts out with a couple of records during migration that make
-        // the tests a little clumsier, so we just get rid of them during setup.
-        try {
-            dsl.deleteFrom(ENTITIES).execute();
-        } catch (DataAccessException e) {
-            e.printStackTrace();
-        }
-        config = mkConfig(2);
-        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
     }
 
     /**

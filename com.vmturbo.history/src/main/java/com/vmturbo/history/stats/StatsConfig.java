@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -8,6 +9,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.jooq.Record;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +27,7 @@ import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.history.db.DbAccessConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -56,6 +59,7 @@ import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 import com.vmturbo.history.stats.snapshots.UsageRecordVisitor.UsagePopulator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration for Stats RPC service related objects.
@@ -106,9 +110,8 @@ public class StatsConfig {
      */
     public static final CapacityPopulator CAPACITY_POPULATOR = new CapacityPopulator();
 
-
     @Autowired
-    private HistoryDbConfig historyDbConfig;
+    private DbAccessConfig dbAccessConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -129,7 +132,7 @@ public class StatsConfig {
     private int latestTableTimeWindowMin;
 
     @Value("${realtimeTopologyContextId}")
-    public long realtimeTopologyContextId;
+    private long realtimeTopologyContextId;
 
     @Value("${historyPaginationDefaultLimit:100}")
     private int historyPaginationDefaultLimit;
@@ -159,11 +162,18 @@ public class StatsConfig {
      */
     @Bean
     public BulkLoader<ClusterStatsByDayRecord> clusterStatsByDayLoader() {
-        final SimpleBulkLoaderFactory loaders =
-                new SimpleBulkLoaderFactory(historyDbConfig.dsl(),
-                        historyDbConfig.bulkLoaderConfig(),
-                        Executors.newSingleThreadExecutor());
-        return loaders.getLoader(ClusterStatsByDay.CLUSTER_STATS_BY_DAY);
+        final SimpleBulkLoaderFactory loaders;
+        try {
+            loaders = new SimpleBulkLoaderFactory(dbAccessConfig.dsl(),
+                    dbAccessConfig.bulkLoaderConfig(),
+                    Executors.newSingleThreadExecutor());
+            return loaders.getLoader(ClusterStatsByDay.CLUSTER_STATS_BY_DAY);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create clusterStatsByDayLoader bean", e);
+        }
     }
 
     /**
@@ -173,41 +183,69 @@ public class StatsConfig {
      */
     @Bean
     public PlanGarbageDetector historyPlanGarbageDetector() {
-        HistoryPlanGarbageCollector listener = new HistoryPlanGarbageCollector(historyDbConfig.historyDbIO());
+        HistoryPlanGarbageCollector listener = new HistoryPlanGarbageCollector(
+                dbAccessConfig.historyDbIO());
         return planOrchestratorClientConfig.newPlanGarbageDetector(listener);
     }
 
+    /**
+     * Create {@link StatsHistoryRpcService} for history.
+     *
+     * @return StatsHistoryRpcService
+     */
     @Bean
     public StatsHistoryRpcService statsRpcService() {
-        return new StatsHistoryRpcService(
-                realtimeTopologyContextId,
-                liveStatsReader(),
-                planStatsReader(),
-                clusterStatsReader(),
-                clusterStatsByDayLoader(),
-                historyDbConfig.historyDbIO(),
-                historyDbConfig.dataSource(),
-                projectedStatsStore(),
-                paginationParamsFactory(),
-                statSnapshotCreator(),
-                statRecordBuilder(),
-                systemLoadReader(),
-                systemLoadRecordsPerChunk,
-                percentileReader(),
-                movingStatisticsReader(),
-                volumeAttachmentHistoryReader());
+        try {
+            return new StatsHistoryRpcService(
+                    realtimeTopologyContextId,
+                    liveStatsReader(),
+                    planStatsReader(),
+                    clusterStatsReader(),
+                    clusterStatsByDayLoader(),
+                    dbAccessConfig.historyDbIO(),
+                    dbAccessConfig.dataSource(),
+                    projectedStatsStore(),
+                    paginationParamsFactory(),
+                    statSnapshotCreator(),
+                    statRecordBuilder(),
+                    systemLoadReader(),
+                    systemLoadRecordsPerChunk,
+                    percentileReader(),
+                    movingStatisticsReader(),
+                    volumeAttachmentHistoryReader());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create statsRpcService bean", e);
+        }
     }
 
     @Bean
     protected PercentileReader percentileReader() {
-        return new PercentileReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
-                historyDbConfig.dsl());
+        try {
+            return new PercentileReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
+                    dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create percentileReader bean", e);
+        }
     }
 
     @Bean
     protected MovingStatisticsReader movingStatisticsReader() {
-        return new MovingStatisticsReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
-                historyDbConfig.dsl());
+        try {
+            return new MovingStatisticsReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs,
+                    clock(),
+                    dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create movingStatisticReader bean", e);
+        }
     }
 
     @Bean
@@ -215,33 +253,53 @@ public class StatsConfig {
         return Clock.systemUTC();
     }
 
+    /**
+     * Create a {@link StatSnapshotCreator} for history.
+     *
+     * @return StatSnapshotCreator
+     */
     @Bean
     public StatSnapshotCreator statSnapshotCreator() {
         return createStatSnapshotCreator(liveStatsReader());
     }
 
     protected static DefaultStatSnapshotCreator createStatSnapshotCreator(
-                    LiveStatsReader liveStatsReader) {
+            LiveStatsReader liveStatsReader) {
         return new DefaultStatSnapshotCreator(new ProducerIdPopulator(liveStatsReader));
     }
 
+    /**
+     * Create a {@link StatRecordBuilder} for history.
+     *
+     * @return StatRecordBuilder
+     */
     @Bean
     public StatRecordBuilder statRecordBuilder() {
         return createStatRecordBuilder(liveStatsReader());
     }
 
     protected static DefaultStatRecordBuilder createStatRecordBuilder(
-                    LiveStatsReader liveStatsReader) {
+            LiveStatsReader liveStatsReader) {
         return new DefaultStatRecordBuilder(RELATED_ENTITY_TYPE_POPULATOR, RELATION_POPULATOR,
-                        USAGE_POPULATOR, CAPACITY_POPULATOR, PROPERTY_TYPE_POPULATOR,
-                        new ProducerIdPopulator(liveStatsReader));
+                USAGE_POPULATOR, CAPACITY_POPULATOR, PROPERTY_TYPE_POPULATOR,
+                new ProducerIdPopulator(liveStatsReader));
     }
 
+    /**
+     * Create a {@link StatsQueryFactory} for history.
+     *
+     * @return StatsQueryFactory
+     */
     @Bean
     public StatsQueryFactory statsQueryFactory() {
-        return new DefaultStatsQueryFactory(historyDbConfig.historyDbIO());
+        return new DefaultStatsQueryFactory(dbAccessConfig.historyDbIO());
     }
 
+    /**
+     * Create a {@link RetentionPeriodFetcher} for history.
+     *
+     * @return RetentionPeriodFetcher
+     */
     @Bean
     public RetentionPeriodFetcher retentionPeriodFetcher() {
         return new RetentionPeriodFetcher(clock(), updateRetentionIntervalSeconds,
@@ -249,18 +307,33 @@ public class StatsConfig {
                 SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
+    /**
+     * Create a {@link TimeFrameCalculator} for history.
+     *
+     * @return TimeFrameCalculator
+     */
     @Bean
     public TimeFrameCalculator timeFrameCalculator() {
         return new TimeFrameCalculator(clock(), retentionPeriodFetcher());
     }
 
+    /**
+     * Create a {@link DefaultTimeRangeFactory} for history.
+     *
+     * @return DefaultTimeRangeFactory
+     */
     @Bean
     public DefaultTimeRangeFactory defaultTimeRangeFactory() {
-        return new DefaultTimeRangeFactory(historyDbConfig.historyDbIO(),
+        return new DefaultTimeRangeFactory(dbAccessConfig.historyDbIO(),
                 timeFrameCalculator(),
                 latestTableTimeWindowMin, TimeUnit.MINUTES);
     }
 
+    /**
+     * Create an  {@link EntityStatsPaginationParamsFactory} for history.
+     *
+     * @return EntityStatsPaginationParamsFactory
+     */
     @Bean
     public EntityStatsPaginationParamsFactory paginationParamsFactory() {
         return new DefaultEntityStatsPaginationParamsFactory(historyPaginationDefaultLimit,
@@ -270,6 +343,7 @@ public class StatsConfig {
     /**
      * The {@link LiveStatsStore} keeps track of stats from the most recent live topology.
      *
+     * @return LiveStatsStore
      */
     @Bean
     public LiveStatsStore liveStatsStore() {
@@ -277,31 +351,68 @@ public class StatsConfig {
                 new LongDataPack());
     }
 
+    /**
+     * Create a {@link ProjectedStatsStore} for history.
+     *
+     * @return ProjectedStatsStore
+     */
     @Bean
     public ProjectedStatsStore projectedStatsStore() {
         return new ProjectedStatsStore(ingestersConfig.excludedCommodities(),
                 new LongDataPack(), new DataPack<>());
     }
 
+    /**
+     * Create a {@link SystemLoadReader} for history.
+     *
+     * @return SystemLoadReader
+     */
     @Bean
     public SystemLoadReader systemLoadReader() {
-        return new SystemLoadReader(historyDbConfig.dsl());
+        try {
+            return new SystemLoadReader(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create systemLoadReader bean", e);
+        }
     }
 
+    /**
+     * Create a {@link LiveStatsReader} for history.
+     *
+     * @return LiveStatsReader
+     */
     @Bean
     public LiveStatsReader liveStatsReader() {
-        return new LiveStatsReader(historyDbConfig.historyDbIO(),
-                historyDbConfig.dsl(),
-                defaultTimeRangeFactory(),
-                statsQueryFactory(),
-                computedPropertiesProcessorFactory(),
-                histUtilizationReader(),
-                entitiesReadPerChunk);
+        try {
+            return new LiveStatsReader(dbAccessConfig.historyDbIO(),
+                    dbAccessConfig.dsl(),
+                    defaultTimeRangeFactory(),
+                    statsQueryFactory(),
+                    computedPropertiesProcessorFactory(),
+                    histUtilizationReader(),
+                    entitiesReadPerChunk);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create liveStatsReader bean", e);
+        }
     }
 
     @Bean
     protected HistUtilizationReader histUtilizationReader() {
-        return new HistUtilizationReader(historyDbConfig.dsl(), entitiesReadPerChunk, liveStatsStore());
+        try {
+            return new HistUtilizationReader(dbAccessConfig.dsl(), entitiesReadPerChunk,
+                    liveStatsStore());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create histUtilizationReader bean", e);
+        }
     }
 
     /**
@@ -314,16 +425,32 @@ public class StatsConfig {
         return ComputedPropertiesProcessor::new;
     }
 
+    /**
+     * Create a {@link StatsHistoryServiceController} for history.
+     *
+     * @return StatsHistoryServiceController
+     */
     @Bean
     public StatsHistoryServiceController statsRestController() {
         return new StatsHistoryServiceController(statsRpcService());
     }
 
+    /**
+     * Create a {@link PlanStatsReader} for history.
+     *
+     * @return PlanStatsReader
+     */
     @Bean
     public PlanStatsReader planStatsReader() {
-        return new PlanStatsReader(historyDbConfig.dsl());
+        try {
+            return new PlanStatsReader(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create dbAccessConfig bean", e);
+        }
     }
-
 
     /**
      * Time range factory for use with cluster stats.
@@ -332,8 +459,15 @@ public class StatsConfig {
      */
     @Bean
     public ClusterTimeRangeFactory clusterTimeRangeFactory() {
-        return new ClusterTimeRangeFactory(
-                historyDbConfig.historyDbIO(), historyDbConfig.dsl(), timeFrameCalculator());
+        try {
+            return new ClusterTimeRangeFactory(
+                    dbAccessConfig.historyDbIO(), dbAccessConfig.dsl(), timeFrameCalculator());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create clusterTimeRangeFactory bean", e);
+        }
     }
 
     /**
@@ -343,13 +477,28 @@ public class StatsConfig {
      */
     @Bean
     public ClusterStatsReader clusterStatsReader() {
-        return new ClusterStatsReader(historyDbConfig.dsl(), clusterTimeRangeFactory(),
-                defaultTimeRangeFactory(), computedPropertiesProcessorFactory(),
-                maxAmountOfEntitiesPerGrpcMessage);
+        try {
+            return new ClusterStatsReader(dbAccessConfig.dsl(), clusterTimeRangeFactory(),
+                    defaultTimeRangeFactory(), computedPropertiesProcessorFactory(),
+                    maxAmountOfEntitiesPerGrpcMessage);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create clusterStatsReader bean", e);
+        }
     }
 
     @Bean
     VolumeAttachmentHistoryReader volumeAttachmentHistoryReader() {
-        return new VolumeAttachmentHistoryReader(historyDbConfig.dsl());
+        try {
+            return new VolumeAttachmentHistoryReader(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create volumeAttachmentHistoryReader bean",
+                    e);
+        }
     }
 }
