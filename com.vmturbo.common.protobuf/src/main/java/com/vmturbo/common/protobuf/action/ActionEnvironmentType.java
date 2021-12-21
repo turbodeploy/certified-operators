@@ -88,9 +88,9 @@ public enum ActionEnvironmentType {
     public boolean matchesEnvType(@Nonnull final EnvironmentType environmentType) {
         switch (environmentType) {
             case ON_PREM:
-                return this != ActionEnvironmentType.CLOUD;
+                return this == ActionEnvironmentType.ON_PREM;
             case CLOUD:
-                return this != ActionEnvironmentType.ON_PREM;
+                return this == ActionEnvironmentType.CLOUD;
             case HYBRID:
                 // if the entity environment type is HYBRID,
                 // then all action environment types should be accepted

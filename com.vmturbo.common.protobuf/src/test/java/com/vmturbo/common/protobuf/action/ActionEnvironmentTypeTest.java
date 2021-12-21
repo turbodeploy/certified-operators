@@ -110,8 +110,8 @@ public class ActionEnvironmentTypeTest {
         assertTrue(ActionEnvironmentType.ON_PREM.matchesEnvType(EnvironmentType.HYBRID));
         assertTrue(ActionEnvironmentType.CLOUD.matchesEnvType(EnvironmentType.CLOUD));
         assertTrue(ActionEnvironmentType.CLOUD.matchesEnvType(EnvironmentType.HYBRID));
-        assertTrue(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.ON_PREM));
-        assertTrue(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.CLOUD));
+        assertFalse(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.ON_PREM));
+        assertFalse(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.CLOUD));
         assertTrue(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.HYBRID));
     }
 
