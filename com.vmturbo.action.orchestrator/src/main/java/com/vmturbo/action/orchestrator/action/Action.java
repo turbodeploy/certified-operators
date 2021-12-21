@@ -37,7 +37,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
@@ -1138,7 +1137,7 @@ public class Action implements ActionView {
      * @param rollBackEvent the rollback event signaling the changing action state from QUEUED to
      * previous state
      */
-    void onActionRemovedFromQueue(@Nonnull final RollBackToAcceptedEvent rollBackEvent) {
+    void onActionRemovedFromQueue(@Nonnull final ActionEvent rollBackEvent) {
         currentExecutableStep = Optional.empty();
     }
 
