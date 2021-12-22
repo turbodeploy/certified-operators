@@ -393,7 +393,11 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
             }
             case SearchableProperties.DB_REPLICATION_ROLE: {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getReplicationRole()),
-                DatabaseProps.class);
+                        DatabaseProps.class);
+            }
+            case SearchableProperties.DB_PRICING_MODEL: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getPricingModel()),
+                        DatabaseProps.class);
             }
 
             default:

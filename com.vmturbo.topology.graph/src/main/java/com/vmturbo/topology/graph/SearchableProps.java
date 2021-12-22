@@ -354,6 +354,14 @@ public interface SearchableProps {
          *
          * @return Replication Role
          */
+
         String getReplicationRole();
+        /**
+         * Get Pricing Model.
+         *
+         * @return Pricing Model
+         */
+
+        String getPricingModel();
     }
 }

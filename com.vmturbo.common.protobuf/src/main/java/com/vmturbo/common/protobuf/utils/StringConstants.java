@@ -574,6 +574,11 @@ public class StringConstants {
     public static final String DB_REPLICATION_ROLE = "replication_role";
 
     /**
+     * Database pricing model.
+     */
+    public static final String DB_PRICING_MODEL = "pricing_model";
+
+    /**
      * Azure availability set recommend only policy prefix.
      */
     public static final String AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX = "ASRO:";
