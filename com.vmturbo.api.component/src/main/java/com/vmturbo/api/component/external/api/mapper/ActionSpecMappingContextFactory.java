@@ -645,7 +645,7 @@ public class ActionSpecMappingContextFactory {
         originOids.removeAll(retMap.keySet());
         if (!originOids.isEmpty()) {
             final Set<ApiPartialEntity> apiPartialEntities = repositoryApi.entitiesRequest(
-                    originOids).contextId(contextId).getEntities().collect(Collectors.toSet());
+                    originOids).getEntities().collect(Collectors.toSet());
             logger.debug("{} oid originals were obtained from clones", apiPartialEntities.size());
             for (ApiPartialEntity apiEntity : apiPartialEntities) {
                 retMap.putIfAbsent(apiEntity.getOid(), apiEntity);
