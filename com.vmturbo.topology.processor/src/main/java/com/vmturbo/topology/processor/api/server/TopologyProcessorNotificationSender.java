@@ -204,21 +204,18 @@ public class TopologyProcessorNotificationSender
         switch (action.getStatus()) {
             case IN_PROGRESS:
                 messageBuilder.setActionProgress(ActionProgress.newBuilder()
-                    .setActionId(action.getActionInstanceId())
-                    .setActionStableId(action.getActionStableId())
+                    .setActionId(action.getActionId())
                     .setProgressPercentage(action.getProgress())
                     .setDescription(action.getDescription()));
                 break;
             case SUCCESS:
                 messageBuilder.setActionSuccess(ActionSuccess.newBuilder()
-                    .setActionId(action.getActionInstanceId())
-                    .setActionStableId(action.getActionStableId())
+                    .setActionId(action.getActionId())
                     .setSuccessDescription(action.getDescription()));
                 break;
             case FAILED:
                 messageBuilder.setActionFailure(ActionFailure.newBuilder()
-                    .setActionId(action.getActionInstanceId())
-                    .setActionStableId(action.getActionStableId())
+                    .setActionId(action.getActionId())
                     .setErrorDescription(action.getDescription()));
                 break;
             default:
