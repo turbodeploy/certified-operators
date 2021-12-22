@@ -936,7 +936,6 @@ public class GroupMapper {
         BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
         Set<Long> oidsToQuery = new HashSet<>(groupAndMembers.members());
         List<BusinessUnitApiDTO> businessUnitApiDTOList = new ArrayList<>();
-        Map<String, String> uuidToDisplayNameMap = new HashMap<>();
         float cost = 0f;
         boolean hasCost = false;
         List<String> discoveredAccountUuids = Lists.newArrayList();
@@ -953,7 +952,6 @@ public class GroupMapper {
             }
 
             String displayName = businessUnit.getDisplayName();
-            uuidToDisplayNameMap.put(businessUnit.getUuid(), displayName);
 
             if (businessUnit.isMaster()) {
                 billingFamilyApiDTO.setMasterAccountUuid(businessUnit.getUuid());
@@ -971,7 +969,6 @@ public class GroupMapper {
         if (hasCost) {
             billingFamilyApiDTO.setCostPrice(cost);
         }
-        billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
         billingFamilyApiDTO.setBusinessUnitApiDTOList(businessUnitApiDTOList);
         billingFamilyApiDTO.setMembersCount(discoveredAccountUuids.size());
         billingFamilyApiDTO.setEntitiesCount(discoveredAccountUuids.size());

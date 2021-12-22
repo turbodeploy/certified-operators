@@ -398,7 +398,6 @@ public class BusinessAccountRetriever {
         if (hasCost.booleanValue()) {
             billingFamilyApiDTO.setCostPrice(costPrice.toFloat());
         }
-        billingFamilyApiDTO.setUuidToNameMap(uuidToName);
         billingFamilyApiDTO.setMembersCount(masterAccount.getChildrenBusinessUnits().size());
         billingFamilyApiDTO.setClassName(StringConstants.BILLING_FAMILY);
         billingFamilyApiDTO.setDisplayName(masterAccount.getDisplayName());
