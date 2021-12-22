@@ -10,7 +10,8 @@ import org.mockito.Mockito;
 
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupTimesStore;
 
 /**
  * Test the entity savings processor.
@@ -23,6 +24,8 @@ public class EntitySavingsProcessorTest {
 
     private RollupSavingsProcessor rollupSavingsProcessor = Mockito.mock(RollupSavingsProcessor.class);
 
+    private RollupTimesStore rollupTimesStore = Mockito.mock(RollupTimesStore.class);
+
     private EntitySavingsStore entitySavingsStore = Mockito.mock(EntitySavingsStore.class);
 
     private EntityEventsJournal entityEventsJournal = Mockito.mock(EntityEventsJournal.class);
@@ -30,8 +33,8 @@ public class EntitySavingsProcessorTest {
     private final Clock clock = Clock.systemUTC();
 
     private EntitySavingsProcessor entitySavingsProcessor = Mockito.spy(new EntitySavingsProcessor(
-            entitySavingsTracker, topologyEventsPoller, rollupSavingsProcessor, entitySavingsStore,
-            entityEventsJournal, clock, Mockito.mock(DataRetentionProcessor.class),
+            entitySavingsTracker, topologyEventsPoller, rollupSavingsProcessor, rollupTimesStore,
+            entitySavingsStore, entityEventsJournal, clock, Mockito.mock(DataRetentionProcessor.class),
             Mockito.mock(CostNotificationSender.class)));
 
     /**
@@ -42,7 +45,7 @@ public class EntitySavingsProcessorTest {
     public void testExecute() {
         Mockito.when(topologyEventsPoller.isTopologyBroadcasted(Mockito.any(LocalDateTime.class))).thenReturn(true);
         Mockito.when(entityEventsJournal.getOldestEventTime()).thenReturn(null);
-        Mockito.when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
         LocalDateTime startTime = LocalDateTime.of(2021, 3, 23, 9, 0);
         Mockito.when(entitySavingsProcessor.getPeriodStartTime()).thenReturn(startTime);
         LocalDateTime endTime = LocalDateTime.of(2021, 3, 23, 10, 0);
@@ -61,7 +64,7 @@ public class EntitySavingsProcessorTest {
     public void testExecuteAbort() {
         Mockito.when(topologyEventsPoller.isTopologyBroadcasted(Mockito.any(LocalDateTime.class))).thenReturn(true);
         Mockito.when(entityEventsJournal.getOldestEventTime()).thenReturn(null);
-        Mockito.when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
         LocalDateTime startTime = LocalDateTime.of(2021, 3, 23, 9, 0);
         Mockito.when(entitySavingsProcessor.getPeriodStartTime()).thenReturn(startTime);
         LocalDateTime endTime = LocalDateTime.of(2021, 3, 23, 9, 0);
@@ -79,7 +82,7 @@ public class EntitySavingsProcessorTest {
     public void testAdjustEndTimeAbortProcess() {
         Mockito.when(topologyEventsPoller.isTopologyBroadcasted(Mockito.any(LocalDateTime.class))).thenReturn(false);
         Mockito.when(entityEventsJournal.getOldestEventTime()).thenReturn(null);
-        Mockito.when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
         LocalDateTime startTime = LocalDateTime.of(2021, 3, 23, 9, 0);
         Mockito.when(entitySavingsProcessor.getPeriodStartTime()).thenReturn(startTime);
         LocalDateTime endTime = LocalDateTime.of(2021, 3, 23, 10, 0);
@@ -100,7 +103,7 @@ public class EntitySavingsProcessorTest {
     public void testAdjustEndTimeContinueProcess() {
         Mockito.when(topologyEventsPoller.isTopologyBroadcasted(Mockito.any(LocalDateTime.class))).thenReturn(false, true);
         Mockito.when(entityEventsJournal.getOldestEventTime()).thenReturn(null);
-        Mockito.when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
         LocalDateTime startTime = LocalDateTime.of(2021, 3, 23, 8, 0);
         Mockito.when(entitySavingsProcessor.getPeriodStartTime()).thenReturn(startTime);
         LocalDateTime endTime = LocalDateTime.of(2021, 3, 23, 10, 0);
@@ -125,7 +128,7 @@ public class EntitySavingsProcessorTest {
         // No record for entity_savings record in aggregation_meta_data table.
         // I.e. no savings stats.
         LastRollupTimes lastRollupTimes = new LastRollupTimes();
-        Mockito.when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
+        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
         Mockito.when(entityEventsJournal.getOldestEventTime()).thenReturn(null);
         LocalDateTime startTime = entitySavingsProcessor.getPeriodStartTime();
         LocalDateTime expectedStartTime = LocalDateTime.of(2021, 3, 23, 9, 0);
@@ -146,7 +149,7 @@ public class EntitySavingsProcessorTest {
         // I.e. no savings stats.
         LastRollupTimes lastRollupTimes = new LastRollupTimes();
         LocalDateTime oldestEventTime = LocalDateTime.of(2021, 3, 23, 8, 5);
-        Mockito.when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
+        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
         Mockito.when(entityEventsJournal.getOldestEventTime())
                 .thenReturn(TimeUtil.localDateTimeToMilli(oldestEventTime, clock));
         LocalDateTime startTime = entitySavingsProcessor.getPeriodStartTime();
@@ -170,7 +173,7 @@ public class EntitySavingsProcessorTest {
         LocalDateTime maxStatsTime = LocalDateTime.of(2021, 3, 23, 8, 0);
         lastRollupTimes.setLastTimeByHour(TimeUtil.localDateTimeToMilli(maxStatsTime, clock));
         LocalDateTime oldestEventTime = LocalDateTime.of(2021, 3, 23, 8, 5);
-        Mockito.when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
+        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
         Mockito.when(entityEventsJournal.getOldestEventTime())
                 .thenReturn(TimeUtil.localDateTimeToMilli(oldestEventTime, clock));
         LocalDateTime startTime = entitySavingsProcessor.getPeriodStartTime();

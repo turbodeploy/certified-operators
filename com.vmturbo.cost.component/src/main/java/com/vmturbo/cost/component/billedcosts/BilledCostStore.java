@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.billedcosts;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
@@ -9,6 +10,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.platform.sdk.common.CostBilling;
 import com.vmturbo.sql.utils.DbException;
 
@@ -29,6 +31,20 @@ public interface BilledCostStore {
         @Nonnull List<Cost.UploadBilledCostRequest.BillingDataPoint> points,
         @Nonnull Map<Long, Long> discoveredTagGroupIdToOid,
         @Nonnull CostBilling.CloudBillingData.CloudBillingBucket.Granularity granularity);
+
+    /**
+     * Roll up billed cost data points from source table to destination table.
+     *
+     * @param rollupDurationType Rollup duration type (defines source and destination tables).
+     * @param toTime Timestamp in the destination table.
+     * @param fromTimeStart Start timestamp in the source table (inclusive).
+     * @param fromTimeEnd End timestamp in the source table (exclusive).
+     */
+    void performRollup(
+            @Nonnull RollupDurationType rollupDurationType,
+            @Nonnull LocalDateTime toTime,
+            @Nonnull LocalDateTime fromTimeStart,
+            @Nonnull LocalDateTime fromTimeEnd);
 
     /**
      * Get billed entity cost snapshots for the given request.

@@ -14,8 +14,8 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.RollupTimeInfo;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupTimeInfo;
 
 /**
  * Testing rollups.

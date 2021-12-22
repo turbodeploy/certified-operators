@@ -41,7 +41,9 @@ import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RolledUpTable;
+import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -56,6 +58,8 @@ public class SqlEntitySavingsStoreTest {
      * Handle to store for DB access.
      */
     private SqlEntitySavingsStore store;
+
+    private RollupTimesStore rollupTimesStore;
 
     /**
      * Config providing access to DB. Also, ClassRule to init Db and upgrade to latest.
@@ -140,7 +144,8 @@ public class SqlEntitySavingsStoreTest {
         // some of our conversions depend on timezone being set to UTC
         TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC));
         store = new SqlEntitySavingsStore(dsl, clock, 1000);
-        rollupProcessor = new RollupSavingsProcessor(store, clock);
+        rollupTimesStore = new RollupTimesStore(dsl, RolledUpTable.ENTITY_SAVINGS);
+        rollupProcessor = new RollupSavingsProcessor(store, rollupTimesStore, clock);
     }
 
     /**
@@ -255,7 +260,7 @@ public class SqlEntitySavingsStoreTest {
         store.addHourlyStats(hourlyStats, dsl);
         rollupProcessor.process(hourlyTimes);
 
-        final LastRollupTimes newLastTimes = store.getLastRollupTimes();
+        final LastRollupTimes newLastTimes = rollupTimesStore.getLastRollupTimes();
         assertNotNull(newLastTimes);
         logger.info("New last rollup times: {}", newLastTimes);
 
@@ -348,7 +353,7 @@ public class SqlEntitySavingsStoreTest {
         // and perform daily and monthly rollups
         rollupProcessor.process(hourlyTimes);
 
-        final LastRollupTimes newLastTimes = store.getLastRollupTimes();
+        final LastRollupTimes newLastTimes = rollupTimesStore.getLastRollupTimes();
         assertNotNull(newLastTimes);
         logger.info("Total {} times. New last rollup times: {}", hourlyTimes.size(),
                 newLastTimes);

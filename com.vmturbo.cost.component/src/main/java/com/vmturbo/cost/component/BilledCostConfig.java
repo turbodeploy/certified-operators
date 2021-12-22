@@ -1,7 +1,14 @@
 package com.vmturbo.cost.component;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +20,7 @@ import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cost.component.billedcosts.BatchInserter;
 import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.billedcosts.BilledCostUploadRpcService;
+import com.vmturbo.cost.component.billedcosts.RollupBilledCostProcessor;
 import com.vmturbo.cost.component.billedcosts.SqlBilledCostStore;
 import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagGroupStore;
@@ -20,6 +28,7 @@ import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
 import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
+import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
@@ -28,11 +37,26 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 @Configuration
 @Import({IdentityProviderConfig.class, DbAccessConfig.class})
 public class BilledCostConfig {
+    /**
+     * How long in minutes after 12:00AM to run the daily processor task.
+     */
+    private static final int PROCESSOR_MINUTE_MARK = 90;
+
+    private static final long DAY_MINUTES = TimeUnit.DAYS.toMinutes(1);
+
+    private final Logger logger = LogManager.getLogger();
+
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
     private DbAccessConfig dbAccessConfig;
+
+    @Autowired
+    private CostComponentGlobalConfig costComponentGlobalConfig;
+
+    @Autowired
+    private RollupConfig rollupConfig;
 
     @Autowired
     private CostCleanupConfig costCleanupConfig;
@@ -132,7 +156,8 @@ public class BilledCostConfig {
      */
     @Bean
     public BatchInserter batchInserter() {
-        return new BatchInserter(billedCostDataBatchSize, parallelBatchInserts);
+        return new BatchInserter(billedCostDataBatchSize, parallelBatchInserts,
+                rollupConfig.billedCostRollupTimesStore());
     }
 
     /**
@@ -142,5 +167,32 @@ public class BilledCostConfig {
      */
     public IdentityProvider identityProvider() {
         return identityProviderConfig.identityProvider();
+    }
+
+    /**
+     * Task that executes once every day to process billed cost rollup and retention.
+     *
+     * @return singleton instance of {@code RollupBilledCostProcessor}.
+     */
+    @Bean
+    public RollupBilledCostProcessor rollupBilledCostProcessor() {
+        final RollupBilledCostProcessor rollupBilledCostProcessor = new RollupBilledCostProcessor(
+                billedCostStore(),
+                rollupConfig.billedCostRollupTimesStore(),
+                costComponentGlobalConfig.clock());
+        final LocalDateTime now = LocalDateTime.now();
+        LocalDateTime firstRunTime = LocalDate.now().atStartOfDay().plusMinutes(PROCESSOR_MINUTE_MARK);
+        if (firstRunTime.isBefore(now)) {
+            firstRunTime = firstRunTime.plusDays(1);
+        }
+        final long initialDelayMinutes = ChronoUnit.MINUTES.between(now, firstRunTime);
+
+        Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
+                rollupBilledCostProcessor::process, initialDelayMinutes, DAY_MINUTES, TimeUnit.MINUTES);
+
+        logger.info("BilledCostProcessor is enabled, will run at 12AM+{} min, after {} mins.",
+                PROCESSOR_MINUTE_MARK, initialDelayMinutes);
+
+        return rollupBilledCostProcessor;
     }
 }
