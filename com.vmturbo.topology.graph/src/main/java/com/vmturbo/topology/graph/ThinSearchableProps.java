@@ -508,6 +508,7 @@ public class ThinSearchableProps implements SearchableProps {
      */
     public static class ThinDatabaseProps extends ThinSearchableProps implements DatabaseProps {
         private final String replicationRole;
+        private final String pricingModel;
 
         private ThinDatabaseProps(@Nonnull final TagIndex tagIndex,
                                   @Nonnull final CommodityValueFetcher commodities,
@@ -515,11 +516,18 @@ public class ThinSearchableProps implements SearchableProps {
             super(tagIndex, commodities);
             replicationRole = entityDTO.getEntityPropertyMapOrDefault(StringConstants.DB_REPLICATION_ROLE,
                     null);
+            pricingModel = entityDTO.getEntityPropertyMapOrDefault(StringConstants.DB_PRICING_MODEL,
+                    null);
         }
 
         @Override
         public String getReplicationRole() {
             return replicationRole;
+        }
+
+        @Override
+        public String getPricingModel() {
+            return pricingModel;
         }
     }
 }

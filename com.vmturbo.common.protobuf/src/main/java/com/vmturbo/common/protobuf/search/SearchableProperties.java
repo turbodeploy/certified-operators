@@ -223,5 +223,10 @@ public class SearchableProperties {
      */
     public static final String DB_REPLICATION_ROLE = "dbReplicationRole";
 
+    /**
+     * Database Pricing Model.
+     */
+    public static final String DB_PRICING_MODEL = "dbPricingModel";
+
     private SearchableProperties() {}
 }

@@ -14,6 +14,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.DatabasePricingModel;
 import com.vmturbo.api.enums.ReplicationRole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
@@ -39,12 +40,13 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
                             (aspect, v) -> aspect.setMaxConcurrentSessions(Integer.parseInt(v)))
                     .put(MAX_CONCURRENT_WORKER,
                             (aspect, v) -> aspect.setMaxConcurrentWorkers(Integer.parseInt(v)))
-                    .put(PRICING_MODEL, DBEntityAspectApiDTO::setPricingModel)
                     .put(STORAGE_TIER, DBEntityAspectApiDTO::setStorageTier)
                     .put(DB_SERVER_NAME_PROPERTY, DBEntityAspectApiDTO::setDbServerName)
                     .put(DB_SERVICE_TIER, DBEntityAspectApiDTO::setServiceTier)
                     .put(DB_COMPUTE_TIER, DBEntityAspectApiDTO::setComputeTier)
                     .put(DB_HW_GENERATION, DBEntityAspectApiDTO::setHardwareGeneration)
+                    .put(StringConstants.DB_PRICING_MODEL,
+                            (aspect, v) -> Optional.of(DatabasePricingModel.valueOf(v)).ifPresent(aspect::setPricingModel))
                     .put(StringConstants.DB_REPLICATION_ROLE,
                             (aspect, v) -> Optional.of(ReplicationRole.valueOf(v)).ifPresent(aspect::setReplicationRole))
                     .build();

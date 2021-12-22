@@ -71,6 +71,7 @@ import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ClusterRole;
+import com.vmturbo.api.enums.DatabasePricingModel;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.FeatureState;
@@ -246,6 +247,7 @@ public class SearchService implements ISearchService {
                 .put(SearchableProperties.DB_PERFORMANCE_INSIGHTS,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
                 .put(SearchableProperties.DB_CLUSTER_ROLE,(a, b, c) -> getEnumFilterOptions(ClusterRole.class))
                 .put(SearchableProperties.DB_REPLICATION_ROLE,(a, b, c) -> getEnumFilterOptions(ReplicationRole.class))
+                .put(SearchableProperties.DB_PRICING_MODEL,(a, b, c) -> getEnumFilterOptions(DatabasePricingModel.class))
                 .build();
     }
 
