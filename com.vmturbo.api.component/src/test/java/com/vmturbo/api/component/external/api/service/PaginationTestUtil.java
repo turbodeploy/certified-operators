@@ -67,7 +67,7 @@ public class PaginationTestUtil {
                 entityDetailType,
                 paginationRequest,
                 null,
-                probeTypes, true, null, null);
+                probeTypes, null, null);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }
