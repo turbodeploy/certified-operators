@@ -38,6 +38,7 @@ import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
+import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -58,7 +59,8 @@ import com.vmturbo.topology.event.library.TopologyEventProvider;
         GroupClientConfig.class,
         CloudCommitmentAnalysisStoreConfig.class,
         EntityCostConfig.class,
-        CostNotificationConfig.class})
+        CostNotificationConfig.class,
+        RollupConfig.class})
 public class EntitySavingsConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -71,6 +73,9 @@ public class EntitySavingsConfig {
 
     @Autowired
     private CostComponentGlobalConfig costComponentGlobalConfig;
+
+    @Autowired
+    private RollupConfig rollupConfig;
 
     @Autowired
     private CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
@@ -221,6 +226,7 @@ public class EntitySavingsConfig {
                 getEntitySavingsRetentionConfig(),
                 entitySavingsStore(),
                 entityStateStore(),
+                rollupConfig.entitySavingsRollupTimesStore(),
                 getClock());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
@@ -272,7 +278,8 @@ public class EntitySavingsConfig {
     public EntitySavingsProcessor entitySavingsProcessor() {
         EntitySavingsProcessor entitySavingsProcessor =
                 new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller(),
-                        rollupSavingsProcessor(), entitySavingsStore(), entityEventsJournal(), getClock(),
+                        rollupSavingsProcessor(), rollupConfig.entitySavingsRollupTimesStore(),
+                        entitySavingsStore(), entityEventsJournal(), getClock(),
                         dataRetentionProcessor(), costNotificationConfig.costNotificationSender());
 
         if (isEnabled()) {
@@ -376,7 +383,8 @@ public class EntitySavingsConfig {
      */
     @Bean
     public RollupSavingsProcessor rollupSavingsProcessor() {
-        return new RollupSavingsProcessor(entitySavingsStore(), getClock());
+        return new RollupSavingsProcessor(entitySavingsStore(),
+                rollupConfig.entitySavingsRollupTimesStore(), getClock());
     }
 
     /**

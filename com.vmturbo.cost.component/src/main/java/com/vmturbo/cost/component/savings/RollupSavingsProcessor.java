@@ -17,9 +17,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.RollupDurationType;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.RollupTimeInfo;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
+import com.vmturbo.cost.component.rollup.RollupTimeInfo;
+import com.vmturbo.cost.component.rollup.RollupTimesStore;
 
 /**
  * Responsible for rolling hourly savings data into daily and monthly tables. This gets called
@@ -32,6 +33,8 @@ public class RollupSavingsProcessor {
      * DB interface to call rollup procedures.
      */
     private final EntitySavingsStore<?> savingsStore;
+
+    private final RollupTimesStore rollupTimesStore;
 
     /**
      * UTC clock from config.
@@ -47,11 +50,15 @@ public class RollupSavingsProcessor {
      * Creates a new instance. Initialized from config.
      *
      * @param savingsStore DB store.
+     * @param rollupTimesStore Last rollup times store.
      * @param clock UTC clock.
      */
-    public RollupSavingsProcessor(@Nonnull final EntitySavingsStore<?> savingsStore,
+    public RollupSavingsProcessor(
+            @Nonnull final EntitySavingsStore<?> savingsStore,
+            @Nonnull final RollupTimesStore rollupTimesStore,
             @Nonnull final Clock clock) {
         this.savingsStore = savingsStore;
+        this.rollupTimesStore = rollupTimesStore;
         this.clock = clock;
     }
 
@@ -69,7 +76,7 @@ public class RollupSavingsProcessor {
         // Check last time updated metadata.
         if (lastRollupTimes == null) {
             logger.trace("Reading first time rollup last times from DB...");
-            lastRollupTimes = savingsStore.getLastRollupTimes();
+            lastRollupTimes = rollupTimesStore.getLastRollupTimes();
             logger.trace("Last times: {}", lastRollupTimes);
         }
         List<RollupTimeInfo> nextRollupTimes = checkRollupRequired(hourlyStatsTimes,
@@ -108,7 +115,7 @@ public class RollupSavingsProcessor {
         monthliesToDo.forEach((toTime, fromTimes) ->
                 savingsStore.performRollup(RollupDurationType.MONTHLY, toTime, fromTimes));
         lastRollupTimes.setLastTimeUpdated(Instant.now(clock).toEpochMilli());
-        savingsStore.setLastRollupTimes(lastRollupTimes);
+        rollupTimesStore.setLastRollupTimes(lastRollupTimes);
     }
 
     /**

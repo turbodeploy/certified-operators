@@ -1,13 +1,11 @@
 package com.vmturbo.cost.component.savings;
 
-import static com.vmturbo.cost.component.db.Tables.AGGREGATION_META_DATA;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_MONTH;
 
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -31,7 +29,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Field;
 import org.jooq.InsertOnDuplicateSetMoreStep;
 import org.jooq.InsertValuesStep4;
 import org.jooq.Record3;
@@ -49,8 +46,9 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
-import com.vmturbo.cost.component.db.tables.records.AggregationMetaDataRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
+import com.vmturbo.cost.component.rollup.RollupUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -312,61 +310,6 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
     }
 
     @Override
-    @Nonnull
-    public LastRollupTimes getLastRollupTimes() {
-        final LastRollupTimes rollupTimes = new LastRollupTimes();
-        try {
-            final AggregationMetaDataRecord record = dsl.selectFrom(AGGREGATION_META_DATA)
-                    .where(AGGREGATION_META_DATA.AGGREGATE_TABLE.eq(LastRollupTimes.getTableName()))
-                    .fetchOne();
-            if (record == null) {
-                return rollupTimes;
-            }
-            if (record.getLastAggregated() != null) {
-                rollupTimes.setLastTimeUpdated(record.getLastAggregated().getTime());
-            }
-            if (record.getLastAggregatedByHour() != null) {
-                rollupTimes.setLastTimeByHour(record.getLastAggregatedByHour().getTime());
-            }
-            if (record.getLastAggregatedByDay() != null) {
-                rollupTimes.setLastTimeByDay(record.getLastAggregatedByDay().getTime());
-            }
-            if (record.getLastAggregatedByMonth() != null) {
-                rollupTimes.setLastTimeByMonth(record.getLastAggregatedByMonth().getTime());
-            }
-        } catch (Exception e) {
-            logger.warn("Unable to fetch last rollup times from DB.", e);
-        }
-        return rollupTimes;
-    }
-
-    @Override
-    public void setLastRollupTimes(@Nonnull final LastRollupTimes rollupTimes) {
-        try {
-            final AggregationMetaDataRecord record = new AggregationMetaDataRecord();
-            record.setAggregateTable(LastRollupTimes.getTableName());
-            record.setLastAggregated(new Timestamp(rollupTimes.getLastTimeUpdated()));
-            if (rollupTimes.hasLastTimeByHour()) {
-                record.setLastAggregatedByHour(new Timestamp(rollupTimes.getLastTimeByHour()));
-            }
-            if (rollupTimes.hasLastTimeByDay()) {
-                record.setLastAggregatedByDay(new Timestamp(rollupTimes.getLastTimeByDay()));
-            }
-            if (rollupTimes.hasLastTimeByMonth()) {
-                record.setLastAggregatedByMonth(new Timestamp(rollupTimes.getLastTimeByMonth()));
-            }
-
-            dsl.insertInto(AGGREGATION_META_DATA)
-                    .set(record)
-                    .onDuplicateKeyUpdate()
-                    .set(record)
-                    .execute();
-        } catch (Exception e) {
-            logger.warn("Unable to set last rollup times to DB: {}", rollupTimes, e);
-        }
-    }
-
-    @Override
     public void performRollup(@Nonnull final RollupDurationType durationType,
             final long toTime, @Nonnull final List<Long> fromTimes) {
         final LocalDateTime toDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(toTime), clock.getZone());
@@ -411,27 +354,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                         rollupFields.valueField, rollupFields.samplesField)
                 .select(embeddedSelect)
                 .onDuplicateKeyUpdate()
-                .set(rollupFields.valueField, rollupFields.valueField.plus(values(rollupFields.valueField)))
-                .set(rollupFields.samplesField, rollupFields.samplesField.plus(values(rollupFields.samplesField)));
-    }
-
-    /**
-     * Simple jOOQ raw-SQL-API method to make it possible to use `VALUES` function available in
-     * MySQL UPSERT statements.
-     *
-     * <p>`SET field=VALUES(field)` in the update part of an upsert means to
-     * use the value that would have been inserted into that field if a duplicate key had not
-     * occurred with this record. That syntax is not available in jOOQ, but this effectively
-     * adds it.</p>
-     *
-     * <p>See Lukas Eder's response <a href="https://stackoverflow.com/questions/39793406/jooq-mysql-multiple-row-insert-on-duplicate-key-update-using-values-funct">here</a></p>
-     *
-     * @param field field to be mentioned in `VALUES` expression
-     * @param <T> type of field
-     * @return a jOOQ {@link Field} that will provide the needed `VALUES` expression
-     */
-    private static <T> Field<T> values(Field<T> field) {
-        return DSL.field("values({0})", field.getDataType(), field);
+                .set(rollupFields.valueField, rollupFields.valueField.plus(RollupUtils.values(rollupFields.valueField)))
+                .set(rollupFields.samplesField, rollupFields.samplesField.plus(RollupUtils.values(rollupFields.samplesField)));
     }
 
     /**

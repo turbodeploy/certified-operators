@@ -82,11 +82,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -161,6 +162,8 @@ public class ActionListenerTest {
 
     private EntityStateStore<DSLContext> entityStateStore = mock(EntityStateStore.class);
 
+    private RollupTimesStore entitySavingsRollupTimesStore = mock(RollupTimesStore.class);
+
     /**
      * Test gRPC server to mock out actions service gRPC dependencies.
      */
@@ -186,7 +189,7 @@ public class ActionListenerTest {
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
                 EntitySavingsConfig.getSupportedActionTypes(), config,
-                entitySavingsStore, entityStateStore, clock);
+                entitySavingsStore, entityStateStore, entitySavingsRollupTimesStore, clock);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()
@@ -489,7 +492,7 @@ public class ActionListenerTest {
                 .willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
-        when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+        when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
 
         // Execute Actions Update.
         actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
@@ -594,7 +597,7 @@ public class ActionListenerTest {
         Answer<Stream> entitiesWithActionBeforeRestart = invocation -> Stream.empty();
         when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
         LastRollupTimes lastRollupTimesZero = new LastRollupTimes(0, 0, 0, 0);
-        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
         beforeEntityCostbyOid.clear();
         afterEntityCostbyOid.clear();
         given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
@@ -630,7 +633,7 @@ public class ActionListenerTest {
         // Setup
         // Remove entities with actions before restart for this test.
         when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
-        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
         given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
         .willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
@@ -720,7 +723,7 @@ public class ActionListenerTest {
                 .willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
-        when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+        when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
 
         // Execute Actions Update.
         actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
@@ -1116,7 +1119,7 @@ public class ActionListenerTest {
                 .thenReturn(ImmutableMap.of(entity2Oid, createEntityState(entity2Oid)));
 
         LastRollupTimes lastRollupTimesZero = new LastRollupTimes(0, 0, 0, 0);
-        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
         // Execute Actions Update again.
         actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
                         .setActionPlanId(actionPlanId)
@@ -1176,11 +1179,11 @@ public class ActionListenerTest {
     @Test
     public void testGetNextPeriodStartTime() {
         LastRollupTimes lastRollupTimesNonZero = new LastRollupTimes(0, 12L, 0, 0);
-        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesNonZero);
+        when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimesNonZero);
         assertEquals(actionListener.getNextPeriodStartTime(), lastRollupTimesNonZero.getLastTimeByHour() + TimeUnit.HOURS.toMillis(1));
 
         LastRollupTimes lastRollupTimesZero = new LastRollupTimes(0, 0, 0, 0);
-        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
         assertEquals(actionListener.getNextPeriodStartTime(), 0);
     }
 

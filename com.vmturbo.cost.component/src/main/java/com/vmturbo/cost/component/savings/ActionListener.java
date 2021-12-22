@@ -67,10 +67,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -192,6 +193,11 @@ public class ActionListener implements ActionsListener {
     private final EntitySavingsStore<DSLContext> entitySavingsStore;
 
     /**
+     * Entity Savings rollup times store.
+     */
+    private final RollupTimesStore entitySavingsRollupTimesStore;
+
+    /**
      * Entity State Store.
      */
     private final EntityStateStore<DSLContext> entityStateStore;
@@ -215,6 +221,7 @@ public class ActionListener implements ActionsListener {
      * @param retentionConfig savings action retention configuration.
      * @param entitySavingsStore entity savings store
      * @param entityStateStore entity state store
+     * @param entitySavingsRollupTimesStore Entity savings rollup times store.
      * @param clock clock
      */
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
@@ -227,6 +234,7 @@ public class ActionListener implements ActionsListener {
             @Nonnull EntitySavingsRetentionConfig retentionConfig,
             @Nonnull final EntitySavingsStore<DSLContext> entitySavingsStore,
             @Nonnull final EntityStateStore<DSLContext> entityStateStore,
+            @Nonnull final RollupTimesStore entitySavingsRollupTimesStore,
             @Nonnull final Clock clock) {
         this.entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
         this.actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
@@ -240,6 +248,7 @@ public class ActionListener implements ActionsListener {
         this.retentionConfig = retentionConfig;
         this.entitySavingsStore = entitySavingsStore;
         this.entityStateStore = entityStateStore;
+        this.entitySavingsRollupTimesStore = entitySavingsRollupTimesStore;
         this.clock = clock;
     }
 
@@ -565,7 +574,7 @@ public class ActionListener implements ActionsListener {
      */
     @VisibleForTesting
     long getNextPeriodStartTime() {
-        LastRollupTimes lastRollupTimes = entitySavingsStore.getLastRollupTimes();
+        LastRollupTimes lastRollupTimes = entitySavingsRollupTimesStore.getLastRollupTimes();
         if (lastRollupTimes.getLastTimeByHour() == 0) {
             return 0;
         }

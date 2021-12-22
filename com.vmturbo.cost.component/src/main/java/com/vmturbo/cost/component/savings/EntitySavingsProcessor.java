@@ -19,7 +19,8 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.commons.Units;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
-import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupTimesStore;
 
 /**
  * This class implements the task that is executed periodically (once an hour) to process entity
@@ -32,6 +33,8 @@ class EntitySavingsProcessor {
     private EntitySavingsTracker entitySavingsTracker;
 
     private RollupSavingsProcessor rollupProcessor;
+
+    private final RollupTimesStore rollupTimesStore;
 
     private final EntitySavingsStore entitySavingsStore;
 
@@ -54,6 +57,7 @@ class EntitySavingsProcessor {
      * @param entitySavingsTracker entitySavingsTracker
      * @param topologyEventsPoller topologyEventsPoller
      * @param rollupProcessor For rolling up savings records.
+     * @param rollupTimesStore Entity savings rollup times store.
      * @param entitySavingsStore entity savings store
      * @param entityEventsJournal entity events journal
      * @param clock clock
@@ -63,6 +67,7 @@ class EntitySavingsProcessor {
     EntitySavingsProcessor(@Nonnull EntitySavingsTracker entitySavingsTracker,
             @Nonnull TopologyEventsPoller topologyEventsPoller,
             @Nonnull RollupSavingsProcessor rollupProcessor,
+            @Nonnull RollupTimesStore rollupTimesStore,
             @Nonnull EntitySavingsStore entitySavingsStore,
             @Nonnull EntityEventsJournal entityEventsJournal,
             @Nonnull final Clock clock,
@@ -71,6 +76,7 @@ class EntitySavingsProcessor {
         this.topologyEventsPoller = topologyEventsPoller;
         this.entitySavingsTracker = entitySavingsTracker;
         this.rollupProcessor = rollupProcessor;
+        this.rollupTimesStore = Objects.requireNonNull(rollupTimesStore);
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.clock = clock;
@@ -181,7 +187,7 @@ class EntitySavingsProcessor {
      * @return the newest record time in the entity_savings_by_hour table
      */
     private long getLastHourlyStatsTime() {
-        LastRollupTimes lastRollupTimes = entitySavingsStore.getLastRollupTimes();
+        LastRollupTimes lastRollupTimes = rollupTimesStore.getLastRollupTimes();
         return lastRollupTimes.getLastTimeByHour();
     }
 

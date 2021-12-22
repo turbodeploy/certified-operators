@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.rpc;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -47,6 +48,8 @@ import com.vmturbo.cost.component.db.tables.CostTagGrouping;
 import com.vmturbo.cost.component.db.tables.records.BilledCostDailyRecord;
 import com.vmturbo.cost.component.db.tables.records.CostTagGroupingRecord;
 import com.vmturbo.cost.component.db.tables.records.CostTagRecord;
+import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.platform.sdk.common.CommonCost;
 import com.vmturbo.platform.sdk.common.CostBilling;
 import com.vmturbo.sql.utils.DbCleanupRule;
@@ -93,6 +96,7 @@ public class BilledCostUploadRpcServiceTest {
     private BilledCostUploadRpcService billedCostUploadRpcService;
     private TagStore tagStore;
     private TagGroupStore tagGroupStore;
+    private RollupTimesStore rollupTimesStore;
     private IdentityProvider identityProvider;
 
     /**
@@ -105,7 +109,9 @@ public class BilledCostUploadRpcServiceTest {
     @Before
     public void setup() throws DbException, ExecutionException, InterruptedException {
         identityProvider = new IdentityProvider.DefaultIdentityProvider(4);
-        final BatchInserter batchInserter = new BatchInserter(10, 1);
+        rollupTimesStore = mock(RollupTimesStore.class);
+        when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
+        final BatchInserter batchInserter = new BatchInserter(10, 1, rollupTimesStore);
         tagStore = spy(new TagStore(context, batchInserter));
         tagGroupStore = spy(new TagGroupStore(context, batchInserter));
         final BilledCostStore billedCostStore = createBilledCostStore(false);
@@ -391,13 +397,13 @@ public class BilledCostUploadRpcServiceTest {
 
     private BilledCostStore createBilledCostStore(boolean throwsExceptionOnInsert) throws ExecutionException,
         InterruptedException {
-        final BatchInserter batchInserter = spy(new BatchInserter(10, 1));
+        final BatchInserter batchInserter = spy(new BatchInserter(10, 1, rollupTimesStore));
         if (throwsExceptionOnInsert) {
             final Future<?> future = mock(Future.class);
             when(future.get()).thenThrow(new ExecutionException(new DbException("")));
             doReturn(Collections.singletonList(future))
                 .when(batchInserter).insertAsync(anyListOf(Record.class), any(Table.class), any(DSLContext.class),
-                any(boolean.class));
+                any(boolean.class), anyLong());
         }
         return new SqlBilledCostStore(context, batchInserter, mock(TimeFrameCalculator.class));
     }
