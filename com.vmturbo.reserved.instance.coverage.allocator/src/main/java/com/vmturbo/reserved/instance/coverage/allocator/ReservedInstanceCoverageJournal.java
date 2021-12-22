@@ -21,8 +21,8 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 import com.google.common.math.DoubleMath;
 
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 /**
  * Records coverage entries (Entity, RI, Coverage Amount) for adding coverage to an existing
@@ -314,7 +314,7 @@ public class ReservedInstanceCoverageJournal {
     @Immutable
     public static class CoverageJournalEntry {
 
-        private final CloudServiceProvider cloudServiceProvider;
+        private final ServiceProviderInfo cloudServiceProvider;
 
         private final String sourceName;
 
@@ -328,7 +328,7 @@ public class ReservedInstanceCoverageJournal {
 
         private final double allocatedCoverage;
 
-        private CoverageJournalEntry(@Nonnull CloudServiceProvider cloudServiceProvider,
+        private CoverageJournalEntry(@Nonnull ServiceProviderInfo cloudServiceProvider,
                                      @Nonnull String sourceName,
                                     long riOid,
                                     long entityOid,
@@ -349,7 +349,7 @@ public class ReservedInstanceCoverageJournal {
          * represented in this coverage entry
          */
         @Nonnull
-        public CloudServiceProvider cloudServiceProvider() {
+        public ServiceProviderInfo cloudServiceProvider() {
             return cloudServiceProvider;
         }
 
@@ -411,7 +411,7 @@ public class ReservedInstanceCoverageJournal {
          * @return A newly created instance of {@link CoverageJournalEntry}
          */
         @Nonnull
-        public static CoverageJournalEntry of(@Nonnull CloudServiceProvider cloudServiceProvider,
+        public static CoverageJournalEntry of(@Nonnull ServiceProviderInfo cloudServiceProvider,
                                               @Nonnull String sourceName,
                                               long riOid,
                                               long entityOid,

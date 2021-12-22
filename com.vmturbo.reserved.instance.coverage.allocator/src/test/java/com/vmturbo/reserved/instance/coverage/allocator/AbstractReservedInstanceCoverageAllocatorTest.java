@@ -25,6 +25,7 @@ import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
+import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilterFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
@@ -36,20 +37,14 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory.DefaultCoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCommitmentMatcher.ComputeCommitmentMatcherFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.CoverageEntityMatcher.CoverageEntityMatcherFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.DefaultCoverageEntityMatcher.DefaultCoverageEntityMatcherFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ConfigurableCoverageRule.ConfigurableCoverageRuleFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFactory;
-import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilterFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
-import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
-import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class AbstractReservedInstanceCoverageAllocatorTest {
 
@@ -88,7 +83,6 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
                     billingFamilyRetrieverFactory);
 
     protected CoverageTopology generateCoverageTopology(
-            SDKProbeType cspType,
             @Nonnull TopologyEntityDTO serviceProvider,
             @Nonnull Set<ReservedInstanceBought> reservedInstances,
             @Nonnull Set<ReservedInstanceSpec> riSpecs,
@@ -98,20 +92,6 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
         TopologyEntityCloudTopologyFactory cloudTopologyFactory =
             new DefaultTopologyEntityCloudTopologyFactory(groupMemberRetriever);
 
-        ThinTargetCache mockTargetCache = mock(ThinTargetCache.class);
-        final ThinTargetInfo targetInfo = ImmutableThinTargetInfo.builder()
-                .oid(1)
-                .displayName("mockedThinTargetInfo")
-                .isHidden(false)
-                .probeInfo(ImmutableThinProbeInfo.builder()
-                        .oid(1)
-                        .type(cspType.toString())
-                        .category("Cloud")
-                        .uiCategory("Cloud")
-                        .build())
-                .build();
-        when(mockTargetCache.getTargetInfo(anyLong())).thenReturn(Optional.of(targetInfo));
-
         final CloudTopology<TopologyEntityDTO> cloudTopology =
                 spy(cloudTopologyFactory.newCloudTopology(Arrays.stream(
                         ArrayUtils.add(entityDtos, serviceProvider))));
@@ -119,7 +99,7 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
         final Set<CloudCommitmentAggregate> commitmentAggregates =
                 createRIAggregates(reservedInstances, riSpecs, cloudTopology);
 
-        CoverageTopologyFactory coverageTopologyFactory = new CoverageTopologyFactory(mockTargetCache);
+        final CoverageTopologyFactory coverageTopologyFactory = new CoverageTopologyFactory();
         return coverageTopologyFactory.createCoverageTopology(
                 cloudTopology,
                 commitmentAggregates);

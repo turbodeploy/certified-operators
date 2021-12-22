@@ -9,7 +9,6 @@ import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * An interface similar to a cloud topology, providing topology information required for coverage
@@ -50,16 +49,6 @@ public interface CoverageTopology {
     Map<Long, Double> getCommitmentCapacityByOid();
 
     /**
-     * Resolves the probe types for an entity. This will be resolved through the discovered
-     * targets of the entity, querying the topology-processor for the target into (including the probe
-     * type)
-     * @param entityOid The OID fo the entity
-     * @return A set of {@link SDKProbeType} from the discovery origin target list of the entity
-     */
-    @Nonnull
-    Set<SDKProbeType> getProbeTypesForEntity(long entityOid);
-
-    /**
      * Get the coverage capacity for the specified {@code entityOid}. The capacity will be specified
      * in coupons.
      * @param entityOid The target entity OID.
@@ -93,4 +82,12 @@ public interface CoverageTopology {
      */
     @Nonnull
     Optional<ComputeTierInfo> getComputeTierInfoForEntity(long entityOid);
+
+    /**
+     * Gets the {@link ServiceProviderInfo} for the specified service provider OID.
+     * @param serviceProviderOid The service provider OID.
+     * @return The {@link ServiceProviderInfo}, if the service provider can be found.
+     */
+    @Nonnull
+    Optional<ServiceProviderInfo> getServiceProviderInfo(long serviceProviderOid);
 }

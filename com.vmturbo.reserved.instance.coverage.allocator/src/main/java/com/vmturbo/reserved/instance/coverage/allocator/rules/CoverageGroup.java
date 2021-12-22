@@ -8,8 +8,8 @@ import javax.annotation.Nonnull;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 /**
  * Represents potential coverage assignments between a group of cloud commitments and topology entities. The source
@@ -29,7 +29,7 @@ public interface CoverageGroup {
      * contained within the group are from this CSP.
      */
     @Nonnull
-    CloudServiceProvider cloudServiceProvider();
+    ServiceProviderInfo cloudServiceProvider();
 
     /**
      * The identifier of the source of this group.

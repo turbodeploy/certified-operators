@@ -1,66 +1,34 @@
 package com.vmturbo.reserved.instance.coverage.allocator.context;
 
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 /**
- * Contains the relevant contextual data for allocating coverage of a specific {@link CloudServiceProvider},
+ * Contains the relevant contextual data for allocating coverage of a specific {@link ServiceProviderInfo},
  * which will be a cloud service provider.
  * All {@link TopologyEntityDTO} instances and {@link ReservedInstanceBought} instances contained
- * within a context will be scoped to the corresponding {@link CloudServiceProvider}
+ * within a context will be scoped to the corresponding {@link ServiceProviderInfo}
  */
 @Immutable
 public class CloudProviderCoverageContext {
 
-    /**
-     * Represents a vendor/CSP as a single value of multiple probes. Note: this enum is a temporary
-     * stopgap measure until CSP is a discovered topology entity.
-     */
-    public enum CloudServiceProvider {
-        UNKNOWN,
-        AWS,
-        AZURE,
-        GCP
-    };
-
-    private static final Map<SDKProbeType, CloudServiceProvider> PROBE_TYPE_TO_CSP =
-            ImmutableMap.<SDKProbeType, CloudServiceProvider>builder()
-                    .put(SDKProbeType.AWS, CloudServiceProvider.AWS)
-                    .put(SDKProbeType.AWS_COST, CloudServiceProvider.AWS)
-                    .put(SDKProbeType.AWS_BILLING, CloudServiceProvider.AWS)
-                    .put(SDKProbeType.AWS_LAMBDA, CloudServiceProvider.AWS)
-                    .put(SDKProbeType.AZURE, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.AZURE_EA, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.AZURE_SERVICE_PRINCIPAL, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.AZURE_STORAGE_BROWSE, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.AZURE_COST, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.APPINSIGHTS, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.GCP_SERVICE_ACCOUNT, CloudServiceProvider.GCP)
-                    .put(SDKProbeType.GCP_PROJECT, CloudServiceProvider.GCP)
-                    .put(SDKProbeType.GCP_COST, CloudServiceProvider.GCP)
-                    .put(SDKProbeType.GCP_BILLING, CloudServiceProvider.GCP)
-                    .build();
-
-    private final CloudServiceProvider cloudServiceProvider;
+    private final ServiceProviderInfo serviceProviderInfo;
     private final CoverageTopology coverageTopology;
     private final Set<Long> reservedInstanceOids;
     private final Set<Long> coverableEntityOids;
@@ -68,22 +36,22 @@ public class CloudProviderCoverageContext {
 
     private CloudProviderCoverageContext(@Nonnull Builder builder) {
 
-        this.cloudServiceProvider = Objects.requireNonNull(builder.cloudServiceProvider);
+        this.serviceProviderInfo = Objects.requireNonNull(builder.serviceProviderInfo);
         this.coverageTopology = Objects.requireNonNull(builder.coverageTopology);
         this.reservedInstanceOids = ImmutableSet.copyOf(builder.reservedInstanceOids);
         this.coverableEntityOids = ImmutableSet.copyOf(builder.coverableEntityOids);
     }
 
     /**
-     * @return The {@link CloudServiceProvider} this context is scoped to
+     * @return The {@link ServiceProviderInfo} this context is scoped to.
      */
-    public CloudServiceProvider cloudServiceProvider() {
-        return cloudServiceProvider;
+    public ServiceProviderInfo serviceProviderInfo() {
+        return serviceProviderInfo;
     }
 
     /**
      * @return The {@link CoverageTopology}. Note: the topology *will not* be scoped to a
-     * {@link CloudServiceProvider}. Rather, access to the {@link CoverageTopology} is meant
+     * {@link ServiceProviderInfo}. Rather, access to the {@link CoverageTopology} is meant
      * to facilitate resolving entities and reserved instances contained within this context.
      */
     @Nonnull
@@ -92,7 +60,7 @@ public class CloudProviderCoverageContext {
     }
 
     /**
-     * @return Oids of {@link ReservedInstanceBought} instances, scoped to a {@link CloudServiceProvider}
+     * @return Oids of {@link ReservedInstanceBought} instances, scoped to a {@link ServiceProviderInfo}
      * of this context
      */
     @Nonnull
@@ -101,7 +69,7 @@ public class CloudProviderCoverageContext {
     }
 
     /**
-     * @return Oids of {@link TopologyEntityDTO} instances, scoped to a {@link CloudServiceProvider}
+     * @return Oids of {@link TopologyEntityDTO} instances, scoped to a {@link ServiceProviderInfo}
      * of this context
      */
     @Nonnull
@@ -112,7 +80,7 @@ public class CloudProviderCoverageContext {
     /**
      * Creates a set of {@link CloudProviderCoverageContext} instances, based on the {@link CoverageTopology},
      * {@link ReservedInstanceBought} instances, and {@link TopologyEntityDTO} instances. The RIs and
-     * entities will be split into separate contexts based on the {@link CloudServiceProvider}
+     * entities will be split into separate contexts based on the {@link ServiceProviderInfo}
      * associated with the origin of each entity
      *
      *
@@ -132,39 +100,26 @@ public class CloudProviderCoverageContext {
             @Nonnull Stream<Long> coverableEntityOids,
             boolean skipPartialContexts) {
 
-
-        final Map<CloudServiceProvider, CloudProviderCoverageContext.Builder> contextBuildersByProvider =
-                new EnumMap<>(CloudServiceProvider.class);
-
-        final Function<Long, Optional<CloudServiceProvider>> resolveCSPForEntity = (entityOid) ->
-                coverageTopology.getProbeTypesForEntity(entityOid)
-                        .stream()
-                        .map(PROBE_TYPE_TO_CSP::get)
-                        .filter(Objects::nonNull)
-                        .distinct()
-                        // If more than one CSP is is linked to an entity, return no CSP
-                        .collect(Collectors.reducing((csp1, csp2) -> null));
+        final Map<ServiceProviderInfo, CloudProviderCoverageContext.Builder> contextBuildersByProvider =
+                new HashMap<>();
 
         riAggregates.forEach(riAggregate -> {
-            // For RIs, the CSP is determined through the associated tier, given the
-            // RIs may not be aggregated by purchasing account (if they are scoped to accounts
-            // outside of their purchasing account)
-            final long tierOid = riAggregate.aggregateInfo().tierInfo().tierOid();
-            resolveCSPForEntity.apply(tierOid).ifPresent(cloudServiceProvider ->
-                    contextBuildersByProvider.computeIfAbsent(cloudServiceProvider, (csp) ->
+            final long serviceProviderOid = riAggregate.aggregateInfo().serviceProviderOid();
+            coverageTopology.getServiceProviderInfo(serviceProviderOid).ifPresent(serviceProviderInfo ->
+                    contextBuildersByProvider.computeIfAbsent(serviceProviderInfo, (csp) ->
                             CloudProviderCoverageContext.newBuilder()
-                                    .cloudServiceProvider(cloudServiceProvider)
+                                    .serviceProviderInfo(serviceProviderInfo)
                                     .coverageTopology(coverageTopology))
                             .reservedInstanceOid(riAggregate.aggregateId()));
         });
 
-        coverableEntityOids.forEach(entityOid ->
-            resolveCSPForEntity.apply(entityOid).ifPresent(cloudServiceProvider ->
-                    contextBuildersByProvider.computeIfAbsent(cloudServiceProvider, (csp) ->
-                        CloudProviderCoverageContext.newBuilder()
-                                .cloudServiceProvider(cloudServiceProvider)
-                                .coverageTopology(coverageTopology))
-                        .coverableEntityOid(entityOid)));
+        coverableEntityOids.forEach(entityOid -> coverageTopology.getAggregationInfo(entityOid)
+                .flatMap(aggregationInfo -> coverageTopology.getServiceProviderInfo(
+                        aggregationInfo.serviceProviderOid()))
+                .ifPresent(serviceProviderInfo -> contextBuildersByProvider.computeIfAbsent(
+                        serviceProviderInfo, (csp) -> CloudProviderCoverageContext.newBuilder()
+                                .serviceProviderInfo(serviceProviderInfo)
+                                .coverageTopology(coverageTopology)).addCoverableEntityOid(entityOid)));
 
         return contextBuildersByProvider.values().stream()
                 .filter(contextBuilder -> !skipPartialContexts ||
@@ -186,18 +141,18 @@ public class CloudProviderCoverageContext {
      * A builder class used to create an instance of {@link CloudProviderCoverageContext}
      */
     public static class Builder {
-        private CloudServiceProvider cloudServiceProvider;
+        private ServiceProviderInfo serviceProviderInfo;
         private CoverageTopology coverageTopology;
         private final Set<Long> reservedInstanceOids = new HashSet<>();
         private final Set<Long> coverableEntityOids = new HashSet<>();
 
         /**
-         * Set the cloud service provider (represented as a {@link CloudServiceProvider}) of this builder.
-         * @param cloudServiceProvider An instance of {@link CloudServiceProvider}
+         * Set the cloud service provider (represented as a {@link ServiceProviderInfo}) of this builder.
+         * @param serviceProviderInfo An instance of {@link ServiceProviderInfo}
          * @return The instance of {@link Builder} for method chaining
          */
-        public Builder cloudServiceProvider(@Nonnull CloudServiceProvider cloudServiceProvider) {
-            this.cloudServiceProvider = Objects.requireNonNull(cloudServiceProvider);
+        public Builder serviceProviderInfo(@Nonnull ServiceProviderInfo serviceProviderInfo) {
+            this.serviceProviderInfo = Objects.requireNonNull(serviceProviderInfo);
             return this;
         }
 
@@ -234,7 +189,7 @@ public class CloudProviderCoverageContext {
          * @param entityOid A {@link TopologyEntityDTO} oid
          * @return The instance of {@link Builder} for method chaining
          */
-        public Builder coverableEntityOid(long entityOid) {
+        public Builder addCoverableEntityOid(long entityOid) {
             this.coverableEntityOids.add(entityOid);
             return this;
         }

@@ -1,6 +1,5 @@
 package com.vmturbo.reserved.instance.coverage.allocator.topology;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -8,7 +7,6 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -23,10 +21,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * A wrapper implementation around {@link CloudTopology} for all methods directly related to
@@ -35,8 +29,6 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 public class DelegatingCoverageTopology implements CoverageTopology {
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
-
-    private final ThinTargetCache targetCache;
 
     private final Map<Long, CloudCommitmentAggregate> commitmentAggregatesMap;
 
@@ -49,15 +41,12 @@ public class DelegatingCoverageTopology implements CoverageTopology {
     /**
      * Construct a new instance of {@link CoverageTopology}.
      * @param cloudTopology The {@link CloudTopology} to wrap
-     * @param targetCache The target cache, used to resolve the CSP type of business accounts
      * @param commitmentAggregates The set of cloud commitment aggregates included within the topology.
      */
     public DelegatingCoverageTopology(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                      @Nonnull ThinTargetCache targetCache,
                                       @Nonnull Set<CloudCommitmentAggregate> commitmentAggregates) {
 
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
-        this.targetCache = Objects.requireNonNull(targetCache);
         this.commitmentAggregatesMap = commitmentAggregates.stream()
                 .collect(ImmutableMap.toImmutableMap(
                         CloudCommitmentAggregate::aggregateId,
@@ -115,30 +104,6 @@ public class DelegatingCoverageTopology implements CoverageTopology {
                                         .getReservedInstanceBoughtCoupons()
                                         .getNumberOfCoupons())
                                 .reduce(0.0, Double::sum)));
-    }
-
-    /**
-     * {@inheritDoc}.
-     */
-    @Override
-    public Set<SDKProbeType> getProbeTypesForEntity(final long entityOid) {
-        return cloudTopology.getEntity(entityOid)
-                .filter(TopologyEntityDTO::hasOrigin)
-                .filter(entity -> entity.getOrigin().hasDiscoveryOrigin())
-                .map(entity -> entity.getOrigin()
-                        .getDiscoveryOrigin()
-                        .getDiscoveredTargetDataMap()
-                        .keySet()
-                        .stream()
-                        .map(targetCache::getTargetInfo)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .map(ThinTargetInfo::probeInfo)
-                        .map(ThinProbeInfo::type)
-                        .map(SDKProbeType::create)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet()))
-                .orElse(Collections.emptySet());
     }
 
     /**
@@ -233,6 +198,16 @@ public class DelegatingCoverageTopology implements CoverageTopology {
                                             .tierOid(computeTier.getOid())
                                             .build();
                                 }).orElse(null)));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<ServiceProviderInfo> getServiceProviderInfo(long serviceProviderOid) {
+        return cloudTopology.getEntity(serviceProviderOid)
+                .map(spEntity -> ServiceProviderInfo.builder()
+                        .oid(spEntity.getOid())
+                        .name(spEntity.getDisplayName())
+                        .build());
     }
 
     /**

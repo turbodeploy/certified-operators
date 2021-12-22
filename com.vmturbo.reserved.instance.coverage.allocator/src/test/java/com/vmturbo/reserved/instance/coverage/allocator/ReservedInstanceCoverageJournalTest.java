@@ -1,17 +1,17 @@
 package com.vmturbo.reserved.instance.coverage.allocator;
 
+import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.AWS_SP_INFO_TEST;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
-import org.junit.Test;
 
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 
+import org.junit.Test;
+
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal.CoverageJournalEntry;
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 public class ReservedInstanceCoverageJournalTest {
@@ -38,7 +38,7 @@ public class ReservedInstanceCoverageJournalTest {
                         mockCoverageTopology);
 
         coverageJournal.addCoverageEntry(CoverageJournalEntry.of(
-                CloudServiceProvider.AWS, "sourceNameTest",
+                AWS_SP_INFO_TEST, "sourceNameTest",
                 2, 1, 2, 2, 2));
 
         // invoke SUT
@@ -66,7 +66,7 @@ public class ReservedInstanceCoverageJournalTest {
                         mockCoverageTopology);
 
         coverageJournal.addCoverageEntry(CoverageJournalEntry.of(
-                CloudServiceProvider.AWS, "sourceNameTest",
+                AWS_SP_INFO_TEST, "sourceNameTest",
                 2, 1, 2, 2, 2));
 
         // invoke SUT

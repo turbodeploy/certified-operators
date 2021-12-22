@@ -8,7 +8,6 @@ import com.google.common.collect.SetMultimap;
 import com.vmturbo.cloud.common.commitment.filter.ReservedInstanceFilter.ReservedInstanceFilterConfig;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatcherConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.EntityMatcherConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.VirtualMachineMatcherConfig;
@@ -23,9 +22,9 @@ public interface StaticCoverageRuleSet {
      * A map of the cloud provider to the list of {@link CoverageRuleConfig}, which will be used to
      * create a list of {@link ConfigurableCoverageRule} instances.
      */
-    ListMultimap<CloudServiceProvider, CoverageRuleConfig> RULE_SET_BY_CLOUD_PROVIDER =
-            ImmutableListMultimap.<CloudServiceProvider, CoverageRuleConfig>builder()
-                    .putAll(CloudServiceProvider.AWS,
+    ListMultimap<String, CoverageRuleConfig> RULE_SET_BY_CLOUD_PROVIDER =
+            ImmutableListMultimap.<String, CoverageRuleConfig>builder()
+                    .putAll("aws",
                             CoverageRuleConfig.builder()
                                     .ruleTag("Local Zonal RIs")
                                     .commitmentMatcherConfig(CommitmentMatcherConfig.builder()
@@ -72,7 +71,7 @@ public interface StaticCoverageRuleSet {
                                             .isPlatformFlexible(false)
                                             .build())
                                     .build())
-                    .putAll(CloudServiceProvider.AZURE,
+                    .putAll("azure",
                             // Azure requires a reserved capacity RI to be single scoped
                             // We rely on that requirement in ordering the rules
                             CoverageRuleConfig.builder()
@@ -133,9 +132,9 @@ public interface StaticCoverageRuleSet {
      * once, at the rule list creation (within {@link CoverageRulesFactory}, while the coverage keys
      * for cloud commitments will be generated within each coverage rule.
      */
-    SetMultimap<CloudServiceProvider, EntityMatcherConfig> ENTITY_MATCHER_CONFIGS_BY_CLOUD_PROVIDER =
-            ImmutableSetMultimap.<CloudServiceProvider, EntityMatcherConfig>builder()
-                    .putAll(CloudServiceProvider.AWS,
+    SetMultimap<String, EntityMatcherConfig> ENTITY_MATCHER_CONFIGS_BY_CLOUD_PROVIDER =
+            ImmutableSetMultimap.<String, EntityMatcherConfig>builder()
+                    .putAll("aws",
                             // Zonal match (match to tier only)
                             VirtualMachineMatcherConfig.builder()
                                     .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT, CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
@@ -152,7 +151,7 @@ public interface StaticCoverageRuleSet {
                                     .includePlatform(true)
                                     .includeTenancy(true)
                                     .build())
-                    .putAll(CloudServiceProvider.AZURE,
+                    .putAll("azure",
                             // Match (Account,Tier), (Account, Family)
                             VirtualMachineMatcherConfig.builder()
                                     .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)

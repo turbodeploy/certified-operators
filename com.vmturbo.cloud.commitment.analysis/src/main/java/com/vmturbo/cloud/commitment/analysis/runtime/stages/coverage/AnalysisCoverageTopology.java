@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -33,15 +32,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CloudAggregationInfo;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.ComputeTierInfo;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageEntityInfo;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.VirtualMachineInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * A {@link CoverageTopology} implementation, built around {@link AggregateCloudTierDemand}.
@@ -56,8 +52,6 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
     private final Map<Long, AggregateCloudTierDemand> aggregatedDemandById;
 
-    private final ThinTargetCache targetCache;
-
     private final Map<Long, CloudCommitmentAggregate> commitmentAggregatesMap;
 
     private final Map<Long, Double> commitmentCapacityById;
@@ -67,7 +61,6 @@ public class AnalysisCoverageTopology implements CoverageTopology {
                                      @Nonnull MinimalCloudTopology<MinimalEntity> cloudTopology,
                                      @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
                                      @Nonnull Map<Long, AggregateCloudTierDemand> aggregatedDemandById,
-                                     @Nonnull ThinTargetCache targetCache,
                                      @Nonnull Set<CloudCommitmentAggregate> commitmentAggregateSet,
                                      @Nonnull Map<Long, Double> commitmentCapacityById) {
 
@@ -75,7 +68,6 @@ public class AnalysisCoverageTopology implements CoverageTopology {
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.aggregatedDemandById = ImmutableMap.copyOf(Objects.requireNonNull(aggregatedDemandById));
-        this.targetCache = Objects.requireNonNull(targetCache);
         this.commitmentAggregatesMap = Objects.requireNonNull(commitmentAggregateSet)
                 .stream()
                 .collect(ImmutableMap.toImmutableMap(
@@ -183,37 +175,6 @@ public class AnalysisCoverageTopology implements CoverageTopology {
     /**
      * {@inheritDoc}.
      */
-    @Nonnull
-    @Override
-    public Set<SDKProbeType> getProbeTypesForEntity(final long entityOid) {
-
-        final Optional<MinimalEntity> entity;
-        if (aggregatedDemandById.containsKey(entityOid)) {
-
-            // For aggregate demand, we look up the discovering target IDs for the associated
-            // account.
-            final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
-            entity = cloudTopology.getEntity(aggregateDemand.cloudTierInfo().accountOid());
-        } else {
-            entity = cloudTopology.getEntity(entityOid);
-        }
-
-        return entity.map(e -> e.getDiscoveringTargetIdsList()
-                .stream()
-                .map(targetCache::getTargetInfo)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(ThinTargetInfo::probeInfo)
-                .map(ThinProbeInfo::type)
-                .map(SDKProbeType::create)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet()))
-                .orElse(Collections.emptySet());
-    }
-
-    /**
-     * {@inheritDoc}.
-     */
     @Override
     public double getCoverageCapacityForEntity(final long entityOid) {
         if (aggregatedDemandById.containsKey(entityOid)) {
@@ -307,6 +268,16 @@ public class AnalysisCoverageTopology implements CoverageTopology {
         }
     }
 
+    @Nonnull
+    @Override
+    public Optional<ServiceProviderInfo> getServiceProviderInfo(long serviceProviderOid) {
+        return cloudTierTopology.getEntity(serviceProviderOid)
+                .map(spEntity -> ServiceProviderInfo.builder()
+                        .oid(spEntity.getOid())
+                        .name(spEntity.getDisplayName())
+                        .build());
+    }
+
     /**
      * A factory class for producing {@link AnalysisCoverageTopology} instances.
      */
@@ -314,22 +285,17 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
         private final IdentityProvider identityProvider;
 
-        private final ThinTargetCache thinTargetCache;
-
         private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
         /**
          * Constructs a new factory instance.
          * @param identityProvider The {@link IdentityProvider}, used to assign IDs to {@link AggregateCloudTierDemand}.
-         * @param thinTargetCache The {@link ThinTargetCache}, used to determine the probe type of entities.
          * @param computeTierFamilyResolverFactory A factory class for creating {@link ComputeTierFamilyResolver}
          *                                         instances.
          */
         public AnalysisCoverageTopologyFactory(@Nonnull IdentityProvider identityProvider,
-                                               @Nonnull ThinTargetCache thinTargetCache,
                                                @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory) {
             this.identityProvider = Objects.requireNonNull(identityProvider);
-            this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
             this.computeTierFamilyResolverFactory = Objects.requireNonNull(computeTierFamilyResolverFactory);
         }
 
@@ -360,7 +326,6 @@ public class AnalysisCoverageTopology implements CoverageTopology {
                     cloudTopology,
                     computeTierFamilyResolverFactory.createResolver(cloudTierTopology),
                     aggregateDemandById,
-                    thinTargetCache,
                     commitmentAggregateSet,
                     commitmentCapacityById);
         }

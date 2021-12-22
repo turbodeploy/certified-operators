@@ -61,7 +61,7 @@ public class FirstPassCoverageRule implements CoverageRule {
                 // Create a group of the RI to any entities its covering, filtering out
                 // fully covered entities and sorting them
                 .map(riOid -> CoverageGroup.builder()
-                        .cloudServiceProvider(coverageContext.cloudServiceProvider())
+                        .cloudServiceProvider(coverageContext.serviceProviderInfo())
                         .sourceTag(ruleTag())
                         .addCommitmentOids(riOid)
                         .addAllEntityOids(

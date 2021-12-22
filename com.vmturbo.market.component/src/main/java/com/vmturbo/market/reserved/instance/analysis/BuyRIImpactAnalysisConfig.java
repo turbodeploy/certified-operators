@@ -47,9 +47,6 @@ public class BuyRIImpactAnalysisConfig {
     private final Logger logger = LogManager.getLogger();
 
     @Autowired
-    private TopologyProcessorConfig topologyProcessorConfig;
-
-    @Autowired
     private GroupClientConfig groupClientConfig;
 
     @Value("${buyRIImpactAnalysisValidation:false}")
@@ -67,7 +64,7 @@ public class BuyRIImpactAnalysisConfig {
      */
     @Bean
     public CoverageTopologyFactory coverageTopologyFactory() {
-        return new CoverageTopologyFactory(topologyProcessorConfig.thinTargetCache());
+        return new CoverageTopologyFactory();
     }
 
     /**
