@@ -32,6 +32,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 // package-private
 class AwsAllocationTopologyTest {
@@ -45,6 +46,11 @@ class AwsAllocationTopologyTest {
             .setDisplayName("AWS")
             .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
             .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+
+    public static final ServiceProviderInfo AWS_SP_INFO_TEST = ServiceProviderInfo.builder()
+            .oid(AWS_SERVICE_PROVIDER_TEST.getOid())
+            .name(AWS_SERVICE_PROVIDER_TEST.getDisplayName())
             .build();
 
     protected static final TopologyEntityDTO COMPUTE_TIER_SMALL = TopologyEntityDTO.newBuilder()

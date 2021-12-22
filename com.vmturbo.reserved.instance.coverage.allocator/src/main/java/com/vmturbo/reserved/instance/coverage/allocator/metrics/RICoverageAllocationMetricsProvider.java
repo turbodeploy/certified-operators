@@ -9,7 +9,7 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricSummary.SummaryData;
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 /**
  * Provides metrics to be collected during RI coverage allocation analysis. The metrics collected focus
@@ -127,7 +127,7 @@ public class RICoverageAllocationMetricsProvider {
      * metric is not present, no data should be collected
      */
     @Nonnull
-    public Optional<SummaryData> coverableEntityCountForCSP(@Nonnull CloudServiceProvider csp) {
+    public Optional<SummaryData> coverableEntityCountForCSP(@Nonnull ServiceProviderInfo csp) {
         return Optional.ofNullable(coverableEntityCountByCSP)
                 .map(summaryMetric -> summaryMetric.labels(csp.name()));
     }
@@ -141,7 +141,7 @@ public class RICoverageAllocationMetricsProvider {
      * metric is not present, no data should be collected
      */
     @Nonnull
-    public Optional<SummaryData> reservedInstanceCountForCSP(@Nonnull CloudServiceProvider csp) {
+    public Optional<SummaryData> reservedInstanceCountForCSP(@Nonnull ServiceProviderInfo csp) {
         return Optional.ofNullable(reservedInstanceCountByCSP)
                 .map(summaryMetric -> summaryMetric.labels(csp.name()));
     }
@@ -156,7 +156,7 @@ public class RICoverageAllocationMetricsProvider {
      * metric is not present, no data should be collected
      */
     @Nonnull
-    public Optional<SummaryData> uncoveredEntityCapacityForCSP(@Nonnull CloudServiceProvider csp) {
+    public Optional<SummaryData> uncoveredEntityCapacityForCSP(@Nonnull ServiceProviderInfo csp) {
         return Optional.ofNullable(uncoveredEntityCapacityByCSP)
                 .map(summaryMetric -> summaryMetric.labels(csp.name()));
     }
@@ -171,7 +171,7 @@ public class RICoverageAllocationMetricsProvider {
      * metric is not present, no data should be collected
      */
     @Nonnull
-    public Optional<SummaryData> unallocatedRICapacityForCSP(@Nonnull CloudServiceProvider csp) {
+    public Optional<SummaryData> unallocatedRICapacityForCSP(@Nonnull ServiceProviderInfo csp) {
         return Optional.ofNullable(unallocatedRICapacityByCSP)
                 .map(summaryMetric -> summaryMetric.labels(csp.name()));
     }
@@ -187,7 +187,7 @@ public class RICoverageAllocationMetricsProvider {
      * metric is not present, no data should be collected
      */
     @Nonnull
-    public Optional<DataMetricTimerProvider> allocationDurationForCSP(@Nonnull CloudServiceProvider csp) {
+    public Optional<DataMetricTimerProvider> allocationDurationForCSP(@Nonnull ServiceProviderInfo csp) {
         return Optional.ofNullable(allocationDurationByCSP)
                 .map(summaryMetric -> summaryMetric.labels(csp.name()))
                 .map(DataMetricTimerProvider::createProvider);
@@ -202,7 +202,7 @@ public class RICoverageAllocationMetricsProvider {
      * metric is not present, no data should be collected
      */
     @Nonnull
-    public Optional<SummaryData> allocationCountForCSP(@Nonnull CloudServiceProvider csp) {
+    public Optional<SummaryData> allocationCountForCSP(@Nonnull ServiceProviderInfo csp) {
         return Optional.ofNullable(allocationCountByCSP)
                 .map(summaryMetric -> summaryMetric.labels(csp.name()));
     }
@@ -215,7 +215,7 @@ public class RICoverageAllocationMetricsProvider {
      * @return An {@link Optional}, wrapping an instance of {@link SummaryData}. If a
      */
     @Nonnull
-    public Optional<SummaryData> allocatedCoverageAmountForCSP(@Nonnull CloudServiceProvider csp) {
+    public Optional<SummaryData> allocatedCoverageAmountForCSP(@Nonnull ServiceProviderInfo csp) {
         return Optional.ofNullable(allocatedCoverageAmountByCSP)
                 .map(summaryMetric -> summaryMetric.labels(csp.name()));
     }
@@ -230,7 +230,7 @@ public class RICoverageAllocationMetricsProvider {
 
     /**
      * Creates and returns a {@link DataMetricSummary.Builder}, configured with the correct labels
-     * for metrics indexed by {@link CloudServiceProvider}
+     * for metrics indexed by {@link ServiceProviderInfo}
      * @return The newly created instance of {@link DataMetricSummary.Builder}
      */
     @Nonnull
@@ -310,7 +310,7 @@ public class RICoverageAllocationMetricsProvider {
 
         /**
          * Set the allocation duration by CSP summary (timer)
-         * @see RICoverageAllocationMetricsProvider#allocationDurationForCSP(CloudServiceProvider)
+         * @see RICoverageAllocationMetricsProvider#allocationDurationForCSP(ServiceProviderInfo)
          * @param summaryMetric The summary metric (timer)
          * @return This {@link Builder} instance for method chaining
          */
@@ -324,7 +324,7 @@ public class RICoverageAllocationMetricsProvider {
 
         /**
          * Set the number of coverable entities per CSP summary
-         * @see RICoverageAllocationMetricsProvider#coverableEntityCountForCSP(CloudServiceProvider)
+         * @see RICoverageAllocationMetricsProvider#coverableEntityCountForCSP(ServiceProviderInfo)
          * @param summaryMetric The summary metric to collect the number of coverable entities
          * @return This {@link Builder} instance for method chaining
          */
@@ -338,7 +338,7 @@ public class RICoverageAllocationMetricsProvider {
 
         /**
          * Set the uncovered entity capacity by CSP summary.
-         * @see RICoverageAllocationMetricsProvider#uncoveredEntityCapacityForCSP(CloudServiceProvider)
+         * @see RICoverageAllocationMetricsProvider#uncoveredEntityCapacityForCSP(ServiceProviderInfo)
          * @param summaryMetric The summary metric to collect the sum of uncovered entity capacity
          * @return This {@link Builder} instance for method chaining
          */
@@ -366,7 +366,7 @@ public class RICoverageAllocationMetricsProvider {
         /**
          * Set the number of reserved instances per CSP summary. This count will represent only
          * RIs that pass the first pass RI filter.
-         * @see RICoverageAllocationMetricsProvider#reservedInstanceCountForCSP(CloudServiceProvider)
+         * @see RICoverageAllocationMetricsProvider#reservedInstanceCountForCSP(ServiceProviderInfo)
          * @param summaryMetric The summary metric to collect the number of RIs
          * @return This {@link Builder} instance for method chaining
          */
@@ -380,7 +380,7 @@ public class RICoverageAllocationMetricsProvider {
 
         /**
          * Set the number of coverage allocations per CSP
-         * @see RICoverageAllocationMetricsProvider#allocationCountForCSP(CloudServiceProvider)
+         * @see RICoverageAllocationMetricsProvider#allocationCountForCSP(ServiceProviderInfo)
          * @param summaryMetric The summary metric to collect the number of coverage allocations
          * @return This {@link Builder} instance for method chaining
          */
@@ -394,7 +394,7 @@ public class RICoverageAllocationMetricsProvider {
 
         /**
          * Set the coverage amount allocated per CSP
-         * @see RICoverageAllocationMetricsProvider#allocatedCoverageAmountForCSP(CloudServiceProvider)
+         * @see RICoverageAllocationMetricsProvider#allocatedCoverageAmountForCSP(ServiceProviderInfo)
          * @param summaryMetric The summary metric to collect the number of coverage allocations
          * @return This {@link Builder} instance for method chaining
          */

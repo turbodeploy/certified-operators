@@ -116,7 +116,7 @@ public class ConfigurableCoverageRule implements CoverageRule {
         final Set<Long> entityOids = keyRepository.getEntitiesForKey(coverageKey);
 
         return CoverageGroup.builder()
-                .cloudServiceProvider(coverageContext.cloudServiceProvider())
+                .cloudServiceProvider(coverageContext.serviceProviderInfo())
                 .sourceKey(coverageKey)
                 .sourceTag(ruleTag)
                 .addAllCommitmentOids(commitmentOids)

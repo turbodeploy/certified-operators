@@ -55,13 +55,10 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CloudAggregationInfo;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageEntityInfo;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.VirtualMachineInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 public class AnalysisCoverageTopologyTest {
 
     private final IdentityProvider identityProvider = new DefaultIdentityProvider(0);
-
-    private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
     private final CloudTopology cloudTierTopology = mock(CloudTopology.class);
 
@@ -74,7 +71,7 @@ public class AnalysisCoverageTopologyTest {
             mock(ComputeTierFamilyResolver.class);
 
     private final AnalysisCoverageTopologyFactory topologyFactory = new AnalysisCoverageTopologyFactory(
-            identityProvider, thinTargetCache, computeTierFamilyResolverFactory);
+            identityProvider, computeTierFamilyResolverFactory);
 
 
     private final ReservedInstanceAggregateInfo riAggregateInfoA = ReservedInstanceAggregateInfo.builder()

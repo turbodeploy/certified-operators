@@ -13,7 +13,7 @@ import com.google.common.util.concurrent.AtomicDouble;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal.CoverageJournalEntry;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 /**
  * Collects metrics for discrete stages of the RI coverage allocator. Generally, the stage is
@@ -24,10 +24,10 @@ public class RICoverageAllocationMetricsCollector {
 
     private final RICoverageAllocationMetricsProvider metricsProvider;
 
-    private final Map<CloudServiceProvider, AtomicLong> allocationCountByCSP =
+    private final Map<ServiceProviderInfo, AtomicLong> allocationCountByCSP =
             new ConcurrentHashMap<>();
 
-    private final Map<CloudServiceProvider, AtomicDouble> allocatedCoverageByCSP =
+    private final Map<ServiceProviderInfo, AtomicDouble> allocatedCoverageByCSP =
             new ConcurrentHashMap<>();
 
     /**
@@ -112,7 +112,7 @@ public class RICoverageAllocationMetricsCollector {
         Preconditions.checkNotNull(coverageContext);
         Preconditions.checkNotNull(coverageJournal);
 
-        final CloudServiceProvider csp = coverageContext.cloudServiceProvider();
+        final ServiceProviderInfo csp = coverageContext.serviceProviderInfo();
         // Record entity + RI counts for the CSP
         metricsProvider.coverableEntityCountForCSP(csp)
                 .ifPresent(metric -> metric.observe((double)coverageContext.coverableEntityOids().size()));
@@ -149,7 +149,7 @@ public class RICoverageAllocationMetricsCollector {
     public void onCoverageAssignment(@Nonnull CoverageJournalEntry coverageEntry) {
         Preconditions.checkNotNull(coverageEntry);
 
-        final CloudServiceProvider csp = coverageEntry.cloudServiceProvider();
+        final ServiceProviderInfo csp = coverageEntry.cloudServiceProvider();
         allocationCountByCSP.computeIfAbsent(csp, __ -> new AtomicLong())
                 .incrementAndGet();
         allocatedCoverageByCSP.computeIfAbsent(csp, __ -> new AtomicDouble())

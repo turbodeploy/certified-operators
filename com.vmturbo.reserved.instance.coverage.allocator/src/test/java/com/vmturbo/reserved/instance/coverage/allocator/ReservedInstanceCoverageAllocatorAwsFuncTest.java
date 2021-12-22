@@ -16,7 +16,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -36,11 +35,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReservedInstanceCoverageAllocatorTest{
@@ -66,7 +63,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(zonalRiBought),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
@@ -106,7 +102,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(zonalRiBoughtB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
@@ -143,7 +138,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
     public void testDirectRegionalAssignment() {
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
@@ -186,7 +180,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(regionalRIB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
@@ -230,7 +223,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
@@ -272,7 +264,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
@@ -335,7 +326,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(sizeFlexibleRI),
                 Collections.singleton(riSpec),
@@ -379,7 +369,6 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
     public void testPreviousCoverageBetweenEntityAndRI() {
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
-                SDKProbeType.AWS,
                 AWS_SERVICE_PROVIDER_TEST,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),

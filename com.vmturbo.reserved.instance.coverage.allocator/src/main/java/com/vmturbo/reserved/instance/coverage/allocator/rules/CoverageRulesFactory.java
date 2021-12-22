@@ -18,13 +18,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.CoverageEntityMatcher;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.CoverageEntityMatcher.CoverageEntityMatcherFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.EntityMatcherConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ConfigurableCoverageRule.ConfigurableCoverageRuleFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 /**
  * A factory class for producing a list of {@link CoverageRule} instances, specific to a provided
@@ -64,9 +64,9 @@ public class CoverageRulesFactory {
             @Nonnull CloudProviderCoverageContext coverageContext,
             @Nonnull ReservedInstanceCoverageJournal coverageJournal) {
 
-        final CloudServiceProvider csp = coverageContext.cloudServiceProvider();
+        final ServiceProviderInfo csp = coverageContext.serviceProviderInfo();
         final SetMultimap<Long, CoverageKey> entityKeyMap = createEntityKeyMap(coverageContext);
-        final List<CoverageRuleConfig> ruleConfigs = RULE_SET_BY_CLOUD_PROVIDER.get(csp);
+        final List<CoverageRuleConfig> ruleConfigs = RULE_SET_BY_CLOUD_PROVIDER.get(csp.referenceId());
 
         //Add the first pass coverage rules to the start of the list
         final ImmutableList.Builder rulesBuilder = ImmutableList.builder()
@@ -86,10 +86,10 @@ public class CoverageRulesFactory {
     private SetMultimap<Long, CoverageKey> createEntityKeyMap(@Nonnull CloudProviderCoverageContext coverageContext) {
 
         final CoverageTopology coverageTopology = coverageContext.coverageTopology();
-        final CloudServiceProvider csp = coverageContext.cloudServiceProvider();
-        if (ENTITY_MATCHER_CONFIGS_BY_CLOUD_PROVIDER.containsKey(csp)) {
+        final ServiceProviderInfo csp = coverageContext.serviceProviderInfo();
+        if (ENTITY_MATCHER_CONFIGS_BY_CLOUD_PROVIDER.containsKey(csp.referenceId())) {
 
-            final Set<EntityMatcherConfig> entityMatcherConfigs = ENTITY_MATCHER_CONFIGS_BY_CLOUD_PROVIDER.get(csp);
+            final Set<EntityMatcherConfig> entityMatcherConfigs = ENTITY_MATCHER_CONFIGS_BY_CLOUD_PROVIDER.get(csp.referenceId());
             final ImmutableSetMultimap.Builder<Long, CoverageKey> entityKeySetBuilder = ImmutableSetMultimap.builder();
 
             final CoverageEntityMatcher entityMatcher = coverageEntityMatcherFactory.createEntityMatcher(

@@ -27,7 +27,6 @@ import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.CoverageE
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.DefaultCoverageEntityMatcher.DefaultCoverageEntityMatcherFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ConfigurableCoverageRule.ConfigurableCoverageRuleFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFactory;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * A configuration for creating a {@link CoverageCalculationFactory} instance, including setting up
@@ -48,9 +47,6 @@ public class CoverageCalculationConfig {
 
     @Autowired
     private BillingFamilyRetrieverFactory billingFamilyRetrieverFactory;
-
-    @Autowired
-    private ThinTargetCache thinTargetCache;
 
     @Value("${cca.coverageCalculationSummaryInterval:PT10S}")
     private String coverageCalculationSummaryInterval;
@@ -75,7 +71,6 @@ public class CoverageCalculationConfig {
     public AnalysisCoverageTopologyFactory analysisCoverageTopologyFactory() {
         return new AnalysisCoverageTopologyFactory(
                 identityProvider,
-                thinTargetCache,
                 computeTierFamilyResolverFactory);
     }
 

@@ -25,8 +25,6 @@ import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.DefaultCo
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ConfigurableCoverageRule.ConfigurableCoverageRuleFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * A spring configuration for {@link SupplementalRICoverageAnalysisFactory}.
@@ -37,9 +35,6 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
         ReservedInstanceSpecConfig.class
 })
 public class SupplementalCoverageAnalysisConfig {
-
-    @Autowired
-    private TopologyProcessor topologyProcessor;
 
     @Autowired
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
@@ -63,21 +58,12 @@ public class SupplementalCoverageAnalysisConfig {
     private boolean concurrentSupplementalRICoverageAllocation;
 
     /**
-     * The {@link ThinTargetCache}.
-     * @return The {@link ThinTargetCache}.
-     */
-    @Bean
-    public ThinTargetCache thinTargetCache() {
-        return new ThinTargetCache(topologyProcessor);
-    }
-
-    /**
      * The {@link CoverageTopologyFactory}.
      * @return The {@link CoverageTopologyFactory}.
      */
     @Bean
     public CoverageTopologyFactory coverageTopologyFactory() {
-        return new CoverageTopologyFactory(thinTargetCache());
+        return new CoverageTopologyFactory();
     }
 
     /**

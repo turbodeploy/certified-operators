@@ -14,21 +14,29 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.proactivesupport.DataMetricSummary.SummaryData;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal.CoverageJournalEntry;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
-import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 public class RICoverageAllocationMetricsCollectorTest {
+
+    private static final ServiceProviderInfo AWS_SERVICE_PROVIDER_INFO = ServiceProviderInfo.builder()
+            .oid(1L)
+            .name("AWS")
+            .build();
+
+    private static final ServiceProviderInfo AZURE_SERVICE_PROVIDER_INFO = ServiceProviderInfo.builder()
+            .oid(2L)
+            .name("AZURE")
+            .build();
 
     private final DataMetricTimerProvider dataMetricTimerProvider = mock(DataMetricTimerProvider.class);
     private final RICoverageAllocationMetricsProvider metricsProvider =
@@ -140,9 +148,9 @@ public class RICoverageAllocationMetricsCollectorTest {
                 5L, 20L,
                 6L, 50L);
 
-        final CloudServiceProvider csp = CloudServiceProvider.AWS;
+        final ServiceProviderInfo csp = AWS_SERVICE_PROVIDER_INFO;
         final CloudProviderCoverageContext coverageContext = mock(CloudProviderCoverageContext.class);
-        when(coverageContext.cloudServiceProvider()).thenReturn(csp);
+        when(coverageContext.serviceProviderInfo()).thenReturn(csp);
         when(coverageContext.coverableEntityOids()).thenReturn(coverableEntityOids);
         when(coverageContext.reservedInstanceOids()).thenReturn(reservedInstanceOids);
 
@@ -212,8 +220,8 @@ public class RICoverageAllocationMetricsCollectorTest {
         final ReservedInstanceCoverageJournal coverageJournal = mock(ReservedInstanceCoverageJournal.class);
         final CloudProviderCoverageContext awsCoverageContext = mock(CloudProviderCoverageContext.class);
         final CloudProviderCoverageContext azureCoverageContext = mock(CloudProviderCoverageContext.class);
-        when(awsCoverageContext.cloudServiceProvider()).thenReturn(CloudServiceProvider.AWS);
-        when(azureCoverageContext.cloudServiceProvider()).thenReturn(CloudServiceProvider.AZURE);
+        when(awsCoverageContext.serviceProviderInfo()).thenReturn(AWS_SERVICE_PROVIDER_INFO);
+        when(azureCoverageContext.serviceProviderInfo()).thenReturn(AZURE_SERVICE_PROVIDER_INFO);
 
         // ignore collecting metrics (return empty)
         when(metricsProvider.totalCoverageAnalysisDuration()).thenReturn(Optional.empty());
@@ -236,13 +244,13 @@ public class RICoverageAllocationMetricsCollectorTest {
         final SummaryData allocatedCoverageCountAwsMetric = mock(SummaryData.class);
         final SummaryData allocatedCoverageCountAzureMetric = mock(SummaryData.class);
 
-        when(metricsProvider.allocationCountForCSP(eq(CloudServiceProvider.AWS)))
+        when(metricsProvider.allocationCountForCSP(eq(AWS_SERVICE_PROVIDER_INFO)))
                 .thenReturn(Optional.of(allocationCountAwsMetric));
-        when(metricsProvider.allocationCountForCSP(eq(CloudServiceProvider.AZURE)))
+        when(metricsProvider.allocationCountForCSP(eq(AZURE_SERVICE_PROVIDER_INFO)))
                 .thenReturn(Optional.of(allocationCountAzureMetric));
-        when(metricsProvider.allocatedCoverageAmountForCSP(eq(CloudServiceProvider.AWS)))
+        when(metricsProvider.allocatedCoverageAmountForCSP(eq(AWS_SERVICE_PROVIDER_INFO)))
                 .thenReturn(Optional.of(allocatedCoverageCountAwsMetric));
-        when(metricsProvider.allocatedCoverageAmountForCSP(eq(CloudServiceProvider.AZURE)))
+        when(metricsProvider.allocatedCoverageAmountForCSP(eq(AZURE_SERVICE_PROVIDER_INFO)))
                 .thenReturn(Optional.of(allocatedCoverageCountAzureMetric));
 
 
@@ -250,7 +258,7 @@ public class RICoverageAllocationMetricsCollectorTest {
         Setup coverage journals
          */
         final CoverageJournalEntry awsCoverageJournalA = CoverageJournalEntry.of(
-                CloudServiceProvider.AWS,
+                AWS_SERVICE_PROVIDER_INFO,
                 "",
                 1L,
                 2L,
@@ -258,7 +266,7 @@ public class RICoverageAllocationMetricsCollectorTest {
                 0L,
                 4L);
         final CoverageJournalEntry awsCoverageJournalB = CoverageJournalEntry.of(
-                CloudServiceProvider.AWS,
+                AWS_SERVICE_PROVIDER_INFO,
                 "",
                 1L,
                 3L,
@@ -266,7 +274,7 @@ public class RICoverageAllocationMetricsCollectorTest {
                 0L,
                 8L);
         final CoverageJournalEntry awsCoverageJournalC = CoverageJournalEntry.of(
-                CloudServiceProvider.AWS,
+                AWS_SERVICE_PROVIDER_INFO,
                 "",
                 2L,
                 3L,
@@ -274,7 +282,7 @@ public class RICoverageAllocationMetricsCollectorTest {
                 0L,
                 16L);
         final CoverageJournalEntry azureCoverageJournalA = CoverageJournalEntry.of(
-                CloudServiceProvider.AZURE,
+                AZURE_SERVICE_PROVIDER_INFO,
                 "",
                 4L,
                 5L,
