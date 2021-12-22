@@ -649,6 +649,9 @@ server:
           # when items enter and leave the knowledge graph to maintain the temporal index.
         - name: GATEWAY_COLLECTOR_DATACLOUD_PERSIST_SNAPSHOT
           value: "false"
+          # Disable self-monitoring to save memory by not creating an in-memory badgerdb.
+        - name: DATACLOUD_SELFMON_PERIOD
+          value: 0s
       volumeMounts:
         - name: datacloud-service-account # must match the name of the secret volume below.
           mountPath: "/var/run/secrets/datacloud/serviceaccount"
