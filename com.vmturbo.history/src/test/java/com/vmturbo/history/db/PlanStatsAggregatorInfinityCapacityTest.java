@@ -29,7 +29,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.stats.PlanStatsAggregator;
 import com.vmturbo.sql.utils.DbCleanupRule;

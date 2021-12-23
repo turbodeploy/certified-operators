@@ -45,7 +45,7 @@ import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.SetMovingStatisticsResponse;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
+import com.vmturbo.history.db.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.stats.readers.MovingStatisticsReader;
 import com.vmturbo.history.stats.writers.MovingStatisticsWriter;
