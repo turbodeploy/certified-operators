@@ -12,7 +12,7 @@ dependencies:
     repository: file://../base/influxdb
     version: 0.1.0
     condition: metron.enabled
-  - name: timescaledb
+  - name: postgresql
     repository: file://../base/timescaledb
     version: 8.9.6
     condition: timescaledb.enabled,reporting.enabled
