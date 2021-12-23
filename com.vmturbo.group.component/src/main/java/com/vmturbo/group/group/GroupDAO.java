@@ -63,6 +63,7 @@ import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Record6;
 import org.jooq.Result;
+import org.jooq.SQLDialect;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
 import org.jooq.SelectJoinStep;
@@ -260,15 +261,27 @@ public class GroupDAO implements IGroupStore {
     @Override
     public void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups) {
         // read records to ensure that they still exist in the database and place locks
-        Collection<Long> existingGroupIds = dslContext.select(GROUPING.ID)
-                .from(GROUPING)
-                .leftJoin(GROUP_SUPPLEMENTARY_INFO)
-                .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
-                .where(GROUPING.ID.in(groups.keySet()))
-                .forUpdate()
-                .fetch()
-                .stream()
-                .map(Record1::value1)
+        Select<Record1<Long>> sqlStatement;
+        if (!dslContext.dialect().equals(SQLDialect.POSTGRES)) {
+            sqlStatement = dslContext.select(GROUPING.ID)
+                    .from(GROUPING)
+                    .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                    .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                    .where(GROUPING.ID.in(groups.keySet()))
+                    .forUpdate();
+        } else {
+            // Postgres doesn't support SELECT...FOR UPDATE with a left join with nullable values. So we perform it in two steps
+            // First we lock all the relevant groups in the two tables
+            dslContext.select(GROUPING.ID)
+                    .from(GROUPING, GROUP_SUPPLEMENTARY_INFO)
+                    .where(GROUPING.ID.in(groups.keySet()))
+                    .forUpdate();
+            // We then fetch the groups we need to update
+            sqlStatement = dslContext.select(GROUPING.ID)
+                    .from(GROUPING)
+                    .where(GROUPING.ID.in(groups.keySet()));
+        }
+        Collection<Long> existingGroupIds = sqlStatement.fetch().stream().map(Record1::value1)
                 .collect(Collectors.toList());
         // filter out groups that might have been deleted between previous calculations and
         // ingestion
