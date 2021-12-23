@@ -132,7 +132,7 @@ public class MarketRunnerConfig {
      * We automatically write analysis diags in case of market exceptions. This is the number of diagnostics to retain.
      * If set to 0, this feature will be disabled.
      */
-    @Value("${numRealTimeAnalysisDiagsToRetain:0}")
+    @Value("${numRealTimeAnalysisDiagsToRetain:5}")
     private int numRealTimeAnalysisDiagsToRetain;
 
     /**
