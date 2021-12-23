@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.cost.Cost.StatValue;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -202,7 +203,7 @@ public class CostStatsQueryExecutorTest {
         final GetCloudBilledStatsResponse.Builder responseBuilder = GetCloudBilledStatsResponse.newBuilder();
         final CostStatsSnapshot.Builder costStatsSnapshot1 = CostStatsSnapshot.newBuilder();
         costStatsSnapshot1.setSnapshotDate(1636347600000L);
-        final StatRecord.Builder statRecord1 = StatRecord.newBuilder();
+        final StatRecord.Builder statRecord1 = StatRecord.newBuilder().setUnits(TimeFrame.DAY.getUnits());
         statRecord1.addTag(TagKeyValuePair.newBuilder().setKey(TAG_KEY).setValue(TAG_VALUE1).build());
         statRecord1.setValue(StatValue.newBuilder().setAvg(1).build());
         costStatsSnapshot1.addStatRecords(statRecord1);

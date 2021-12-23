@@ -83,6 +83,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -238,6 +239,7 @@ public class StatsMapperTest {
                                 .setMin(3)
                                 .setMax(4)
                                 .build())
+                        .setUnits(TimeFrame.DAY.getUnits())
                         .build())
                 .addStatRecords(CostStatsSnapshot.StatRecord.newBuilder()
                         .addTag(TagKeyValuePair.newBuilder()
@@ -250,6 +252,7 @@ public class StatsMapperTest {
                                 .setMin(7)
                                 .setMax(8)
                                 .build())
+                        .setUnits(TimeFrame.DAY.getUnits())
                         .build())
                 .build();
 
@@ -271,6 +274,7 @@ public class StatsMapperTest {
         assertEquals(2, stat1.getValues().getAvg(), DELTA);
         assertEquals(3, stat1.getValues().getMin(), DELTA);
         assertEquals(4, stat1.getValues().getMax(), DELTA);
+        assertEquals(TimeFrame.DAY.getUnits(), stat1.getUnits());
         final StatApiDTO stat2 = result.getStatistics().get(1);
         assertEquals(2, stat2.getFilters().size());
         final StatFilterApiDTO filter21 = stat2.getFilters().get(0);
@@ -283,6 +287,7 @@ public class StatsMapperTest {
         assertEquals(6, stat2.getValues().getAvg(), DELTA);
         assertEquals(7, stat2.getValues().getMin(), DELTA);
         assertEquals(8, stat2.getValues().getMax(), DELTA);
+        assertEquals(TimeFrame.DAY.getUnits(), stat2.getUnits());
     }
 
     @Test
