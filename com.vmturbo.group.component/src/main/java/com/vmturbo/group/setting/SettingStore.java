@@ -87,6 +87,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.InvalidItemException;
@@ -969,7 +970,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                     .stream()
                     .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity()));
             Map<String, Setting> existingSettings =
-                getAllGlobalSettings()
+                getAllGlobalSettings(context)
                     .stream()
                     .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity()));
 
@@ -1138,10 +1139,12 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
         return Optional.empty();
     }
 
-    public List<Setting> getAllGlobalSettings()
+    public List<Setting> getAllGlobalSettings(@Nonnull DSLContext context)
         throws DataAccessException, InvalidProtocolBufferException {
-
-        List<byte[]> result =  dslContext.select().from(GLOBAL_SETTINGS)
+        //TODO: currently doing this workaround to not affect code for MariaDB, but once this is tested
+        // with PG we should unify the code
+        final DSLContext contextToUse = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? context : dslContext;
+        List<byte[]> result =  contextToUse.select().from(GLOBAL_SETTINGS)
                                     .fetch().getValues(GLOBAL_SETTINGS.SETTING_DATA);
         List<Setting> settings = new ArrayList<>();
 
@@ -1150,6 +1153,10 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
         }
 
         return settings;
+    }
+
+    public List<Setting> getAllGlobalSettings() throws DataAccessException, InvalidProtocolBufferException {
+        return getAllGlobalSettings(dslContext);
     }
 
     /**
