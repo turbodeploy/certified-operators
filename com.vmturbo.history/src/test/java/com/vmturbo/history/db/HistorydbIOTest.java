@@ -74,7 +74,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.history.db.HistoryDbEndpointConfig.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.HistorydbIO.SeekPaginationCursor;
 import com.vmturbo.history.db.jooq.JooqUtils;
@@ -102,6 +101,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @TestPropertySource(properties = {"sqlDialect=MARIADB"})
 public class HistorydbIOTest {
 
+    /** get history config if FF is enabled. */
     @Autowired(required = false)
     private TestHistoryDbEndpointConfig dbEndpointConfig;
 
