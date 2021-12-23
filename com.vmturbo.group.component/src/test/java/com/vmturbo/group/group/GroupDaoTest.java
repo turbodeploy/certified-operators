@@ -38,7 +38,6 @@ import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -2885,7 +2884,6 @@ public class GroupDaoTest {
      *
      * @throws StoreOperationException to satisfy compiler.
      */
-    @Ignore
     @Test
     public void testUpdateBulkGroupSupplementaryInfo() throws StoreOperationException {
         // GIVEN
