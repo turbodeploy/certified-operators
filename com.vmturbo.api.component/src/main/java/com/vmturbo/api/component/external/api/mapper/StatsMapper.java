@@ -482,6 +482,11 @@ public class StatsMapper {
         if (statRecord.hasValue()) {
             statApiDTO.setValues(toStatValueApiDTO(statRecord.getValue()));
         }
+        if (statRecord.hasUnits()) {
+            statApiDTO.setUnits(statRecord.getUnits());
+        } else {
+            throw new IllegalArgumentException("Cost stat record doesn't have valid unit!");
+        }
         statApiDTO.setFilters(statRecord.getTagList().stream()
                 .map(StatsMapper::toFilterList)
                 .flatMap(Collection::stream)

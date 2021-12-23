@@ -57,6 +57,7 @@ import com.vmturbo.cost.component.db.tables.records.BilledCostDailyRecord;
  */
 class BilledCostQueryExecutor {
 
+    private static final TimeFrame DEFAULT_TIMEFRAME = TimeFrame.DAY;
     private static final BilledCostDaily DEFAULT_TABLE = Tables.BILLED_COST_DAILY;
     private static final Map<TimeFrame, Table<?>> TIME_FRAME_TO_TABLE = ImmutableMap.of(
             TimeFrame.LATEST, DEFAULT_TABLE,
@@ -88,7 +89,9 @@ class BilledCostQueryExecutor {
      * @return List of stats snapshots.
      */
     List<CostStatsSnapshot> getBilledCostStats(@Nonnull final GetCloudBilledStatsRequest request) {
-        final Table<?> table = getTable(request);
+        final TimeFrame timeFrame = request.hasStartDate() ? timeFrameCalculator.millis2TimeFrame(
+                request.getStartDate()) : DEFAULT_TIMEFRAME;
+        final Table<?> table = TIME_FRAME_TO_TABLE.get(timeFrame);
         final Field<LocalDateTime> sampleTime = getField(table, DEFAULT_TABLE.SAMPLE_TIME);
         final Field<Long> tagGroupId = getField(table, DEFAULT_TABLE.TAG_GROUP_ID);
         final Field<Double> cost = getField(table, DEFAULT_TABLE.COST);
@@ -156,7 +159,7 @@ class BilledCostQueryExecutor {
                 .stream()
                 .collect(
                         ArrayListMultimap::<LocalDateTime, StatRecord>create,
-                        (map, record) -> accumulateBilledCostResult(map, record, tags),
+                        (map, record) -> accumulateBilledCostResult(map, record, tags, timeFrame.getUnits()),
                         Multimap::putAll)
                 .asMap()
                 .entrySet()
@@ -164,16 +167,6 @@ class BilledCostQueryExecutor {
                 .map(BilledCostQueryExecutor::toCostStatsSnapshot)
                 .sorted(Comparator.comparing(CostStatsSnapshot::getSnapshotDate))
                 .collect(Collectors.toList());
-    }
-
-    @Nonnull
-    private Table<?> getTable(@Nonnull final GetCloudBilledStatsRequest request) {
-        if (!request.hasStartDate()) {
-            return DEFAULT_TABLE;
-        }
-        final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(
-                request.getStartDate());
-        return TIME_FRAME_TO_TABLE.get(timeFrame);
     }
 
     @Nonnull
@@ -246,7 +239,8 @@ class BilledCostQueryExecutor {
     private static void accumulateBilledCostResult(
             @Nonnull final Multimap<LocalDateTime, StatRecord> map,
             @Nonnull final Record record,
-            @Nonnull final Map<Long, TagKeyValuePair> tags) {
+            @Nonnull final Map<Long, TagKeyValuePair> tags,
+            @Nonnull final String units) {
         final float total = record.getValue(0, BigDecimal.class).floatValue();
         final float avg = record.getValue(1, BigDecimal.class).floatValue();
         final float min = record.getValue(2, Double.class).floatValue();
@@ -258,7 +252,8 @@ class BilledCostQueryExecutor {
                         .setAvg(avg)
                         .setMin(min)
                         .setMax(max)
-                        .build());
+                        .build())
+                .setUnits(units);
         if (record.size() >= 6) {
             final Long tagId = record.getValue(5, Long.class);
             if (tagId != null) {

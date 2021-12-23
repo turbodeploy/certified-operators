@@ -1742,6 +1742,8 @@ message CostStatsSnapshot {
         // Value for the stat
         optional StatValue value = 3;
 
+        optional string units = 4;
+
         // Key/Value pair for a tag.
         message TagKeyValuePair {
             optional string key = 1;
