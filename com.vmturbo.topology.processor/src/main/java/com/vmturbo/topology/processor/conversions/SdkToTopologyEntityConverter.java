@@ -504,13 +504,13 @@ public class SdkToTopologyEntityConverter {
     /**
      * Check if we'll keep this property or not.
      * {@code true} means keep it. {@code false} means don't keep it.
-     *
+     * filter out based on VCTAGS namespace additionally
      * @param property the property we need to check
      * @return keep this property or not
      */
     static boolean entityPropertyFilter(@Nonnull final EntityProperty property) {
         return !(SupplyChainConstants.LOCAL_NAME.equals(property.getName())
-            || property.getName().startsWith(StringConstants.CORE_QUOTA_PREFIX));
+            || property.getName().startsWith(StringConstants.CORE_QUOTA_PREFIX) || TAG_NAMESPACE.equals(property.getNamespace()));
     }
 
     /**
