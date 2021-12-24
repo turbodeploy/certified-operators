@@ -14,9 +14,9 @@ import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.HealthDataMapper;
 import com.vmturbo.api.component.external.api.service.TargetsService.CommunicationError;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
-import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
-import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
-import com.vmturbo.api.enums.healthCheck.HealthState;
+import com.vmturbo.api.dto.admin.HealthCategoryResponseDTO;
+import com.vmturbo.api.enums.health.HealthCategory;
+import com.vmturbo.api.enums.health.HealthState;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetailLevel;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
@@ -38,15 +38,15 @@ public class HealthDataAggregator {
 
     /**
      * The principal method that aggregates the health check data by category.
-     * @param healthCheckCategory the desired health check category or null (for default: get data for all categories)
+     * @param healthCategory the desired health category or null (for default: get data for all categories)
      * @return health check data grouped by health categories
      */
-    public List<HealthCategoryReponseDTO> getAggregatedHealth(@Nullable HealthCheckCategory healthCheckCategory) {
+    public List<HealthCategoryResponseDTO> getAggregatedHealth(@Nullable HealthCategory healthCategory) {
         try {
-            List<HealthCategoryReponseDTO> result = new ArrayList<>();
+            List<HealthCategoryResponseDTO> result = new ArrayList<>();
 
             //Only the targets health check for the moment.
-            if (healthCheckCategory == null || HealthCheckCategory.TARGET.equals(healthCheckCategory)) {
+            if (healthCategory == null || HealthCategory.TARGET.equals(healthCategory)) {
                 final Map<Long, TargetDetails> targetsDetails = targetsService.getTargetDetails(
                                 GetTargetDetailsRequest.newBuilder()
                                     .setReturnAll(true)
@@ -55,8 +55,8 @@ public class HealthDataAggregator {
                         .getTargetDetailsMap();
                 List<AggregatedHealthResponseDTO> responseItems = HealthDataMapper
                                 .aggregateTargetHealthInfoToDTO(targetsDetails);
-                HealthCategoryReponseDTO targetsHealth = new HealthCategoryReponseDTO();
-                targetsHealth.setHealthCheckCategory(HealthCheckCategory.TARGET);
+                HealthCategoryResponseDTO targetsHealth = new HealthCategoryResponseDTO();
+                targetsHealth.setHealthCategory(HealthCategory.TARGET);
                 targetsHealth.setCategoryDisplayName("Targets");
                 targetsHealth.setCategoryHealthState(getWorstHealthState(responseItems.stream()
                                 .map(AggregatedHealthResponseDTO::getHealthState)

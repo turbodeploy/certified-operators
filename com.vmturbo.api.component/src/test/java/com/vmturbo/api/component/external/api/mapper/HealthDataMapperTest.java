@@ -11,8 +11,8 @@ import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.HealthChecksTestBase;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
-import com.vmturbo.api.enums.healthCheck.HealthState;
-import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
+import com.vmturbo.api.enums.health.HealthState;
+import com.vmturbo.api.enums.health.TargetStatusSubcategory;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
@@ -52,9 +52,9 @@ public class HealthDataMapperTest extends HealthChecksTestBase {
 
         Assert.assertEquals(2, responseItems.size());
         for (AggregatedHealthResponseDTO subcategoryResponse : responseItems) {
-            if (TargetCheckSubcategory.VALIDATION.name().equals(subcategoryResponse.getSubcategory())) {
+            if (TargetStatusSubcategory.VALIDATION.name().equals(subcategoryResponse.getSubcategory())) {
                 Assert.assertEquals(HealthState.CRITICAL, subcategoryResponse.getHealthState());
-            } else if (TargetCheckSubcategory.DISCOVERY.name().equals(subcategoryResponse.getSubcategory())) {
+            } else if (TargetStatusSubcategory.DISCOVERY.name().equals(subcategoryResponse.getSubcategory())) {
                 Assert.assertEquals(HealthState.MINOR, subcategoryResponse.getHealthState());
             }
         }
@@ -90,8 +90,8 @@ public class HealthDataMapperTest extends HealthChecksTestBase {
 
         Assert.assertEquals(3, responseItems.size());
 
-        List<String> expectedSubcategoriesNames = Arrays.asList(TargetCheckSubcategory.DELAYED_DATA.toString(),
-                        TargetCheckSubcategory.DISCOVERY.toString(), TargetCheckSubcategory.DUPLICATION.toString());
+        List<String> expectedSubcategoriesNames = Arrays.asList(TargetStatusSubcategory.DELAYED_DATA.toString(),
+                        TargetStatusSubcategory.DISCOVERY.toString(), TargetStatusSubcategory.DUPLICATION.toString());
         for (AggregatedHealthResponseDTO subcategoryResponse : responseItems) {
             Assert.assertTrue(expectedSubcategoriesNames.contains(subcategoryResponse.getSubcategory()));
             Assert.assertEquals(HealthState.CRITICAL, subcategoryResponse.getHealthState());

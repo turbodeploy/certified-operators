@@ -23,11 +23,11 @@ import com.vmturbo.api.component.external.api.mapper.HealthDataMapper;
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO.Recommendation;
-import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
-import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
-import com.vmturbo.api.enums.healthCheck.HealthState;
-import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
-import com.vmturbo.api.enums.healthCheck.TargetErrorType;
+import com.vmturbo.api.dto.admin.HealthCategoryResponseDTO;
+import com.vmturbo.api.enums.health.HealthCategory;
+import com.vmturbo.api.enums.health.HealthState;
+import com.vmturbo.api.enums.health.TargetErrorType;
+import com.vmturbo.api.enums.health.TargetStatusSubcategory;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsResponse;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
@@ -92,16 +92,16 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
                 "Connection timeout.", 1_000_000, 3));
         defaultMockTargetHealth(healthOfTargets);
 
-        HealthCheckCategory checkCategory = HealthCheckCategory.TARGET;
-        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(checkCategory);
+        HealthCategory checkCategory = HealthCategory.TARGET;
+        List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(checkCategory);
         Assert.assertEquals(1, aggregatedData.size());
-        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
-        Assert.assertEquals(checkCategory, responseDTO.getHealthCheckCategory());
+        HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
+        Assert.assertEquals(checkCategory, responseDTO.getHealthCategory());
         Assert.assertEquals(HealthState.CRITICAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(2, responseItems.size());
         for (AggregatedHealthResponseDTO rItem : responseItems) {
-            if (TargetCheckSubcategory.DISCOVERY.toString().equals(rItem.getSubcategory())) {
+            if (TargetStatusSubcategory.DISCOVERY.toString().equals(rItem.getSubcategory())) {
                 Assert.assertEquals(HealthState.CRITICAL, rItem.getHealthState());
                 Assert.assertEquals(3, rItem.getNumberOfItems());
                 Assert.assertEquals(2, rItem.getRecommendations().size());
@@ -128,8 +128,9 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L));
         List<Boolean> hidden = Lists.newArrayList(false, true);
         hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
-        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
-        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(
+                        HealthCategory.TARGET);
+        HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthState.NORMAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(0, responseItems.size());
@@ -151,13 +152,14 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         List<Boolean> hidden = Lists.newArrayList(false, true);
         hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
 
-        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
-        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(
+                        HealthCategory.TARGET);
+        HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthState.MINOR, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(1, responseItems.size());
         AggregatedHealthResponseDTO rItem = responseItems.get(0);
-        Assert.assertEquals(TargetCheckSubcategory.VALIDATION.toString(), rItem.getSubcategory());
+        Assert.assertEquals(TargetStatusSubcategory.VALIDATION.toString(), rItem.getSubcategory());
         Assert.assertEquals(HealthState.MINOR, rItem.getHealthState());
         Assert.assertEquals(1, rItem.getNumberOfItems());
         Assert.assertEquals(1, rItem.getRecommendations().size());
@@ -188,13 +190,14 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L), Lists.newArrayList(0L));
         List<Boolean> hidden = Lists.newArrayList(false, true, true);
         hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
-        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
-        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(
+                        HealthCategory.TARGET);
+        HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthState.CRITICAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(1, responseItems.size());
         AggregatedHealthResponseDTO rItem = responseItems.get(0);
-        Assert.assertEquals(TargetCheckSubcategory.DISCOVERY.toString(), rItem.getSubcategory());
+        Assert.assertEquals(TargetStatusSubcategory.DISCOVERY.toString(), rItem.getSubcategory());
         Assert.assertEquals(HealthState.CRITICAL, rItem.getHealthState());
         Assert.assertEquals(1, rItem.getNumberOfItems());
         Assert.assertEquals(3, rItem.getRecommendations().size());
@@ -220,13 +223,14 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         List<Boolean> hidden = Lists.newArrayList(false, true);
         hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
 
-        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
-        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(
+                        HealthCategory.TARGET);
+        HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthState.MINOR, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(1, responseItems.size());
         AggregatedHealthResponseDTO rItem = responseItems.get(0);
-        Assert.assertEquals(TargetCheckSubcategory.VALIDATION.toString(), rItem.getSubcategory());
+        Assert.assertEquals(TargetStatusSubcategory.VALIDATION.toString(), rItem.getSubcategory());
         Assert.assertEquals(HealthState.MINOR, rItem.getHealthState());
         Assert.assertEquals(1, rItem.getNumberOfItems());
         Assert.assertEquals(1, rItem.getRecommendations().size());
@@ -251,8 +255,9 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         List<Boolean> hidden = Lists.newArrayList(false, true);
         hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
 
-        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
-        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(
+                        HealthCategory.TARGET);
+        HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthState.CRITICAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(1, responseItems.size());
@@ -307,16 +312,16 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         healthOfTargets.put(2L, makeHealthMinor(TargetHealthSubCategory.VALIDATION, "pendingValidationA", "Pending Validation."));
         defaultMockTargetHealth(healthOfTargets);
 
-        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(null);
+        List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(null);
         Assert.assertEquals(1, aggregatedData.size());
-        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
-        Assert.assertEquals(HealthCheckCategory.TARGET, responseDTO.getHealthCheckCategory());
+        HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
+        Assert.assertEquals(HealthCategory.TARGET, responseDTO.getHealthCategory());
         Assert.assertEquals(HealthState.MINOR, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(1, responseItems.size());
 
         AggregatedHealthResponseDTO subcategoryResponse = responseItems.get(0);
-        Assert.assertEquals(TargetCheckSubcategory.VALIDATION.toString(), subcategoryResponse.getSubcategory());
+        Assert.assertEquals(TargetStatusSubcategory.VALIDATION.toString(), subcategoryResponse.getSubcategory());
         Assert.assertEquals(HealthState.MINOR, subcategoryResponse.getHealthState());
         Assert.assertEquals(1, subcategoryResponse.getNumberOfItems());
         Assert.assertEquals(0, subcategoryResponse.getRecommendations().size());
@@ -334,8 +339,8 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         healthOfTargets.put(1L, makeHealthNormal(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredB"));
         defaultMockTargetHealth(healthOfTargets);
 
-        HealthCategoryReponseDTO responseDTO = healthDataAggregator.getAggregatedHealth(
-                        HealthCheckCategory.TARGET).get(0);
+        HealthCategoryResponseDTO responseDTO = healthDataAggregator.getAggregatedHealth(
+                        HealthCategory.TARGET).get(0);
         Assert.assertEquals(HealthState.NORMAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
         Assert.assertEquals(0, responseItems.size());
