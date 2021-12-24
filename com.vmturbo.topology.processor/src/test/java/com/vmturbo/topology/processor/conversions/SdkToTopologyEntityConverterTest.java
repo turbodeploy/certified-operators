@@ -280,6 +280,34 @@ public class SdkToTopologyEntityConverterTest {
         assertEquals(value, topologyDTO.getEntityPropertyMapMap().get(name));
     }
 
+    /**
+     * Test {@link SdkToTopologyEntityConverter#entityPropertyTagFilter(EntityProperty)}.
+     */
+    @Test
+    public void testEntityPropertyTagFilter() {
+        final String nameSpace = "default";
+        final String nameSpaceTag = "VCTAGS";
+        final String name = StringConstants.TENANCY;
+        final String value = "default";
+
+        EntityDTO.Builder builder = EntityDTO.newBuilder()
+                .setEntityType(EntityType.UNKNOWN)
+                .setId("id")
+                .addEntityProperties(EntityProperty.newBuilder()
+                        .setName(StringConstants.TENANCY)
+                        .setValue("multi").setNamespace(nameSpaceTag))
+                .addEntityProperties(EntityProperty.newBuilder()
+                        .setName(name)
+                        .setValue(value).setNamespace(nameSpace));
+
+        TopologyStitchingEntity stitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData.newBuilder(builder).oid(1).build());
+        final TopologyEntityDTO.Builder topologyDTO =
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity, resoldCommodityCache);
+        assertEquals(1, topologyDTO.getEntityPropertyMapMap().size());
+        assertEquals(value, topologyDTO.getEntityPropertyMapMap().get(name));
+    }
+
     @Test
     public void testCommodityUsedPercentage() {
         final long appOid = 1L;
