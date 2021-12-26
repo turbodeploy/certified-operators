@@ -417,7 +417,7 @@ public class IngestersConfig {
     RollupProcessor rollupProcessor() {
         try {
             return new RollupProcessor(
-                    dbAccessConfig.dsl(), dbAccessConfig.dsl(),
+                    dbAccessConfig.dsl(), dbAccessConfig.unpooledDsl(),
                     dbAccessConfig.bulkLoaderThreadPool());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
