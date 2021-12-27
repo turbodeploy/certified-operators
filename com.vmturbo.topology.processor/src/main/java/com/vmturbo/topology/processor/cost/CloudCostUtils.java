@@ -95,10 +95,7 @@ public class CloudCostUtils {
     // Map for matching the Azure SDK Probe letter to Azure cost probe prefix
     private static final Map<String, String> AZURE_DATABASE_LETTER_TO_NAME = ImmutableMap.of(
             "S", AZURE_STANDARD_DATABASE_PREFIX,
-            "P", AZURE_PREMIUM_DATABASE_PREFIX,
-            "F", EMPTY_PREFIX,
-            "B", EMPTY_PREFIX
-    );
+            "P", AZURE_PREMIUM_DATABASE_PREFIX);
 
     /**
      * Private constructor.
@@ -196,11 +193,11 @@ public class CloudCostUtils {
                                                          @Nonnull SDKProbeType probeType) {
         final String localName = entity.getDisplayName();
         int indexOfStorageDelimiter = entity.getDisplayName().indexOf(AZURE_COMPUTE_STORAGE_DELIMITER);
-        String dbTypeName = indexOfStorageDelimiter == -1 ?
-                localName : localName.substring(0, indexOfStorageDelimiter).trim();
+        String dbTypeName = indexOfStorageDelimiter == -1
+                ? localName : localName.substring(0, indexOfStorageDelimiter).trim();
         String dbTypeLetter = dbTypeName.substring(0, 1);
-        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) +
-                AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + dbTypeName;
+        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType)
+                + AZURE_DATABASE_LETTER_TO_NAME.getOrDefault(dbTypeLetter, EMPTY_PREFIX) + dbTypeName;
     }
 
     /**
@@ -215,8 +212,8 @@ public class CloudCostUtils {
                                                        @Nonnull SDKProbeType probeType) {
         final String fullName = entity.getDisplayName() + entity.getLocalId();
         String dbTypeLetter = fullName.substring(0, 1);
-        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) +
-                AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + fullName;
+        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType)
+                + AZURE_DATABASE_LETTER_TO_NAME.getOrDefault(dbTypeLetter, EMPTY_PREFIX) + fullName;
     }
 
     /**
