@@ -354,7 +354,7 @@ public class StitchingManager {
             @Nonnull IStitchingJournal<StitchingEntity> stitchingJournal) {
         if (FeatureFlags.DELAYED_DATA_HANDLING.isEnabled()) {
             stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "START",
-                    "Set the controllable flag to false for stale entities"));
+                            "Set the controllable flag to false for stale entities"));
             final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(
                     scopeFactory.getStitchingContext());
             scopeFactory.globalScope().entities().forEach(e -> {

@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
@@ -368,6 +369,7 @@ public class StitchingManagerTest {
         private final TargetStore targetStore = mock(TargetStore.class);
         private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
         private final Target target = mock(Target.class);
+        private final Target target2 = mock(Target.class);
 
         public DelayedDataHandlingFunctionalityTest(
                 ParameterStructure data) {
@@ -509,6 +511,7 @@ public class StitchingManagerTest {
         public void testDelayedDataHandlingFunctionality() {
             featureFlagTestRule.enable(FeatureFlags.DELAYED_DATA_HANDLING);
             Mockito.when(target.getId()).thenReturn(FIRST_TARGET_ID);
+            Mockito.when(target2.getId()).thenReturn(SECOND_TARGET_ID);
             final StitchingOperation<?, ?> stitchingOperation = Mockito.spy(
                     new StorageStitchingOperation());
             Mockito.when(stitchingOperationStore.getAllOperations()).thenReturn(
@@ -536,6 +539,8 @@ public class StitchingManagerTest {
             Mockito.when(Mockito.mock(EntityStore.class).constructStitchingContext()).thenReturn(
                     stitchingContext);
             Mockito.when(targetStore.getTarget(Mockito.anyLong())).thenReturn(Optional.of(target));
+            Mockito.when(targetStore.getProbeCategoryForTarget(Mockito.anyLong()))
+                            .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
             final ProbeStore probeStore =  Mockito.mock(ProbeStore.class);
             when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
             when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(ProbeInfo.newBuilder()
@@ -549,6 +554,7 @@ public class StitchingManagerTest {
                     targetStore, Mockito.mock(CpuCapacityStore.class));
             Mockito.when(targetStore.getProbeTargets(Mockito.eq(PROBE_ID))).thenReturn(
                     Collections.singletonList(target));
+            Mockito.when(targetStore.getAll()).thenReturn(ImmutableList.of(target, target2));
             stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
             Assert.assertEquals(data.expectedControllable, externalEntity.getEntityDtoBuilder()
                     .getConsumerPolicyBuilder()
