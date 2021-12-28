@@ -143,6 +143,10 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                 return Pair.create(vmInfo.getCoresPerSocketRatio(),
                                 (int)(Math.ceil(newCapacity / cpuScalingPolicy.getSockets())));
             }
+            if (cpuScalingPolicy.hasCoresPerSocket()) {
+                return Pair.create(vmInfo.getCoresPerSocketRatio(),
+                                cpuScalingPolicy.getCoresPerSocket());
+            }
         }
         return null;
     }
