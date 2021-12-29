@@ -10,7 +10,6 @@
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.vmturbo</groupId>
     <artifactId>com.vmturbo.communication.matrix</artifactId>
     <packaging>jar</packaging>
 
@@ -68,7 +67,6 @@
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>${commons.io.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
