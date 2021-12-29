@@ -116,8 +116,15 @@ public class StitchingOperationStore {
             // we have a data driven probe with no scope to stitch with, assume it is one of these
             // cases and sets probe scope to the probe's category.  This will go away once we
             // allow the probe scope to be set in a data driven manner.
-            final Set<ProbeCategory> updatedProbeScope =
-                probeScope.isEmpty() && category != ProbeCategory.CUSTOM ? ImmutableSet.of(category) : probeScope;
+            final Set<ProbeCategory> updatedProbeScope;
+            if (category == ProbeCategory.CUSTOM) {
+                // We need to stitch entities from CUSTOM probes with each other.
+                // E.g. DIF Probe + UDT Probe.
+                updatedProbeScope = Sets.newHashSet(probeScope);
+                updatedProbeScope.add(ProbeCategory.CUSTOM);
+            } else {
+                updatedProbeScope = probeScope.isEmpty() ? ImmutableSet.of(category) : probeScope;
+            }
             final List<StitchingOperation<?, ?>> operations =
                 cachedStitchingOperations.createOrGetCachedStitchingOperationsFromProbeInfo(probeInfo,
                     updatedProbeScope);
