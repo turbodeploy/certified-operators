@@ -4,9 +4,10 @@ import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
 
 import com.google.gson.annotations.SerializedName;
+
+import org.apache.http.annotation.Immutable;
 
 import com.vmturbo.mediation.connector.common.Response;
 
