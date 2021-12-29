@@ -5,9 +5,9 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.http.annotation.Immutable;
 
 /**
  * Class that acts as a key. Each key is associated with a {@link AccessTokenResponse}.

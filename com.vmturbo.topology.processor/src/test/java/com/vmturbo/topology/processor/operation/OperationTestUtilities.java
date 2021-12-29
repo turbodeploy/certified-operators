@@ -11,8 +11,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
-
-import org.apache.http.annotation.GuardedBy;
+import javax.annotation.concurrent.GuardedBy;
 
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
