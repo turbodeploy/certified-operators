@@ -4,8 +4,7 @@ import java.net.URI;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.http.annotation.Immutable;
+import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.mediation.connector.common.credentials.PortAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.SecureAwareCredentials;
