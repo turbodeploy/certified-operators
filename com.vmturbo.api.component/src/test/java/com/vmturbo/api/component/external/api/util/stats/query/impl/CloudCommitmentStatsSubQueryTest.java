@@ -114,6 +114,16 @@ public class CloudCommitmentStatsSubQueryTest {
     }
 
     /**
+     * Test that the query is not applicable for zonal scope cloud commitments.
+     */
+    @Test
+    public void testNotApplicableForZonalCloudCommitment() {
+        Mockito.when(context.getInputScope().getScopeTypes())
+                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.AVAILABILITY_ZONE)));
+        MatcherAssert.assertThat(cloudCommitmentStatsSubQuery.applicableInContext(context), Matchers.is(false));
+    }
+
+    /**
      * Test returning of the cloud commitment stats when the request just contains the service provider.
      *
      * @throws OperationFailedException An operation failed exception.
