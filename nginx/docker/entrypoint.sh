@@ -43,6 +43,10 @@ if [ "$UI" == "" ]; then
     export UI=unset
 fi
 
+if [ "$BLOCK_REMOTE_PROBES" == "" ]; then
+    export BLOCK_REMOTE_PROBES='FALSE'
+fi
+
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
 # This is generally desirable in a development setup where you want to see the output on the console when
 # starting a component, but not in production where we do not want logging to be captured by Docker
@@ -57,6 +61,7 @@ fi
 ENV_VARS=(
     '${API}' '${UI}' '${GRAFANA}' '${TOPOLOGY}' '${DNS_RESOLVER}' '${WORKER_PROCESSES}'
     '${WORKER_CONNECTIONS}' '${SSL_PROTOCOLS}' '${SSL_CIPHERS}' '${DISABLE_HTTPS_REDIRECT}'
+    '${BLOCK_REMOTE_PROBES}'
 )
 mkdir -p /tmp/nginx/includes
 envsubst "${ENV_VARS[*]}" < /etc/nginx/nginx.conf.template > /tmp/nginx/nginx.conf
