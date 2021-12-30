@@ -55,10 +55,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
-import com.vmturbo.common.protobuf.memory.MemoryMeasurer.MemoryMeasurement;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
-import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -195,6 +193,12 @@ public class EntityStore {
                     }
                 })
     );
+
+    private static final Set<TargetHealthSubCategory> HEALTH_SUBCATEGORIES_FOR_STALENESS =
+                    ImmutableSet.of(TargetHealthSubCategory.VALIDATION,
+                                    TargetHealthSubCategory.DELAYED_DATA,
+                                    TargetHealthSubCategory.DISCOVERY,
+                                    TargetHealthSubCategory.DUPLICATION);
 
     /**
      * Exports the entity count per target category, target type and entity type from entity store.
@@ -410,6 +414,16 @@ public class EntityStore {
         TargetStitchingDataMap stitchingDataMap;
 
         synchronized (topologyUpdateLock) {
+            // only set staleness for entities coming from hypervisors
+            // TODO this probe type-dependent logic should be temporary until a finer line for staleness is drawn
+            final Set<Long> hypervisorTargetIds = targetStore.getAll().stream()
+                .map(Target::getId)
+                .filter(targetId -> targetStore.getProbeCategoryForTarget(targetId)
+                    .filter(Objects::nonNull)
+                    .map(category -> category == ProbeCategory.HYPERVISOR)
+                    .orElse(false))
+                .collect(Collectors.toSet());
+
             stitchingDataMap = new TargetStitchingDataMap(targetEntities);
             final Long2ObjectOpenHashMap<TargetCacheEntry> cache = new Long2ObjectOpenHashMap<>();
             // This will populate the stitching data map.
@@ -427,16 +441,12 @@ public class EntityStore {
                                     entityBuilder, entityOid, targetId,
                                     incrementalEntities))
                             .orElse(entityBuilder);
-                    final TargetHealth lastKnownTargetHealth =
-                            stalenessProvider.getLastKnownTargetHealth(targetId);
-                    final boolean isStale = lastKnownTargetHealth != null && lastKnownTargetHealth.getHealthState() == HealthState.CRITICAL;
                     return StitchingEntityData.newBuilder(entityDTO)
                             .oid(entityOid)
                             .targetId(targetId)
                             .lastUpdatedTime(cacheEntry.lastUpdatedTime)
                             .supportsConnectedTo(cacheEntry.supportsConnectedTo)
-                            // for now, staleness is defined at target level but exposed to stitching at entity level
-                            .setStale(isStale)
+                            .setStale(isDiscoveredEntityStale(stalenessProvider, targetId, entityDTO, hypervisorTargetIds))
                             .build();
                 }).forEach(stitchingDataMap::put);
             }
@@ -468,6 +478,24 @@ public class EntityStore {
 
     public void setEntityDetailsEnabled(boolean entityDetailsEnabled) {
         this.entityDetailsEnabled = entityDetailsEnabled;
+    }
+
+    private static boolean isDiscoveredEntityStale(StalenessInformationProvider stalenessProvider,
+                    long targetId, EntityDTO.Builder entityDTO, Set<Long> hypervisorTargetIds) {
+        /**
+         * For now, staleness is defined at target level but exposed to stitching at entity level.
+         * Currently only on_prem entities are expected to have staleness flag ever set
+         * (this is subject to change later when we define staleness at finer granularity).
+         */
+        if (!hypervisorTargetIds.contains(targetId)) {
+            return false;
+        }
+        TargetHealth lastKnownTargetHealth =
+                        stalenessProvider.getLastKnownTargetHealth(targetId);
+        return lastKnownTargetHealth != null
+                        && lastKnownTargetHealth.getHealthState() == HealthState.CRITICAL
+                        && HEALTH_SUBCATEGORIES_FOR_STALENESS.contains(
+                                        lastKnownTargetHealth.getSubcategory());
     }
 
     /**

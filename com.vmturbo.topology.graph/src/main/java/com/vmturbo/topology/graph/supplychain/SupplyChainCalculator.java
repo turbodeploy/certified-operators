@@ -41,7 +41,7 @@ public class SupplyChainCalculator {
     private static final Logger logger = LogManager.getLogger();
 
     private static final  Set<TraversalMode> LEAVES_DIRECTION_MODES =
-        Sets.newHashSet(TraversalMode.START, TraversalMode.PRODUCES);
+        Sets.newHashSet(TraversalMode.START, TraversalMode.PRODUCES, TraversalMode.STOP);
 
     /**
      * Get the supply chain entities starting from a set of vertices.

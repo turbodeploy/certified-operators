@@ -166,6 +166,8 @@ public class EntityStoreTest {
         when(targetStore.getTargetDisplayName(targetId)).thenReturn(Optional.of(targetDisplayName));
         when(targetStore.getTargetDisplayName(target2Id)).thenReturn(Optional.of(target2DisplayName));
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target, target2));
+        Mockito.when(targetStore.getProbeCategoryForTarget(Mockito.anyLong()))
+                        .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
     }
 
     /**

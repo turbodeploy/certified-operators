@@ -29,7 +29,6 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -65,6 +64,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.CpuScalingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
@@ -73,6 +74,7 @@ import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.components.common.setting.VcpuScalingCoresPerSocketSocketModeEnum;
+import com.vmturbo.components.common.setting.VcpuScalingSocketsCoresPerSocketModeEnum;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -239,31 +241,36 @@ public class EntitySettingsApplicatorTest {
                     EntitySettingSpecs.VcpuScalingUnits.getSettingSpec().getEnumSettingValueType().getDefault()))
             .build();
 
-    private static final Setting CORE_SOCKET_RATIO_MODE_RESPECT = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.VcpuScalingUnits.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(VCPUScalingUnitsEnum.SOCKETS
-                    .name()))
-            .build();
+    private static final Setting CORE_SOCKET_RATIO_MODE_SOCKETS =
+                    createEnumSetting(EntitySettingSpecs.VcpuScalingUnits,
+                                    VCPUScalingUnitsEnum.SOCKETS);
 
-    private static final Setting CORE_SOCKET_RATIO_MODE_CORES = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.VcpuScalingUnits.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(VCPUScalingUnitsEnum.CORES
-                    .name()))
-            .build();
+    private static final Setting CORE_SOCKET_RATIO_MODE_CORES =
+                    createEnumSetting(EntitySettingSpecs.VcpuScalingUnits,
+                                    VCPUScalingUnitsEnum.CORES);
 
-    private static final Setting CORE_SOCKET_RATIO_PRESERVE = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(
-                    VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE
-                    .name()))
-            .build();
+    private static final Setting VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_PRESERVE =
+                    createEnumSetting(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
+                                    VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE);
+    private static final Setting VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_USER_SPECIFIED =
+                    createEnumSetting(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
+                                    VcpuScalingSocketsCoresPerSocketModeEnum.USER_SPECIFIED);
 
-    private static final Setting CORE_SOCKET_RATIO_MATCH_HOST = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(
-                    VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST
-                            .name()))
-            .build();
+    private static final Setting CORE_SOCKET_RATIO_USER_SPECIFIED =
+                    createEnumSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
+                                    VcpuScalingCoresPerSocketSocketModeEnum.USER_SPECIFIED);
+
+    private static final Setting CORE_SOCKET_RATIO_USER_SPECIFIED_VALUE =
+                    createNumericSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketValue,
+                                    3);
+
+    private static final Setting CORE_SOCKET_RATIO_PRESERVE =
+                    createEnumSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
+                                    VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE);
+
+    private static final Setting CORE_SOCKET_RATIO_MATCH_HOST =
+                    createEnumSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
+                                    VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST);
 
     private static final Setting VM_VCPU_INCREMENT_DEFAULT = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrement.getSettingName())
@@ -557,6 +564,7 @@ public class EntitySettingsApplicatorTest {
     private static final Setting.Builder HORIZONTAL_SCALE_DOWN_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(ConfigurableActionSettings.HorizontalScaleDown.getSettingName());
 
+
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
     private static final double DELTA = 0.001;
@@ -609,6 +617,20 @@ public class EntitySettingsApplicatorTest {
     @After
     public void teardown() {
         featureFlagTestRule.reset();
+    }
+
+    private static <E extends Enum<E>> Setting createEnumSetting(EntitySettingSpecs settingSpecs,
+                    E value) {
+        return Setting.newBuilder().setSettingSpecName(settingSpecs.getSettingName())
+                        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(value.name()))
+                        .build();
+    }
+
+    private static <V extends Number> Setting createNumericSetting(EntitySettingSpecs settingSpecs,
+                    V value) {
+        return Setting.newBuilder().setSettingSpecName(settingSpecs.getSettingName())
+                        .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                        .setValue(value.floatValue()).build()).build();
     }
 
     /**
@@ -1969,18 +1991,21 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementApplicatorDefault() {
         //coreSocketRatio default is ignore, so use default vmCpuIncrement
         testVCPUIncrementApplicator(1800, 10400, 5200, TypeSpecificInfo.newBuilder().build(),
-                        EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+                        EntityType.VIRTUAL_MACHINE, CpuScalingPolicy.newBuilder().build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
     }
 
-
     /**
-     * If there is No CSR setting(e.g. containers), should work as if settinng = RESPECT.
+     * Capacity increment from the probe will be used in case:
+     * 'Change' setting is 'Sockets'
+     * 'Cores per socket' setting is 'Preserve'
      */
     @Test
-    @Ignore
     public void testVCPUIncrementUnitSockets() {
         testVCPUIncrementApplicator(5200, 10400, 5200, TypeSpecificInfo.newBuilder().build(),
-                        EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT);
+                        EntityType.VIRTUAL_MACHINE, CpuScalingPolicy.newBuilder().build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, CORE_SOCKET_RATIO_MODE_SOCKETS,
+                        VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_PRESERVE);
     }
 
     /**
@@ -1989,83 +2014,143 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefault() {
         testVCPUIncrementApplicator(1800, 10400, 5200, TypeSpecificInfo.newBuilder().build(),
-                        EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+                        EntityType.VIRTUAL_MACHINE, CpuScalingPolicy.newBuilder().build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
     }
 
     @Test
     public void testVCPUIncrementCoresModePreserveVMSocketsNoNumCpusNoCpsr() {
         testVCPUIncrementApplicator(1800, 10400, 5200, TypeSpecificInfo.newBuilder().build(),
-                EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
-                CORE_SOCKET_RATIO_PRESERVE);
-
+                        EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_PRESERVE);
     }
+
+    @Test
+    public void testVcpuVmScalingApplicatorWithoutVmSpecificInfo() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null,
+                        EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_PRESERVE);
+    }
+
+    @Test
+    public void testVcpuVmScalingApplicatorCoresUserSpecified() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(3).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_USER_SPECIFIED, CORE_SOCKET_RATIO_USER_SPECIFIED_VALUE);
+    }
+
+    @Test
+    public void testVcpuVmScalingApplicatorWithoutPmAsProvider() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(1).build(),
+                        EntityType.STORAGE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_MATCH_HOST);
+    }
+
+    @Test
+    public void testVcpuVmScalingApplicatorWithoutProviderIdAvailableInTopologyGraph() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 11L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_MATCH_HOST);
+    }
+
+    @Test
+    public void testVcpuVmScalingApplicatorWithoutProviderSpecificInfo() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, null, 10L, VM_VCPU_INCREMENT_DEFAULT,
+                        CORE_SOCKET_RATIO_MODE_CORES, CORE_SOCKET_RATIO_MATCH_HOST);
+    }
+
+    @Test
+    public void testVcpuVmScalingApplicatorWithoutPmSpecificInfo() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, TypeSpecificInfo.newBuilder().build(),
+                        10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_MATCH_HOST);
+    }
+
+    @Test
+    public void testVcpuVmScalingApplicatorWithoutPmNumCpuSockets() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(null), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_MATCH_HOST);
+    }
+
     @Test
     public void testVCPUIncrementCoresModePreserveVMSockets() {
         testVCPUIncrementApplicator(5200, 10400, 5200, createVmTypeSpecificInfo(4, 2),
-                EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
-                CORE_SOCKET_RATIO_PRESERVE);
-
+                        EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(2).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_PRESERVE);
     }
 
     @Test
     public void testVCPUIncrementCoresModeMatchHostSocketsNoNumCpusNoCpsr() {
         testVCPUIncrementApplicator(1800, 10400, 5200, TypeSpecificInfo.newBuilder().build(),
-                EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
-                CORE_SOCKET_RATIO_MATCH_HOST);
+                        EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setSockets(4).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_MATCH_HOST);
 
     }
 
     @Test
     public void testVCPUIncrementCoresModeMatchHostSockets() {
         testVCPUIncrementApplicator(10400, 10400, 5200, createVmTypeSpecificInfo(4, 2),
-                EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
-                CORE_SOCKET_RATIO_MATCH_HOST);
-
-    }
-
-    /**
-     * Checks that in case capacity increment has not been send by the probe, then we will use
-     * capacity increment value from setting.
-     */
-    @Test
-    @Ignore
-    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectVmInfo() {
-        testVCPUIncrementApplicator(7200, 20400, null, TypeSpecificInfo.newBuilder().build(),
                         EntityType.VIRTUAL_MACHINE,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_RESPECT);
-    }
+                        CpuScalingPolicy.newBuilder().setSockets(4).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        CORE_SOCKET_RATIO_MATCH_HOST);
 
-    /**
-     * Checks that in case capacity increment has not been sent explicitly from the probe then it
-     * will be calculated as VCPU_sold_capacity/numCpus * coresPerSocketRatio.
-     */
-    @Test
-    @Ignore
-    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectNoCapacityIncrement() {
-        testVCPUIncrementApplicator(5200, 10400, null, createVmTypeSpecificInfo(4, 2),
-                        EntityType.VIRTUAL_MACHINE,
-                        VM_VCPU_INCREMENT_DEFAULT);
     }
 
     @Test
-    @Ignore
     public void testVCPUIncrementApplicatorNonDefaultCSRRespect() {
         testVCPUIncrementApplicator(5200, 10400, 5200, TypeSpecificInfo.newBuilder().build(),
-                EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_RESPECT);
-
+                        EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setCoresPerSocket(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
-    /**
-     * Checks that in case capacity increment has not been sent explicitly from the probe and probe
-     * has not send cores per socket ratio value, then it will be calculated as
-     * VCPU_sold_capacity/numCpus.
-     */
     @Test
-    @Ignore
-    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectNoCapacityIncrementAndNoCSPR() {
-        testVCPUIncrementApplicator(2600, 10400, null, createVmTypeSpecificInfo(4, null),
+    public void testVCPUIncrementApplicatorWithVmNumCpus() {
+        testVCPUIncrementApplicator(1300, 10400, null, TypeSpecificInfo.newBuilder().setVirtualMachine(
+                                        VirtualMachineInfo.newBuilder().setNumCpus(8).build()).build(),
                         EntityType.VIRTUAL_MACHINE,
-                        VM_VCPU_INCREMENT_DEFAULT);
+                        CpuScalingPolicy.newBuilder().setCoresPerSocket(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
+    }
+
+    @Test
+    public void testVCPUIncrementApplicatorWithoutCapacityIncrementAndWithoutVmNumCpus() {
+        testVCPUIncrementApplicator(1800, 10400, null, TypeSpecificInfo.newBuilder()
+                                        .setVirtualMachine(VirtualMachineInfo.newBuilder().build())
+                                        .build(), EntityType.VIRTUAL_MACHINE,
+                        CpuScalingPolicy.newBuilder().setCoresPerSocket(1).build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     /**
@@ -2074,10 +2159,10 @@ public class EntitySettingsApplicatorTest {
      * be taken.
      */
     @Test
-    @Ignore
     public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectNoCapacityIncrementNoCSPRNoNumCpus() {
         testVCPUIncrementApplicator(1800, 10400, null, createVmTypeSpecificInfo(null, null),
-                        EntityType.VIRTUAL_MACHINE,
+                        EntityType.VIRTUAL_MACHINE, CpuScalingPolicy.newBuilder().build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
                         VM_VCPU_INCREMENT_DEFAULT);
     }
 
@@ -2089,7 +2174,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementApplicatorNoEffectForContainerSpec() {
         //coreSocketRatio default is ignore, so use default vmCpuIncrement
         testVCPUIncrementApplicator(5200, 10400, 5200, TypeSpecificInfo.newBuilder().build(),
-                        EntityType.CONTAINER_SPEC,
+                        EntityType.CONTAINER_SPEC, CpuScalingPolicy.newBuilder().build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
                         VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
     }
 
@@ -2100,34 +2186,43 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testVCPUIncrementApplicatorDoesNotFailWhenProbeSent0() {
         testVCPUIncrementApplicator(1800, 10400, 0, createVmTypeSpecificInfo(null, null),
-                        EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT);
+                        EntityType.VIRTUAL_MACHINE, CpuScalingPolicy.newBuilder().build(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT);
     }
 
-    private static void testVCPUIncrementApplicator(int expectedVCPUIncrenemt, int capacity,
-            Integer capacityIncrement, TypeSpecificInfo typeSpecificInfo, EntityType entityType,
-            Setting... settings) {
+    private static void testVCPUIncrementApplicator(int expectedVCPUIncrement, int capacity,
+                    Integer capacityIncrement, TypeSpecificInfo vmTypeSpecificInfo,
+                    EntityType entityType, CpuScalingPolicy cpuScalingPolicy,
+                    int commodityProviderType, TypeSpecificInfo pmTypeSpecificInfo, long providerId,
+                    Setting... settings) {
         final TopologyEntityDTO.Builder vmBuilder = createEntityWithCommodity(entityType,
                 CommodityType.VCPU);
 
         final TopologyEntityDTO.Builder pmBuilder = createEntityWithCommodity(
                 EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
         pmBuilder.setOid(10L);
-        pmBuilder.setTypeSpecificInfo(createPmTypeSpecificInfo(4));
+        if (pmTypeSpecificInfo != null) {
+            pmBuilder.setTypeSpecificInfo(pmTypeSpecificInfo);
+        }
+
 
         final CommoditySoldDTO.Builder vcpuSoldCommodity = vmBuilder.getCommoditySoldListBuilder(0);
         if (capacityIncrement != null) {
             vcpuSoldCommodity.setCapacityIncrement(capacityIncrement);
         }
         vmBuilder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(10L)
-                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE));
+                .setProviderId(providerId)
+                .setProviderEntityType(commodityProviderType));
 
-        if (typeSpecificInfo != null) {
-            vmBuilder.setTypeSpecificInfo(typeSpecificInfo);
+        if (vmTypeSpecificInfo != null) {
+            vmBuilder.setTypeSpecificInfo(vmTypeSpecificInfo);
         }
         vcpuSoldCommodity.setCapacity(capacity);
         applySettings(TOPOLOGY_INFO, vmBuilder, pmBuilder, applicator, settings);
-        assertEquals(expectedVCPUIncrenemt, vcpuSoldCommodity.getCapacityIncrement(), 0);
+        assertEquals(expectedVCPUIncrement, vcpuSoldCommodity.getCapacityIncrement(), 0);
+        Assert.assertThat(vmBuilder.getTypeSpecificInfo().getVirtualMachine().getCpuScalingPolicy(),
+                        CoreMatchers.is(cpuScalingPolicy));
+
     }
 
     @Nonnull
@@ -2144,9 +2239,11 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Nonnull
-    private static TypeSpecificInfo createPmTypeSpecificInfo(int numCpuSockets) {
+    private static TypeSpecificInfo createPmTypeSpecificInfo(@Nullable Integer numCpuSockets) {
         final TypeSpecificInfo.PhysicalMachineInfo.Builder pmInfo = TypeSpecificInfo.PhysicalMachineInfo.newBuilder();
-        pmInfo.setNumCpuSockets(numCpuSockets);
+        if (numCpuSockets != null) {
+            pmInfo.setNumCpuSockets(numCpuSockets);
+        }
         return TypeSpecificInfo.newBuilder().setPhysicalMachine(
                 pmInfo.build()).build();
     }

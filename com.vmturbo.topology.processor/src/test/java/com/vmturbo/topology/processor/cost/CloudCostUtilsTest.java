@@ -38,6 +38,16 @@ public class CloudCostUtilsTest {
                 .getEntityIdFromDBProfile(generateTopologyStitchingEntity("P11"), SDKProbeType.AZURE));
     }
 
+    @Test
+    public void testAzureVCoreDatabaseTierLocalNameToId() {
+        Assert.assertEquals("azure::DBPROFILE::GP_Gen5_20", CloudCostUtils
+                .getEntityIdFromDBProfile(generateTopologyStitchingEntity("GP_Gen5_20"), SDKProbeType.AZURE));
+        Assert.assertEquals("azure::DBPROFILE::HS_Gen4_2", CloudCostUtils
+                .getEntityIdFromDBProfile(generateTopologyStitchingEntity("HS_Gen4_2"), SDKProbeType.AZURE));
+        Assert.assertEquals("azure::DBPROFILE::BC_DC_8", CloudCostUtils
+                .getEntityIdFromDBProfile(generateTopologyStitchingEntity("BC_DC_8"), SDKProbeType.AZURE));
+    }
+
     /**
      * Test aws data server tier name for mapping tier info from mediation and cost without template identifier.
      */
