@@ -68,8 +68,11 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull StatsQueryContext context) {
+        // do not support zonal scope cloud commitments
+        boolean isNotZoneScope = !(context.getInputScope().getScopeTypes().isPresent() && context.getInputScope().getScopeTypes().get().contains(ApiEntityType.AVAILABILITY_ZONE));
         // plans do not support cloud commitments at the moment
-        return !context.getInputScope().isPlan();
+        boolean isNotPlan = !context.getInputScope().isPlan();
+        return isNotZoneScope && isNotPlan;
     }
 
     @Override
