@@ -16,12 +16,7 @@ import com.vmturbo.sql.utils.DbEndpointsConfig;
 @Conditional(DbEndpointCondition.class)
 public class PlanOrchestratorDBEndpointConfig extends DbEndpointsConfig {
 
-    /**
-     * DB user name accessible to given schema. This is needed since the component name
-     * "topology-processor" is different from the db username, and topologyProcessorDbUsername is
-     * not provided by operator. If not provided, DbEndpoint will use component name as username.
-     */
-    private static final String planOrchestratorDbUsername = "plan";
+    private static final String PLAN_ORCHESTRATOR_USER_NAME = "plan";
 
     /**
      * Endpoint for accessing plan orchestrator database.
@@ -34,10 +29,7 @@ public class PlanOrchestratorDBEndpointConfig extends DbEndpointsConfig {
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true)
-                // workaround since the Environment doesn't contain planOrchestratorDbUsername
-                // fixEndpointForMultiDb can't find this property from spring environment
-                .withUserName(planOrchestratorDbUsername))
+                .withUserName(PLAN_ORCHESTRATOR_USER_NAME))
                 .build();
     }
-
 }

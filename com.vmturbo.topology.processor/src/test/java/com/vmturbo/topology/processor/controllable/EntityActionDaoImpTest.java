@@ -18,73 +18,65 @@ import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
 import org.jooq.Result;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 import com.vmturbo.topology.processor.TestTopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestTopologyProcessorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class EntityActionDaoImpTest {
-
-    @Autowired(required = false)
-    private TestTopologyProcessorDbEndpointConfig dbEndpointConfig;
-    
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
+@RunWith(Parameterized.class)
+public class EntityActionDaoImpTest extends MultiDbTestBase {
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Provide parameters for rests.
+     *
+     * @return parameter values
      */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public EntityActionDaoImpTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(TopologyProcessor.TOPOLOGY_PROCESSOR, configurableDbDialect, dialect,
+                "topology-processor",
+                TestTopologyProcessorDbEndpointConfig::tpEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @ClassRule
-    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("topology-processor");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-    
-    private DSLContext dsl;
 
     private EntityActionDaoImp controllableDaoImp;
 
@@ -125,12 +117,6 @@ public class EntityActionDaoImpTest {
      */
     @Before
     public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.tpEndpoint());
-            dsl = dbEndpointConfig.tpEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         this.controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
                 IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS,
                 SCALE_SUCCEED_SECONDS, RESIZE_SUCCEED_SECONDS);

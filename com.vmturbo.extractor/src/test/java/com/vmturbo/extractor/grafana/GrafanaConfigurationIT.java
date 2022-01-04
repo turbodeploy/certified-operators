@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -18,7 +17,6 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
@@ -30,6 +28,7 @@ import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpointConfig;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * An integration test which stands up a local Grafana instance, and verifies that the grafana
@@ -74,9 +73,7 @@ public class GrafanaConfigurationIT {
         dashboardsOnDisk = new DashboardsOnDisk(
                 ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString(), true);
 
-        final Map<String, String> m = Collections.emptyMap();
-        final DbEndpointCompleter endpointCompleter = new DbEndpointCompleter(
-                m::get, mock(DBPasswordUtil.class), "30s");
+        final DbEndpointCompleter endpointCompleter = MultiDbTestBase.getTestCompleter();
         final DbEndpointConfig endpointConfig =
             endpointCompleter.newEndpointBuilder("extractor", SQLDialect.POSTGRES)
                 .withDatabaseName("mydb")

@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store.identity;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
@@ -9,15 +10,21 @@ import java.util.List;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -34,14 +41,47 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * This is a unit test to cover logic in {@link ActionInfoModelCreator} and {@link
  * IdentityServiceImpl}.
  */
-public class RecommendationIdentityServiceImplTest {
+@RunWith(Parameterized.class)
+public class RecommendationIdentityServiceImplTest extends MultiDbTestBase {
+
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public RecommendationIdentityServiceImplTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Action.ACTION, configurableDbDialect, dialect, "action",
+                TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long TTL_MILLIS = 24 * 60 * 60 * 1000;
 
@@ -207,17 +247,7 @@ public class RecommendationIdentityServiceImplTest {
             .build();
 
     /**
-     * DB configuration rule - to migrate DB for tests.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
-    /**
-     * DB cleanup rule - to remove all the data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanupRule = dbConfig.cleanupRule();
-    /**
-     * Expected exception rule.
+     * Rule to expect exceptions, if required.
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -241,7 +271,7 @@ public class RecommendationIdentityServiceImplTest {
     @Before
     public void initialize() {
         attributeExtractor = new ActionInfoModelCreator();
-        store = Mockito.spy(new RecommendationIdentityStore(dbConfig.getDslContext(), 1000));
+        store = Mockito.spy(new RecommendationIdentityStore(dsl, 1000));
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.millis()).thenReturn(0L);
         identityService =

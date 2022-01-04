@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -619,7 +620,7 @@ public class ClusterHeadroomPostProcessorTest {
         // Negative growth, should override to 0. all values in history are greater than current VM values.
         mostRecentHistoricalDate = System.currentTimeMillis();
         vmsByDate = getVMsByDate(new long[] {1, 2, 3}, mostRecentHistoricalDate);
-        when(historyServiceMole.getClusterStatsForHeadroomPlan(any())).thenReturn(getStatsSnapshots(vmsByDate));
+        doReturn(getStatsSnapshots(vmsByDate)).when(historyServiceMole).getClusterStatsForHeadroomPlan(any());
         growthPerCluster = processor.getVMDailyGrowth(entityOidsByClusterAndType);
         assertEquals(growthPerCluster.get(1L), 0, delta);
     }

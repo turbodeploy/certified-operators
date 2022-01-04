@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -24,12 +25,16 @@ import io.grpc.stub.StreamObserver;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -42,6 +47,7 @@ import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagGroupStore;
 import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.cost.component.db.tables.CostTag;
 import com.vmturbo.cost.component.db.tables.CostTagGrouping;
@@ -52,27 +58,46 @@ import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.platform.sdk.common.CommonCost;
 import com.vmturbo.platform.sdk.common.CostBilling;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit tests for BilledCostUploadRpcService.
  */
-public class BilledCostUploadRpcServiceTest {
+@RunWith(Parameterized.class)
+public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext context;
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.cost.component.db.Cost.COST);
+    public BilledCostUploadRpcServiceTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(com.vmturbo.cost.component.db.Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.context = super.getDslContext();
+    }
 
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-    private final DSLContext context = dbConfig.getDslContext();
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final String BILLING_ID = "1111111";
     private static final long ACCOUNT_ID = 2222222L;
@@ -102,8 +127,8 @@ public class BilledCostUploadRpcServiceTest {
     /**
      * Initialize test resources.
      *
-     * @throws DbException if error encountered during db operations.
-     * @throws ExecutionException if error encountered waiting on future.
+     * @throws DbException                    if error encountered during db operations.
+     * @throws ExecutionException             if error encountered waiting on future.
      * @throws java.lang.InterruptedException if waiting on future is interrupted.
      */
     @Before
@@ -303,7 +328,7 @@ public class BilledCostUploadRpcServiceTest {
         requestStreamObserver.onNext(request.build());
         requestStreamObserver.onCompleted();
         Assert.assertNotEquals(verifyTagPersistedAndGetTagId("Owner", "Bob"), verifyTagPersistedAndGetTagId("owner",
-            "bob"));
+                "bob"));
     }
 
     /**
@@ -401,14 +426,15 @@ public class BilledCostUploadRpcServiceTest {
     }
 
     private BilledCostStore createBilledCostStore(boolean throwsExceptionOnInsert) throws ExecutionException,
-        InterruptedException {
+            InterruptedException {
         final BatchInserter batchInserter = spy(new BatchInserter(10, 1, rollupTimesStore));
         if (throwsExceptionOnInsert) {
             final Future<?> future = mock(Future.class);
             when(future.get()).thenThrow(new ExecutionException(new DbException("")));
             doReturn(Collections.singletonList(future))
-                .when(batchInserter).insertAsync(anyListOf(Record.class), any(Table.class), any(DSLContext.class),
-                any(boolean.class), anyLong());
+                    .when(batchInserter).insertAsync(anyListOf(Record.class), any(Table.class),
+                            any(DSLContext.class),
+                            any(boolean.class), anyLong());
         }
         return new SqlBilledCostStore(context, batchInserter, mock(TimeFrameCalculator.class));
     }
@@ -427,8 +453,9 @@ public class BilledCostUploadRpcServiceTest {
 
     private void verifyBilledCostPointPersisted(final long entityId, final double expectedCost,
                                                 final long expectedTagGroupId) {
-        final Result<BilledCostDailyRecord> billedCostEntries = context.selectFrom(BilledCostDaily.BILLED_COST_DAILY)
-            .where(BilledCostDaily.BILLED_COST_DAILY.ENTITY_ID.eq(entityId))
+        final Result<BilledCostDailyRecord> billedCostEntries = context.selectFrom(
+                        BilledCostDaily.BILLED_COST_DAILY)
+                .where(BilledCostDaily.BILLED_COST_DAILY.ENTITY_ID.eq(entityId))
             .fetch();
         Assert.assertEquals(1, billedCostEntries.size());
         final BilledCostDailyRecord record = billedCostEntries.iterator().next();
@@ -438,21 +465,22 @@ public class BilledCostUploadRpcServiceTest {
 
     private void verifyBilledCostPointNotPersisted(final long entityId) {
         Assert.assertTrue(context.selectFrom(BilledCostDaily.BILLED_COST_DAILY)
-            .where(BilledCostDaily.BILLED_COST_DAILY.ENTITY_ID.eq(entityId))
-            .fetch().isEmpty());
+                .where(BilledCostDaily.BILLED_COST_DAILY.ENTITY_ID.eq(entityId))
+                .fetch().isEmpty());
     }
 
     private void verifyTagGroupsPersisted(final long tagId, final long expectedNumTagGroups) {
-        final Result<CostTagGroupingRecord> tagGroupingRecords = context.selectFrom(CostTagGrouping.COST_TAG_GROUPING)
-            .where(CostTagGrouping.COST_TAG_GROUPING.TAG_ID.eq(tagId))
+        final Result<CostTagGroupingRecord> tagGroupingRecords = context.selectFrom(
+                        CostTagGrouping.COST_TAG_GROUPING)
+                .where(CostTagGrouping.COST_TAG_GROUPING.TAG_ID.eq(tagId))
             .fetch();
         Assert.assertEquals(expectedNumTagGroups, tagGroupingRecords.size());
     }
 
     private long verifyTagPersistedAndGetTagId(final String key, final String value) {
         final Result<CostTagRecord> tagRecords = context.selectFrom(CostTag.COST_TAG)
-            .where(CostTag.COST_TAG.TAG_KEY.eq(key)
-                .and(CostTag.COST_TAG.TAG_VALUE.eq(value)))
+                .where(CostTag.COST_TAG.TAG_KEY.eq(key)
+                        .and(CostTag.COST_TAG.TAG_VALUE.eq(value)))
             .fetch();
         Assert.assertEquals(1, tagRecords.size());
         return tagRecords.iterator().next().getTagId();
@@ -460,13 +488,17 @@ public class BilledCostUploadRpcServiceTest {
 
     private long retrieveTagGroupId(final Map<String, String> tagGroup) {
         final Set<Long> tagIds = tagGroup.entrySet().stream()
-            .map(e -> verifyTagPersistedAndGetTagId(e.getKey(), e.getValue())).collect(Collectors.toSet());
-        Map<Long, Set<Long>> tagGroups = context.selectFrom(CostTagGrouping.COST_TAG_GROUPING).fetch().stream()
-            .collect(Collectors.groupingBy(CostTagGroupingRecord::getTagGroupId,
-                Collectors.mapping(CostTagGroupingRecord::getTagId, Collectors.toSet())));
-        final Long tagGroupId = tagGroups.entrySet().stream().filter(groupEntry -> groupEntry.getValue().equals(tagIds))
-            .map(Map.Entry::getKey)
-            .findAny().orElse(null);
+                .map(e -> verifyTagPersistedAndGetTagId(e.getKey(), e.getValue())).collect(
+                        Collectors.toSet());
+        Map<Long, Set<Long>> tagGroups = context.selectFrom(CostTagGrouping.COST_TAG_GROUPING)
+                .fetch()
+                .stream()
+                .collect(Collectors.groupingBy(CostTagGroupingRecord::getTagGroupId,
+                        Collectors.mapping(CostTagGroupingRecord::getTagId, Collectors.toSet())));
+        final Long tagGroupId = tagGroups.entrySet().stream().filter(
+                        groupEntry -> groupEntry.getValue().equals(tagIds))
+                .map(Map.Entry::getKey)
+                .findAny().orElse(null);
         Assert.assertNotNull(tagGroupId);
         return tagGroupId;
     }

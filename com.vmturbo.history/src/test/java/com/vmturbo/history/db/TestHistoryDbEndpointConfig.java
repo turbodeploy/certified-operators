@@ -1,32 +1,34 @@
 package com.vmturbo.history.db;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doNothing;
+import org.jooq.SQLDialect;
 
-import org.mockito.Mockito;
-import org.springframework.context.annotation.Configuration;
-
-import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
- * Workaround for {@link HistoryDbEndpointConfig} (remove conditional annotation), since it's
- * conditionally initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we test all
- * combinations of it using {@link FeatureFlagTestRule}, first it's false, so {@link
- * HistoryDbEndpointConfig} is not created; then second it's true, {@link HistoryDbEndpointConfig}
- * is created, but the endpoint inside is also eagerly initialized due to the same FF, which results
- * in several issues like: it doesn't go through DbEndpointTestRule, making call to auth to get root
- * password, etc.
+ * Class to create DbEndpoint instances for tests.
  */
-@Configuration
 public class TestHistoryDbEndpointConfig extends HistoryDbEndpointConfig {
+
+    /**
+     * Create a test History endpoint for tests.
+     *
+     * @param dialect desired dialect
+     * @return new endpoint
+     */
+    public static DbEndpoint historyEndpoint(SQLDialect dialect) {
+        return new TestHistoryDbEndpointConfig().testHistoryEndpoint(dialect);
+    }
+
+    private DbEndpoint testHistoryEndpoint(SQLDialect dialect) {
+        super.sqlDialect = dialect;
+        return super.historyEndpoint();
+    }
 
     @Override
     public DbEndpointCompleter endpointCompleter() {
-        // prevent actual completion of the DbEndpoint
-        DbEndpointCompleter dbEndpointCompleter = Mockito.spy(super.endpointCompleter());
-        doNothing().when(dbEndpointCompleter).setEnvironment(any());
-        return dbEndpointCompleter;
+        return MultiDbTestBase.getTestCompleter();
     }
+
 }

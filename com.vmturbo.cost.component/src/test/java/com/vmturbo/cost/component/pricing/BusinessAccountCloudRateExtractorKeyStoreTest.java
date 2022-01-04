@@ -5,6 +5,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.fail;
 
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -14,10 +15,15 @@ import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,36 +36,55 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Context Configuration for this test class.
  */
-public class BusinessAccountCloudRateExtractorKeyStoreTest {
+@RunWith(Parameterized.class)
+public class BusinessAccountCloudRateExtractorKeyStoreTest extends MultiDbTestBase {
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public BusinessAccountCloudRateExtractorKeyStoreTest(boolean configurableDbDialect,
+            SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private PriceTableKeyIdentityStore priceTableKeyIdentityStore;
 
-    private PriceTableKeyIdentityStore priceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
-        new DefaultIdentityProvider(0));
-
-    private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore =
-        new BusinessAccountPriceTableKeyStore(dsl, priceTableKeyIdentityStore);
+    private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
 
     private final Long awsServiceProviderOid = 123456L;
 
@@ -71,6 +96,14 @@ public class BusinessAccountCloudRateExtractorKeyStoreTest {
     @BeforeClass
     public static void setupClass() {
         IdentityGenerator.initPrefix(0L);
+    }
+
+    @Before
+    public void before() {
+        priceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
+                new DefaultIdentityProvider(0));
+        businessAccountPriceTableKeyStore =
+                new BusinessAccountPriceTableKeyStore(dsl, priceTableKeyIdentityStore);
     }
 
     /**

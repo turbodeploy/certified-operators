@@ -9,45 +9,64 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit test for {@link RecommendationIdentityStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class RecommendationIdentityStoreTest {
+@RunWith(Parameterized.class)
+public class RecommendationIdentityStoreTest extends MultiDbTestBase {
 
-    @Autowired(required = false)
-    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public RecommendationIdentityStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Action.ACTION, configurableDbDialect, dialect, "action",
+                TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final ActionInfo MULTI_MOVE_1 = ActionInfo.newBuilder().setMove(Move.newBuilder()
             .setTarget(createActionEntity(1))
@@ -68,36 +87,10 @@ public class RecommendationIdentityStoreTest {
     private static final ActionInfoModel MODEL_3 = CREATOR.apply(MULTI_MOVE_3);
 
     /**
-     * Rule to create a DB configuration to run tests on.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(
-            com.vmturbo.action.orchestrator.db.Action.ACTION);
-    /**
-     * Rule to cleanup the DB records between tests.
-     */
-    @Rule
-    public DbCleanupRule dbCleanupRule = dbConfig.cleanupRule();
-    /**
      * Expected exception rule.
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
 
     private RecommendationIdentityStore store;
 
@@ -109,12 +102,6 @@ public class RecommendationIdentityStoreTest {
      */
     @Before
     public void init() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
-            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         store = new RecommendationIdentityStore(dsl, 1000);
     }
 
@@ -199,7 +186,7 @@ public class RecommendationIdentityStoreTest {
     public void testWrongModelChunkSize() {
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("modelsChunkSize");
-        new RecommendationIdentityStore(dbConfig.getDslContext(), -1);
+        new RecommendationIdentityStore(dsl, -1);
     }
 
     @Nonnull

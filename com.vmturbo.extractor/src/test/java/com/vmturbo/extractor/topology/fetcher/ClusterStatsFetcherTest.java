@@ -21,12 +21,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
@@ -44,11 +47,13 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.tables.Entity;
 import com.vmturbo.extractor.schema.tables.Metric;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
@@ -61,32 +66,31 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
-public class ClusterStatsFetcherTest {
+@CleanupOverrides(checkOthers = true)
+public class ClusterStatsFetcherTest implements ApplicationContextAware {
 
     @Autowired
     private ExtractorDbConfig dbConfig;
 
     private static final long ONE_DAY_IN_MILLIS = TimeUnit.DAYS.toMillis(1);
 
-    private DbEndpoint ingesterEndpoint;
-    private DbEndpoint queryEndpoint;
     private final int headroomMaxBackfillingDays = 2;
     private final int headroomCheckIntervalHrs = 24;
-
-    /**
-     * Rule to manage configured endpoints for tests.
-     */
-    @Rule
-    @ClassRule
-    public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
     /** Manage feature flags. */
     @Rule
     public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
+    /**
+     * Rule to manage configured endpoints for tests.
+     */
+    @Rule
+    public DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
+    private DbEndpoint ingesterEndpoint;
+
     private static final StatSnapshot STAT_SNAPSHOT = StatSnapshot.newBuilder()
-        .setSnapshotDate(Clock.systemUTC().millis())
-        .build();
+            .setSnapshotDate(Clock.systemUTC().millis())
+            .build();
 
     private StatsHistoryServiceMole statsHistoryServiceSpy = spy(new StatsHistoryServiceMole());
 
@@ -96,7 +100,8 @@ public class ClusterStatsFetcherTest {
 
     private StatsHistoryServiceBlockingStub historyServiceStub;
 
-    /** set up mocked history service.
+    /**
+     * set up mocked history service.
      *
      * @throws UnsupportedDialectException if the endpoint is mis-configured
      * @throws SQLException                if there's a problem
@@ -104,10 +109,9 @@ public class ClusterStatsFetcherTest {
      */
     @Before
     public void before() throws InterruptedException, SQLException, UnsupportedDialectException {
+        ingesterEndpoint = endpointRule.completeEndpoint(dbConfig.ingesterEndpoint(),
+                Extractor.EXTRACTOR).getDbEndpoint();
         historyServiceStub = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        this.ingesterEndpoint = dbConfig.ingesterEndpoint();
-        this.queryEndpoint = dbConfig.queryEndpoint();
-        endpointRule.addEndpoints(ingesterEndpoint, queryEndpoint);
     }
 
     /**
@@ -121,7 +125,8 @@ public class ClusterStatsFetcherTest {
         // mock internal history gRPC call
         final AtomicReference<List<EntityStats>> gd = new AtomicReference<>();
         final ClusterStatsFetcherFactory factory =
-            new ClusterStatsFetcherFactory(historyServiceStub, queryEndpoint, 2, TimeUnit.HOURS);
+                new ClusterStatsFetcherFactory(historyServiceStub, ingesterEndpoint, 2,
+                        TimeUnit.HOURS);
 
         final List<ClusterStatsResponse> clusterStatsResponse =
             getClusterStatsResponse(Arrays.asList(clusterId1, clusterId2));
@@ -154,20 +159,25 @@ public class ClusterStatsFetcherTest {
         final AtomicReference<List<EntityStats>> gd = new AtomicReference<>();
         final long clusterId1 = 1L;
         final List<ClusterStatsResponse> clusterStatsResponse =
-            getClusterStatsResponse(Collections.singletonList(clusterId1));
-        final ClusterStatsFetcherFactory factory = new ClusterStatsFetcherFactory(historyServiceStub,
-            queryEndpoint, headroomCheckIntervalHrs, TimeUnit.HOURS);
+                getClusterStatsResponse(Collections.singletonList(clusterId1));
+        final ClusterStatsFetcherFactory factory = new ClusterStatsFetcherFactory(
+                historyServiceStub,
+                ingesterEndpoint, headroomCheckIntervalHrs, TimeUnit.HOURS);
 
         when(statsHistoryServiceSpy.getClusterStats(anyObject())).thenReturn(clusterStatsResponse);
 
-        ingesterEndpoint.dslContext().insertInto(Metric.METRIC, Metric.METRIC.TIME,
-            Metric.METRIC.ENTITY_OID, Metric.METRIC.ENTITY_TYPE, Metric.METRIC.TYPE).values(
-                    yesterday, clusterId1, EntityType.COMPUTE_CLUSTER, MetricType.CPU_HEADROOM).execute();
+        ingesterEndpoint.dslContext()
+                .insertInto(Metric.METRIC, Metric.METRIC.TIME,
+                        Metric.METRIC.ENTITY_OID, Metric.METRIC.ENTITY_TYPE, Metric.METRIC.TYPE)
+                .values(
+                        yesterday, clusterId1, EntityType.COMPUTE_CLUSTER, MetricType.CPU_HEADROOM)
+                .execute();
 
         ingesterEndpoint.dslContext().insertInto(Entity.ENTITY, Entity.ENTITY.TYPE,
-            Entity.ENTITY.NAME, Entity.ENTITY.OID, Entity.ENTITY.FIRST_SEEN,
-            Entity.ENTITY.LAST_SEEN).values(EntityType.VIRTUAL_MACHINE, "cluster", clusterId1, OffsetDateTime.now(),
-            OffsetDateTime.now()).execute();
+                Entity.ENTITY.NAME, Entity.ENTITY.OID, Entity.ENTITY.FIRST_SEEN,
+                Entity.ENTITY.LAST_SEEN).values(EntityType.VIRTUAL_MACHINE, "cluster", clusterId1,
+                OffsetDateTime.now(),
+                OffsetDateTime.now()).execute();
 
         Instant now = Instant.ofEpochMilli(new Date().getTime());
         factory.getClusterStatsFetcher(gd::set, now.toEpochMilli()).fetchAndConsume();
@@ -198,10 +208,10 @@ public class ClusterStatsFetcherTest {
         final AtomicReference<List<EntityStats>> gd = new AtomicReference<>();
         final long clusterId1 = 1L;
         final List<ClusterStatsResponse> clusterStatsResponse =
-            getClusterStatsResponse(Collections.singletonList(clusterId1));
+                getClusterStatsResponse(Collections.singletonList(clusterId1));
         final ClusterStatsFetcherFactory factory =
-            new ClusterStatsFetcherFactory(historyServiceStub, queryEndpoint,
-                headroomCheckIntervalHrs, TimeUnit.HOURS);
+                new ClusterStatsFetcherFactory(historyServiceStub, ingesterEndpoint,
+                        headroomCheckIntervalHrs, TimeUnit.HOURS);
 
         when(statsHistoryServiceSpy.getClusterStats(anyObject())).thenReturn(clusterStatsResponse);
 
@@ -240,5 +250,14 @@ public class ClusterStatsFetcherTest {
 
     private static long truncateToDay(long time) {
         return (time / ONE_DAY_IN_MILLIS) * ONE_DAY_IN_MILLIS;
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        try {
+            this.ingesterEndpoint = endpointRule.completeEndpoint(dbConfig.ingesterEndpoint(), Extractor.EXTRACTOR).getDbEndpoint();
+        } catch (UnsupportedDialectException | InterruptedException | SQLException e) {
+            throw new BeanCreationException("Failed to initialize endpoint", e);
+        }
     }
 }

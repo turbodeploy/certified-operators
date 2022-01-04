@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -16,23 +17,61 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsRetentionConfig.DataRetentionSettings;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Tests for data retention processor.
  */
-public class DataRetentionProcessorTest {
+@RunWith(Parameterized.class)
+public class DataRetentionProcessorTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public DataRetentionProcessorTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
+
     /**
      * Handle to store for stats DB table access.
      */
@@ -44,26 +83,9 @@ public class DataRetentionProcessorTest {
     private DataRetentionProcessor retentionProcessor;
 
     /**
-     * Config providing access to DB. Also ClassRule to init Db and upgrade to latest.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
-
-    /**
-     * Rule to clean up temp test DB.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
      * Clock to keeping track of times. UTC: June 4, 2021 12:00:00 AM
      */
     private final MutableFixedClock clock = new MutableFixedClock(1622764800000L);
-
-    /**
-     * Context to execute DB queries and inserts.
-     */
-    private final DSLContext dsl = dbConfig.getDslContext();
 
     /**
      * OIDs for VMs for testing.

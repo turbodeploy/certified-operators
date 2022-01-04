@@ -3,36 +3,65 @@ package com.vmturbo.cost.component.dicount;
 import static org.junit.Assert.assertEquals;
 import static org.springframework.test.util.AssertionErrors.fail;
 
+import java.sql.SQLException;
 import java.util.List;
 
-import org.junit.ClassRule;
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.discount.SQLDiscountStore;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
-public class SQLDiscountStoreTest {
+@RunWith(Parameterized.class)
+public class SQLDiscountStoreTest extends MultiDbTestBase {
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public SQLDiscountStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
     public static final long ASSOCIATED_ACCOUNT_ID = 1111l;
     public static final double DISCOUNT_PERCENTAGE2 = 20.0;
@@ -46,7 +75,7 @@ public class SQLDiscountStoreTest {
                     .build())
             .setServiceLevelDiscount(DiscountInfo
             .ServiceLevelDiscount.newBuilder()
-                    .putDiscountPercentageByServiceId(SERVICE_KEY1, DISCOUNT_PERCENTAGE2)
+                            .putDiscountPercentageByServiceId(SERVICE_KEY1, DISCOUNT_PERCENTAGE2)
             )
             .build();
     final DiscountInfo discountInfoAccountLevelOnly2 = DiscountInfo.newBuilder()
@@ -56,11 +85,16 @@ public class SQLDiscountStoreTest {
                     .setDiscountPercentage(DISCOUNT_PERCENTAGE2)
                     .build())
             .build();
-    private DiscountStore discountDao = new SQLDiscountStore(dbConfig.getDslContext(),
-                new DefaultIdentityProvider(0));
+    private DiscountStore discountDao;
+
+    @Before
+    public void before() {
+        discountDao = new SQLDiscountStore(dsl, new DefaultIdentityProvider(0));
+    }
 
     @Test
-    public void testCRUD() throws DbException, DiscountNotFoundException, DuplicateAccountIdException {
+    public void testCRUD()
+            throws DbException, DiscountNotFoundException, DuplicateAccountIdException {
 
         // SAVE discount
         Discount discountDto = saveDiscount();

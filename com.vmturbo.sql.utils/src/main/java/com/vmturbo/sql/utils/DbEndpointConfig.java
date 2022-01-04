@@ -5,8 +5,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 
@@ -43,7 +41,6 @@ public class DbEndpointConfig {
     private Boolean endpointEnabled;
     private Function<UnaryOperator<String>, Boolean> endpointEnabledFn;
     private DbEndpoint template;
-    private Function<String, String> identifierMangler;
     private Boolean shouldProvisionDatabase;
     private Boolean shouldProvisionUser;
     private List<DbPlugin> plugins;
@@ -212,31 +209,6 @@ public class DbEndpointConfig {
         this.template = template;
     }
 
-    @VisibleForTesting
-    void setIdentifierMangler(Function<String, String> identifierMangler) {
-        this.identifierMangler = identifierMangler;
-    }
-
-    /**
-     * Mangle the given identifier, if a mangler or a provisioning suffix is configured for the
-     * endpoint.
-     *
-     * <p>The mangler has free reign to return whatever it likes for the "origianal"
-     * identifier - whatever resolution produced. If there's no mangler configured, then next
-     * choice is to append the configured provisioning suffix. If that's also not configured,
-     * then the original name is return unchnaged.</p>
-     *
-     * @param original identifier determined by normal resolution
-     * @return identifier to use in tests
-     */
-    public String mangleIdentifier(String original) {
-        if (identifierMangler != null) {
-            return identifierMangler.apply(original);
-        } else {
-            return original;
-        }
-    }
-
     /**
      * Check whether this is an abstract endpoint.
      *
@@ -334,6 +306,7 @@ public class DbEndpointConfig {
     public void setPlugins(List<DbPlugin> plugins) {
         this.plugins = plugins;
     }
+
 
     @Override
     public String toString() {

@@ -35,21 +35,18 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.BadSqlGrammarException;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
@@ -84,10 +81,9 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
-import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.db.TestGroupDBEndpointConfig;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
@@ -95,31 +91,46 @@ import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit test to cover {@link GroupDAO} functionality.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class GroupDaoTest {
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
+@RunWith(Parameterized.class)
+public class GroupDaoTest extends MultiDbTestBase {
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Provide test parameter values.
+     *
+     * @return test parameters
      */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameter values.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public GroupDaoTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(GroupComponent.GROUP_COMPONENT, configurableDbDialect, dialect, "group",
+                TestGroupDBEndpointConfig::groupEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage DB provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final Set<MemberType> EXPECTED_MEMBERS =
             ImmutableSet.of(MemberType.newBuilder().setEntity(1).build(),
@@ -137,23 +148,6 @@ public class GroupDaoTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    /**
-     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    @Autowired(required = false)
-    private TestGroupDBEndpointConfig dbEndpointConfig;
-
-    DSLContext dsl;
     private GroupDAO groupStore;
     private TestGroupGenerator groupGenerator;
 
@@ -165,12 +159,6 @@ public class GroupDaoTest {
      */
     @Before
     public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
-            dsl = dbEndpointConfig.groupEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         this.groupGenerator = new TestGroupGenerator();
         groupStore = new GroupDAO(dsl, new GroupPaginationParams(100, 500));
     }

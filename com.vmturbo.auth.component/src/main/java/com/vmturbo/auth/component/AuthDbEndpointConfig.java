@@ -36,6 +36,7 @@ import com.vmturbo.auth.component.store.ISecureStore;
 import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.sql.utils.ConditionalDbConfig.DbEndpointCondition;
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointsConfig;
 import com.vmturbo.sql.utils.JooqExceptionTranslator;
@@ -306,32 +307,34 @@ public class AuthDbEndpointConfig extends DbEndpointsConfig {
             dbPassword = getDecryptPassword(credentials.get());
         }
 
-        return fixEndpointForMultiDb(dbEndpoint("dbs.auth", sqlDialect)
-                .withShouldProvision(true)
-                .withAccess(DbEndpoint.DbEndpointAccess.ALL)
-                .withRootAccessEnabled(true)
-                .withRootUserName(isPostgresDialect() ? getPostgresRootUsername() : getRootSqlDBUser())
-                .withRootPassword(getRootSqlDBPassword())
-                .withUserName(authDbUsername)
-                .withPassword(dbPassword))
-                .build();
+        return authDbEndpoint(authDbUsername, dbPassword, getRootSqlDBPassword(),
+                getPostgresRootUsername(), getRootSqlDBUser());
     }
 
     /**
-     * Helper to return if it's Postgres for MariaDB/MySQL dialect.
+     * Auth endpoint method that can be customized for tests.
      *
-     * @return true if it's Postgres dialect, false if it's MariaDB/MySQL dialect.
-     * @throws UnsupportedDialectException for an unsupported dialect
+     * @param authDbUsername       user name for non-root user
+     * @param dbPassword           password for non-root user
+     * @param rootSqlDbPassword    password for root user
+     * @param postgresRootUserName root user for postgres dialect
+     * @param rootSqlDbUser        root user for mariadb dialect
+     * @return uncompleted endpoint
      */
-    boolean isPostgresDialect() throws UnsupportedDialectException {
-        switch (sqlDialect) {
-            case MARIADB:
-            case MYSQL:
-                return false;
-            case POSTGRES:
-                return true;
-            default:
-                throw new UnsupportedDialectException(sqlDialect);
-        }
+    public DbEndpoint authDbEndpoint(String authDbUsername, String dbPassword,
+            String rootSqlDbPassword,
+            String postgresRootUserName, String rootSqlDbUser) {
+        return fixEndpointForMultiDb(
+                dbEndpoint("dbs.auth", sqlDialect)
+                        .withShouldProvision(true)
+                        .withAccess(DbEndpointAccess.ALL)
+                        .withRootAccessEnabled(true)
+                        .withRootUserName(
+                                sqlDialect == SQLDialect.POSTGRES ? postgresRootUserName
+                                                                  : rootSqlDbUser)
+                        .withRootPassword(rootSqlDbPassword)
+                        .withUserName(authDbUsername)
+                        .withPassword(dbPassword)).build();
     }
+
 }

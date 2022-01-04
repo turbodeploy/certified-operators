@@ -29,21 +29,18 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -52,58 +49,56 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.db.Tables;
+import com.vmturbo.group.db.TestGroupDBEndpointConfig;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class PolicyStoreTest {
+import com.vmturbo.sql.utils.MultiDbTestBase;
+
+@RunWith(Parameterized.class)
+public class PolicyStoreTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameter values.
+     *
+     * @return parameter values
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new test instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public PolicyStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(GroupComponent.GROUP_COMPONENT, configurableDbDialect, dialect, "group",
+                TestGroupDBEndpointConfig::groupEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /**
+     * Rule chain to manage DB provisioning and lifecycle.
      */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    @Autowired(required = false)
-    private TestGroupDBEndpointConfig dbEndpointConfig;
-
-    DSLContext dsl;
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long TARGET_ID = 107L;
 
@@ -145,12 +140,6 @@ public class PolicyStoreTest {
 
     @Before
     public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
-            dsl = dbEndpointConfig.groupEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         policyStore = new PolicyStore(dsl, identityProvider, policyValidator);
         injectGroup(CONSUMER_GROUP_ID);
         injectGroup(PRODUCER_GROUP_ID);

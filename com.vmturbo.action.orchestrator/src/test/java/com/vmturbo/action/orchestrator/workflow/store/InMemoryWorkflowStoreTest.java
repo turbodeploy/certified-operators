@@ -26,22 +26,19 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
@@ -49,39 +46,49 @@ import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowFilter;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Tests {@link InMemoryWorkflowStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class InMemoryWorkflowStoreTest {
-
-    @Autowired(required = false)
-    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
+@RunWith(Parameterized.class)
+public class InMemoryWorkflowStoreTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    @Spy
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public InMemoryWorkflowStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Action.ACTION, configurableDbDialect, dialect, "action",
+                TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
     @Mock
     private IdentityStore mockIdentityStore;
@@ -90,23 +97,6 @@ public class InMemoryWorkflowStoreTest {
     private PersistentWorkflowStore mockPersistentWorkflowStore;
 
     private InMemoryWorkflowStore inMemoryWorkflowStore;
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    @Spy
-    private DSLContext dsl;
-
 
     private static final WorkflowInfo WORKFLOW_1 = WorkflowInfo.newBuilder()
             .setTargetId(TARGET_ID)
@@ -130,13 +120,6 @@ public class InMemoryWorkflowStoreTest {
     @Before
     public void setup() throws WorkflowStoreException, SQLException, UnsupportedDialectException,
                                InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
-            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
-
         MockitoAnnotations.initMocks(this);
         when(mockPersistentWorkflowStore.fetchWorkflows(any())).thenReturn(Collections.emptySet());
         inMemoryWorkflowStore = new InMemoryWorkflowStore(mockPersistentWorkflowStore);

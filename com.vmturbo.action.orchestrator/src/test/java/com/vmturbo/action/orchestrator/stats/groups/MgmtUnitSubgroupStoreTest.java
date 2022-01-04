@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -13,10 +14,16 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
-import org.junit.ClassRule;
+import org.jooq.SQLDialect;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
@@ -25,34 +32,59 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore.QueryR
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
-public class MgmtUnitSubgroupStoreTest {
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
+@RunWith(Parameterized.class)
+public class MgmtUnitSubgroupStoreTest extends MultiDbTestBase {
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public MgmtUnitSubgroupStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Action.ACTION, configurableDbDialect, dialect, "action",
+                TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private MgmtUnitSubgroupStore mgmtUnitSubgroupStore;
 
-    private MgmtUnitSubgroupStore mgmtUnitSubgroupStore = new MgmtUnitSubgroupStore(dsl);
+    @Before
+    public void before() {
+        mgmtUnitSubgroupStore = new MgmtUnitSubgroupStore(dsl);
+    }
 
     @Test
     public void testUpsert() {
         final MgmtUnitSubgroupKey key = ImmutableMgmtUnitSubgroupKey.builder()
-            .entityType(1)
-            .environmentType(EnvironmentType.CLOUD)
-            .mgmtUnitType(ManagementUnitType.CLUSTER)
-            .mgmtUnitId(123)
-            .build();
+                .entityType(1)
+                .environmentType(EnvironmentType.CLOUD)
+                .mgmtUnitType(ManagementUnitType.CLUSTER)
+                .mgmtUnitId(123)
+                .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
                 mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
         assertThat(subgroups.get(key).key(), is(key));

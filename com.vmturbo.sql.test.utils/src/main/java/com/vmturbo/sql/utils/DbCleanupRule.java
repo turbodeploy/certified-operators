@@ -167,9 +167,6 @@ public class DbCleanupRule implements TestRule {
         }
     }
 
-    protected void before() {
-    }
-
     @Override
     public Statement apply(Statement base, Description description) {
         return new Statement() {
@@ -179,12 +176,19 @@ public class DbCleanupRule implements TestRule {
                     base.evaluate();
                 } finally {
                     final DSLContext dsl = dbConfig.getDslContext();
+                    String realMethodName = getRealMethodName(description.getTestClass(),
+                            description.getMethodName());
                     cleanDb(dsl, schema, discoverInitializedTables(schema, dsl),
                             new CleanupOverrideInfo(description.getTestClass(),
-                                    description.getMethodName()));
+                                    realMethodName));
                 }
             }
         };
+    }
+
+    private String getRealMethodName(Class<?> testCLass, String methodName) {
+        int bracket = methodName.indexOf('[');
+        return bracket >= 0 ? methodName.substring(0, bracket) : methodName;
     }
 
     /**
