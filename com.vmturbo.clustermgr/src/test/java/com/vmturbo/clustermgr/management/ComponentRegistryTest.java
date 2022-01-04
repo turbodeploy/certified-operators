@@ -4,9 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.spy;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -16,84 +13,72 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Table;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.clustermgr.ClustermgrDbEndpointConfig;
+import com.vmturbo.clustermgr.TestClustermgrDbEndpointConfig;
 import com.vmturbo.clustermgr.db.Clustermgr;
 import com.vmturbo.clustermgr.db.Tables;
 import com.vmturbo.clustermgr.db.tables.records.RegisteredComponentRecord;
-import com.vmturbo.clustermgr.management.ComponentRegistryTest.TestClustermgrDbEndpointConfig;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentIdentifier;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentInfo;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentStarting;
 import com.vmturbo.common.protobuf.cluster.ComponentStatus.UriInfo;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit tests for {@link ComponentRegistry}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestClustermgrDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class ComponentRegistryTest {
+@RunWith(Parameterized.class)
+public class ComponentRegistryTest extends MultiDbTestBase {
 
-    @Autowired(required = false)
-    private TestClustermgrDbEndpointConfig dbEndpointConfig;
+    /**
+     * Get parameter value sets to use for test executions.
+     *
+     * @return parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Test class constructor accepting test parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         {@link SQLDialect} to be used
+     * @throws SQLException                if there's a DB error
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupte
+     */
+    public ComponentRegistryTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Clustermgr.CLUSTERMGR, configurableDbDialect, dialect, "clustermgr",
+                TestClustermgrDbEndpointConfig::clusterMgrEndpoint);
+        dsl = super.getDslContext();
+    }
+
+    /** Rule chain that provides optimized DB access durint tests. */
+    @Rule
+    public TestRule multiDbRuleChain = super.ruleChain;
 
     private static final UriInfo URI_INFO = UriInfo.newBuilder()
-        .setRoute("route")
-        .setIpAddress("ip")
-        .setPort(123)
-        .build();
+            .setRoute("route")
+            .setIpAddress("ip")
+            .setPort(123)
+            .build();
 
     private static final long UNHEALTHY_DEREGISTRATION_SEC = 100;
-
-    /**
-     * Rule to set up the database before running the tests.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Clustermgr.CLUSTERMGR);
-
-    /**
-     * Rule to clean up the database after each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @ClassRule
-    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("clustermgr");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
     private ComponentRegistry componentRegistry;
@@ -107,12 +92,6 @@ public class ComponentRegistryTest {
      */
     @Before
     public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.clusterMgrEndpoint());
-            dsl = dbEndpointConfig.clusterMgrEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         componentRegistry = new ComponentRegistry(dsl, clock, UNHEALTHY_DEREGISTRATION_SEC, TimeUnit.SECONDS);
     }
 
@@ -324,26 +303,5 @@ public class ComponentRegistryTest {
                                 .setJvmId(jvmId))
                         .setUriInfo(URI_INFO))
                 .build();
-    }
-
-    /**
-     * Workaround for {@link ClustermgrDbEndpointConfig} (remove conditional annotation), since
-     * it's conditionally initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we
-     * test all combinations of it using {@link FeatureFlagTestRule}, first it's false, so
-     * {@link ClustermgrDbEndpointConfig} is not created; then second it's true,
-     * {@link ClustermgrDbEndpointConfig} is created, but the endpoint inside is also eagerly
-     * initialized due to the same FF, which results in several issues like: it doesn't go through
-     * DbEndpointTestRule, making call to auth to get root password, etc.
-     */
-    @Configuration
-    static class TestClustermgrDbEndpointConfig extends ClustermgrDbEndpointConfig {
-
-        @Override
-        public DbEndpointCompleter endpointCompleter() {
-            // prevent actual completion of the DbEndpoint
-            DbEndpointCompleter dbEndpointCompleter = spy(super.endpointCompleter());
-            doNothing().when(dbEndpointCompleter).setEnvironment(any());
-            return dbEndpointCompleter;
-        }
     }
 }

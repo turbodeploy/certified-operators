@@ -8,6 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collection;
@@ -21,10 +22,14 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
@@ -38,38 +43,57 @@ import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit tests for {@link SQLPriceTableStore}.
  */
-public class SQLCloudRateExtractorStoreTest {
+@RunWith(Parameterized.class)
+public class SQLCloudRateExtractorStoreTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public SQLCloudRateExtractorStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final PriceTable MERGED_PRICE_TABLE = mockPriceTable(2L);
 
     private static final ReservedInstancePriceTable MERGED_RI_PRICE_TABLE = mockRiPriceTable(22L);
 
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
-
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
     private SQLPriceTableStore store;
-
-    private DSLContext dsl;
 
     /**
      * The clock can't start at too small of a number because TIMESTAMP starts in 1970, but
@@ -98,7 +122,6 @@ public class SQLCloudRateExtractorStoreTest {
 
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
 
-        dsl = dbConfig.getDslContext();
         store = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
                 new DefaultIdentityProvider(0)), mergeFactory);
 

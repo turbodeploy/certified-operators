@@ -7,6 +7,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.lang.reflect.Type;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
@@ -21,10 +22,15 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -40,6 +46,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore.PriceTableKeyOid;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
@@ -48,36 +55,55 @@ import com.vmturbo.identity.attributes.IdentityMatchingAttribute;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Context Configuration for this test class.
  */
-public class CloudRateExtractorKeyIdentityStoreTest {
+@RunWith(Parameterized.class)
+public class CloudRateExtractorKeyIdentityStoreTest extends MultiDbTestBase {
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public CloudRateExtractorKeyIdentityStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
     private final Type type = new TypeToken<Map<String, String>>() {
     }.getType();
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
-    private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
+    private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000),
+            ZoneId.systemDefault());
 
-    private DSLContext dsl = dbConfig.getDslContext();
-
-    private PriceTableKeyIdentityStore testIdentityStore = new PriceTableKeyIdentityStore(dsl,
-                new DefaultIdentityProvider(0));
+    private PriceTableKeyIdentityStore testIdentityStore;
 
     private final Long awsServiceProviderOid = 123456L;
     private final Long azureServiceProviderOid = 9876543L;
@@ -88,6 +114,12 @@ public class CloudRateExtractorKeyIdentityStoreTest {
     @BeforeClass
     public static void setupClass() {
         IdentityGenerator.initPrefix(0L);
+    }
+
+    @Before
+    public void before() {
+        testIdentityStore = new PriceTableKeyIdentityStore(dsl,
+                new DefaultIdentityProvider(0));
     }
 
     /**

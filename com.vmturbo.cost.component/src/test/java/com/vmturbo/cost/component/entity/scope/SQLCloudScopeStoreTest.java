@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -32,10 +33,15 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.junit.ClassRule;
+import org.jooq.SQLDialect;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.springframework.scheduling.TaskScheduler;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
@@ -50,6 +56,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.cca.SQLComputeTierAllocationStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntityState;
@@ -61,42 +68,55 @@ import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
-public class SQLCloudScopeStoreTest {
+@RunWith(Parameterized.class)
+public class SQLCloudScopeStoreTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
 
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public SQLCloudScopeStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private final Logger logger = LogManager.getLogger();
 
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
-
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    private final DSLContext dsl = dbConfig.getDslContext();
-
-
-    private final SQLCloudScopeStore cloudScopeStore = new SQLCloudScopeStore(
-            dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
+    private SQLCloudScopeStore cloudScopeStore;
 
     /**
      * Entity State Store.
      */
-    private final EntityStateStore<DSLContext> entityStateStore = new SqlEntityStateStore(dsl, 100);
+    private EntityStateStore<DSLContext> entityStateStore;
 
     private final TopologyInfoTracker mockTopologyTracker = mock(TopologyInfoTracker.class);
 
-    private final SQLComputeTierAllocationStore computeTierAllocationStore =
-            new SQLComputeTierAllocationStore(dsl, mockTopologyTracker, MoreExecutors.newDirectExecutorService(),
-                    1000, 1000, 1000);
+    private SQLComputeTierAllocationStore computeTierAllocationStore;
 
     private final long vmOid1 = 101L;
     private final long vmOid2 = 102L;
@@ -119,44 +139,54 @@ public class SQLCloudScopeStoreTest {
      * Format of diagnostic dump files for post-8.1.6 DB schema, with 8 columns.
      */
     private final List<String> post816SchemaLines = ImmutableList.of(
-            String.format("[%d,10,73745724692990,73745724691229,73745724691226,73745724692991,null,\"2021-05-11T21:28:26\"]",
+            String.format(
+                    "[%d,10,73745724692990,73745724691229,73745724691226,73745724692991,null,\"2021-05-11T21:28:26\"]",
                     vmOid3),
-            String.format("[%d,60,73953217476424,73953220080519,73953220080518,73953217476422,%d,\"2021-05-03T15:15:03\"]",
+            String.format(
+                    "[%d,60,73953217476424,73953220080519,73953220080518,73953217476422,%d,\"2021-05-03T15:15:03\"]",
                     volOid1, resourceGroupOid1)
     );
 
+    @Before
+    public void before() {
+        entityStateStore = new SqlEntityStateStore(dsl, 100);
+        cloudScopeStore = new SQLCloudScopeStore(
+                dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
+        computeTierAllocationStore = new SQLComputeTierAllocationStore(dsl, mockTopologyTracker,
+                MoreExecutors.newDirectExecutorService(),
+                1000, 1000, 1000);
+    }
 
     @Test
     public void testCleanup() throws EntitySavingsException {
 
         final Long entityOid1 = 1L;
         final Long entityOid2 = 7L;
-        final ComputeTierAllocationDatapoint datapointA = ImmutableComputeTierAllocationDatapoint.builder()
-                .entityOid(entityOid1)
-                .entityType(10)
-                .accountOid(2)
-                .regionOid(3)
-                .availabilityZoneOid(4)
-                .serviceProviderOid(5)
-                .cloudTierDemand(ComputeTierDemand.builder()
-                        .osType(OSType.LINUX)
-                        .tenancy(Tenancy.DEFAULT)
-                        .cloudTierOid(6).build())
-                .build();
-        final ComputeTierAllocationDatapoint datapointB = ImmutableComputeTierAllocationDatapoint.builder()
-                .entityOid(entityOid2)
-                .entityType(10)
-                .accountOid(8)
-                .regionOid(9)
-                .serviceProviderOid(10)
-                .cloudTierDemand(ComputeTierDemand.builder()
-                        .osType(OSType.LINUX)
-                        .tenancy(Tenancy.DEFAULT)
-                        .cloudTierOid(12).build())
-                .build();
-
-
-
+        final ComputeTierAllocationDatapoint datapointA =
+                ImmutableComputeTierAllocationDatapoint.builder()
+                        .entityOid(entityOid1)
+                        .entityType(10)
+                        .accountOid(2)
+                        .regionOid(3)
+                        .availabilityZoneOid(4)
+                        .serviceProviderOid(5)
+                        .cloudTierDemand(ComputeTierDemand.builder()
+                                .osType(OSType.LINUX)
+                                .tenancy(Tenancy.DEFAULT)
+                                .cloudTierOid(6).build())
+                        .build();
+        final ComputeTierAllocationDatapoint datapointB =
+                ImmutableComputeTierAllocationDatapoint.builder()
+                        .entityOid(entityOid2)
+                        .entityType(10)
+                        .accountOid(8)
+                        .regionOid(9)
+                        .serviceProviderOid(10)
+                        .cloudTierDemand(ComputeTierDemand.builder()
+                                .osType(OSType.LINUX)
+                                .tenancy(Tenancy.DEFAULT)
+                                .cloudTierOid(12).build())
+                        .build();
 
         final Set<ComputeTierAllocationDatapoint> datapoints = ImmutableSet.of(
                 datapointA, datapointB);

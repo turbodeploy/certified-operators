@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -14,10 +15,14 @@ import java.util.stream.Stream;
 
 import org.apache.logging.log4j.util.TriConsumer;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Assert;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
@@ -31,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityCostRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
@@ -39,35 +45,54 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit tests for the plan projected entity cost store.
  */
-public class PlanProjectedEntityCostStoreTest {
+@RunWith(Parameterized.class)
+public class PlanProjectedEntityCostStoreTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public PlanProjectedEntityCostStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long RT_TOPO_CONTEXT_ID = 777777L;
-
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
-
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
     private static final long PLAN_ID = 1L;
     private static final double DELTA = 0.01;
 
     private final int chunkSize = 10;
     private static final EntityCost VM_COST = EntityCost.newBuilder()
-                    .setAssociatedEntityId(7L)
-                    .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setAssociatedEntityId(7L)
+            .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .addComponentCost(ComponentCost.newBuilder()
                     .setCategory(CostCategory.ON_DEMAND_COMPUTE)
                     .setAmount(CurrencyAmount.newBuilder()
@@ -82,8 +107,6 @@ public class PlanProjectedEntityCostStoreTest {
                     .setAmount(CurrencyAmount.newBuilder()
                             .setAmount(50).setCurrency(840)))
             .build();
-
-    private DSLContext dsl = dbConfig.getDslContext();
 
     @Test
     public void testUpdateProjectedEntityCostsTable() {

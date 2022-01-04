@@ -45,19 +45,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -91,16 +88,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.db.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.ProtobufMessageMatcher;
 import com.vmturbo.group.group.TestGroupGenerator;
@@ -112,58 +108,57 @@ import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.group.setting.SettingStore.SettingAdapter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit test for {@link SettingStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class SettingStoreTest {
+@RunWith(Parameterized.class)
+public class SettingStoreTest extends MultiDbTestBase {
+
+    /**
+     * Provide test parameter values.
+     * @return parameter values
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given paraemters.
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect DB dialect
+     * @throws SQLException if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     */
+    public SettingStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(GroupComponent.GROUP_COMPONENT, configurableDbDialect, dialect, "group",
+                TestGroupDBEndpointConfig::groupEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /**
+     * Rule chain to manage database provisioning and lifecycle.
+     */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
+
     private static final long DEFAULT_POLICY_ID = 1023L;
     private static final float VMEM_INCREMENT = 10.0f;
     private static final float VCPU_INCREMENT = 15.0f;
 
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     /**
      * Rule to expect exceptions, if required.
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    /**
-     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    @Autowired(required = false)
-    private TestGroupDBEndpointConfig dbEndpointConfig;
-
-    private DSLContext dsl;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -189,7 +184,7 @@ public class SettingStoreTest {
     private SettingPolicy userPolicy;
 
     private static final String SETTING_TEST_JSON_SETTING_SPEC_JSON =
-        "setting-test-json/setting-spec.json";
+            "setting-test-json/setting-spec.json";
 
     private SettingPolicyValidator settingPolicyValidator = mock(SettingPolicyValidator.class);
 
@@ -199,12 +194,6 @@ public class SettingStoreTest {
 
     @Before
     public void setUp() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
-            dsl = dbEndpointConfig.groupEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         userPolicy = SettingPolicy.newBuilder()
             .setId(identityProviderSpy.next())
             .setInfo(info)

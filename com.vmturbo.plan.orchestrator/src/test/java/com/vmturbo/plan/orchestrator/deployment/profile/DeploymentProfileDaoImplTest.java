@@ -6,10 +6,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.spy;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -21,20 +19,16 @@ import java.util.stream.Stream;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
@@ -42,60 +36,53 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.db.Tables;
+import com.vmturbo.plan.orchestrator.db.TestPlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateToDeploymentProfileRecord;
-import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImplTest.TestPlanOrchestratorDBEndpointConfig;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit tests for {@link DeploymentProfileDaoImpl}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestPlanOrchestratorDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class DeploymentProfileDaoImplTest {
-
-    @Autowired(required = false)
-    private TestPlanOrchestratorDBEndpointConfig dbEndpointConfig;
+@RunWith(Parameterized.class)
+public class DeploymentProfileDaoImplTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Supply test parameter values.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new test instance with given paraemter values.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB problem occurs
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public DeploymentProfileDaoImplTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Plan.PLAN, configurableDbDialect, dialect, "plan-orchestrator",
+                TestPlanOrchestratorDBEndpointConfig::planEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage DB provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("plan-orchestrator");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
+    public TestRule multiDbRules = super.ruleChain;
 
     private DeploymentProfileDaoImpl deploymentProfileDao;
-
-    private DSLContext dsl;
 
     /**
      * Common setup code, mainly to prepare the database.
@@ -109,13 +96,6 @@ public class DeploymentProfileDaoImplTest {
     }
 
     private void prepareDatabase() throws Exception {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.planEndpoint());
-            dsl = dbEndpointConfig.planEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
-
         deploymentProfileDao = new DeploymentProfileDaoImpl(dsl);
     }
 
@@ -321,26 +301,5 @@ public class DeploymentProfileDaoImplTest {
         t1Record1.setTemplateId(templateId);
         t1Record1.setDeploymentProfileId(profileId);
         return t1Record1;
-    }
-
-    /**
-     * Workaround for {@link PlanOrchestratorDBEndpointConfig} (remove conditional annotation), since
-     * it's conditionally initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we
-     * test all combinations of it using {@link FeatureFlagTestRule}, first it's false, so
-     * {@link PlanOrchestratorDBEndpointConfig} is not created; then second it's true,
-     * {@link PlanOrchestratorDBEndpointConfig} is created, but the endpoint inside is also eagerly
-     * initialized due to the same FF, which results in several issues like: it doesn't go through
-     * DbEndpointTestRule, making call to auth to get root password, etc.
-     */
-    @Configuration
-    public static class TestPlanOrchestratorDBEndpointConfig
-            extends PlanOrchestratorDBEndpointConfig {
-        @Override
-        public DbEndpointCompleter endpointCompleter() {
-            // prevent actual completion of the DbEndpoint
-            DbEndpointCompleter dbEndpointCompleter = spy(super.endpointCompleter());
-            doNothing().when(dbEndpointCompleter).setEnvironment(any());
-            return dbEndpointCompleter;
-        }
     }
 }

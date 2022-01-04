@@ -8,6 +8,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -15,22 +16,19 @@ import java.util.Optional;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.Trigger;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
@@ -44,59 +42,54 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Weekly;
 import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProject.PlanProjectStatus;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.plan.orchestrator.db.Plan;
+import com.vmturbo.plan.orchestrator.db.TestPlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
-import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImplTest.TestPlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
 import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.PlanProjectInfoNotFoundException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectNotFoundException;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Tests for the {@link PlanProjectScheduler} class.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestPlanOrchestratorDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class PlanProjectSchedulerTest {
-
-    @Autowired(required = false)
-    private TestPlanOrchestratorDBEndpointConfig dbEndpointConfig;
+@RunWith(Parameterized.class)
+public class PlanProjectSchedulerTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameter values.
+     * @return parameter values
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given test parameters.
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect DB dialect
+     * @throws SQLException if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     */
+    public PlanProjectSchedulerTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Plan.PLAN, configurableDbDialect, dialect, "plan-orchestrator",
+                TestPlanOrchestratorDBEndpointConfig::planEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /**
+     * rule to manage test databases.
      */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("plan-orchestrator");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long DAILY_PLAN_PROJECT_ID = 1000L;
     private static final long WEEKLY_PLAN_PROJECT_ID = 1001L;
@@ -117,13 +110,6 @@ public class PlanProjectSchedulerTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.planEndpoint());
-            dsl = dbEndpointConfig.planEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
 
         planProjectDao = new PlanProjectDaoImpl(dsl, new IdentityInitializer(0));
         threadPoolTaskScheduler = new ThreadPoolTaskScheduler();

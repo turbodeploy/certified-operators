@@ -32,7 +32,11 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
@@ -40,15 +44,16 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.Constants;
+import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.tables.records.EntityRecord;
 import com.vmturbo.extractor.schema.tables.records.ScopeRecord;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
@@ -61,7 +66,8 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
-public class ScopeManagerTest {
+@CleanupOverrides(checkOthers = true)
+public class ScopeManagerTest implements ApplicationContextAware {
 
     private ScopeManager scopeManager;
     private DSLContext dsl;
@@ -78,10 +84,11 @@ public class ScopeManagerTest {
 
     /** Manage feature flags. */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private final DataPack<Long> oidPack = new LongDataPack();
+
+    private DbEndpoint endpoint;
 
     /**
      * Set up for tests.
@@ -92,8 +99,6 @@ public class ScopeManagerTest {
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
-        final DbEndpoint endpoint = dbConfig.ingesterEndpoint();
-        endpointRule.addEndpoints(endpoint);
         // Thread pool needs more than one thread or else the RecordWriter in DslRecordSink will
         // time out and throw an exception.
         final ExecutorService pool = Executors.newFixedThreadPool(3);
@@ -269,6 +274,16 @@ public class ScopeManagerTest {
             rec.setStart(start);
             rec.setFinish(finish);
             assertThat(records, hasItem(rec));
+        }
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        try {
+            this.endpoint = endpointRule.completeEndpoint(dbConfig.ingesterEndpoint(),
+                    Extractor.EXTRACTOR).getDbEndpoint();
+        } catch (UnsupportedDialectException | InterruptedException | SQLException e) {
+            throw new BeanCreationException("Failed to configure endpoint", e);
         }
     }
 }

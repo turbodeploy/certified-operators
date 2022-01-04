@@ -3,84 +3,70 @@ package com.vmturbo.plan.orchestrator;
 import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
 import static org.junit.Assert.assertEquals;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.Collections;
 
 import org.jooq.DSLContext;
 import org.jooq.Result;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.plan.orchestrator.db.Plan;
+import com.vmturbo.plan.orchestrator.db.TestPlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.db.tables.records.ScenarioRecord;
-import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImplTest.TestPlanOrchestratorDBEndpointConfig;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Tests for database schema.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestPlanOrchestratorDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class DatabaseSchemaIT {
-
-    @Autowired(required = false)
-    private TestPlanOrchestratorDBEndpointConfig dbEndpointConfig;
+@RunWith(Parameterized.class)
+public class DatabaseSchemaIT extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Parameters to control DB access during each test execution.
+     *
+     * @return parameter values
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new test class instance with test parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         {@link SQLDialect} to use
+     * @throws SQLException                if a DB problem occurs
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interuptted
      */
+    public DatabaseSchemaIT(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Plan.PLAN, configurableDbDialect, dialect, "plan-orchestrator",
+                TestPlanOrchestratorDBEndpointConfig::planEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to provide optimized DB access during test. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("plan-orchestrator");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    protected DSLContext dsl;
+    public TestRule multiDbRuleChain = super.ruleChain;
 
     @Before
     public void prepare() throws Exception {
         IdentityGenerator.initPrefix(0);
-
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.planEndpoint());
-            dsl = dbEndpointConfig.planEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
     }
 
     @Test

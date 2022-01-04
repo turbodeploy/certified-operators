@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,34 +14,62 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.junit.ClassRule;
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.util.AccountExpensesFilter;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
-public class SqlAccountExpensesStoreTest {
+@RunWith(Parameterized.class)
+public class SqlAccountExpensesStoreTest extends MultiDbTestBase {
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public SqlAccountExpensesStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long ACCOUNT_ID_1 = 1111L;
     private static final long ACCOUNT_ID_2 = 2222L;
@@ -90,27 +119,35 @@ public class SqlAccountExpensesStoreTest {
                     .build())
             .build();
 
-    final AccountExpenses.AccountExpensesInfo accountExpensesInfo4 = AccountExpensesInfo.newBuilder()
-            .addServiceExpenses(ServiceExpenses
-                    .newBuilder()
-                    .setAssociatedServiceId(CLOUD_SERVICE_ID_2)
-                    .setExpenses(CurrencyAmount.newBuilder()
-                            .setCurrency(840)
-                            .setAmount(COST_AMOUNT_4).build())
-                    .build())
-            .build();
+    final AccountExpenses.AccountExpensesInfo accountExpensesInfo4 =
+            AccountExpensesInfo.newBuilder()
+                    .addServiceExpenses(ServiceExpenses
+                            .newBuilder()
+                            .setAssociatedServiceId(CLOUD_SERVICE_ID_2)
+                            .setExpenses(CurrencyAmount.newBuilder()
+                                    .setCurrency(840)
+                                    .setAmount(COST_AMOUNT_4).build())
+                            .build())
+                    .build();
 
-    private AccountExpensesStore expensesStore = new SqlAccountExpensesStore(dbConfig.getDslContext(), Clock.systemDefaultZone(), 1);
+    private AccountExpensesStore expensesStore;
+
+    @Before
+    public void before() {
+        expensesStore = new SqlAccountExpensesStore(dsl, Clock.systemDefaultZone(), 1);
+    }
 
     /**
      * Get the latest account expenses from {@link SqlAccountExpensesStore}.
+     *
      * @throws AccountExpenseNotFoundException if the account expense with associated account id
-     * doesn't exist
-     * @throws DbException if anything goes wrong in the database
-     * @throws InterruptedException if thread has been interrupted
+     *                                         doesn't exist
+     * @throws DbException                     if anything goes wrong in the database
+     * @throws InterruptedException            if thread has been interrupted
      */
     @Test
-    public void testGetLatestExpense() throws AccountExpenseNotFoundException, DbException, InterruptedException {
+    public void testGetLatestExpense()
+            throws AccountExpenseNotFoundException, DbException, InterruptedException {
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo2);
 

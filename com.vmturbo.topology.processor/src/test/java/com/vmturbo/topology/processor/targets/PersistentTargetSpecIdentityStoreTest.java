@@ -20,70 +20,65 @@ import com.google.gson.Gson;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 import com.vmturbo.topology.processor.TestTopologyProcessorDbEndpointConfig;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestTopologyProcessorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class PersistentTargetSpecIdentityStoreTest {
-
-    @Autowired(required = false)
-    private TestTopologyProcessorDbEndpointConfig dbEndpointConfig;
+@RunWith(Parameterized.class)
+public class PersistentTargetSpecIdentityStoreTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameter values.
+     *
+     * @return parameter values
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameter values.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public PersistentTargetSpecIdentityStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(TopologyProcessor.TOPOLOGY_PROCESSOR, configurableDbDialect, dialect, "topology-processor",
+                TestTopologyProcessorDbEndpointConfig::tpEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /**
+     * Rule chain to manage Db provisioning and lifecycle.
      */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @ClassRule
-    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("topology-processor");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long TARGET_OID_1 = 2333L;
     private static final long TARGET_OID_2 = 666L;
@@ -100,8 +95,6 @@ public class PersistentTargetSpecIdentityStoreTest {
     private static final String TARGET_IDENTITY_ATTRS_1 = new Gson().toJson(ATTR_1);
     private static final String TARGET_IDENTITY_ATTRS_2 = new Gson().toJson(ATTR_2);
 
-    private DSLContext dsl;
-
     /**
      * Set up before each test.
      *
@@ -112,12 +105,6 @@ public class PersistentTargetSpecIdentityStoreTest {
     @Before
     public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
         IdentityGenerator.initPrefix(0);
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.tpEndpoint());
-            dsl = dbEndpointConfig.tpEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
     }
 
     /**
@@ -211,7 +198,7 @@ public class PersistentTargetSpecIdentityStoreTest {
         assertEquals(attrsToOidMap.size(), 1);
         Map.Entry<IdentityMatchingAttributes, Long> entry = attrsToOidMap.entrySet().iterator().next();
         assertEquals(entry.getKey(), ATTR_2);
-        assertEquals((long) entry.getValue(), TARGET_OID_1);
+        assertEquals((long)entry.getValue(), TARGET_OID_1);
     }
 
     /**

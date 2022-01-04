@@ -103,6 +103,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -164,6 +165,12 @@ public class OperationManagerTest {
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Rule to support feature flag access during test.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private DSLContext dsl = dbConfig.getDslContext();
 

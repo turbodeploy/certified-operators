@@ -235,7 +235,7 @@ public class DbEndpoint {
             connectionProvider = new DataSourceConnectionProvider(
                             new TransactionAwareDataSourceProxy(
                                     new LazyConnectionDataSourceProxy(
-                                            adapter.getDataSource(true))));
+                                            adapter.getDataSource(config.getUseConnectionPool()))));
         }
         return connectionProvider;
     }
@@ -468,7 +468,7 @@ public class DbEndpoint {
             }
         }
 
-        private void startCompletion() {
+        protected void startCompletion() {
             if (this.completionStarted.compareAndSet(false, true)) {
                 synchronized (pendingEndpoints) {
                     completePendingEndpoints();

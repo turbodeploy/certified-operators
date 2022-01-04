@@ -19,11 +19,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
@@ -40,6 +40,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@CleanupOverrides(checkOthers = true)
 public class DBTests {
 
     private DbEndpoint endpoint = null;
@@ -57,8 +58,7 @@ public class DBTests {
 
     /** Manage feature flag states. */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Set up for tests.
@@ -69,8 +69,8 @@ public class DBTests {
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
-        this.endpoint = dbConfig.ingesterEndpoint();
-        endpointRule.addEndpoints(endpoint);
+        this.endpoint = endpointRule.completeEndpoint(dbConfig.ingesterEndpoint(),
+                Extractor.EXTRACTOR).getDbEndpoint();
     }
 
     /**

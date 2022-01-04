@@ -8,7 +8,7 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 
 /**
  * Conditions used to decide whether to use {@link DbEndpoint} or legacy {@link SQLDatabaseConfig}.
- * If FF postgresPrimaryDB is enabled, then {@link DbEndpoint} is used; otherwise
+ * If FF POSTGRES_PRIMARY_DB is enabled, then {@link DbEndpoint} is used; otherwise
  * {@link SQLDatabaseConfig} is used.
  */
 public class ConditionalDbConfig {
@@ -23,7 +23,7 @@ public class ConditionalDbConfig {
          * @param context the condition context
          * @param metadata metadata of the {@link org.springframework.core.type.AnnotationMetadata
          *         class} or {@link org.springframework.core.type.MethodMetadata method} being checked.
-         * @return true if "postgresPrimaryDB" is set to true from environment.
+         * @return true if "featureFlags.postgresPrimaryDB" is set to true from environment.
          */
         @Override
         public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
@@ -41,7 +41,7 @@ public class ConditionalDbConfig {
          * @param context the condition context
          * @param metadata metadata of the {@link org.springframework.core.type.AnnotationMetadata
          *         class} or {@link org.springframework.core.type.MethodMetadata method} being checked
-         * @return true if "postgresPrimaryDB" is set to false from environment
+         * @return true if "featureFlags.postgresPrimaryDB" is set to false from environment
          */
         @Override
         public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {

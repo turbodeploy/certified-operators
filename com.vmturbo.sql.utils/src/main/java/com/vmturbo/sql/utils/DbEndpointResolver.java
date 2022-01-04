@@ -81,12 +81,8 @@ public class DbEndpointResolver {
     public static final String SECURE_PROPERTY_NAME = "secure";
     /** dbMigrationLocations property. */
     public static final String MIGRATION_LOCATIONS_PROPERTY = "migrationLocations";
-    /** dbDestructiveProvisioningEnabled property. */
-    public static final String DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY = "destructiveProvisioningEnabled";
     /** dbEndpointEnabled property. */
     public static final String ENDPOINT_ENABLED_PROPERTY = "endpointEnabled";
-    /** dbProvisioningSuffix property. */
-    public static final String NAME_SUFFIX_PROPERTY = "nameSuffix";
     /** dbShouldProvisionDatabase property. */
     public static final String SHOULD_PROVISION_DATABASE_PROPERTY = "shouldProvisionDatabase";
     /** dbShouldProvisionUser property. */
@@ -223,9 +219,8 @@ public class DbEndpointResolver {
      */
     public void resolveDatabaseName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getDatabaseName);
-        final String value = firstNonEmpty(configuredPropValue(DATABASE_NAME_PROPERTY),
-                config.getDatabaseName(), fromTemplate, getComponentName());
-        config.setDatabaseName(config.isAbstract() ? value : config.mangleIdentifier(value));
+        config.setDatabaseName(firstNonEmpty(configuredPropValue(DATABASE_NAME_PROPERTY),
+                config.getDatabaseName(), fromTemplate, getComponentName()));
     }
 
     /**
@@ -235,9 +230,8 @@ public class DbEndpointResolver {
      */
     public void resolveSchemaName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getSchemaName);
-        final String value = firstNonEmpty(configuredPropValue(SCHEMA_NAME_PROPERTY),
-                config.getSchemaName(), fromTemplate, getComponentName());
-        config.setSchemaName(config.isAbstract() ? value : config.mangleIdentifier(value));
+        config.setSchemaName(firstNonEmpty(configuredPropValue(SCHEMA_NAME_PROPERTY),
+                config.getSchemaName(), fromTemplate, getComponentName()));
     }
 
     /**
@@ -247,9 +241,8 @@ public class DbEndpointResolver {
      */
     public void resolveUserName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUserName);
-        final String value = firstNonEmpty(configuredPropValue(USER_NAME_PROPERTY),
-                config.getUserName(), fromTemplate, getComponentName());
-        config.setUserName(config.isAbstract() ? value : config.mangleIdentifier(value));
+        config.setUserName(firstNonEmpty(configuredPropValue(USER_NAME_PROPERTY),
+                config.getUserName(), fromTemplate, getComponentName()));
     }
 
     /**
@@ -260,7 +253,7 @@ public class DbEndpointResolver {
     public void resolvePassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getPassword);
         config.setPassword(Optional.ofNullable(firstNonEmpty(configuredPropValue(PASSWORD_PROPERTY),
-                config.getPassword(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootPassword()));
+                config.getPassword(), fromTemplate)).orElseGet(dbPasswordUtil::getSqlDbRootPassword));
     }
 
     /**
@@ -309,7 +302,8 @@ public class DbEndpointResolver {
     public void resolveRootPassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootPassword);
         config.setRootPassword(Optional.ofNullable(firstNonEmpty(configuredPropValue(ROOT_PASSWORD_PROPERTY),
-                config.getRootPassword(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootPassword()));
+                config.getRootPassword(), fromTemplate)).orElseGet(
+                dbPasswordUtil::getSqlDbRootPassword));
     }
 
     /**
@@ -540,7 +534,7 @@ public class DbEndpointResolver {
             case MARIADB:
                 return Arrays.asList("dbs.mariadbDefault", "dbs.mysqlDefault");
             case POSTGRES:
-                return Arrays.asList("dbs.postgresDefault");
+                return Collections.singletonList("dbs.postgresDefault");
             default:
                 throw new UnsupportedDialectException(dialect);
         }

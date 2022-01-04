@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.savings;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -29,29 +30,76 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.db.tables.AccountExpensesRetentionPolicies;
+import com.vmturbo.cost.component.db.tables.AggregationMetaData;
+import com.vmturbo.cost.component.db.tables.EntitySavingsByDay;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
+import com.vmturbo.cost.component.db.tables.EntitySavingsByMonth;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RolledUpTable;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Used to test savings related DB read/write codebase.
  */
-public class SqlEntitySavingsStoreTest {
+@RunWith(Parameterized.class)
+@CleanupOverrides(truncate = {AggregationMetaData.class, AccountExpensesRetentionPolicies.class,
+        EntitySavingsByDay.class, EntitySavingsByMonth.class})
+public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    private RollupTimesStore rollupTimesStore;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public SqlEntitySavingsStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
+
     private final Logger logger = LogManager.getLogger();
 
     /**
@@ -59,30 +107,11 @@ public class SqlEntitySavingsStoreTest {
      */
     private SqlEntitySavingsStore store;
 
-    private RollupTimesStore rollupTimesStore;
-
-    /**
-     * Config providing access to DB. Also, ClassRule to init Db and upgrade to latest.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
-
-    /**
-     * Rule to clean up temp test DB.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
     /**
      * Fixed clock to keep track of times. Pinned to shortly after 1pm on 1/12/1970.
      */
     private final Clock clock = Clock.fixed(Instant.ofEpochMilli(1_000_000_000L),
             ZoneId.from(ZoneOffset.UTC));
-
-    /**
-     * Context to execute DB queries and inserts.
-     */
-    private final DSLContext dsl = dbConfig.getDslContext();
 
     /**
      * For double checks.
