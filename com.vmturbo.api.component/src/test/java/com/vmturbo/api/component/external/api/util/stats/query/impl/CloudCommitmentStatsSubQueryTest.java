@@ -80,13 +80,9 @@ public class CloudCommitmentStatsSubQueryTest {
             .includeProjected(false)
             .build();
 
-    private static final StatValue capacity = StatValue.newBuilder().setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-            CurrencyAmount.newBuilder().setAmount(2.5d).build()).build()).setMax(
-            CloudCommitmentAmount.newBuilder().setAmount(CurrencyAmount.newBuilder().setAmount(5.0d).build())).build();
+    private static final StatValue capacity = StatValue.newBuilder().setAvg(2.5d).setMax(5.0d).build();
 
-    private static final StatValue value = StatValue.newBuilder().setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-            CurrencyAmount.newBuilder().setAmount(1.0d).build()).build()).setMax(
-            CloudCommitmentAmount.newBuilder().setAmount(CurrencyAmount.newBuilder().setAmount(3.0d).build()).build()).build();
+    private static final StatValue value = StatValue.newBuilder().setAvg(1.0d).setMax(3.0d).build();
 
     /**
      * Setup the test.

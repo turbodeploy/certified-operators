@@ -143,11 +143,13 @@ message CloudCommitmentStatRecord {
 
     optional int64 service_provider_id = 10;
 
+    optional cloud_commitment_dto.CloudCommitmentCoverageTypeInfo coverage_type_info = 11;
+
     message StatValue {
-        optional cloud_commitment_dto.CloudCommitmentAmount max = 1;
-        optional cloud_commitment_dto.CloudCommitmentAmount min = 2;
-        optional cloud_commitment_dto.CloudCommitmentAmount avg = 3;
-        optional cloud_commitment_dto.CloudCommitmentAmount total = 4;
+        optional double max = 1;
+        optional double min = 2;
+        optional double avg = 3;
+        optional double total = 4;
     }
 }
 
