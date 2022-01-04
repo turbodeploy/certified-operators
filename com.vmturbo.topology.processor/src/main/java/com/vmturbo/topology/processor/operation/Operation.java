@@ -98,7 +98,7 @@ public abstract class Operation {
                      @Nonnull final IdentityProvider identityProvider,
                      @Nullable DataMetricSummary durationMetricSummary) {
         Objects.requireNonNull(identityProvider);
-        this.startTime = LocalDateTime.now();
+        this.startTime = LocalDateTime.now(ZoneId.from(ZoneOffset.UTC));
         this.id = identityProvider.generateOperationId();
         this.targetId = targetId;
         this.probeId = probeId;

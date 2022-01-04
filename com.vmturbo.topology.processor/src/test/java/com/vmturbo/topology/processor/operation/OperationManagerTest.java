@@ -22,6 +22,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -287,9 +289,9 @@ public class OperationManagerTest {
      */
     @Test
     public void testDiscoveryObject() {
-        LocalDateTime before = LocalDateTime.now();
+        LocalDateTime before = LocalDateTime.now(ZoneId.from(ZoneOffset.UTC));
         Discovery discovery = new Discovery(50, 100, identityProvider);
-        LocalDateTime after = LocalDateTime.now();
+        LocalDateTime after = LocalDateTime.now(ZoneId.from(ZoneOffset.UTC));
         testNow(discovery.getStartTime(), before, after);
         Assert.assertNull(discovery.getCompletionTime());
         Assert.assertEquals(50, discovery.getProbeId());
