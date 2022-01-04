@@ -6,12 +6,13 @@ import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
+import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -48,7 +49,7 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  */
 @Deprecated
 public class StorageStitchingOperation extends
-        AbstractExternalSignatureCachingStitchingOperation<String, String> {
+        ContextlessSignatureCachingStitchingOperation<String, String> {
     private static final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -78,7 +79,8 @@ public class StorageStitchingOperation extends
     }
 
     @Override
-    protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+    protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity,
+                                                      @Nullable Void signatureContext) {
         return getInternalSignature(externalEntity);
     }
 

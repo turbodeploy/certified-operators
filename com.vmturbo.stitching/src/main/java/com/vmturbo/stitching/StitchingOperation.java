@@ -21,6 +21,10 @@ import com.vmturbo.stitching.journal.JournalableOperation;
  *
  * {@link StitchingOperation}s are run on a per-target basis.
  *
+ * {@link StitchingOperation}s should be stateless. Any state operations accumulate should be stored
+ * outside of the operation itself and that state should be managed with the understanding that an
+ * operation may be run in multiple pipelines (and multiple kinds of pipelines ie live/plan) in parallel.
+ *
  * A {@link StitchingOperation} consists of two parts - matching and processing.
  * 1. Matching: In matching, internal entities (entities discovered by the probe that initiates the operation)
  *    of the type associated with the operation, are matched with external entities (entities discovered by
@@ -44,17 +48,6 @@ import com.vmturbo.stitching.journal.JournalableOperation;
  */
 public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
     extends JournalableOperation {
-
-    /**
-     * Called once for each operation when StitchingStage is started. Gives operation a chance to
-     * do anything needed once per stitching stage like clearing caches and setting up any
-     * internal bookkeeping needed for generating signatures, for example.
-     *
-     * @param stitchingScopeFactory factory that provides access to entities in the
-     * stitching context.
-     */
-    void initializeOperationBeforeStitching(@Nonnull StitchingScopeFactory<StitchingEntity>
-            stitchingScopeFactory);
 
     /**
      * Get the scope for this {@link StitchingOperation}. The {@link StitchingScope} returned determines
@@ -86,6 +79,8 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      *
      * @param stitchingScopeFactory The factory to use to construct the {@link StitchingScope} for this
      *                                {@link StitchingOperation}.
+     * @param signatureCache The cache of external signatures for use in looking up any existing
+     *                       signatures for this operation.
      * @param targetId the target id of the internal target we are trying to stitch.
      * @return Map of external signatures to Collections of StitchingEntities that match the
      * signatures.
@@ -93,7 +88,7 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
     @Nonnull
     Map<EXTERNAL_SIGNATURE_TYPE, Collection<StitchingEntity>> getExternalSignatures(
             @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
-            long targetId);
+            @Nonnull ExternalSignatureCache signatureCache, long targetId);
 
     /**
      * The {@link EntityType} of the internal entities to be stitched.

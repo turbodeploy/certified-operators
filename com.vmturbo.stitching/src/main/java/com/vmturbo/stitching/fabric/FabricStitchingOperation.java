@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
@@ -15,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
+import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -37,7 +38,7 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  *
  */
 public abstract class FabricStitchingOperation extends
-        AbstractExternalSignatureCachingStitchingOperation<String, String> {
+        ContextlessSignatureCachingStitchingOperation<String, String> {
     protected static final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -93,7 +94,8 @@ public abstract class FabricStitchingOperation extends
     }
 
     @Override
-    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity,
+                                                      @Nullable Void signatureContext) {
         return Collections.singleton(externalEntity.getEntityBuilder().getId());
     }
 
