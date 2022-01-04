@@ -402,10 +402,6 @@ public class TopologyDataDefinitionMapper {
     @Nonnull
     public TopologyDataDefinition convertTopologyDataDefinitionApiDTO(@Nonnull final TopologyDataDefinitionApiDTO definitionApiDTO)
             throws IllegalArgumentException {
-        if (definitionApiDTO.getDisplayName() == null
-            || definitionApiDTO.getDisplayName().trim().isEmpty()) {
-            processException("Empty display name");
-        }
         if (definitionApiDTO.getEntityDefinitionData() == null
                 || definitionApiDTO.getEntityDefinitionData().getDefinitionType() == null) {
             processException(String.format("Incorrect definition API DTO: %s",
