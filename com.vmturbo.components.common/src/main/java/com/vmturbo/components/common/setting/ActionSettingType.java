@@ -56,6 +56,7 @@ public enum ActionSettingType {
                             .put(EntityType.STORAGE, ActionMode.DISABLED)
                             .put(EntityType.DISK_ARRAY, ActionMode.DISABLED)
                             .put(EntityType.LOGICAL_POOL, ActionMode.DISABLED)
+                            .put(EntityType.CONTAINER_POD, ActionMode.RECOMMEND)
                             .build(),
                         ActionMode.class);
                     break;
@@ -67,6 +68,7 @@ public enum ActionSettingType {
                             .put(EntityType.STORAGE, ActionMode.RECOMMEND)
                             .put(EntityType.DISK_ARRAY, ActionMode.DISABLED)
                             .put(EntityType.LOGICAL_POOL, ActionMode.DISABLED)
+                            .put(EntityType.CONTAINER_POD, ActionMode.RECOMMEND)
                             .build(),
                         ActionMode.class);
                     break;
