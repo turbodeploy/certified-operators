@@ -28,8 +28,11 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
@@ -357,17 +360,18 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setSnapshotDate(dataBuckets.get(0).getTimestampMillis())
                 .setServiceProviderId(8)
                 .setSampleCount(2)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setMax(3.0)
+                        .setMin(1.0)
+                        .setAvg(2.0)
+                        .setTotal(4.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(6.0))
+                        .setMax(4.0)
+                        .setMin(2.0)
+                        .setAvg(3.0)
+                        .setTotal(6.0)
                         .build())
                 .build();
 
@@ -376,25 +380,21 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setSnapshotDate(dataBuckets.get(0).getTimestampMillis())
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
+                        .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
+                        .setCoverageSubtype(123)
+                        .build())
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
+                        .setMax(2.0)
+                        .setMin(2.0)
+                        .setAvg(2.0)
+                        .setTotal(2.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setMax(5.0)
+                        .setMin(5.0)
+                        .setAvg(5.0)
+                        .setTotal(5.0)
                         .build())
                 .build();
 
@@ -403,17 +403,18 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setSnapshotDate(dataBuckets.get(1).getTimestampMillis())
                 .setServiceProviderId(8)
                 .setSampleCount(2)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setMax(2.0)
+                        .setMin(2.0)
+                        .setAvg(2.0)
+                        .setTotal(4.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(6.0))
+                        .setMax(4.0)
+                        .setMin(2.0)
+                        .setAvg(3.0)
+                        .setTotal(6.0)
                         .build())
                 .build();
 
@@ -422,25 +423,21 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setSnapshotDate(dataBuckets.get(1).getTimestampMillis())
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
+                        .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
+                        .setCoverageSubtype(123)
+                        .build())
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
+                        .setMax(3.0)
+                        .setMin(3.0)
+                        .setAvg(3.0)
+                        .setTotal(3.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setMax(5.0)
+                        .setMin(5.0)
+                        .setAvg(5.0)
+                        .setTotal(5.0)
                         .build())
                 .build();
 
@@ -479,17 +476,18 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setCloudServiceId(2)
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
+                        .setMax(1.0)
+                        .setMin(1.0)
+                        .setAvg(1.0)
+                        .setTotal(1.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMax(2.0)
+                        .setMin(2.0)
+                        .setAvg(2.0)
+                        .setTotal(2.0)
                         .build())
                 .build();
 
@@ -499,17 +497,18 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setCloudServiceId(6)
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
+                        .setMax(3.0)
+                        .setMin(3.0)
+                        .setAvg(3.0)
+                        .setTotal(3.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setMax(4.0)
+                        .setMin(4.0)
+                        .setAvg(4.0)
+                        .setTotal(4.0)
                         .build())
                 .build();
 
@@ -519,25 +518,21 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setCloudServiceId(9)
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
+                        .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
+                        .setCoverageSubtype(123)
+                        .build())
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
+                        .setMax(2.0)
+                        .setMin(2.0)
+                        .setAvg(2.0)
+                        .setTotal(2.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setMax(5.0)
+                        .setMin(5.0)
+                        .setAvg(5.0)
+                        .setTotal(5.0)
                         .build())
                 .build();
 
@@ -547,17 +542,18 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setCloudServiceId(2)
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMax(2.0)
+                        .setMin(2.0)
+                        .setAvg(2.0)
+                        .setTotal(2.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMax(2.0)
+                        .setMin(2.0)
+                        .setAvg(2.0)
+                        .setTotal(2.0)
                         .build())
                 .build();
 
@@ -567,17 +563,18 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setCloudServiceId(6)
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMax(2.0)
+                        .setMin(2.0)
+                        .setAvg(2.0)
+                        .setTotal(2.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setMax(4.0)
+                        .setMin(4.0)
+                        .setAvg(4.0)
+                        .setTotal(4.0)
                         .build())
                 .build();
 
@@ -587,25 +584,21 @@ public class SQLCloudCommitmentCoverageStoreTest {
                 .setCloudServiceId(9)
                 .setServiceProviderId(8)
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
+                        .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
+                        .setCoverageSubtype(123)
+                        .build())
                 .setValues(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
+                        .setMax(3.0)
+                        .setMin(3.0)
+                        .setAvg(3.0)
+                        .setTotal(3.0)
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
-                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setMax(5.0)
+                        .setMin(5.0)
+                        .setAvg(5.0)
+                        .setTotal(5.0)
                         .build())
                 .build();
 
