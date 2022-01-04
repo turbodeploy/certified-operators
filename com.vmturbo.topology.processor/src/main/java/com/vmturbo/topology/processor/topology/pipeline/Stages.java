@@ -81,9 +81,9 @@ import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
+import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
-import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
@@ -98,7 +98,6 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
-import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.GenerateConstraintMap;
 import com.vmturbo.topology.processor.reservation.ReservationManager;

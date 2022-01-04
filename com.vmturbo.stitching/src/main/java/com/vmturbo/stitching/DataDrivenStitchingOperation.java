@@ -11,6 +11,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Maps;
@@ -26,6 +27,7 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.Commodit
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScopeType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
@@ -47,8 +49,8 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
  *                                 (server) side.
  */
 public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT>
-                extends AbstractExternalSignatureCachingStitchingOperation<InternalSignatureT,
-        ExternalSignatureT> {
+                extends ContextlessSignatureCachingStitchingOperation<InternalSignatureT,
+                        ExternalSignatureT> {
 
     private static final Logger logger = LogManager.getLogger();
     private static final String INTERNAL = "internal";
@@ -177,7 +179,8 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     }
 
     @Override
-    protected Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
+    protected Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity,
+                                                                  @Nullable Void signatureContext) {
         return getSignatures(entity, matchingInformation::getExternalMatchingData, EXTERNAL);
     }
 

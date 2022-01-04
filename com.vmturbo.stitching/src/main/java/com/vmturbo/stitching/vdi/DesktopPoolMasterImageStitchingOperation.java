@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -34,12 +35,9 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * property to entity properties to identify if the UID was a VM.
  */
 public class DesktopPoolMasterImageStitchingOperation extends
-        AbstractExternalSignatureCachingStitchingOperation<String, String> {
+        AbstractExternalSignatureCachingStitchingOperation<String, String, Multimap<String, String>> {
     private static final String SEPARATOR = "_";
     private final Logger logger = LogManager.getLogger();
-
-    // master image VM id -> associated desktop pools
-    private final Multimap<String, String> masterVMToDesktopPools = HashMultimap.create();
 
     private Optional<String> getMasterImage(@Nonnull StitchingEntity internalEntity) {
         final EntityDTO.Builder builder = internalEntity.getEntityBuilder();
@@ -57,20 +55,6 @@ public class DesktopPoolMasterImageStitchingOperation extends
 
     private String generateInternalSignature(@Nonnull String masterImage, @Nonnull String id) {
         return id + SEPARATOR + masterImage;
-    }
-
-    @Override
-    public void initializeOperationBeforeStitching(
-            @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
-        // clear and rebuild the Multimap that is needed to create external entity signatures
-        masterVMToDesktopPools.clear();
-        stitchingScopeFactory.probeEntityTypeScope(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType(),
-                EntityType.DESKTOP_POOL).entities()
-                .forEach(internalEntity -> getMasterImage(internalEntity)
-                        .ifPresent(master -> masterVMToDesktopPools.put(master,
-                                generateInternalSignature(master,
-                                        internalEntity.getEntityBuilder().getId()))));
-        super.initializeOperationBeforeStitching(stitchingScopeFactory);
     }
 
     @Nonnull
@@ -103,13 +87,27 @@ public class DesktopPoolMasterImageStitchingOperation extends
     }
 
     @Override
-    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity,
+                                                      @Nullable Multimap<String, String> masterVMToDesktopPools) {
         final String entityId = externalEntity.getEntityBuilder().getId();
         final Collection<String> desktopPoolIds = masterVMToDesktopPools.removeAll(entityId);
         if (CollectionUtils.isEmpty(desktopPoolIds)) {
             return Collections.emptySet();
         }
         return desktopPoolIds;
+    }
+
+    @Override
+    protected Multimap<String, String> createExternalSignatureContext(
+        @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+        final Multimap<String, String> masterVMToDesktopPools = HashMultimap.create();
+        stitchingScopeFactory.probeEntityTypeScope(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType(),
+                EntityType.DESKTOP_POOL).entities()
+            .forEach(internalEntity -> getMasterImage(internalEntity)
+                .ifPresent(master -> masterVMToDesktopPools.put(master,
+                    generateInternalSignature(master,
+                        internalEntity.getEntityBuilder().getId()))));
+        return masterVMToDesktopPools;
     }
 
     @Nonnull

@@ -19,9 +19,11 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang3.mutable.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -30,6 +32,7 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
+import com.vmturbo.stitching.ExternalSignatureCache;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
@@ -122,16 +125,13 @@ public class AbstractExternalSignatureCachingStitchingOperationTest {
     }
 
     private void callGetExternalSignaturesTwice(int numberOfScopeFactoryCallsExpected,
-            @Nonnull StitchingOperation<String, String> operation, boolean initializeBetween) {
-        operation.initializeOperationBeforeStitching(scopeFactory);
+            @Nonnull StitchingOperation<String, String> operation) {
+        final ExternalSignatureCache cache = new ExternalSignatureCache();
         // call getExternalSignatures twice without calling initializeOperationBeforeStitching
         // in between and confirm that we only called the scope factory once
-        assertThat(operation.getExternalSignatures(scopeFactory, targetId).keySet(),
+        assertThat(operation.getExternalSignatures(scopeFactory, cache, targetId).keySet(),
                 containsInAnyOrder("foo", "bar", "one"));
-        if (initializeBetween) {
-            operation.initializeOperationBeforeStitching(scopeFactory);
-        }
-        assertThat(operation.getExternalSignatures(scopeFactory, unusedTargetId).keySet(),
+        assertThat(operation.getExternalSignatures(scopeFactory, cache, unusedTargetId).keySet(),
                 containsInAnyOrder("foo", "bar", "one"));
         verify(scopeFactory, times(numberOfScopeFactoryCallsExpected)).globalScope();
     }
@@ -144,18 +144,7 @@ public class AbstractExternalSignatureCachingStitchingOperationTest {
     @Test
     public void testExternalSignaturesCached() {
         final StitchingOperation<String, String> operation = new OperationWithScopeAndCaching();
-        callGetExternalSignaturesTwice(1, operation, false);
-    }
-
-    /**
-     * Test that when we call initializeOperationBeforeStitching between calls to
-     * getExternalSignatures, we fetch the scope twice from the factory, since the initialize
-     * calls clears the cache.
-     */
-    @Test
-    public void testExternalSignaturesCachedWithReset() {
-        final StitchingOperation<String, String> operation = new OperationWithScopeAndCaching();
-        callGetExternalSignaturesTwice(2, operation, true);
+        callGetExternalSignaturesTwice(1, operation);
     }
 
     /**
@@ -164,7 +153,7 @@ public class AbstractExternalSignatureCachingStitchingOperationTest {
     @Test
     public void testExternalSignaturesNonCached() {
         final StitchingOperation<String, String> operation = new NonCachingOperation();
-        callGetExternalSignaturesTwice(2, operation, false);
+        callGetExternalSignaturesTwice(2, operation);
     }
 
     /**
@@ -174,28 +163,45 @@ public class AbstractExternalSignatureCachingStitchingOperationTest {
     @Test
     public void testScopeIsEmpty() {
         final StitchingOperation<String, String> operation = new ScopelessOperation();
-        operation.initializeOperationBeforeStitching(scopeFactory);
+        final ExternalSignatureCache signatureCache = new ExternalSignatureCache();
         final Map<String, Collection<StitchingEntity>> mapReturned =
-                operation.getExternalSignatures(scopeFactory, targetId);
+                operation.getExternalSignatures(scopeFactory, signatureCache, targetId);
         assertEquals(2, mapReturned.size());
         assertThat(mapReturned.keySet(), containsInAnyOrder("foo", "bar"));
 
         // at this point, the external signature map should be cached. So if we call it again,
         // we should not get the scope again and we should just get the same map back.
        final Map<String, Collection<StitchingEntity>> secondMapReturned =
-                operation.getExternalSignatures(scopeFactory, targetId);
+                operation.getExternalSignatures(scopeFactory, signatureCache, targetId);
         assertSame(mapReturned, secondMapReturned);
 
         verify(scopeFactory, times(1))
                 .entityTypeScope(eq(EntityType.VIRTUAL_MACHINE));
-     }
+    }
+
+    /**
+     * Ensure that the context created by an operation is passed through to its
+     * {@code getExternalSignature} method.
+     */
+    @Test
+    public void testContextPassThrough() {
+        final MutableLong signatureContextHolder = new MutableLong(0);
+        final StitchingOperation<String, String> operation =
+            new OperationWithExternalContext(signatureContextHolder);
+        final ExternalSignatureCache signatureCache = new ExternalSignatureCache();
+        operation.getExternalSignatures(scopeFactory, signatureCache, targetId);
+
+        assertEquals(OperationWithExternalContext.CONTEXT_ID, signatureContextHolder.longValue());
+    }
 
     /**
      * Implementation of AbstractExternalSignatureCachingStitchingOperation with minimal logic
      * used to test functionality provided by abstract class.
+     *
+     * @param <T> The External Signature Context type.
      */
-    public static class OperationWithScopeAndCaching
-            extends AbstractExternalSignatureCachingStitchingOperation<String, String> {
+    public abstract static class AbstractOperationWithScopeAndCaching<T>
+            extends AbstractExternalSignatureCachingStitchingOperation<String, String, T> {
         @Nonnull
         @Override
         public Optional<StitchingScope<StitchingEntity>> getScope(
@@ -221,16 +227,28 @@ public class AbstractExternalSignatureCachingStitchingOperationTest {
             return null;
         }
 
-        @Override
-        protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
-            return Collections.singletonList(externalEntity.getEntityBuilder().getId());
-        }
-
         @Nonnull
         @Override
         public TopologicalChangelog<StitchingEntity> stitch(
                 @Nonnull Collection<StitchingPoint> stitchingPoints,
                 @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
+            return null;
+        }
+    }
+
+    /**
+     * OperationWithScopeAndCaching.
+     */
+    public static class OperationWithScopeAndCaching extends AbstractOperationWithScopeAndCaching<Void> {
+        @Override
+        protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity,
+                                                          @Nullable Void signatureContext) {
+            return Collections.singletonList(externalEntity.getEntityBuilder().getId());
+        }
+
+        @Override
+        protected Void createExternalSignatureContext(
+            @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
             return null;
         }
     }
@@ -255,6 +273,32 @@ public class AbstractExternalSignatureCachingStitchingOperationTest {
                 @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
                 long targetId) {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Test class that has a non-Void context.
+     */
+    public static class OperationWithExternalContext extends AbstractOperationWithScopeAndCaching<Long> {
+
+        private static final long CONTEXT_ID = 1234L;
+        private final MutableLong signatureContextHolder;
+
+        private OperationWithExternalContext(@Nonnull final MutableLong signatureContextHolder) {
+            this.signatureContextHolder = signatureContextHolder;
+        }
+
+        @Override
+        protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity,
+                                                          @Nullable Long signatureContext) {
+            this.signatureContextHolder.setValue(signatureContext);
+            return Collections.emptyList();
+        }
+
+        @Override
+        protected Long createExternalSignatureContext(
+            @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            return CONTEXT_ID;
         }
     }
 }

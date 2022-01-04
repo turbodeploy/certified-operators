@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -58,7 +59,9 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
+import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.ExternalSignatureCache;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
@@ -625,12 +628,6 @@ public class StitchingManagerTest {
             this.vmToUpdate = Objects.requireNonNull(vmToUpdate);
         }
 
-        @Override
-        public void initializeOperationBeforeStitching(
-                @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
-
-        }
-
         @Nonnull
         @Override
         public Optional<StitchingScope<StitchingEntity>> getScope(
@@ -643,6 +640,7 @@ public class StitchingManagerTest {
         @Override
         public Map<Void, Collection<StitchingEntity>> getExternalSignatures(
                 @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+                @Nonnull ExternalSignatureCache signatureCache,
                 long targetId) {
             return Collections.emptyMap();
         }
@@ -682,7 +680,7 @@ public class StitchingManagerTest {
     }
 
     public static class StitchVmsByGuestName extends
-            AbstractExternalSignatureCachingStitchingOperation<String, String> {
+            ContextlessSignatureCachingStitchingOperation<String, String> {
         @Nonnull
         @Override
         public Optional<StitchingScope<StitchingEntity>> getScope(
@@ -710,9 +708,16 @@ public class StitchingManagerTest {
         }
 
         @Override
-        protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+        protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity,
+                                                          @Nullable Void signatureContext) {
             return Collections.singleton(externalEntity.getEntityBuilder().getVirtualMachineData()
                             .getGuestName());
+        }
+
+        @Override
+        protected Void createExternalSignatureContext(
+            @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            return null;
         }
 
         @Nonnull

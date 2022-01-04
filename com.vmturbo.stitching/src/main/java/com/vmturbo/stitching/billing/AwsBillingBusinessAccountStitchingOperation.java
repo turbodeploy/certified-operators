@@ -9,6 +9,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,7 +19,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
+import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.DTOFieldSpecImpl;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
@@ -47,7 +48,7 @@ import com.vmturbo.topology.graph.OwnershipGraph;
  * assume AWS is correct, and in the final topology BA1 will own BA2.
  */
 public class AwsBillingBusinessAccountStitchingOperation extends
-        AbstractExternalSignatureCachingStitchingOperation<String, String> {
+        ContextlessSignatureCachingStitchingOperation<String, String> {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -78,7 +79,8 @@ public class AwsBillingBusinessAccountStitchingOperation extends
     }
 
     @Override
-    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity,
+                                                      @Nullable Void signatureContext) {
         return Collections.singleton(externalEntity.getLocalId());
     }
 
