@@ -59,8 +59,8 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
      */
     @Test
     public void testCoresPerSocketActionGenerated() {
-        TopologyEntityDTO vm1 = makeVM(1, 2, true);
-        TopologyEntityDTO vm2 = makeVM(2, 4, true);
+        TopologyEntityDTO vm1 = makeVM(1, 2, true, false);
+        TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
         GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "USER_SPECIFIED", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
@@ -86,8 +86,8 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
      */
     @Test
     public void testActionNotGeneratedIfTheVMHasResizeAction() {
-        TopologyEntityDTO vm1 = makeVM(1, 4, true);
-        TopologyEntityDTO vm2 = makeVM(2, 4, true);
+        TopologyEntityDTO vm1 = makeVM(1, 4, true, false);
+        TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
         GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "USER_SPECIFIED", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
@@ -114,8 +114,8 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
      */
     @Test
     public void testNoActionsWithoutSpecify() {
-        TopologyEntityDTO vm1 = makeVM(1, 2, true);
-        TopologyEntityDTO vm2 = makeVM(2, 4, true);
+        TopologyEntityDTO vm1 = makeVM(1, 2, true, false);
+        TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "MHZ", null);
         GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "USER_SPECIFIED", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
@@ -136,8 +136,8 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
      */
     @Test
     public void testNoActionsWithoutUserSpecified() {
-        TopologyEntityDTO vm1 = makeVM(1, 2, true);
-        TopologyEntityDTO vm2 = makeVM(2, 4, true);
+        TopologyEntityDTO vm1 = makeVM(1, 2, true, false);
+        TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
         GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "PRESERVE", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
@@ -160,8 +160,8 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
     @Test
     public void testMultipleEntitySettingGroup() {
         //Only VMs who have USER_SPECIFIED policy will have the actions generated
-        TopologyEntityDTO vm1 = makeVM(1, 4, true);
-        TopologyEntityDTO vm2 = makeVM(2, 4, true);
+        TopologyEntityDTO vm1 = makeVM(1, 4, true, false);
+        TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         EntitySettingGroup.Builder settingGroup1 = makeEntitySettingGroup(ImmutableList.of(1L), 1, "USER_SPECIFIED", null);
         EntitySettingGroup.Builder settingGroup2 = makeEntitySettingGroup(ImmutableList.of(2L), 1, "PRESERVE", null);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
@@ -181,6 +181,29 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
 
         Assert.assertEquals(1, actions.size());
         Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
+    }
+
+    /**
+     * Test no action generation when entity is stale.
+     */
+    @Test
+    public void testNoActionGenerationWhenEntityStale() {
+        TopologyEntityDTO vm1 = makeVM(1, 1, true, true);
+        TopologyEntityDTO vm2 = makeVM(2, 4, true, true);
+        GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
+        GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "USER_SPECIFIED", null);
+        GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
+
+        when(settingPolicyServiceMole.getEntitySettings(any(GetEntitySettingsRequest.class)))
+                .thenReturn(ImmutableList.of(response1), ImmutableList.of(response2), ImmutableList.of(response3));
+
+        topology.put(1L, vm1);
+        topology.put(2L, vm2);
+
+        List<Action> actions = generator.execute(settingPolicyService, topology,
+                Collections.emptyList());
+        // Generate no actions when entities are stale.
+        Assert.assertEquals(0, actions.size());
     }
 
 }

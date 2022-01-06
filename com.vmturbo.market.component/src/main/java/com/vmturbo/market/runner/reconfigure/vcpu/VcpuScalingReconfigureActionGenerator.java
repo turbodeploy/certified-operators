@@ -242,7 +242,10 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
                         && vm.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketRatio() > 0
                         && vm.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketChangeable())
                 .filter(vm -> vm.getAnalysisSettings().getReconfigurable())
+                // Filter out OID's that are stale
+                .filter(topologyEntityDTO -> !topologyEntityDTO.getStale())
                 .map(TopologyEntityDTO::getOid);
+
         return changeableVMs.filter(vm -> !vcpuResizedVMs.contains(vm)).collect(Collectors.toList());
     }
 }
