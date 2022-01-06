@@ -26,12 +26,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Util class for tests.
  */
 public class VcpuScalingReconfigureActionGeneratorTestUtils {
-    TopologyEntityDTO makeVM(long oid, int currentCoresPerSocket, boolean changeable) {
+    TopologyEntityDTO makeVM(long oid, int currentCoresPerSocket, boolean changeable,
+                             boolean stale) {
         return TopologyEntityDTO.newBuilder()
                 .setOid(oid)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .setAnalysisSettings(AnalysisSettings.newBuilder().setReconfigurable(true))
+                .setStale(stale)
                 .setTypeSpecificInfo(
                         TypeSpecificInfo.newBuilder()
                                 .setVirtualMachine(
