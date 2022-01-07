@@ -155,7 +155,7 @@
                                                 pattern needs to start with "maven-" so jenkins builds
                                                 will properly clean up leaked containers
                                                 -->
-                                                <containerNamePattern>maven-%a-%i</containerNamePattern>
+                                                <containerNamePattern>maven-%a-%t-%i</containerNamePattern>
                                                 <ports>
                                                     <port>postgresPort:5432</port>
                                                 </ports>
