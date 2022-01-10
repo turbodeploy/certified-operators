@@ -195,36 +195,4 @@ public class TopologyDataDefinitionMapperTest {
         exception.expect(IllegalArgumentException.class);
         mapper.convertTopologyDataDefinition(incorrect);
     }
-
-    /**
-     * It tests the case when DTO has no display name.
-     * It is expected to throw an exception.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void nullNameTest() {
-        TopologyDataDefinitionApiDTO apiDTO = new TopologyDataDefinitionApiDTO();
-        mapper.convertTopologyDataDefinitionApiDTO(apiDTO);
-    }
-
-    /**
-     * It tests the case when DTO display name is empty.
-     * It is expected to throw an exception.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void emptyNameTest() {
-        TopologyDataDefinitionApiDTO apiDTO = new TopologyDataDefinitionApiDTO();
-        apiDTO.setDisplayName("");
-        mapper.convertTopologyDataDefinitionApiDTO(apiDTO);
-    }
-
-    /**
-     * It tests the case when DTO display name is blank.
-     * It is expected to throw an exception.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void blankNameTest() {
-        TopologyDataDefinitionApiDTO apiDTO = new TopologyDataDefinitionApiDTO();
-        apiDTO.setDisplayName("   ");
-        mapper.convertTopologyDataDefinitionApiDTO(apiDTO);
-    }
 }

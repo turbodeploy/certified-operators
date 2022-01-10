@@ -1,81 +1,65 @@
 package com.vmturbo.sql.utils;
 
 import static com.vmturbo.sql.utils.DbEndpointResolver.COMPONENT_TYPE_PROPERTY;
-import static com.vmturbo.sql.utils.DbEndpointResolver.DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.HOST_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.PORT_PROPERTY;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static com.vmturbo.sql.utils.DbEndpointResolver.USE_CONNECTION_POOL;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import net.jpountz.xxhash.XXHash32;
-import net.jpountz.xxhash.XXHashFactory;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
+import org.jetbrains.annotations.NotNull;
 import org.jooq.SQLDialect;
-import org.junit.ClassRule;
-import org.junit.Rule;
+import org.jooq.Schema;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.components.common.utils.Strings;
-import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.SchemaCleaner.Monitor;
 
 /**
  * Rule to manage database endpoints during tests.
  *
- * <p>This rule can act both as a a per-test {@link Rule @Rule} and as a class-level
- * {@link ClassRule @ClassRule}, and a single rule instance should normally carry both
- * annotations.</p>
+ * <p>This rule completes supplied endpoints, yielding an instance of {@link TestDbEndpoint} for
+ * each. During completion, any provisioning required for the endpoint will be performed, using
+ * "mangled" names for provisioned databases, schemas, and users.</p>
  *
- * <p>As a @{@link Rule}, this rule:</p>
+ * <p>At the completion of each test, schemas associated with the provided endpoints are returned
+ * to initial state by truncating tables to which jOOQ INSERT operations were applied during the
+ * test. Reference tables (tables that are non-empty after initial provisioning+migration) are
+ * exempt from this cleaning operation. Also, see {@link CleanupOverrides} to see how you can
+ * annotate test classes and methods to alter the tables affected by cleanup.</p>
  *
- * <ul>
- *     <li>
+ * <p>The {@link TestDbEndpoint} created for a given endpoint survives across multiple test
+ * classes, and will be re-used - without repeating provisioning - for any subsequent use of the
+ * same endpoint in later test classes.  This dramatically improves performance of builds with
+ * many live-DB test classes, as each needed schema is built just once. Provisioned objects are
+ * ultimately dropped via a JVM shutdown hook.</p>
  *
- *         <p>Initializes each endpoint identified for the rule instance. This will effectively act on
- *         a per-class basis, since subsequent initializations performed for other tests will be
- *         no-ops.</p>
+ * <p>A previously provisioned endpoint is reused whenever a later test class requests completion
+ * of an endpoint with the same name. There is no check that the endpoints actually align in
+ * other ways. Using two endpoints with different configurations within the lifetime of the
+ * runinng JVM (typically, all the tests in a given module) will yield unpredictable results.
+ * This is not a scenario that is likely to arise in any case, since it would yield very confusing
+ * code.</p>
  *
- *         <p>When provisioning database, schemas, and users for an endpoint, the configured names
- *         for these objects are all "mangled"  so it is safe to run tests against a
- *         database server that is also used operational appliances. The mangling takes the form
- *         of the first 8 characters of the natural identifier, followed by an underscore and
- *         a 7-character suffix comprising lower-case letters and digits. The suffix is computed by
- *         creating a 32-bit cryptographic hash of the full natural name, along with the current
- *         time as a 64-bit millis-since-epoch value. The natural name is part of the input for
- *         this hash, so that if two endpoints collide wrt their 9-character prefixes, they will
- *         nevertheless have different mangled names.</p>
- *
- *         <p>The 16-char overall limit is to conform with early versions of MySQL/MariaDB</p>
- *     </li>
- *     <li>
- *         Truncates all tables appearing in the databases configured for all the provided endpoints.
- *         This rolls back any database changes made by the prior test.
- *     </li>
- * </ul>
- *
- * <p>As a {@link ClassRule}, this rule drops all test databases/schemas and users
- * created during endpoint initialization.</p>
+ * <p>Also, when it comes to name mangling, the rule is that if a database name, schema name
+ * or user name appearing in a resolved endpoint is not equal to a previously mangled name, then
+ * it is mangled and added to the list. This means that two endpoints intended ot use the same
+ * schema, for instance, will do so. Again, it is possible to create scenarios where this will
+ * misfire, but such scenarios would be confusing to begin wtih.</p>
  *
  * <p>This class makes no use of Spring services, while {@link DbEndpoint} instances are generally
  * defined as Spring beans. The intended approach is to initialize endpoints for tests by directly
@@ -98,20 +82,20 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  * scenarios as well.</p>
  */
 public class DbEndpointTestRule implements TestRule {
-    private static final Logger logger = LogManager.getLogger();
-    private static final String BASE36_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
-    private final Set<DbEndpoint> endpoints = new LinkedHashSet<>();
+    private static final Set<TestDbEndpoint> testDbEndpoints = new HashSet<>();
     private final Map<String, String> propertySettings;
-    private final long instantiationTime = System.currentTimeMillis();
-    private static final XXHashFactory xxHash = XXHashFactory.safeInstance();
 
     /**
      * Create a new rule instance to manage the provided endpoints.
      *
-     * @param componentName name of component, for object naming defaults (those defaults
-     *         are
-     *         normally set via the Spring-supplied component_type property)
+     * <p>The `componentName` value will be used in various ways for endpiont resolution; most
+     * importantly, it will be used in constructing a default value for `migrationLocations`.
+     * Therefore, it probably needs to be what it will be in production. Since that value is
+     * generally free-form, it will have non-alphanumeric characters removed if it is ever used
+     * for database, schema, or user names - where such characters could cause problems.</p>
+     *
+     * @param componentName name of component, for object naming defaults
      */
     public DbEndpointTestRule(String componentName) {
         this(componentName, Collections.emptyMap());
@@ -130,6 +114,29 @@ public class DbEndpointTestRule implements TestRule {
         this.propertySettings.put(COMPONENT_TYPE_PROPERTY, componentName);
     }
 
+    /**
+     * Complete an endpoint using the test rule.
+     *
+     * <p>The {@link TestDbEndpoint} instance retunred by this method may be shared with other
+     * endpoints that have been completed (in this test class or another) that had identical
+     * configuration, to avoid unnecessary rebuilding of schemas.</p>
+     *
+     * @param endpoint endpoint to be completed
+     * @param schema   schema associated iwth the ehdpoint
+     * @return TestDbEndpoint instance for completed endpoint
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     * @throws SQLException                if there's a provisioning problem
+     */
+    public TestDbEndpoint completeEndpoint(DbEndpoint endpoint, Schema schema)
+            throws UnsupportedDialectException, InterruptedException, SQLException {
+        setOverridesForEndpoint(endpoint);
+        TestDbEndpoint testEndpoint
+                = new TestDbEndpoint(endpoint, propertySettings, schema);
+        testDbEndpoints.add(testEndpoint);
+        return testEndpoint;
+    }
+
     private void setOverridesForEndpoint(final DbEndpoint endpoint)
             throws UnsupportedDialectException {
         final SQLDialect dialect = endpoint.getConfig().getDialect();
@@ -141,114 +148,73 @@ public class DbEndpointTestRule implements TestRule {
         // set dbPort property
         String dbPortDefault = getFromSystemProperties(endpointName, PORT_PROPERTY, dialect);
         dbPortDefault = dbPortDefault != null ? dbPortDefault
-                : Integer.toString(DbEndpointResolver.getDefaultPort(dialect));
+                                              : Integer.toString(
+                                                      DbEndpointResolver.getDefaultPort(dialect));
         propertySettings.put(getPropertyName(endpointName, PORT_PROPERTY), dbPortDefault);
-        // we should always allow destructive provisioning operations in a test database
-        propertySettings.put(
-                getPropertyName(endpointName, DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY), "true");
-    }
-
-    private void before() {
-        endpoints.clear();
-    }
-
-    private void afterClass() throws Throwable {
-        logger.info("Finished tests, dropping temporary databases");
-        for (final DbEndpoint endpoint : endpoints) {
-            if (endpoint.isReady()) {
-                logger.info("Dropping database & user for {}", endpoint);
-                endpoint.getAdapter().tearDown();
-            }
-        }
+        propertySettings.put(getPropertyName(endpointName, USE_CONNECTION_POOL), "false");
     }
 
     @Override
     public Statement apply(final Statement base, final Description description) {
         if (description.isTest()) {
             return new Statement() {
-                public void evaluate() throws Throwable {
-                    before();
-                    base.evaluate();
-                }
-            };
-        }
-        if (description.isSuite()) {
-            return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
+                    List<SchemaCleaner.Monitor> monitors = new ArrayList<>();
                     try {
+                        // we may have many instances of TestDbEndpoint representing the same
+                        // endpoint (one for each test class that used the endpoint). But we
+                        // only need one cleanup monitor for each. So prune that list.
+                        getMonitors(description).forEach(monitors::add);
                         base.evaluate();
                     } finally {
-                        afterClass();
+                        monitors.forEach(SchemaCleaner.Monitor::close);
                     }
                 }
             };
+        } else {
+            return base;
         }
-        return base;
     }
 
     /**
-     * Provide endpoints to be managed by this rule instance.
+     * Create insertion monitors for the current collection of test endpoints.
      *
-     * <p>This is normally called from within a @Before method in a test class, since it often
-     * difficult to obtain endpoint instances statically. However, when that's possible, this can
-     * instead be done in a @BeforeClass method.</p>
+     * <p>There may be many test endpoints that share a given actual endpoint, so we whittle down
+     * the list to have just one representative of reach group. We then create monitors for those
+     * endpoints.</p>
      *
-     * @param endpoints endpoints to be managed by this rule
-     * @throws InterruptedException        if we're interrupted
-     * @throws UnsupportedDialectException if an endpoint is defined with an unsupported dialect
-     * @throws SQLException                if there's a problem with provisioning
+     * @param description test description info provided to the rule by the JUnit
+     * @return monitors that will monitor insertions during the test and then perform cleanups when
+     *         closed
      */
-    public void addEndpoints(final DbEndpoint... endpoints) throws InterruptedException, UnsupportedDialectException, SQLException {
-        for (final DbEndpoint endpoint : endpoints) {
-            DbEndpointCompleter endpointCompleter = endpoint.getEndpointCompleter();
-            setOverridesForEndpoint(endpoint);
-            endpointCompleter.setResolver(propertySettings::get, mockPasswordUtil());
-            endpoint.getConfig().setIdentifierMangler(this::mangleIdentifier);
-            endpointCompleter.completeEndpoint(endpoint);
-
-            if (!endpoint.isReady()) {
-                try {
-                    logger.info("Completing endpoint {}", endpoint);
-                    endpoint.getEndpointCompleter().completePendingEndpoint(endpoint);
-                } catch (Exception e) {
-                    logger.warn("Endpoint {} initialization failed; entering retry loop", endpoint, e);
-                }
-                endpoint.awaitCompletion(30L, TimeUnit.SECONDS);
-            } else {
-                if (endpoint.getConfig().getAccess().isWriteAccess()) {
-                    try (DSLContext dslContext = endpoint.dslContext()) {
-                        dslContext.connection(conn -> endpoint.getAdapter().truncateAllTables(conn));
-                    }
-                }
-            }
-            this.endpoints.add(endpoint);
-        }
+    @NotNull
+    private Stream<Monitor> getMonitors(Description description) {
+        return testDbEndpoints.stream()
+                .filter(te -> te.getDbEndpoint().getConfig().getAccess()
+                        == DbEndpointAccess.ALL)
+                .collect(Collectors.groupingBy(TestDbEndpoint::getDbEndpoint))
+                .values().stream()
+                .map(list -> (TestDbEndpoint)list.get(0))
+                .map(te -> new SchemaCleaner(te.getSchema())
+                        .monitor(description.getTestClass(),
+                                getRealMethodName(description.getMethodName()),
+                                te.getRefTables(), te.getBaseTables(),
+                                te.getDslContext()));
     }
 
-    private String mangleIdentifier(String original) {
-        XXHash32 hash32 = xxHash.hash32();
-        byte[] origBytes = original.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer bytes = ByteBuffer.allocate(origBytes.length + Long.BYTES + Long.BYTES);
-        bytes.put(origBytes);
-        bytes.putLong(instantiationTime);
-        bytes.putLong(Thread.currentThread().getId());
-        bytes.position(0);
-        int hash = hash32.hash(bytes, 0);
-        // by default MariaDB don't allow "-" in the DB name, replacing it to "_".
-        return Strings.truncate(original, 8).replaceAll("-", "_") + "_" + base36(hash);
-    }
-
-    private String base36(int i) {
-        StringBuilder sb = new StringBuilder();
-        // ensure we're working with a non-negative value
-        long v = (long)i & 0xFFFFFFFFL;
-        while (v != 0) {
-            int next = (int)(v % 36);
-            v = (v - next) / 36;
-            sb.append(BASE36_CHARS.charAt(next));
-        }
-        return sb.toString();
+    /**
+     * This deals with an issue with parameterized tests, wherein the "test method name" provided
+     * to rules is not really the method name, becuase it includes rendered parameter values
+     * following the method name in square brackets. We need the true method name to look up
+     * annotations.
+     *
+     * @param methodName method name provided by JUnit
+     * @return method name with parameters stripped
+     */
+    private String getRealMethodName(String methodName) {
+        int bracket = methodName.indexOf('[');
+        return bracket >= 0 ? methodName.substring(0, bracket) : methodName;
     }
 
     private static String getFromSystemProperties(String endpointName, String propertyName,
@@ -277,12 +243,5 @@ public class DbEndpointTestRule implements TestRule {
 
     private static String getPropertyName(String endpointName, String propertyName) {
         return endpointName + "." + propertyName;
-    }
-
-    private DBPasswordUtil mockPasswordUtil() {
-        DBPasswordUtil dbPasswordUtil = mock(DBPasswordUtil.class);
-        when(dbPasswordUtil.getSqlDbRootUsername(any())).thenAnswer(invocation -> DBPasswordUtil.obtainDefaultRootDbUser(invocation.getArgumentAt(0, String.class)));
-        when(dbPasswordUtil.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
-        return dbPasswordUtil;
     }
 }

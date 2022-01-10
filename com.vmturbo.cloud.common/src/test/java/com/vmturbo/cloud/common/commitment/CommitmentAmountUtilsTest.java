@@ -259,9 +259,7 @@ public class CommitmentAmountUtilsTest {
                 CommitmentAmountUtils.groupByKey(amount);
 
         final Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> expectedGrouping = ImmutableMap.of(
-                CloudCommitmentCoverageTypeInfo.newBuilder()
-                        .setCoverageType(CloudCommitmentCoverageType.COUPONS)
-                        .build(),
+                CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO,
                 amount);
 
         assertThat(actualGrouping, equalTo(expectedGrouping));

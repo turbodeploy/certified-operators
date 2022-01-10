@@ -36,7 +36,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
@@ -49,6 +51,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@CleanupOverrides(checkOthers = true)
 public class ScopeTableManagerTest {
     private DSLContext dsl;
     private DbEndpoint endpoint;
@@ -80,8 +83,8 @@ public class ScopeTableManagerTest {
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
-        endpoint = dbConfig.ingesterEndpoint();
-        endpointRule.addEndpoints(endpoint);
+        endpoint = endpointRule.completeEndpoint(dbConfig.ingesterEndpoint(), Extractor.EXTRACTOR)
+                .getDbEndpoint();
         this.scopeTableManager = new ScopeTableManager(endpoint);
         this.dsl = endpoint.dslContext();
         this.connection = endpoint.datasource().getConnection();

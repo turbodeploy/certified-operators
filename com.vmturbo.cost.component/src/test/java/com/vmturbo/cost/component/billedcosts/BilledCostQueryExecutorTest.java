@@ -6,6 +6,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -17,10 +18,14 @@ import javax.annotation.Nullable;
 import com.google.common.base.Objects;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
@@ -36,16 +41,49 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.cost.component.db.tables.CostTag;
 import com.vmturbo.cost.component.db.tables.CostTagGrouping;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit tests for {@link BilledCostQueryExecutor}.
  */
-public class BilledCostQueryExecutorTest {
+@RunWith(Parameterized.class)
+public class BilledCostQueryExecutorTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public BilledCostQueryExecutorTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long VM1_ID = 1L;
     private static final long VM2_ID = 2L;
@@ -62,25 +100,13 @@ public class BilledCostQueryExecutorTest {
 
     private static final double DELTA = 0.0001;
 
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static final DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
-    private static final DSLContext dsl = dbConfig.getDslContext();
     private static final LocalDateTime day2 = LocalDateTime.now();
     private static final LocalDateTime day1 = day2.minusDays(1);
-
-    /**
-     * Rule to automatically cleanup DB data.
-     */
-    @Rule
-    public final DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private BilledCostQueryExecutor executor;
 
     /**
-     * Set up the following VMs with billed costs:
+     * Set up the following VMs with billed costs.
      * VM 1:
      *   ID: 1
      *   Region: 3
@@ -630,7 +656,7 @@ public class BilledCostQueryExecutorTest {
         verifyRecord(snapshot2, null, null, 8);
     }
 
-    private static void insertBilledCost(
+    private void insertBilledCost(
             @Nonnull final LocalDateTime sampleTime,
             final long entityId,
             final long accountId,

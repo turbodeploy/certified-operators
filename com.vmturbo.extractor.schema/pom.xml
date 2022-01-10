@@ -7,7 +7,7 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>8.4.3-SNAPSHOT</version>
+        <version>8.4.4-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
@@ -255,7 +255,7 @@
                                                 pattern needs to start with "maven-" so jenkins builds
                                                 will properly clean up leaked containers
                                                 -->
-                                                <containerNamePattern>maven-%a-%i</containerNamePattern>
+                                                <containerNamePattern>maven-%a-%t-%i</containerNamePattern>
                                                 <ports>
                                                     <port>postgresPort:5432</port>
                                                 </ports>

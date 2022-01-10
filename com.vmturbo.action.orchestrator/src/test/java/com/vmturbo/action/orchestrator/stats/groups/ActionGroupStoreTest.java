@@ -29,21 +29,17 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.DSLContext;
 import org.jooq.Record4;
 import org.jooq.Result;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.action.orchestrator.TestActionOrchestratorDbEndpointConfig;
 import com.vmturbo.action.orchestrator.db.Action;
-import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
@@ -52,52 +48,46 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.ActionGroupFilter;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Tests for {@link ActionGroupStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestActionOrchestratorDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class ActionGroupStoreTest {
-
-    @Autowired(required = false)
-    private TestActionOrchestratorDbEndpointConfig dbEndpointConfig;
+@RunWith(Parameterized.class)
+public class ActionGroupStoreTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public ActionGroupStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Action.ACTION, configurableDbDialect, dialect, "action",
+                TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("ao");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule().testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
+    public TestRule multiDbRules = super.ruleChain;
 
     private ActionGroupStore actionGroupStore;
 
@@ -113,13 +103,7 @@ public class ActionGroupStoreTest {
      * Set up for tests.
      */
     @Before
-    public void setUp() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.actionOrchestratorEndpoint());
-            dsl = dbEndpointConfig.actionOrchestratorEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
+    public void setUp() {
         actionGroupStore = new ActionGroupStore(dsl);
     }
 
@@ -172,7 +156,7 @@ public class ActionGroupStoreTest {
                 .addActionRelatedRisk(MEM_CONGESTION)
                 .build();
 
-        Map<ActionGroupKey, ActionGroup> g1 = actionGroupStore.ensureExist(Collections.singleton(group1Key));
+        final Map<ActionGroupKey, ActionGroup> g1 = actionGroupStore.ensureExist(Collections.singleton(group1Key));
 
         final ActionGroupKey group2Key = ImmutableActionGroupKey.builder()
                 .actionMode(ActionMode.MANUAL)

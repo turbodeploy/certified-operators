@@ -1,26 +1,33 @@
 package com.vmturbo.topology.processor;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.spy;
+import org.jooq.SQLDialect;
 
-import org.springframework.context.annotation.Conditional;
-import org.springframework.context.annotation.Configuration;
-
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
- * Testing config by removing the {@link Conditional} annotation and mocking a
- * {@link DbEndpointCompleter} so it doesn't actually complete.
+ * Class to create DbEndpoint instances for tests.
  */
-@Configuration
 public class TestTopologyProcessorDbEndpointConfig extends TopologyProcessorDbEndpointConfig {
+
+    /**
+     * Create a test Topology Processor endpoint for tests.
+     *
+     * @param dialect desired dialect
+     * @return new endpoint
+     */
+    public static DbEndpoint tpEndpoint(SQLDialect dialect) {
+        return new TestTopologyProcessorDbEndpointConfig().testTpEndpoint(dialect);
+    }
+
+    private DbEndpoint testTpEndpoint(SQLDialect dialect) {
+        super.sqlDialect = dialect;
+        return super.tpEndpoint();
+    }
 
     @Override
     public DbEndpointCompleter endpointCompleter() {
-        // prevent actual completion of the DbEndpoint
-        DbEndpointCompleter dbEndpointCompleter = spy(super.endpointCompleter());
-        doNothing().when(dbEndpointCompleter).setEnvironment(any());
-        return dbEndpointCompleter;
+        return MultiDbTestBase.getTestCompleter();
     }
 }

@@ -12,69 +12,63 @@ import java.util.Map;
 
 import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTags;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.db.TestGroupDBEndpointConfig;
 import com.vmturbo.group.service.StoreOperationException;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Test the user defined entity tags store.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class EntityCustomTagsStoreTest {
+@RunWith(Parameterized.class)
+public class EntityCustomTagsStoreTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameters.
+     *
+     * @return test parameters
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
 
-    @Autowired(required = false)
-    private TestGroupDBEndpointConfig dbEndpointConfig;
+    private final DSLContext dsl;
 
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
+    public EntityCustomTagsStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(GroupComponent.GROUP_COMPONENT, configurableDbDialect, dialect, "group",
+                TestGroupDBEndpointConfig::groupEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
+    public TestRule multiDbRules = super.ruleChain;
 
     private EntityCustomTagsStore entityCustomTagsStore;
 
@@ -86,9 +80,9 @@ public class EntityCustomTagsStoreTest {
 
     private static final Tags tags = Tags.newBuilder()
             .putTags(tagName1, TagValuesDTO.newBuilder()
-                                .addAllValues(Arrays.asList(tagValue1, tagValue2)).build())
+                    .addAllValues(Arrays.asList(tagValue1, tagValue2)).build())
             .putTags(tagName2, TagValuesDTO.newBuilder()
-                            .addAllValues(Collections.singletonList(tagValue1)).build()).build();
+                    .addAllValues(Collections.singletonList(tagValue1)).build()).build();
 
     private static final EntityCustomTagsOuterClass.EntityCustomTags entityCustomTags =
             EntityCustomTagsOuterClass.EntityCustomTags.newBuilder()
@@ -98,19 +92,13 @@ public class EntityCustomTagsStoreTest {
 
     /**
      * Initialize the context and the store.
-     * @throws SQLException if there is db error
+     *
+     * @throws SQLException                if there is db error
      * @throws UnsupportedDialectException if the dialect is not supported
-     * @throws InterruptedException if interrupted
+     * @throws InterruptedException        if interrupted
      */
     @Before
     public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
-        DSLContext dsl;
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
-            dsl = dbEndpointConfig.groupEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         entityCustomTagsStore = new EntityCustomTagsStore(dsl);
     }
 
@@ -138,7 +126,7 @@ public class EntityCustomTagsStoreTest {
                 .putTags(tagName1, TagValuesDTO.newBuilder()
                         .addAllValues(Arrays.asList(tagValue1, tagValue2)).build()).build();
         final Tags tags2 = Tags.newBuilder().putTags(tagName1, TagValuesDTO.newBuilder()
-                        .addAllValues(Collections.singletonList(tagValue1)).build()).build();
+                .addAllValues(Collections.singletonList(tagValue1)).build()).build();
         entityCustomTagsStore.insertTags(ENTITY_ID, tags2);
         entityCustomTagsStore.insertTags(ENTITY_ID, tags1);
     }

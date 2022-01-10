@@ -4,6 +4,11 @@ import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
 import static com.vmturbo.history.schema.abstraction.tables.Notifications.NOTIFICATIONS;
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -24,34 +29,27 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import javax.sql.DataSource;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.assertj.core.util.Objects;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.exception.DataAccessException;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
@@ -62,52 +60,46 @@ import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.NotificationsRecord;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Tests of BulkInserter and related classes.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestHistoryDbEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class BulkInserterTest extends Assert {
+@RunWith(Parameterized.class)
+public class BulkInserterTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
 
-    @Autowired(required = false)
-    private TestHistoryDbEndpointConfig dbEndpointConfig;
+    private final DSLContext dsl;
 
     /**
-     * Rule to set up the database before running the tests.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Vmtdb.VMTDB);
+    public BulkInserterTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Vmtdb.VMTDB, configurableDbDialect, dialect, "history",
+                TestHistoryDbEndpointConfig::historyEndpoint);
+        this.dsl = super.getDslContext();
+    }
 
-    /**
-     * Rule to clean up the database after each test.
-     */
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    public TestRule multiDbRules = super.ruleChain;
 
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @ClassRule
-    public static DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("history");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    private DSLContext dsl;
-    private DataSource dataSource;
 
     /**
      * Set up and populate live database for tests, and create required mocks.
@@ -118,14 +110,6 @@ public class BulkInserterTest extends Assert {
      */
     @Before
     public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.historyEndpoint());
-            dsl = dbEndpointConfig.historyEndpoint().dslContext();
-            dataSource = dbEndpointConfig.historyEndpoint().datasource();
-        } else {
-            dsl = dbConfig.getDslContext();
-            dataSource = dbConfig.getDataSource();
-        }
         // entities table starts out with a couple of records during migration that make
         // the tests a little clumsier, so we just get rid of them during setup.
         try {
@@ -377,14 +361,14 @@ public class BulkInserterTest extends Assert {
         Set<Long> actualIds = ImmutableSet.copyOf(
                 finalRecords.stream().map(EntitiesRecord::getId).collect(Collectors.toList()));
         // all records are present, as identified their id columns
-        Assert.assertEquals(expectedIds, actualIds);
+        assertEquals(expectedIds, actualIds);
         // get ids of records in initial batch
         final Set<Long> initialBatchIds = entitiesSet1.stream()
                 .map(EntitiesRecord::getId)
                 .collect(Collectors.toSet());
         // make sure the initial records contain the display name modification, and others
         // do not.
-        Assert.assertTrue(mixedRecords.stream()
+        assertTrue(mixedRecords.stream()
                 .allMatch(r -> initialBatchIds.contains(r.getId())
                         == r.getDisplayName().startsWith("xxx")));
     }

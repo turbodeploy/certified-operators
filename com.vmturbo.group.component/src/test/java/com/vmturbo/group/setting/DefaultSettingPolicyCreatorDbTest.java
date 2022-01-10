@@ -6,24 +6,21 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import org.jooq.DSLContext;
-import org.junit.Before;
-import org.junit.ClassRule;
+import org.jooq.SQLDialect;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
@@ -41,11 +38,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.db.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
@@ -54,80 +50,64 @@ import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.group.service.TransactionProvider;
 import com.vmturbo.group.service.TransactionProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Tests {@link DefaultSettingPolicyCreator} class with actual db interactions.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class DefaultSettingPolicyCreatorDbTest {
+@RunWith(Parameterized.class)
+public class DefaultSettingPolicyCreatorDbTest extends MultiDbTestBase {
+
+    /**
+     * Method to provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Test class constructor accepting test parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         dialect to use for test
+     * @throws SQLException                if there's a DB problem
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public DefaultSettingPolicyCreatorDbTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(GroupComponent.GROUP_COMPONENT, configurableDbDialect, dialect, "group",
+                TestGroupDBEndpointConfig::groupEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage DB provisioning and access. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final String WORKFLOW_SETTING = "resizeVmemUpInBetweenThresholdsActionWorkflow";
     private static final String WORKFLOW_SETTING_VALUE = "TestWorkflow";
     private static final String IGNORE_DIRECTORIES = "ignoreDirectories";
     private static final String IGNORE_DIRECTORIES_VALUE = "\\\\.dvsData.*|\\\\.snapshot.*";
-    private static final String PERCENTILE_AGGRESSIVENESS = "percentileAggressivenessVirtualMachine";
+    private static final String PERCENTILE_AGGRESSIVENESS =
+            "percentileAggressivenessVirtualMachine";
     private static final float PERCENTILE_AGGRESSIVENESS_VALUE = 95f;
     private static final String VMEM_RESIZE_MODE = "resizeVmemUpInBetweenThresholds";
     private static final String VMEM_RESIZE_MODE_VALUE = "MANUAL";
-    private static final String EXECUTION_SCHEDULE = "resizeVmemUpInBetweenThresholdsExecutionSchedule";
+    private static final String EXECUTION_SCHEDULE =
+            "resizeVmemUpInBetweenThresholdsExecutionSchedule";
 
-
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
-
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
     /**
      * Rule to expect exceptions, if required.
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    /**
-     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    @Autowired(required = false)
-    private TestGroupDBEndpointConfig dbEndpointConfig;
-
-    DSLContext dsl;
-
-    /**
-     * Initialize local variables.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Before
-    public void setup() throws Exception {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
-            dsl = dbEndpointConfig.groupEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
-    }
 
     /**
      * Tests a case where defaults settings get created in db for the first time. Then, it

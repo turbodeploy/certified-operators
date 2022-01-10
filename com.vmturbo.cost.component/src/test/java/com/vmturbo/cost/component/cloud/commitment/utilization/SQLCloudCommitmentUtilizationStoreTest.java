@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
@@ -18,16 +19,22 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
@@ -36,12 +43,44 @@ import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore.CloudCommitmentUtilizationFilter;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore.CloudCommitmentUtilizationStatsFilter;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
-@RunWith(MockitoJUnitRunner.class)
-public class SQLCloudCommitmentUtilizationStoreTest {
+@RunWith(Parameterized.class)
+public class SQLCloudCommitmentUtilizationStoreTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public SQLCloudCommitmentUtilizationStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost",
+                TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /** Rule chain to manage db provisioning and lifecycle. */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final CloudCommitmentDataPoint dataPoint1A = CloudCommitmentDataPoint.newBuilder()
             .setCommitmentId(1)
@@ -146,21 +185,6 @@ public class SQLCloudCommitmentUtilizationStoreTest {
                                     .put(CloudStatGranularity.MONTHLY, Duration.ofDays(30))
                                     .build();
 
-
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
-
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    private final DSLContext dsl = dbConfig.getDslContext();
-
     @Mock
     private CloudGranularityCalculator granularityCalculator;
 
@@ -168,6 +192,7 @@ public class SQLCloudCommitmentUtilizationStoreTest {
 
     @Before
     public void setup() {
+        MockitoAnnotations.initMocks(this);
         utilizationStore = new SQLCloudCommitmentUtilizationStore(dsl, granularityCalculator);
     }
 
@@ -428,122 +453,68 @@ public class SQLCloudCommitmentUtilizationStoreTest {
         final CloudCommitmentStatRecord firstDayCurrencyStat = CloudCommitmentStatRecord.newBuilder()
                 .setSnapshotDate(startTime.toEpochMilli())
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
+                        .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
+                        .setCoverageSubtype(123)
+                        .build())
                 .setValues(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(2.3)))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(2.3)))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(2.3)))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(2.3))))
+                        .setMin(2.3)
+                        .setMax(2.3)
+                        .setTotal(2.3)
+                        .setAvg(2.3))
                 .setCapacity(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0))))
+                        .setMin(5.0)
+                        .setMax(5.0)
+                        .setTotal(5.0)
+                        .setAvg(5.0))
                 .build();
         final CloudCommitmentStatRecord firstDayCouponStat = CloudCommitmentStatRecord.newBuilder()
                 .setSnapshotDate(startTime.toEpochMilli())
                 .setSampleCount(3)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(1.0))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(3.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(7.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(7.0 / 3.0)))
+                        .setMin(1.0)
+                        .setMax(3.0)
+                        .setTotal(7.0)
+                        .setAvg(7.0 / 3.0))
                 .setCapacity(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(2.0))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(5.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(11.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(11.0 / 3.0)))
+                        .setMin(2.0)
+                        .setMax(5.0)
+                        .setTotal(11.0)
+                        .setAvg(11.0 / 3.0))
                 .build();
         final CloudCommitmentStatRecord secondDayCurrencyStat = CloudCommitmentStatRecord.newBuilder()
                 .setSnapshotDate(startTime.plus(bucketStep).toEpochMilli())
                 .setSampleCount(1)
+                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
+                        .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
+                        .setCoverageSubtype(123)
+                        .build())
                 .setValues(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0))))
+                        .setMin(5.0)
+                        .setMax(5.0)
+                        .setTotal(5.0)
+                        .setAvg(5.0))
                 .setCapacity(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0)))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setAmount(CurrencyAmount.newBuilder()
-                                        .setCurrency(123)
-                                        .setAmount(5.0))))
+                        .setMin(5.0)
+                        .setMax(5.0)
+                        .setTotal(5.0)
+                        .setAvg(5.0))
                 .build();
         final CloudCommitmentStatRecord secondDayCouponStat = CloudCommitmentStatRecord.newBuilder()
                 .setSnapshotDate(startTime.plus(bucketStep).toEpochMilli())
                 .setSampleCount(3)
+                .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
                 .setValues(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(2.0))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(5.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(11.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(11.0 / 3.0)))
+                        .setMin(2.0)
+                        .setMax(5.0)
+                        .setTotal(11.0)
+                        .setAvg(11.0 / 3.0))
                 .setCapacity(StatValue.newBuilder()
-                        .setMin(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(2.0))
-                        .setMax(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(5.0))
-                        .setTotal(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(11.0))
-                        .setAvg(CloudCommitmentAmount.newBuilder()
-                                .setCoupons(11.0 / 3.0)))
+                        .setMin(2.0)
+                        .setMax(5.0)
+                        .setTotal(11.0)
+                        .setAvg(11.0 / 3.0))
                 .build();
 
 

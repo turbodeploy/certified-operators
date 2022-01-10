@@ -1,25 +1,33 @@
 package com.vmturbo.repository.plan.db;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.spy;
+import org.jooq.SQLDialect;
 
-import org.springframework.context.annotation.Conditional;
-import org.springframework.context.annotation.Configuration;
-
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
- * Testing config by removing the {@link Conditional} annotation and mocking a
- * {@link DbEndpointCompleter} so it doesn't actually complete.
+ * Class to create DbEndpoint instances for tests.
  */
-@Configuration
 public class TestRepositoryDbEndpointConfig extends RepositoryDBEndpointConfig {
+
+    /**
+     * Create a test Repository endpoint for tests.
+     *
+     * @param dialect desired dialect
+     * @return new endpoint
+     */
+    public static DbEndpoint respositoryEndpoint(SQLDialect dialect) {
+        return new TestRepositoryDbEndpointConfig().testRepositoryEndpoint(dialect);
+    }
+
+    private DbEndpoint testRepositoryEndpoint(SQLDialect dialect) {
+        super.sqlDialect = dialect;
+        return repositoryEndpoint();
+    }
+
     @Override
     public DbEndpointCompleter endpointCompleter() {
-        // Prevent actual completion of the DbEndpoint.
-        DbEndpointCompleter dbEndpointCompleter = spy(super.endpointCompleter());
-        doNothing().when(dbEndpointCompleter).setEnvironment(any());
-        return dbEndpointCompleter;
+        return MultiDbTestBase.getTestCompleter();
     }
 }

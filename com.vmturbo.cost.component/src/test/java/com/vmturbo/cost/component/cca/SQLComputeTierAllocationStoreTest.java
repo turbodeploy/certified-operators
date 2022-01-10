@@ -7,6 +7,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -15,52 +16,72 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.jooq.DSLContext;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.MoreExecutors;
+
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
+import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
-public class SQLComputeTierAllocationStoreTest {
+@RunWith(Parameterized.class)
+public class SQLComputeTierAllocationStoreTest extends MultiDbTestBase {
+    /**
+     * Provide test parameters.
+     *
+     * @return test parameters
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect to use
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+    public SQLComputeTierAllocationStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Cost.COST, configurableDbDialect, dialect, "cost", TestCostDbEndpointConfig::costEndpoint);
+        this.dsl = super.getDslContext();
+    }
 
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
+    /** Rule chain to manage db provisioning and lifecycle. */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    private final DSLContext dsl = dbConfig.getDslContext();
+    public TestRule multiDbRules = super.ruleChain;
 
     private final TopologyInfoTracker mockTopologyTracker = mock(TopologyInfoTracker.class);
 
-    private final SQLComputeTierAllocationStore computeTierAllocationStore =
-            new SQLComputeTierAllocationStore(dsl,mockTopologyTracker, MoreExecutors.newDirectExecutorService(),
-                    1000, 1000, 1000);
+    private SQLComputeTierAllocationStore computeTierAllocationStore;
 
 
     /*
@@ -119,8 +140,10 @@ public class SQLComputeTierAllocationStoreTest {
 
     @Before
     public void setup() {
-
-        when(mockTopologyTracker.getPriorTopologyInfo(eq(baselineTopologyInfo))).thenReturn(Optional.empty());
+        computeTierAllocationStore = new SQLComputeTierAllocationStore(dsl, mockTopologyTracker,
+                MoreExecutors.newDirectExecutorService(), 1000, 1000, 1000);
+        when(mockTopologyTracker.getPriorTopologyInfo(eq(baselineTopologyInfo))).thenReturn(
+                Optional.empty());
 
         /*
         Invoke store

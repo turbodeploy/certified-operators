@@ -17,6 +17,7 @@ public class CloudCommitmentUtils {
      */
     public static final CloudCommitmentCoverageTypeInfo COUPON_COVERAGE_TYPE_INFO = CloudCommitmentCoverageTypeInfo.newBuilder()
             .setCoverageType(CloudCommitmentCoverageType.COUPONS)
+            .setCoverageSubtype(0)
             .build();
 
     private CloudCommitmentUtils() {}

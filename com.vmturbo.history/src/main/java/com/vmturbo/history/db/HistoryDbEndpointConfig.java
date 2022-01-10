@@ -1,5 +1,6 @@
 package com.vmturbo.history.db;
 
+import org.jooq.SQLDialect;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,8 @@ import com.vmturbo.sql.utils.DbEndpointsConfig;
 @Conditional(DbEndpointCondition.class)
 public class HistoryDbEndpointConfig extends DbEndpointsConfig {
 
+    private static final String HISTORY_SCHEMA_NAME = "vmtdb";
+
     /**
      * Create a {@link DbEndpoint} for accessing history DB.
      *
@@ -23,13 +26,14 @@ public class HistoryDbEndpointConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint historyEndpoint() {
-        return fixEndpointForMultiDb(
-                dbEndpoint("dbs.history", sqlDialect)
-                        // TODO remove next line as part of OM-77149
-                        .withMigrationLocations("db.migration")
-                        .withShouldProvision(true)
-                        .withRootAccessEnabled(true)
-                        .withAccess(DbEndpointAccess.ALL))
+        return fixEndpointForMultiDb(dbEndpoint("dbs.history", SQLDialect.MARIADB)
+                // TODO remove next line as part of OM-77149
+                .withMigrationLocations("db.migration")
+                .withShouldProvision(true)
+                .withRootAccessEnabled(true)
+                .withAccess(DbEndpointAccess.ALL)
+                .withDatabaseName(HISTORY_SCHEMA_NAME)
+                .withSchemaName(HISTORY_SCHEMA_NAME))
                 .build();
     }
 }

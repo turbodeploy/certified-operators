@@ -54,7 +54,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
@@ -116,8 +115,7 @@ public class PendingActionWriterTest {
 
     /** Rule to manage feature flags. */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private ReportPendingActionWriter reportingActionWriter = mock(ReportPendingActionWriter.class);
     private ActionWriterFactory actionWriterFactory = mock(ActionWriterFactory.class);

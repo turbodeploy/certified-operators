@@ -143,6 +143,7 @@ public class PostgresAdapter extends DbAdapter {
         switch (access) {
             case ALL:
                 performAllGrants();
+                performWriteGrants();
                 alterDefaultPrivileges();
                 break;
             case READ_WRITE_DATA:

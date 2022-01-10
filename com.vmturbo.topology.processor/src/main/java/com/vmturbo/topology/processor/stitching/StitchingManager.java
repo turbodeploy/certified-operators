@@ -35,6 +35,7 @@ import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.ExternalSignatureCache;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
@@ -316,12 +317,8 @@ public class StitchingManager {
         final StitchingOperationTracer tracer = new StitchingOperationTracer();
         final Map<Pair<Long, Long>, StitchingEntity> beforeStitchingEntityMap = scopeFactory.globalScope().entities().collect(
                 Collectors.toMap(e -> Pair.create(e.getOid(), e.getTargetId()), e -> e));
-        // Because Kubernetes abuses probe types by creating different probe types with different
-        // probe IDs, we may have the same stitching operation shared among several Kubernetes
-        // "probe types". In that case, we don't want to call intializeOperationsBeforeStitching
-        // multiple times for the same stitching operation. So we keep a set of operations that
-        // have been initialized and don't initialize the same operation twice.
-        final Set<StitchingOperation<?,?>> initializedOperations = new HashSet<>();
+        final ExternalSignatureCache signatureCache = new ExternalSignatureCache();
+
         stitchingOperationStore.getAllOperations().stream()
                 .sorted(probeStore.getProbeOrdering())
                 .forEach(probeOperation -> {
@@ -331,15 +328,10 @@ public class StitchingManager {
                             .getProbeType();
                     logger.debug("Stitching operation for probe type {} entity type {}", probeType,
                             stitchingOperation.getInternalEntityType().name());
-                    if (!initializedOperations.contains(stitchingOperation)) {
-                        logger.debug("Initializing operation {}", stitchingOperation);
-                        stitchingOperation.initializeOperationBeforeStitching(scopeFactory);
-                        initializedOperations.add(stitchingOperation);
-                    }
                     targetStore.getProbeTargets(probeOperation.probeId).forEach(target -> {
                         tracer.trace(probeOperation.stitchingOperation);
                         applyOperationForTarget(probeOperation.stitchingOperation, scopeFactory,
-                                stitchingJournal, target.getId(), probeOperation.probeId);
+                                stitchingJournal, signatureCache, target.getId(), probeOperation.probeId);
                     });
                 });
         tracer.close();
@@ -475,25 +467,27 @@ public class StitchingManager {
      * are skipped. If some of the results were already applied when the exception is thrown,
      * those results continue to be applied and are not rolled back, but the rest of the results
      * for this operation-target pair are abandoned.
-     *
-     * @param operation The operation to apply.
+     *  @param operation The operation to apply.
      * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
      *                     of entities that the stitching operation should operate on.
      * @param stitchingJournal The stitching journal used to track changes.
+     * @param signatureCache Cache for external stitching signatures to avoid having to recreate the
+     *                       same stitching signatures multiple times.
      * @param targetId The id of the target that is being stitched via the operation.
      * @param probeId The id of the probe associated with the target that is being stitched via the operation.
      */
     private void applyOperationForTarget(@Nonnull final StitchingOperation<?, ?> operation,
                                          @Nonnull final StitchingOperationScopeFactory scopeFactory,
                                          @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal,
-                                         final long targetId, final long probeId) {
+                                         @Nonnull final  ExternalSignatureCache signatureCache, final long targetId,
+                                         final long probeId) {
         MissingFieldSummarizer summarizer = MissingFieldSummarizer.getInstance();
         try {
             summarizer.setTarget(targetId);
             Optional<EntityType> externalType = operation.getExternalEntityType();
             stitchingJournal.recordOperationBeginning(operation, operationDetailsForTarget(probeId, targetId));
             final TopologicalChangelog<StitchingEntity> results = externalType.map(extType ->
-                    applyStitchWithExternalEntitiesOperation(operation, scopeFactory, targetId, extType))
+                    applyStitchWithExternalEntitiesOperation(operation, scopeFactory, signatureCache, targetId, extType))
                     .orElseGet(() -> applyStitchAloneOperation(operation, scopeFactory, targetId));
             results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
         } catch (RuntimeException e) {
@@ -570,6 +564,8 @@ public class StitchingManager {
      * @param operation The operation for stitching.
      * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
      *                     of entities that the stitching operation should operate on.
+     * @param signatureCache Cache for external stitching signatures to avoid having to recreate the
+     *                       same stitching signatures multiple times.
      * @param targetId The id of the target for which this stitching operation is being applied.
      * @param externalEntityType The {@link EntityType} of the external entities to be stitched with
      *                           the internal entities discovered by the target with the given targetId.
@@ -583,6 +579,7 @@ public class StitchingManager {
     TopologicalChangelog<StitchingEntity> applyStitchWithExternalEntitiesOperation(
         @Nonnull final StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> operation,
         @Nonnull final StitchingOperationScopeFactory scopeFactory,
+        @Nonnull final ExternalSignatureCache signatureCache,
         final long targetId,
         @Nonnull final EntityType externalEntityType) {
         final Stopwatch swTotal = Stopwatch.createStarted();
@@ -607,6 +604,7 @@ public class StitchingManager {
         }
         final MatchMap matchMap = new MatchMap(signaturesToEntities.size());
         final Collection<SymmetricPair<Long, Long>> stitchedTargets = new HashSet<>();
+
         // Process the matches.
         if (!signaturesToEntities.isEmpty()) {
             // Compute a map of all internal entities to their matching external entities using
@@ -614,7 +612,7 @@ public class StitchingManager {
             // Exclude entities that come from the same target as the one being stitched.
             final Stopwatch swExternalEntitiesCollected = Stopwatch.createStarted();
             final Map<EXTERNAL_SIGNATURE_TYPE, Collection<StitchingEntity>> externalEntities =
-                    operation.getExternalSignatures(scopeFactory, targetId);
+                    operation.getExternalSignatures(scopeFactory, signatureCache, targetId);
             if (logger.isTraceEnabled()) {
                 logger.trace("{}External entities collected for '{}' operation '{}' on target in '{}' ms", prefix,
                                 operationId, targetId,

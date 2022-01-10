@@ -1,18 +1,33 @@
 package com.vmturbo.action.orchestrator;
 
-import org.springframework.context.annotation.Configuration;
+import org.jooq.SQLDialect;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
- * Workaround for {@link ActionOrchestratorDbEndpointConfig} (remove conditional annotation), since
- * it's conditionally initialized based on {@link FeatureFlags#POSTGRES_PRIMARY_DB}. When we
- * test all combinations of it using {@link FeatureFlagTestRule}, first it's false, so
- * {@link ActionOrchestratorDbEndpointConfig} is not created; then second it's true,
- * {@link ActionOrchestratorDbEndpointConfig} is created, but the endpoint inside is also eagerly
- * initialized due to the same FF, which results in several issues like: it doesn't go through
- * DbEndpointTestRule, making call to auth to get root password, etc.
+ * Class to create DbEndpoint instances for tests.
  */
-@Configuration
-public class TestActionOrchestratorDbEndpointConfig extends ActionOrchestratorDbEndpointConfig {}
+public class TestActionOrchestratorDbEndpointConfig extends ActionOrchestratorDbEndpointConfig {
+
+    /**
+     * Create a test AO endpoint for tests.
+     *
+     * @param dialect desired dialect
+     * @return new endpoint
+     */
+    public static DbEndpoint actionOrchestratorEndpoint(SQLDialect dialect) {
+        return new TestActionOrchestratorDbEndpointConfig().testActionOrchestratorEndpoint(dialect);
+    }
+
+    private DbEndpoint testActionOrchestratorEndpoint(SQLDialect dialect) {
+        super.sqlDialect = dialect;
+        return super.actionOrchestratorEndpoint();
+    }
+
+    @Override
+    public DbEndpointCompleter endpointCompleter() {
+        return MultiDbTestBase.getTestCompleter();
+    }
+}

@@ -27,7 +27,6 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationRequest;
@@ -287,23 +286,23 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
     }
 
 
-    private List<StatSnapshotApiDTO> convertCloudCommitmentStatRecordsToStatsDTO(List<CloudCommitmentStatRecord> records, String statName)
-            throws OperationFailedException {
+    private List<StatSnapshotApiDTO> convertCloudCommitmentStatRecordsToStatsDTO(List<CloudCommitmentStatRecord> records, String statName) {
         List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
         for (CloudCommitmentStatRecord record: records) {
             final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
             snapshotApiDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
             snapshotApiDTO.setEpoch(Epoch.HISTORICAL);
             StatValueApiDTO statsValueDto = new StatValueApiDTO();
-            final ValueCase valueCase = record.getValues().getAvg().getValueCase();
-            setStatCapacityAndValues(statsValueDto, valueCase, record.getValues());
+            setStatCapacityAndValues(statsValueDto, record.getValues());
             StatValueApiDTO capacityDto = new StatValueApiDTO();
-            final ValueCase capacityValueCase = record.getCapacity().getAvg().getValueCase();
-            setStatCapacityAndValues(capacityDto, capacityValueCase, record.getCapacity());
+            setStatCapacityAndValues(capacityDto, record.getCapacity());
             StatApiDTO statsDto = new StatApiDTO();
             statsDto.setValues(statsValueDto);
             statsDto.setCapacity(capacityDto);
             statsDto.setName(statName);
+            // Currently, we assume the coverage type will always be spend in dollars.
+            // This will need to be updated to determine the units based on the record
+            // coverage type.
             statsDto.setUnits(StringConstants.DOLLARS_PER_DAY);
             snapshotApiDTO.setStatistics(Lists.newArrayList(statsDto));
             statSnapshotApiDTOS.add(snapshotApiDTO);
@@ -311,24 +310,11 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
         return statSnapshotApiDTOS;
     }
 
-    private void setStatCapacityAndValues(StatValueApiDTO statsValueDto, ValueCase valueCase, StatValue statValue)
-            throws OperationFailedException {
-        switch (valueCase) {
-            case AMOUNT:
-                statsValueDto.setAvg((float)statValue.getAvg().getAmount().getAmount());
-                statsValueDto.setMax((float)statValue.getMax().getAmount().getAmount());
-                statsValueDto.setMin((float)statValue.getMin().getAmount().getAmount());
-                statsValueDto.setTotal((float)statValue.getTotal().getAmount().getAmount());
-                break;
-            case COUPONS:
-                statsValueDto.setAvg((float)statValue.getAvg().getCoupons());
-                statsValueDto.setMax((float)statValue.getMax().getCoupons());
-                statsValueDto.setMin((float)statValue.getMin().getCoupons());
-                statsValueDto.setTotal((float)statValue.getTotal().getCoupons());
-                break;
-            case VALUE_NOT_SET:
-                throw new OperationFailedException(
-                        "Invalid type for cloud commitment capacity in the stat record");
-        }
+    private void setStatCapacityAndValues(StatValueApiDTO statsValueDto, StatValue statValue) {
+
+        statsValueDto.setAvg((float)statValue.getAvg());
+        statsValueDto.setMax((float)statValue.getMax());
+        statsValueDto.setMin((float)statValue.getMin());
+        statsValueDto.setTotal((float)statValue.getTotal());
     }
 }

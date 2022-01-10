@@ -617,8 +617,11 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 .stream()
                 .filter(e -> e.getConnectionType() == ConnectionType.AGGREGATED_BY_CONNECTION &&
                         aggregatorTypeFilter.contains(e.getConnectedEntityType()))
-                .findFirst()
-                .flatMap(e -> getEntity(e.getConnectedEntityId()));
+                // verify the connected entity exists prior to choosing one
+                .map(e -> getEntity(e.getConnectedEntityId()))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
     }
 
     /**

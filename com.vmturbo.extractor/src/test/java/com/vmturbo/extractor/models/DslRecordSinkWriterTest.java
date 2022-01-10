@@ -40,14 +40,15 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
@@ -60,6 +61,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
+@CleanupOverrides(checkOthers = true)
 public class DslRecordSinkWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
@@ -91,8 +93,7 @@ public class DslRecordSinkWriterTest {
      * Manage feature flags.
      */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
-            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private final Map<String, Object> metricData1 = createMetricRecordMap(
             OffsetDateTime.now(), 1L, MetricType.CPU, null, null, null, null, 1.0, 2L, null, null,
@@ -110,8 +111,8 @@ public class DslRecordSinkWriterTest {
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
-        final DbEndpoint endpoint = dbConfig.ingesterEndpoint();
-        endpointRule.addEndpoints(endpoint);
+        final DbEndpoint endpoint = endpointRule.completeEndpoint(dbConfig.ingesterEndpoint(),
+                Extractor.EXTRACTOR).getDbEndpoint();
         this.dsl = spy(endpoint.dslContext());
         final ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor();
         this.metricSink = new DslRecordSink(dsl, METRIC_TABLE, config, pool);

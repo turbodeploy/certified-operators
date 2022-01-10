@@ -22,6 +22,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -101,6 +103,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -162,6 +165,12 @@ public class OperationManagerTest {
      */
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Rule to support feature flag access during test.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private DSLContext dsl = dbConfig.getDslContext();
 
@@ -287,9 +296,9 @@ public class OperationManagerTest {
      */
     @Test
     public void testDiscoveryObject() {
-        LocalDateTime before = LocalDateTime.now();
+        LocalDateTime before = LocalDateTime.now(ZoneId.from(ZoneOffset.UTC));
         Discovery discovery = new Discovery(50, 100, identityProvider);
-        LocalDateTime after = LocalDateTime.now();
+        LocalDateTime after = LocalDateTime.now(ZoneId.from(ZoneOffset.UTC));
         testNow(discovery.getStartTime(), before, after);
         Assert.assertNull(discovery.getCompletionTime());
         Assert.assertEquals(50, discovery.getProbeId());

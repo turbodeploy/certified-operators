@@ -29,6 +29,7 @@ import org.jooq.impl.DSL;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
@@ -316,17 +317,22 @@ public class SQLCloudCommitmentUtilizationStore implements CloudCommitmentUtiliz
         final CloudCommitmentStatRecord.Builder statRecord = CloudCommitmentStatRecord.newBuilder()
                 .setSnapshotDate(sampleTime.toEpochMilli())
                 .setSampleCount(sampleCount)
+                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
+                        .setCoverageType(coverageType)
+                        .setCoverageSubtype(coverageSubType)
+                        .build())
                 .setValues(StatValue.newBuilder()
-                       .setMin(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, minUtilizationAmount))
-                       .setMax(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, maxUtilizationAmount))
-                       .setTotal(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, sumUtilizationAmount))
-                       .setAvg(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, avgUtilizationAmount.doubleValue()))
+                       .setMin(minUtilizationAmount)
+                       .setMax(maxUtilizationAmount)
+                       .setTotal(sumUtilizationAmount)
+                       .setAvg(avgUtilizationAmount.doubleValue())
                        .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMin(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, minCommitmentCapacity))
-                        .setMax(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, maxCommitmentCapacity))
-                        .setTotal(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, sumCommitmentCapacity))
-                        .setAvg(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, avgCommitmentCapacity.doubleValue()))
+                        .setMin(minCommitmentCapacity)
+                        .setMax(maxCommitmentCapacity)
+                        .setTotal(sumCommitmentCapacity)
+                        .setAvg(avgCommitmentCapacity.doubleValue())
+
                         .build());
 
         // Add scoping information

@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -34,22 +35,19 @@ import io.grpc.stub.StreamObserver;
 
 import org.jetbrains.annotations.NotNull;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -78,29 +76,53 @@ import com.vmturbo.common.protobuf.topology.PlanExportToTargetServiceGrpc.PlanEx
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.plan.orchestrator.db.Plan;
-import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImplTest.TestPlanOrchestratorDBEndpointConfig;
+import com.vmturbo.plan.orchestrator.db.TestPlanOrchestratorDBEndpointConfig;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
-import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit test for {@link PlanExportRpcService}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestPlanOrchestratorDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class PlanExportRpcServiceTest {
+@RunWith(Parameterized.class)
+public class PlanExportRpcServiceTest extends MultiDbTestBase {
 
-    @Autowired(required = false)
-    private TestPlanOrchestratorDBEndpointConfig dbEndpointConfig;
+    /**
+     * Provide test parmaeter values.
+     *
+     * @return parameter values
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given parameters.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public PlanExportRpcServiceTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Plan.PLAN, configurableDbDialect, dialect, "plan-orchestrator",
+                TestPlanOrchestratorDBEndpointConfig::planEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /**
+     * Rule chain to manage DB provisioning and lifecycle.
+     */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
 
     private static final long UNKNOWN_DESTINATION_ID = 707;
     private static final long IN_PROGRESS_DESTINATION_ID = 717;
@@ -110,31 +132,6 @@ public class PlanExportRpcServiceTest {
     private static final long VALID_MARKET_ID_2 = 757;
     private static final long OTHER_MARKET_ID = 767;
     private static final long UNKNOWN_MARKET_ID = 777;
-
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
-
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link DbEndpoint}s in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("plan-orchestrator");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
 
     /**
      * Rule to enable Mockito features/annotations in this unit test.
@@ -172,8 +169,6 @@ public class PlanExportRpcServiceTest {
     @Captor
     ArgumentCaptor<PlanDestination> destinationCaptor;
 
-    private DSLContext dsl;
-
     // Even if it's an {@link ExternalResource} we need to start and close it manually because with
     // the FeatureFlags.POSTGRES_PRIMARY_DB it needs to be recreated for every flag value combination
     // This is also because some tests are counting how many methods are accessed on that instance
@@ -203,13 +198,6 @@ public class PlanExportRpcServiceTest {
             PlanExportToTargetServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         planExportNotificationSender = mock(PlanExportNotificationSender.class);
-
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.planEndpoint());
-            dsl = dbEndpointConfig.planEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
     }
 
     /**

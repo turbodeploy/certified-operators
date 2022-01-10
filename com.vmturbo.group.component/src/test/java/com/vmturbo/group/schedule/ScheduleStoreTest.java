@@ -20,21 +20,18 @@ import java.util.Set;
 
 import org.assertj.core.util.Sets;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.jooq.TransactionalCallable;
 import org.jooq.exception.DataAccessException;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -54,16 +51,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.group.TestGroupDBEndpointConfig;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemDeleteException.ScheduleInUseDeleteException;
 import com.vmturbo.group.common.ItemNotFoundException.ScheduleNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.db.TestGroupDBEndpointConfig;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.TestGroupGenerator;
@@ -75,20 +71,14 @@ import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.group.setting.SettingsUpdatesSender;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.DbEndpointTestRule;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
  * Unit tests for {@link ScheduleStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestGroupDBEndpointConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"sqlDialect=MARIADB"})
-public class ScheduleStoreTest {
+@RunWith(Parameterized.class)
+public class ScheduleStoreTest extends MultiDbTestBase {
     private static final String DISPLAY_NAME = "Test Schedule 1";
     private static final String DISPLAY_NAME_PERPETUAL = "Perpetual Test Schedule 1";
     private static final long START_TIME = 1446760800000L;
@@ -99,42 +89,48 @@ public class ScheduleStoreTest {
     private static final String TIME_ZONE_ID = "America/Argentina/ComodRivadavia";
 
     private static final String SETTING_TEST_JSON_SETTING_SPEC_JSON =
-        "setting-test-json/setting-spec.json";
+            "setting-test-json/setting-spec.json";
 
-    /** Expected exceptions to test against. */
+    /**
+     * Provide test parameter values.
+     *
+     * @return parameter values
+     */
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
+    /**
+     * Create a new instance with given values.
+     *
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect
+     * @throws SQLException                if a DB operation fails
+     * @throws UnsupportedDialectException if dialect is bogus
+     * @throws InterruptedException        if we're interrupted
+     */
+    public ScheduleStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(GroupComponent.GROUP_COMPONENT, configurableDbDialect, dialect, "group", TestGroupDBEndpointConfig::groupEndpoint);
+        this.dsl = super.getDslContext();
+    }
+
+    /**
+     * Rule chain to manage DB provisioning and lifecycle.
+     */
+    @Rule
+    public TestRule multiDbRules = super.ruleChain;
+
+    /**
+     * Expected exceptions to test against.
+     */
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
-
     private final GroupPaginationParams groupPaginationParams = new GroupPaginationParams(100, 500);
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    /**
-     * Test rule to use {@link com.vmturbo.group.GroupDBEndpointConfig} in test.
-     */
-    @Rule
-    public DbEndpointTestRule dbEndpointTestRule = new DbEndpointTestRule("group");
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule().testAllCombos(
-            FeatureFlags.POSTGRES_PRIMARY_DB);
-
-    @Autowired(required = false)
-    private TestGroupDBEndpointConfig dbEndpointConfig;
-
-    private DSLContext dsl;
 
     private ScheduleStore scheduleStore;
     private SettingSpecStore settingSpecStore;
@@ -173,15 +169,15 @@ public class ScheduleStoreTest {
         .build();
 
     private final Schedule testEmptySchedule = Schedule.newBuilder()
-        .build();
+            .build();
 
     private static final SettingPolicyInfo INFO = SettingPolicyInfo.newBuilder()
-        .setName("test")
+            .setName("test")
             .addAllSettings(Arrays.asList(Setting.newBuilder()
                     .setSettingSpecName("TestSetting")
                     .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
                     .build()))
-        .build();
+            .build();
     private static final SettingPolicy USER_POLICY = SettingPolicy.newBuilder()
             .setId(10001L)
             .setInfo(INFO)
@@ -190,18 +186,13 @@ public class ScheduleStoreTest {
 
     /**
      * Setup test.
-     * @throws SQLException if there is db error
+     *
+     * @throws SQLException                if there is db error
      * @throws UnsupportedDialectException if the dialect is not supported
-     * @throws InterruptedException if interrupted
+     * @throws InterruptedException        if interrupted
      */
     @Before
     public void setUp() throws SQLException, UnsupportedDialectException, InterruptedException {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            dbEndpointTestRule.addEndpoints(dbEndpointConfig.groupEndpoint());
-            dsl = dbEndpointConfig.groupEndpoint().dslContext();
-        } else {
-            dsl = dbConfig.getDslContext();
-        }
         dslContextSpy = spy(dsl);
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
         settingStore = new SettingStore(settingSpecStore, dslContextSpy, settingPolicyValidator,

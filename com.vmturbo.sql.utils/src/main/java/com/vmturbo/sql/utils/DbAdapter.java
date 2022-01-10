@@ -195,7 +195,7 @@ public abstract class DbAdapter {
      * @throws SQLException                if there's a problem creating the data source
      */
     protected DataSource getDataSourceForFlyway() throws UnsupportedDialectException, SQLException {
-        return getDataSource(true);
+        return getDataSource(false);
     }
 
     /**

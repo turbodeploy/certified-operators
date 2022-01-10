@@ -10,6 +10,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -20,34 +21,59 @@ import com.google.common.collect.ImmutableList;
 
 import org.assertj.core.util.Lists;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.jooq.exception.NoDataFoundException;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.auth.component.TestAuthDbEndpointConfig;
 import com.vmturbo.auth.component.store.db.Auth;
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDbTestBase;
 
-public class WidgetsetDbStoreTest {
+@RunWith(Parameterized.class)
+public class WidgetsetDbStoreTest extends MultiDbTestBase {
 
     /**
-     * Rule to create the DB schema and migrate it.
+     * Provide test parameter values.
+     * @return parameter values
      */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Auth.AUTH);
+    @Parameters
+    public static Object[][] parameters() {
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+    }
+
+    private final DSLContext dsl;
+
     /**
-     * Rule to automatically cleanup DB data before each test.
+     * Create a new instance with given parameters.
+     * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
+     * @param dialect         DB dialect
+     * @throws SQLException if a DB operation fails
+     * @throws UnsupportedDialectException if the dialect is bogus
+     * @throws InterruptedException if we're interrupted
+     */
+    public WidgetsetDbStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        super(Auth.AUTH, configurableDbDialect, dialect, "auth",
+                TestAuthDbEndpointConfig::authDbEndpoint);
+        dsl = super.getDslContext();
+    }
+
+    /**
+     * Rule chain to manage DB provisioning and lifecycle.
      */
     @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
-
-    private DSLContext dsl = dbConfig.getDslContext();
+    public TestRule multiDbRules = super.ruleChain;
 
     private WidgetsetDbStore testDbStore;
 
@@ -60,7 +86,7 @@ public class WidgetsetDbStoreTest {
     public ExpectedException thrown = ExpectedException.none();
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
 
         // create the test instance

@@ -33,8 +33,8 @@ public class GroupDBEndpointConfig extends DbEndpointsConfig {
         return fixEndpointForMultiDb(dbEndpoint("dbs.group", sqlDialect)
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
-                .withRootAccessEnabled(true))
-                .withUserName(groupDbUsername)
+                .withRootAccessEnabled(true)
+                .withUserName(groupDbUsername))
                 .build();
     }
 }
