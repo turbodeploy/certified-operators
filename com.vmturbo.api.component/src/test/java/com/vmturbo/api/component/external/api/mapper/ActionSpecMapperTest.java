@@ -1346,7 +1346,7 @@ public class ActionSpecMapperTest {
     /**
      * Test the data for {@link CloudResizeActionDetailsApiDTO}
      * is populated from {@link CloudSavingsDetails}.
-     * Except the RI Buy data is from grpc.
+     * Expect getting RI Buy data from grpc.
      */
     @Test
     public void testMCPMoveActionRIBuy() {
