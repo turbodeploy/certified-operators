@@ -87,7 +87,7 @@ public class TestDbEndpoint {
             throws SQLException, UnsupportedDialectException, InterruptedException {
         // do we already have a matching instance?
         DbEndpointConfig config = endpoint.getConfig();
-        String name = config.getName();
+        String name = config.getName() + "-" + config.getDialect().name();
         if (testEndpoints.containsKey(name)) {
             // Yes! use it instead of creating a new one
             TestDbEndpoint testDbEndpoint = testEndpoints.get(name);
