@@ -185,7 +185,10 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                         // factors other than "limit" that could drivef the VM resource
                         // utilization threshold to below 100%, then this approximation would
                         // likely be wrong and misleading in those cases.
-                        float approximateLimit = commoditySold.getCapacity() * utilizationPercentage;
+                        //Use old capacity from resize, instead of from projectedEntity, as it is scaled already.
+                        //For vcpu that is old scale-factored MHz / factor * upperBound
+                        double scalingFactor = resizeCommSold.map(CommoditySoldDTO::getScalingFactor).orElse(1.0);
+                        float approximateLimit = resize.getOldCapacity() / (float)scalingFactor * utilizationPercentage;
                         logger.debug("The commodity {} has util% of {}, so treating as limit"
                                         + " removal (approximate limit: {}).",
                                 topologyCommodityType.getKey(), utilizationPercentage, approximateLimit);

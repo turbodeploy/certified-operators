@@ -174,7 +174,7 @@ public class ResizeInterpreterTest {
         Optional<Resize> resize = resizeInterpreter.interpret(resizeTO, projectedTopology);
         assertThat(resize.get().getCommodityType(), is(topologyCommType));
         assertThat(resize.get().getNewCapacity(), is(0.0f));
-        assertThat(resize.get().getOldCapacity(), is(50.0f));
+        assertThat(resize.get().getOldCapacity(), is(0.5f));
     }
 
     /**
