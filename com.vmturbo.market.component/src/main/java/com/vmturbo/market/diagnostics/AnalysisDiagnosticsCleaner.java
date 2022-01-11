@@ -52,42 +52,47 @@ public class AnalysisDiagnosticsCleaner implements IDiagnosticsCleaner {
 
     @Override
     public void cleanup(Economy economy, TopologyInfo topologyInfo) {
-        if (saveAnalysisDiagsFuture == null) {
-            logger.error("No saveAnalysisDiagsFuture for {}. This should not happen.",
-                    AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo));
-            return;
-        }
-        // Before deleting, we should wait for the save to finish
-        waitForSaveToFinish();
-
-        // If this is zero, we assume the feature is turned off. So no need to delete anything.
-        if (numRealTimeAnalysisDiagsToRetain == 0) {
-            return;
-        }
-
-        // If diags are not needed, delete whatever was written in this market cycle
-        if (!areDiagsNeeded(economy, topologyInfo)) {
-            String fullPath = AnalysisDiagnosticsUtils.getZipFileFullPath(
-                    AnalysisDiagnosticsUtils.getFilePrefix(AnalysisDiagnosticsCollector.AnalysisMode.M2),
-                    AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo));
-            Path pathToDelete = Paths.get(fullPath);
-            fileSystem.deleteIfExists(pathToDelete);
-        }
-
-        // Keep only numRealTimeAnalysisDiagsToRetain real time diags around
-        List<Path> realtimeAnalysisDiags;
-        try (Stream<Path> stream = fileSystem.listFiles(Paths.get(ANALYSIS_DIAGS_DIRECTORY))) {
-            realtimeAnalysisDiags = stream.filter(file -> !fileSystem.isDirectory(file))
-                    .filter(f -> f.getFileName().toString().startsWith(getRealTimeAnalysisDiagsStart()))
-                    .collect(Collectors.toList());
-            if (realtimeAnalysisDiags.size() > numRealTimeAnalysisDiagsToRetain) {
-                int numFilesToDelete = realtimeAnalysisDiags.size() - numRealTimeAnalysisDiagsToRetain;
-                List<Path> filesToDelete = realtimeAnalysisDiags.stream()
-                        .sorted(Comparator.comparingLong(fileSystem::getLastModified))
-                        .limit(numFilesToDelete)
-                        .collect(Collectors.toList());
-                filesToDelete.forEach(fileSystem::deleteIfExists);
+        try {
+            if (saveAnalysisDiagsFuture == null) {
+                logger.warn("No saveAnalysisDiagsFuture for {}. Nothing to clean up.",
+                        AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo));
+                return;
             }
+            // Before deleting, we should wait for the save to finish
+            boolean didSaveFinish = checkIfSaveFinished();
+
+            // If this is zero, we assume the feature is turned off.
+            // If feature is off or save did not finish, no need to delete anything.
+            if (numRealTimeAnalysisDiagsToRetain == 0 || !didSaveFinish) {
+                return;
+            }
+
+            // If diags are not needed, delete whatever was written in this market cycle
+            if (!areDiagsNeeded(economy, topologyInfo)) {
+                String fullPath = AnalysisDiagnosticsUtils.getZipFileFullPath(
+                        AnalysisDiagnosticsUtils.getFilePrefix(AnalysisDiagnosticsCollector.AnalysisMode.M2),
+                        AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo));
+                Path pathToDelete = Paths.get(fullPath);
+                fileSystem.deleteIfExists(pathToDelete);
+            }
+
+            // Keep only numRealTimeAnalysisDiagsToRetain real time diags around
+            List<Path> realtimeAnalysisDiags;
+            try (Stream<Path> stream = fileSystem.listFiles(Paths.get(ANALYSIS_DIAGS_DIRECTORY))) {
+                realtimeAnalysisDiags = stream.filter(file -> !fileSystem.isDirectory(file))
+                        .filter(f -> f.getFileName().toString().startsWith(getRealTimeAnalysisDiagsStart()))
+                        .collect(Collectors.toList());
+                if (realtimeAnalysisDiags.size() > numRealTimeAnalysisDiagsToRetain) {
+                    int numFilesToDelete = realtimeAnalysisDiags.size() - numRealTimeAnalysisDiagsToRetain;
+                    List<Path> filesToDelete = realtimeAnalysisDiags.stream()
+                            .sorted(Comparator.comparingLong(fileSystem::getLastModified))
+                            .limit(numFilesToDelete)
+                            .collect(Collectors.toList());
+                    filesToDelete.forEach(fileSystem::deleteIfExists);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Exception occurred while cleaning up anlaysis diags. Market will continue.", e);
         }
     }
 
@@ -103,18 +108,26 @@ public class AnalysisDiagnosticsCleaner implements IDiagnosticsCleaner {
                 || !TopologyDTOUtil.isPlan(topologyInfo) && !economy.getExceptionTraders().isEmpty();
     }
 
-    private void waitForSaveToFinish() {
+    /**
+     * This method waits for save to finish for the timeout period.
+     * Once the save thread is done, it returns true. If it times out, or was interrupted, or an unhandled
+     * exception occurred, then this method will return false indicating that the save did not finish successfully.
+     * @return True if the save thread finished. False otherwise (if it was interrupted, or some unhandled
+     * exception occurred, or it timed out)
+     */
+    private boolean checkIfSaveFinished() {
         try {
             saveAnalysisDiagsFuture.get(saveAnalysisDiagsTimeoutSecs, TimeUnit.SECONDS);
+            return true;
         } catch (InterruptedException e) {
             logger.error("Interrupted while saving analysis diags: ", e);
-            return;
+            return false;
         } catch (ExecutionException e) {
             logger.error("Exception occurred while saving analysis diags: ", e.getCause());
-            return;
+            return false;
         } catch (TimeoutException e) {
             logger.error("Timed out waiting for save of anlaysis to complete: ", e);
-            return;
+            return false;
         }
     }
 
