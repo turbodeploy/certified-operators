@@ -39,7 +39,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
-import com.vmturbo.common.protobuf.market.InitialPlacement;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -52,6 +51,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.Builder;
@@ -64,7 +64,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Red
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList;
@@ -91,6 +90,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     private static final Logger logger = LogManager.getLogger();
 
     private static final TraxNumber FULL = traxConstant(1.0, "100%");
+
+    private static final String AZURE_HYPERSCALE_DB_FAMILY_NAME = "hyperscale";
 
     public static final Set<Integer> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
                                         EntityType.VIRTUAL_MACHINE_VALUE,
@@ -820,11 +821,18 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                     final ENTITY_CLASS entity) {
         final DatabaseTierConfigPrice basePrice = dbPriceList.getBasePrice();
         List<Price> storagePrices = dbPriceList.getDependentPricesList();
-
         final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
-
+        final TraxNumber totalOnDemandComputeCost;
+        final Optional<DatabaseTierConfig> databaseTierConfig = entityInfoExtractor.getDatabaseTierConfig(databaseTier);
+        if (databaseTierConfig.isPresent()) {
+            String family = databaseTierConfig.get().family();
+            final TraxNumber replicaCount = getDBReplicaCount(databaseConfig, family);
+            totalOnDemandComputeCost = computeBillableAmount.plus(replicaCount).compute();
+        } else {
+            totalOnDemandComputeCost = computeBillableAmount;
+        }
         journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, databaseTier,
-                basePrice.getPricesList().get(0), computeBillableAmount, Optional.empty());
+                basePrice.getPricesList().get(0), totalOnDemandComputeCost, Optional.empty());
         dbPriceList.getConfigurationPriceAdjustmentsList().stream()
                 .filter(databaseConfig::matchesPriceTableConfig)
                 .findAny()
@@ -840,12 +848,21 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         }
     }
 
+    @Nonnull
+    private TraxNumber getDBReplicaCount(final DatabaseConfig databaseConfig, final String family) {
+        // add replica cost.
+        return trax(family.equalsIgnoreCase(AZURE_HYPERSCALE_DB_FAMILY_NAME) && databaseConfig.getHaReplicaCount() != null
+                        ? databaseConfig.getHaReplicaCount()
+                        : 0.0,
+                "Number of Hyperscale replicas.");
+    }
+
     /**
      * Record dbs prices and add it to the compute cost journal.
      *
-     * @param dbsPriceList    DB server list contains all the db prices.
+     * @param dbsPriceList   DB server list contains all the db prices.
      * @param journal        Journal used to add the costs to.
-     * @param dbsTier   DB server Tier that we are calculating.
+     * @param dbsTier        DB server Tier that we are calculating.
      * @param databaseConfig DB server config of the db that we want to record.
      * @param entity         current DB server entity.
      */

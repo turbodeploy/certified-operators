@@ -320,29 +320,32 @@ message TypeSpecificInfo {
     }
 
     message DatabaseInfo {
-        // Edition
-        optional .common_dto.DatabaseEdition edition = 1;
+      // Edition
+      optional .common_dto.DatabaseEdition edition = 1;
 
-        // Engine
-        optional .common_dto.DatabaseEngine engine = 2;
+      // Engine
+      optional .common_dto.DatabaseEngine engine = 2;
 
-        // LicenseModel
-        optional .common_dto.LicenseModel license_model = 3;
+      // LicenseModel
+      optional .common_dto.LicenseModel license_model = 3;
 
-        // DeploymentType
-        optional .common_dto.DeploymentType deployment_type = 4;
+      // DeploymentType
+      optional .common_dto.DeploymentType deployment_type = 4;
 
-        // DB version
-        optional string version = 5;
+      // DB version
+      optional string version = 5;
 
-        // Raw DB edition
-        optional string rawEdition = 6;
+      // Raw DB edition
+      optional string rawEdition = 6;
 
-        // list of lower bound capacity limits while scaling up per commodity that applies to this Database.
-        repeated .common_dto.CommodityCapacityLimit lower_bound_scale_up = 7;
+      // list of lower bound capacity limits while scaling up per commodity that applies to this Database.
+      repeated .common_dto.CommodityCapacityLimit lower_bound_scale_up = 7;
 
-        // Average number of billed operations (e.g. reads, writes) per hour.
-        optional double hourly_billed_ops = 8;
+      // Average number of billed operations (e.g. reads, writes) per hour.
+      optional double hourly_billed_ops = 8;
+
+      // Total number of HA replicas for Azure vCore Hyperscale SQL DB.
+      optional int64 ha_replica_count = 9;
     }
 
     // specific data for virtual volume
