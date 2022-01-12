@@ -41,6 +41,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -104,6 +105,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
 
     private final Clock clock;
 
+    private final BinaryDiscoveryDumper binaryDiscoveryDumper;
+
     /**
      * Create a new {@link CachingTargetStore} instance.
      *
@@ -114,7 +117,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
      * @param clock clock to use to track time.
      */
     public CachingTargetStore(@Nonnull final TargetDao targetDao, @Nonnull final ProbeStore probeStore,
-            @Nonnull final IdentityStore<TargetSpec> identityStore, @Nonnull final Clock clock) {
+            @Nonnull final IdentityStore<TargetSpec> identityStore, @Nonnull final Clock clock,
+            @Nonnull final BinaryDiscoveryDumper binaryDiscoveryDumper) {
         this.targetDao = targetDao;
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityStore = Objects.requireNonNull(identityStore);
@@ -124,6 +128,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         this.targetSpecByParentTargetIdDerivedTargetId = HashBasedTable.create();
         this.targetsById = new ConcurrentHashMap<>();
         this.clock = Objects.requireNonNull(clock);
+        this.binaryDiscoveryDumper = binaryDiscoveryDumper;
     }
 
     @Override
@@ -688,6 +693,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                 throw new TargetNotFoundException(targetId);
             }
             targetName = oldTarget.getDisplayName();
+            binaryDiscoveryDumper.removeDiscoveryDump(String.valueOf(targetId));
             targetDao.remove(targetId);
             // Note - we DON'T remove the identity information for the target.
         }

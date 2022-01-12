@@ -214,4 +214,26 @@ public class BinaryDiscoveryDumperTest {
         Assert.assertNotNull(dumpFilenames);
         Assert.assertEquals(expectedNumberOfDiscoveryDumps, dumpFilenames.length);
     }
+
+    /**
+     * Tests that discovery dump files are correctly removed from the folder defined in the BinaryDiscoveryDumper.
+     *
+     * @throws InterruptedException not expected to happen
+     */
+    @Test
+    public void testRemoveDiscoveryDump() throws  InterruptedException {
+
+        // Creating a discovery dump file
+        dumpDiscovery(TGT_ID_2, DiscoveryType.FULL);
+        List<File> filesBefore = dumper.getBinaryFiles();
+        Assert.assertEquals(1, filesBefore.size());
+        final DiscoveryDumpFilename ddf = DiscoveryDumpFilename.parse(filesBefore.get(0).getName());
+        Assert.assertEquals(TGT_ID_2, ddf.getSanitizedTargetName());
+
+        // Remove and verify no file exists after
+        dumper.removeDiscoveryDump(TGT_ID_2);
+        List<File> filesAfter = dumper.getBinaryFiles();
+        Assert.assertEquals(0, filesAfter.size());
+
+    }
 }

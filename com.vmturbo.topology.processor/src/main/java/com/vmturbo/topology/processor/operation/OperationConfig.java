@@ -17,7 +17,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
-import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumperConfig;
 import com.vmturbo.topology.processor.discoverydumper.ComponentBasedTargetDumpingSettingsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
@@ -51,7 +51,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     ComponentBasedTargetDumpingSettingsConfig.class,
     NotificationApiConfig.class,
     MatrixConfig.class,
-    LicenseCheckClientConfig.class
+    LicenseCheckClientConfig.class,
+    BinaryDiscoveryDumperConfig.class
 })
 public class OperationConfig {
 
@@ -69,6 +70,9 @@ public class OperationConfig {
 
     @Autowired
     private TargetConfig targetConfig;
+
+    @Autowired
+    private BinaryDiscoveryDumperConfig binaryDiscoveryDumperConfig;
 
     @Autowired
     private SdkServerConfig sdkServerConfig;
@@ -128,12 +132,6 @@ public class OperationConfig {
     @Value("${workflowExecutionTimeoutMillis:60000}")
     private int workflowExecutionTimeoutMillis;
 
-    /**
-     * The path to cached discovery responses.
-     */
-    @Value("${discoveryResponsesCachePath:/home/turbonomic/data/cached_responses}")
-    private String discoveryResponsesCachePath;
-
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -156,16 +154,6 @@ public class OperationConfig {
     @Bean
     public SystemNotificationProducer systemNotificationProducer() {
         return new SystemNotificationProducer(notificationSender());
-    }
-
-    /**
-     * Returns the BinaryDiscoveryDumper that writes and loads cached discovery responses.
-     *
-     * @return the binaryDiscoveryDumper.
-     */
-    @Bean
-    public BinaryDiscoveryDumper binaryDiscoveryDumper() {
-        return new BinaryDiscoveryDumper(new File(discoveryResponsesCachePath));
     }
 
     /**
@@ -199,7 +187,7 @@ public class OperationConfig {
                 actionTimeoutSeconds,
                 planExportTimeoutSeconds,
                 matrixConfig.matrixInterface(),
-                binaryDiscoveryDumper(),
+                binaryDiscoveryDumperConfig.binaryDiscoveryDumper(),
                 enableDiscoveryResponsesCaching,
                 licenseCheckClientConfig.licenseCheckClient(),
                 workflowExecutionTimeoutMillis
@@ -229,7 +217,7 @@ public class OperationConfig {
             probeDiscoveryPermitWaitTimeoutMins,
             probeDiscoveryPermitWaitTimeoutIntervalMins,
             matrixConfig.matrixInterface(),
-            binaryDiscoveryDumper(),
+            binaryDiscoveryDumperConfig.binaryDiscoveryDumper(),
             enableDiscoveryResponsesCaching,
             licenseCheckClientConfig.licenseCheckClient(),
                 workflowExecutionTimeoutMillis

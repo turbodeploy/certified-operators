@@ -18,6 +18,7 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
 import com.vmturbo.proactivesupport.bridge.TCPAggregatorBridge;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumperConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
@@ -36,7 +37,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 @Configuration
 @Import({TargetConfig.class, SchedulerConfig.class, EntityConfig.class, GroupConfig.class,
     TemplateConfig.class, IdentityProviderConfig.class, ProbeConfig.class, CloudCostConfig.class,
-    TopologyConfig.class, HistoryAggregationConfig.class})
+    TopologyConfig.class, HistoryAggregationConfig.class, BinaryDiscoveryDumperConfig.class})
 public class TopologyProcessorDiagnosticsConfig {
     /**
      * The urgent collection interval setting.
@@ -106,6 +107,9 @@ public class TopologyProcessorDiagnosticsConfig {
     @Autowired
     private OperationConfig operationConfig;
 
+    @Autowired
+    private BinaryDiscoveryDumperConfig binaryDiscoveryDumperConfig;
+
     /**
      * The hardLock key.
      */
@@ -135,7 +139,7 @@ public class TopologyProcessorDiagnosticsConfig {
             cloudCostConfig.priceTableUploader(),
             topologyConfig.pipelineExecutorService(),
             fixedFilenameBinaryDiagnosticParts,
-            operationConfig.binaryDiscoveryDumper(),
+            binaryDiscoveryDumperConfig.binaryDiscoveryDumper(),
             targetConfig.targetStatusTracker(),
             topologyConfig.staleDataManager(),
             identityProviderConfig.staleOidManager());

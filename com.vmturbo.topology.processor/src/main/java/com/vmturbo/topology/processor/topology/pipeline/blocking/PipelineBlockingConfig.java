@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumperConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -27,7 +28,8 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     TargetConfig.class,
     SchedulerConfig.class,
     OperationConfig.class,
-    ClockConfig.class
+    ClockConfig.class,
+    BinaryDiscoveryDumperConfig.class
 })
 public class PipelineBlockingConfig {
 
@@ -51,6 +53,9 @@ public class PipelineBlockingConfig {
 
     @Autowired
     private ClockConfig clockConfig;
+
+    @Autowired
+    private BinaryDiscoveryDumperConfig binaryDiscoveryDumperConfig;
 
     @Value("${enableDiscoveryResponsesCaching:true}")
     private boolean enableDiscoveryResponsesCaching;
@@ -132,7 +137,7 @@ public class PipelineBlockingConfig {
                         TimeUnit.MINUTES,
                         clockConfig.clock(),
                         identityProviderConfig.identityProvider(),
-                        operationConfig.binaryDiscoveryDumper(),
+                        binaryDiscoveryDumperConfig.binaryDiscoveryDumper(),
                         enableDiscoveryResponsesCaching);
         }
     }

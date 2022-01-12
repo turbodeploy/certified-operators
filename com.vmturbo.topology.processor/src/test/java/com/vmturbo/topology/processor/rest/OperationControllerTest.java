@@ -153,7 +153,7 @@ public class OperationControllerTest {
         @Bean
         TargetStore targetStore() {
             return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore(),
-                    Clock.systemUTC());
+                    Clock.systemUTC(), binaryDiscoveryDumper());
         }
 
         /**
