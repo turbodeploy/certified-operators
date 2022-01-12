@@ -54,6 +54,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -117,6 +118,8 @@ public class CachingTargetStoreTest {
 
     private final Clock clock = mock(Clock.class);
 
+    private final BinaryDiscoveryDumper binaryDiscoveryDumper = mock(BinaryDiscoveryDumper.class);
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -131,7 +134,8 @@ public class CachingTargetStoreTest {
         when(clock.instant()).thenReturn(Instant.ofEpochSecond(System.currentTimeMillis()));
         when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         targetIdentityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
-        targetStore = new CachingTargetStore(targetDao, probeStore, targetIdentityStore, clock);
+        targetStore = new CachingTargetStore(targetDao, probeStore, targetIdentityStore,
+                clock, binaryDiscoveryDumper);
     }
 
     /**
@@ -325,7 +329,7 @@ public class CachingTargetStoreTest {
         final TargetDao targetDao = mock(TargetDao.class);
         when(targetDao.getAll()).thenReturn(Collections.singletonList(target));
         final CachingTargetStore newTargetStore = new CachingTargetStore(targetDao, probeStore,
-                targetIdentityStore, Clock.systemUTC());
+                targetIdentityStore, Clock.systemUTC(), binaryDiscoveryDumper);
         newTargetStore.initialize();
         final Target restoredTarget = newTargetStore.getTarget(0L).get();
         Assert.assertTrue(restoredTarget.getNoSecretDto().getSpec().hasLastEditingUser());

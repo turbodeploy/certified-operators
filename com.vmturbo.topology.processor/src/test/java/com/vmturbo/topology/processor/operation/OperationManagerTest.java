@@ -194,8 +194,11 @@ public class OperationManagerTest {
 
     private final SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
 
+    private BinaryDiscoveryDumper binaryDiscoveryDumper =
+            Mockito.mock(BinaryDiscoveryDumper.class);
+
     private final TargetStore targetStore = new CachingTargetStore(kvStore, probeStore,
-            targetIdentityStore, Clock.systemUTC());
+            targetIdentityStore, Clock.systemUTC(), binaryDiscoveryDumper);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
 
@@ -214,8 +217,6 @@ public class OperationManagerTest {
 
     private DerivedTargetParser derivedTargetParser = Mockito.mock(DerivedTargetParser.class);
 
-    private BinaryDiscoveryDumper binaryDiscoveryDumper =
-        Mockito.mock(BinaryDiscoveryDumper.class);
 
     private OperationManager operationManager;
 
