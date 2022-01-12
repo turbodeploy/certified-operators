@@ -1,6 +1,5 @@
 package com.vmturbo.mediation.actionscript.executor;
 
-import static com.vmturbo.mediation.actionscript.executor.ActionScriptExecutorUtils.STABLE_ID_KEY;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.File;
@@ -331,10 +330,6 @@ class ScriptRunner {
             .addActionItem(ActionItemDTO.newBuilder()
                 .setUuid("112")
                 .setActionType(ActionType.MOVE)
-                .addContextData(ContextData.newBuilder()
-                    .setContextKey(STABLE_ID_KEY)
-                    .setContextValue(String.valueOf(86756L))
-                    .build())
                 .setTargetSE(EntityDTO.newBuilder()
                     .setEntityType(EntityType.VIRTUAL_MACHINE)
                     .setId("vm12")

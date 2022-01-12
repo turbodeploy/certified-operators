@@ -28,6 +28,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * map values to parameters.
  */
 public class ActionScriptParameterMapperTest {
+    private static final long ACTION_STABLE_ID = 234L;
 
     /**
      * Expect no exceptions thrown by default (can override in individual tests).
@@ -60,7 +61,7 @@ public class ActionScriptParameterMapperTest {
         Assert.assertEquals(9, actionScriptParameters.size());
 
         checkParameter(ActionScriptParameterDefinition.VMT_ACTION_INTERNAL.name(),
-            String.valueOf(actionExecutionDTO.getActionOid()),
+            String.valueOf(actionExecutionDTO.getActionStableId()),
             actionScriptParameters);
         checkParameter(ActionScriptParameterDefinition.VMT_ACTION_NAME.name(),
             actionExecutionDTO.getActionItem(0).getDescription(),
@@ -179,6 +180,7 @@ public class ActionScriptParameterMapperTest {
     public void testNoActionItem() {
         final ActionExecutionDTO emptyAction = ActionExecutionDTO.newBuilder()
             .setActionOid(123L)
+            .setActionStableId(ACTION_STABLE_ID)
             .setActionType(ActionType.MOVE)
             .build();
         final List<Parameter> parameters = Arrays.asList(ActionScriptParameterDefinition.values()).stream()
@@ -231,6 +233,7 @@ public class ActionScriptParameterMapperTest {
         return ActionExecutionDTO.newBuilder()
             .setActionType(ActionType.MOVE)
             .setActionOid(123L)
+            .setActionStableId(ACTION_STABLE_ID)
             .addActionItem(ActionItemDTO.newBuilder()
                 .setDescription("Move vm12 from p202 to pm205")
                 .setUuid("UnnecessaryMove321")

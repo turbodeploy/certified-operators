@@ -236,7 +236,6 @@ public class CommunicationConfig {
         throws CommunicationException, InterruptedException, URISyntaxException {
         final ApiComponentActionListener actionsListener =
             new ApiComponentActionListener(websocketConfig.websocketHandler(),
-                    actionsRpcService(),
                     useStableActionIdAsUuid,
                     getRealtimeTopologyContextId());
         aoClientConfig.actionOrchestratorClient().addListener(actionsListener);

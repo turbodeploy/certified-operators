@@ -382,8 +382,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final String probeType = getProbeTypeWithCheck(target);
 
         final ActionExecutionDTO actionDto = request.getActionExecutionDTO();
-        final Action action = new Action(actionDto.getActionOid(), target.getProbeId(),
-                targetId, identityProvider,
+        final Action action = new Action(actionDto.getActionOid(), actionDto.getActionStableId(),
+                target.getProbeId(), targetId, identityProvider,
                 actionDto.getActionType());
 
         final ActionOperationCallback callback = new ActionOperationCallback() {
@@ -601,7 +601,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .setActionExecutionDTO(actionExecutionDTO)
                 .build();
 
-        final Action action = new Action(0, target.getProbeId(),
+        final Action action = new Action(0, 0, target.getProbeId(),
                 targetId, identityProvider,
                 ActionType.NONE);
 
@@ -1802,7 +1802,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @return if the action should be updated.
      */
     private boolean shouldUpdateEntityActionTable(Action action) {
-        return shouldUpdateEntityActionTable(action.getActionId(), action.getActionType());
+        return shouldUpdateEntityActionTable(action.getActionInstanceId(), action.getActionType());
     }
 
     private boolean shouldUpdateEntityActionTable(
@@ -1818,7 +1818,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
      */
     private void updateControllableAndSuspendableState(@Nonnull final Action action) {
-        updateControllableAndSuspendableState(action.getActionId(), action.getStatus());
+        updateControllableAndSuspendableState(action.getActionInstanceId(), action.getStatus());
     }
 
     /**
