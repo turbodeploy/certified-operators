@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseTierInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
@@ -136,6 +137,18 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     Optional<ComputeTierConfig> getComputeTierConfig(@Nonnull ENTITY_CLASS entity);
 
 
+    /*
+     * Get the Database tier configuration of a particular entity.
+     *
+     * @param entity The entity.
+     * @return An optional containing the {@link DatabaseTierConfig}. An empty optional if there is
+     *         no compute tier information associated with this entity - for example, if it's not
+     *         a Datbase tier.
+     */
+    @Nonnull
+    Optional<DatabaseTierConfig> getDatabaseTierConfig(@Nonnull ENTITY_CLASS entity);
+
+
     /**
      * A wrapper class around the compute configuration of an entity.
      */
@@ -198,11 +211,12 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final LicenseModel licenseModel;
         private final DeploymentType deploymentType;
         private final Double hourlyBilledOps;
+        private Integer haReplicaCount;
 
         public DatabaseConfig(
                 final DatabaseEdition edition,
                 final DatabaseEngine engine,
-                @Nonnull  LicenseModel licenseModel,
+                @Nullable LicenseModel licenseModel,
                 @Nullable DeploymentType deploymentType,
                 @Nullable Double hourlyBilledOps) {
             this.engine = engine;
@@ -246,16 +260,26 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public boolean matchesPriceTableConfig(@Nonnull final DatabaseTierConfigPrice databaseTierConfigPrice) {
             DeploymentType otherDeploymentType = databaseTierConfigPrice.hasDbDeploymentType() ?
-                databaseTierConfigPrice.getDbDeploymentType() : null;
+                    databaseTierConfigPrice.getDbDeploymentType() : null;
             LicenseModel otherLicenseModel = databaseTierConfigPrice.hasDbLicenseModel() ?
-                databaseTierConfigPrice.getDbLicenseModel() : null;
+                    databaseTierConfigPrice.getDbLicenseModel() : null;
 
             return databaseTierConfigPrice.getDbEdition() == edition &&
                     databaseTierConfigPrice.getDbEngine() == engine &&
                     otherLicenseModel == licenseModel &&
                     otherDeploymentType == deploymentType;
         }
+
+        @Nullable
+        public Integer getHaReplicaCount() {
+            return haReplicaCount;
+        }
+
+        public void setHaReplicaCount(int haReplicaCount) {
+            this.haReplicaCount = haReplicaCount;
+        }
     }
+
 
     /**
      * A wrapper class around the network configuration of an entity.
@@ -315,7 +339,41 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
             return new Builder();
         }
 
-        class Builder extends ImmutableComputeTierConfig.Builder {}
+        class Builder extends ImmutableComputeTierConfig.Builder {
+        }
+    }
+
+
+    /**
+     * A wrapper class around the Database tier configuration of an entity.
+     */
+    @Style(visibility = ImplementationVisibility.PACKAGE,
+            overshadowImplementation = true,
+            depluralize = true)
+    @Value.Immutable
+    interface DatabaseTierConfig {
+
+        long databaseTierOid();
+
+        /**
+         * The edition this Database tier belongs to.
+         * See: {@link DatabaseTierInfo#getEdition()}
+         */
+        String edition();
+
+        /**
+         * The family of service tier this Database tier belongs to.
+         * See: {@link DatabaseTierInfo#getFamily()} ()}
+         */
+        String family();
+
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        class Builder extends ImmutableDatabaseTierConfig.Builder {
+        }
     }
 
     /**

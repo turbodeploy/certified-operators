@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
@@ -140,21 +141,39 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                 .build());
     }
 
+    @Override
+    @Nonnull
+    public Optional<DatabaseTierConfig> getDatabaseTierConfig(@Nonnull final TopologyEntityDTO entity) {
+        if (entity.getEntityType() != EntityType.DATABASE_TIER_VALUE) {
+            return Optional.empty();
+        }
+        final DatabaseTierInfo tierInfo = entity.getTypeSpecificInfo().getDatabaseTier();
+        return Optional.of(DatabaseTierConfig.builder()
+                .databaseTierOid(entity.getOid())
+                .edition(tierInfo.getEdition())
+                .family(tierInfo.getFamily())
+                .build());
+    }
+
 
     @Override
     @Nonnull
     public Optional<DatabaseConfig> getDatabaseConfig(
             TopologyEntityDTO entity) {
         if ((entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE
-            || entity.getEntityType() == EntityType.DATABASE_VALUE)
-            && entity.hasTypeSpecificInfo()) {
+                || entity.getEntityType() == EntityType.DATABASE_VALUE)
+                && entity.hasTypeSpecificInfo()) {
             if (entity.getTypeSpecificInfo().hasDatabase()) {
                 DatabaseInfo dbConfig = entity.getTypeSpecificInfo().getDatabase();
-                return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
-                    dbConfig.getEngine(),
-                    dbConfig.hasLicenseModel() ? dbConfig.getLicenseModel() : null,
-                    dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null,
-                    dbConfig.hasHourlyBilledOps() ? dbConfig.getHourlyBilledOps() : null));
+                DatabaseConfig databaseConfig = new DatabaseConfig(dbConfig.getEdition(),
+                        dbConfig.getEngine(),
+                        dbConfig.hasLicenseModel() ? dbConfig.getLicenseModel() : null,
+                        dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null,
+                        dbConfig.hasHourlyBilledOps() ? dbConfig.getHourlyBilledOps() : null);
+                if (dbConfig.hasHaReplicaCount()) {
+                    databaseConfig.setHaReplicaCount((int)dbConfig.getHaReplicaCount());
+                }
+                return Optional.of(databaseConfig);
             }
         }
         return Optional.empty();
