@@ -3595,8 +3595,10 @@ public class TopologyConverter {
     }
 
     /**
-     * Checks if shopping list creation needs to be skipped - e.g in case of ephemeral local
-     * volumes that are transient.
+     * Checks if shopping list creation needs to be skipped - e.g. in case of
+     * 1) ephemeral local volumes that are transient;
+     * 2) container pod's storage shopping list, which is yet to be supported in plan;
+     * 3) it is a "shouldMove" commodity.
      *
      * @param entityDto Entity DTO for which shopping list creation needs to be checked.
      * @param commBought commodity bought of entity
@@ -3605,12 +3607,20 @@ public class TopologyConverter {
     @VisibleForTesting
     boolean skipShoppingListCreation(@Nonnull final TopologyEntityDTO entityDto,
                                      @Nonnull final CommoditiesBoughtFromProvider commBought) {
-        if (entityDto.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE
-                || entityDto.getTypeSpecificInfo().getTypeCase() != TypeCase.VIRTUAL_VOLUME) {
-            return shouldMoveCommodity(entityDto, commBought);
+        if (entityDto.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
+                && entityDto.getTypeSpecificInfo().getTypeCase() == TypeCase.VIRTUAL_VOLUME) {
+            final VirtualVolumeInfo volumeInfo = entityDto.getTypeSpecificInfo().getVirtualVolume();
+            return volumeInfo.hasIsEphemeral() && volumeInfo.getIsEphemeral();
         }
-        final VirtualVolumeInfo volumeInfo = entityDto.getTypeSpecificInfo().getVirtualVolume();
-        return volumeInfo.hasIsEphemeral() && volumeInfo.getIsEphemeral();
+        if (isPlan() && entityDto.getEntityType() == EntityType.CONTAINER_POD_VALUE
+                && commBought.hasProviderEntityType()
+                && commBought.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+            // Container pod's storage shopping list isn't supported in plan.
+            // See OM-78687 for this interim solution to allow pods to be placed.
+            // See OM-78778 for a proper solution which will take time to design and implement.
+            return true;
+        }
+        return shouldMoveCommodity(entityDto, commBought);
     }
 
     /**
