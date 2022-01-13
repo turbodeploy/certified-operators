@@ -12,6 +12,7 @@ import org.immutables.value.Value;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -135,6 +136,16 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<ComputeTierConfig> getComputeTierConfig(@Nonnull ENTITY_CLASS entity);
+
+    /**
+     * Get pricing commodities for an entity based on its compute tier.
+     *
+     * @param entity  compute tier
+     *
+     * @return the commodities if passed entity is of type computetier.
+     */
+    @Nonnull
+    Optional<Map<TopologyDTO.CommodityType, Double>> getComputeTierPricingCommodities(@Nonnull ENTITY_CLASS entity);
 
 
     /*
