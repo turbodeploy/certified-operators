@@ -679,7 +679,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TargetStore simpleTargetStore = new CachingTargetStore(
                 new KvTargetDao(new MapKeyValueStore(), probeStore, Clock.systemUTC()), probeStore,
                 new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)),
-                Clock.systemUTC());
+                Clock.systemUTC(), binaryDiscoveryDumper);
         TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
             simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
             groupUploader, templateDeploymentProfileUploader, identityProvider,

@@ -53,6 +53,9 @@ public class DatabaseInfoMapper extends TypeSpecificInfoMapper {
             if (dbData.hasHourlyBilledOps()) {
                 databaseInfoBuilder.setHourlyBilledOps(dbData.getHourlyBilledOps());
             }
+            if (dbData.hasHaReplicaCount()) {
+                databaseInfoBuilder.setHaReplicaCount(dbData.getHaReplicaCount());
+            }
             // we don't yet need 'dbData.getVersion() - but that may change
             appInfo.setDatabase(databaseInfoBuilder);
         }

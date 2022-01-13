@@ -40,6 +40,7 @@ public enum CloudType {
                     .put("gcp cost", GCP)
                     .put("gcp project", GCP)
                     .put("gcp service account", GCP)
+                    .put("gcp billing", GCP)
                     .build();
 
     /**

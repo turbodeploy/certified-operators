@@ -4,7 +4,6 @@ import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -54,6 +53,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -749,18 +749,23 @@ public class CloudCostCalculatorTest {
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
                 .setType(EntityType.DATABASE_VALUE)
                 .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
-                    DatabaseEdition.ENTERPRISE,
-                    DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
+                        DatabaseEdition.ENTERPRISE,
+                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
                 .build(infoExtractor);
-
+        final DatabaseTierConfig databaseTierConfig = DatabaseTierConfig.builder()
+                .databaseTierOid(databaseTier.getId())
+                .edition("sqlserver")
+                .family("GeneralPurpose")
+                .build();
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
-        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT))).thenReturn(Optional.of((float)STORAGE_RANGE));
+        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT))).thenReturn(Optional.of((float) STORAGE_RANGE));
+        when(infoExtractor.getDatabaseTierConfig(any())).thenReturn(Optional.of(databaseTierConfig));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS,
-            ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -799,11 +804,16 @@ public class CloudCostCalculatorTest {
                         DatabaseEdition.ENTERPRISE,
                         DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
                 .build(infoExtractor);
-
+        final DatabaseTierConfig databaseTierConfig = DatabaseTierConfig.builder()
+                .databaseTierOid(databaseTier.getId())
+                .edition("sqlserver")
+                .family("Standard")
+                .build();
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
+        when(infoExtractor.getDatabaseTierConfig(any())).thenReturn(Optional.of(databaseTierConfig));
         // 21 GB.
         when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT)))
                 .thenReturn(Optional.of((float)STORAGE_RANGE + (extraStorageInGB * Units.KBYTE)));

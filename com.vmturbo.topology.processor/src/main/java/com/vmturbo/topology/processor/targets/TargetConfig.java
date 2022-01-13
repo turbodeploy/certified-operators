@@ -39,6 +39,7 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.DbAccessConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumperConfig;
 import com.vmturbo.topology.processor.probeproperties.GlobalProbePropertiesSettingsLoader;
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
@@ -53,7 +54,7 @@ import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl;
 @SuppressFBWarnings
 @Import({ProbeConfig.class, KVConfig.class, DbAccessConfig.class,
     GroupClientConfig.class, RepositoryClientConfig.class, SecureKeyValueStoreConfig.class,
-    PublicKeyStoreConfig.class})
+    PublicKeyStoreConfig.class, BinaryDiscoveryDumperConfig.class})
 public class TargetConfig {
 
     private boolean enableExternalSecrets;
@@ -88,6 +89,9 @@ public class TargetConfig {
     @Autowired
     private ClockConfig clockConfig;
 
+    @Autowired
+    private BinaryDiscoveryDumperConfig binaryDiscoveryDumperConfig;
+
     @Value("${globalProbeSettingsLoadRetryIntervalSec:10}")
     private long globalProbeSettingsLoadRetryIntervalSec;
     @Value("${globalProbeSettingsLoadTimeoutSec:3}")
@@ -102,7 +106,7 @@ public class TargetConfig {
     @Bean
     public TargetStore targetStore() {
         final CachingTargetStore store = new CachingTargetStore(targetDao(), probeConfig.probeStore(),
-                identityStore(), clockConfig.clock());
+                identityStore(), clockConfig.clock(), binaryDiscoveryDumperConfig.binaryDiscoveryDumper());
         probeConfig.probeStore().addListener(store);
         return store;
     }

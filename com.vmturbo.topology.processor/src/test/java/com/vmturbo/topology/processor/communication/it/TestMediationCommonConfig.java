@@ -28,6 +28,7 @@ import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.IdentityService;
@@ -112,7 +113,8 @@ public class TestMediationCommonConfig {
     @Bean
     public TargetStore targetStore() {
         return new CachingTargetStore(targetDao(), probeStore(),
-                Mockito.mock(IdentityStore.class), Clock.systemUTC());
+                Mockito.mock(IdentityStore.class), Clock.systemUTC(),
+                Mockito.mock(BinaryDiscoveryDumper.class));
     }
 
     @Bean

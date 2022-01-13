@@ -150,9 +150,6 @@
                 <plugin>
                     <groupId>io.fabric8</groupId>
                     <artifactId>docker-maven-plugin</artifactId>
-                    <configuration>
-                        <skip>${skipITs}</skip>
-                    </configuration>
                     <executions>
                         <execution>
                             <id>integration-test</id>
@@ -161,6 +158,7 @@
                                 <goal>start</goal>
                             </goals>
                             <configuration>
+                                <skip>${skipITs}</skip>
                                 <dockerHost>${dockerHost}</dockerHost>
                                 <showLogs>true</showLogs>
                                 <images>
@@ -208,6 +206,7 @@
                                 <goal>stop</goal>
                             </goals>
                             <configuration>
+                                <skip>${skipITs}</skip>
                                 <dockerHost>${dockerHost}</dockerHost>
                                 <images>
                                     <image>

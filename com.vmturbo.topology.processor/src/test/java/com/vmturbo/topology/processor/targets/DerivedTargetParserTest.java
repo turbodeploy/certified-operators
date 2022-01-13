@@ -29,6 +29,7 @@ import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
 /**
@@ -44,10 +45,11 @@ public class DerivedTargetParserTest {
     public void setup() throws Exception {
         TargetDao targetDao = mock(TargetDao.class);
         ProbeStore probeStore = mock(ProbeStore.class);
+        BinaryDiscoveryDumper binaryDiscoveryDumper = mock(BinaryDiscoveryDumper.class);
         IdentityStore<TargetSpec> identityStore =
             new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
         targetStore = new CachingTargetStore(targetDao, probeStore, identityStore,
-                Clock.systemUTC());
+                Clock.systemUTC(), binaryDiscoveryDumper);
         derivedTargetParser = new DerivedTargetParser(probeStore, targetStore);
         when(probeStore.getProbe(probeID1)).thenReturn(Optional.of(probeInfo1));
         when(probeStore.getProbeIdForType(probeType1)).thenReturn(Optional.of(probeID1));

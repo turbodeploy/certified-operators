@@ -180,8 +180,17 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
         }
     }
 
+    /**
+     * Removes discovery response files of target.
+     *
+     * @param tgtId target id, used to distinguish dumps across the targets.
+     */
+    public synchronized void removeDiscoveryDump(@Nonnull String tgtId) {
+        sweepOldFileForTarget(tgtId);
+    }
+
     private void sweepOldFileForTarget( @Nonnull String tgtId) {
-        logger.trace("Sweeping old dump for target {}", tgtId);
+        logger.info("Removing Discovery dump of target : {}", tgtId);
         final String[] allDiscoveryDumpFiles = dumpDirectory.list();
         if (allDiscoveryDumpFiles == null) {
             logger.error("Cannot get the list of discovery dump files");
@@ -195,6 +204,7 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
                 continue;
             }
             if (ddf.getSanitizedTargetName().equals(tgtId)) {
+                logger.info("Removing discovery dump file: {}", filename);
                 removeFile(ddf);
             }
         }

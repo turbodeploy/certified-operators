@@ -101,6 +101,7 @@ import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
@@ -192,7 +193,7 @@ public class TargetControllerTest {
             when(groupScopeResolver.processGroupScope(any(), any(), any()))
                 .then(AdditionalAnswers.returnsSecondArg());
             return new CachingTargetStore(targetDao(), probeStore(),
-                targetIdentityStore(), Clock.systemUTC());
+                targetIdentityStore(), Clock.systemUTC(), mock(BinaryDiscoveryDumper.class));
         }
 
         @Override
