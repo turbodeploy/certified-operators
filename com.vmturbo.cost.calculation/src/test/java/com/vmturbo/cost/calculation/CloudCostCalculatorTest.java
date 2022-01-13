@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -229,6 +230,19 @@ public class CloudCostCalculatorTest {
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
             .thenReturn(riApplicator);
+
+        // mock info extractor calls
+        // create a fake commodities bought map
+        final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricingCommodities = new HashMap<>();
+        // memory amount => 2
+        com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.MEM_PROVISIONED_VALUE).build();
+        pricingCommodities.put(commodityType, 2.0);
+        // vcore amount => 1
+        commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.NUM_VCORE_VALUE).build();
+        pricingCommodities.put(commodityType, 1.0);
+        Mockito.when(infoExtractor.getComputeTierPricingCommodities(any())).thenReturn(Optional.of(pricingCommodities));
     }
 
     private TestEntityClass createVmTestEntity(long id, EntityState state, OSType osType,
@@ -1080,6 +1094,52 @@ public class CloudCostCalculatorTest {
         final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
                 .computeTierOid(computeTier.getId())
                 .numCores(4)
+                .numCoupons(0)
+                .isBurstableCPU(false)
+                .build();
+        when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig));
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        // Configure ReservedInstanceApplicator
+        final ReservedInstanceApplicator<TestEntityClass> riApplicator = mock(ReservedInstanceApplicator.class);
+        when(riApplicator.recordRICoverage(eq(computeTier), any(), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
+                any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
+                .thenReturn(riApplicator);
+
+        // act
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(wsqlVm4Cores);
+
+        // assert
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
+                is(MEM_PROVISIONED_PRICE * 2 + NUM_VCORE_PRICE * 1));
+    }
+
+    /**
+     * Verify that when consumer commodity prices are set, do not use the base price.
+     */
+    @Test
+    public void testProjectedOnDemandVmCommodityCost() {
+        DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+
+        // create a fake commodities bought map
+        final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought = new HashMap<>();
+        // add just one commodity as in the case of a projected topology
+        com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.MEM_PROVISIONED_VALUE).build();
+        pricedCommoditiesBought.put(commodityType, 2.0);
+
+        TestEntityClass wsqlVm4Cores = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS_WITH_SQL_ENTERPRISE,
+                Tenancy.DEFAULT, VMBillingType.ONDEMAND, 4,
+                EntityDTO.LicenseModel.LICENSE_INCLUDED, pricedCommoditiesBought);
+
+        // act
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_GCP, 15L, 20L, 30L);
+
+        final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
+                .computeTierOid(computeTier.getId())
+                .numCores(2)
                 .numCoupons(0)
                 .isBurstableCPU(false)
                 .build();
