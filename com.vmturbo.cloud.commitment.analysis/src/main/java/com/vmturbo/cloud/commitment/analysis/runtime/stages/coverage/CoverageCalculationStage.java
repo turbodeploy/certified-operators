@@ -38,9 +38,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCal
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.CoverageInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
-import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 
@@ -146,7 +144,6 @@ public class CoverageCalculationStage extends AbstractStage<AnalysisTopology, An
     private Set<CoverageCalculationTask> createCalculationTasks(@Nonnull AnalysisTopology analysisTopology) {
 
         final CloudTopology<TopologyEntityDTO> cloudTierTopology = analysisContext.getCloudTierTopology();
-        final MinimalCloudTopology<MinimalEntity> cloudTopology = analysisContext.getSourceCloudTopology();
         final Map<Long, CloudCommitmentData> cloudCommitmentDataMap = analysisTopology.cloudCommitmentsByOid();
 
         return analysisTopology.segments()
@@ -154,7 +151,6 @@ public class CoverageCalculationStage extends AbstractStage<AnalysisTopology, An
                 .map(analysisSegment ->
                         coverageCalculationTaskFactory.newTask(
                                 cloudTierTopology,
-                                cloudTopology,
                                 cloudCommitmentDataMap,
                                 analysisSegment))
                 .collect(ImmutableSet.toImmutableSet());

@@ -10,6 +10,8 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSortedSet;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
+
 /**
  * An interface for preferencing of cloud commitments within a single coverage group.
  */
@@ -25,11 +27,13 @@ public interface CloudCommitmentPreference {
      * provided {@code coverageJournal}.
      * @param coverageJournal The coverage journal, useful to check both capacity and available
      *                        coverage.
+     * @param coverageTypeInfo The coverage type info.
      * @param commitmentOids The commitment OIDs to sort.
      * @return The sorted set of commitment OIDs.
      */
     @Nonnull
-    SortedSet<Long> sortCommitments(@Nonnull ReservedInstanceCoverageJournal coverageJournal,
+    SortedSet<Long> sortCommitments(@Nonnull CloudCommitmentCoverageJournal coverageJournal,
+                                    @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo,
                                     @Nonnull Set<Long> commitmentOids);
 
     /**
@@ -41,15 +45,16 @@ public interface CloudCommitmentPreference {
          * {@inheritDoc}.
          */
         @Override
-        public SortedSet<Long> sortCommitments(@Nonnull final ReservedInstanceCoverageJournal coverageJournal,
-                                              @Nonnull final Set<Long> commitmentOids) {
+        public SortedSet<Long> sortCommitments(@Nonnull final CloudCommitmentCoverageJournal coverageJournal,
+                                               @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo,
+                                               @Nonnull final Set<Long> commitmentOids) {
 
             Preconditions.checkNotNull(coverageJournal);
             Preconditions.checkNotNull(commitmentOids);
 
             final Comparator<Long> commitmentComparator =
-                    Comparator.comparing(coverageJournal::getCloudCommitmentCapacity)
-                            .thenComparing(coverageJournal::getUnallocatedCapacity)
+                    Comparator.<Long, Double>comparing((commitmentOid) -> coverageJournal.getCommitmentCapacity(commitmentOid, coverageTypeInfo))
+                            .thenComparing((commitmentOid) -> coverageJournal.getUnallocatedCapacity(commitmentOid, coverageTypeInfo))
                             .thenComparing(Function.identity());
 
             return ImmutableSortedSet.orderedBy(commitmentComparator)

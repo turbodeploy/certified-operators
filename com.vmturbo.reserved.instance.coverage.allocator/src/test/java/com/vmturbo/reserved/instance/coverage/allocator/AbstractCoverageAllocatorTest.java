@@ -46,7 +46,7 @@ import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFacto
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
-public class AbstractReservedInstanceCoverageAllocatorTest {
+public class AbstractCoverageAllocatorTest {
 
     protected final CloudCommitmentFilterFactory cloudCommitmentFilterFactory =
             new CloudCommitmentFilterFactory();

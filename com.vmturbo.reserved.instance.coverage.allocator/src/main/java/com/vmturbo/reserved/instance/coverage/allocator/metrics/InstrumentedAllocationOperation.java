@@ -13,7 +13,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * Provides a wrapper around an operation (e.g. running the coverage analysis), in which operation
  * runtime will be monitored and collected (if a metric is configured).
  */
-public class InstrumentedAllocationOperation implements RICoverageAllocationOperation {
+public class InstrumentedAllocationOperation implements CoverageAllocationOperation {
 
     private final DataMetricTimerProvider timerProvider;
     private final Optional<Runnable> onCompletionListener;

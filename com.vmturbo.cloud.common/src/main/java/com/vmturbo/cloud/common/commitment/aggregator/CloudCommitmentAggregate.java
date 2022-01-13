@@ -65,7 +65,7 @@ public interface CloudCommitmentAggregate {
      */
     @Lazy
     @Nonnull
-    default Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> capacityTypeMap() {
+    default Map<CloudCommitmentCoverageTypeInfo, Double> capacityTypeMap() {
         return CommitmentAmountUtils.groupByKey(commitmentCapacity());
     }
 
@@ -87,8 +87,8 @@ public interface CloudCommitmentAggregate {
      * @return The commitment capacity for the specified coverage type.
      */
     @Nonnull
-    default CloudCommitmentAmount capacityByType(@Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
-        return capacityTypeMap().getOrDefault(coverageTypeInfo, CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT);
+    default double capacityByType(@Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
+        return capacityTypeMap().getOrDefault(coverageTypeInfo, 0.0);
     }
 
     /**

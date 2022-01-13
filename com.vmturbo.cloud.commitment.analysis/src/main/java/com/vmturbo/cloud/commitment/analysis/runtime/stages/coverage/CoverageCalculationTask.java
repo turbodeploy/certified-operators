@@ -25,21 +25,20 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCal
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.CoverageInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.commitment.CommitmentAmountUtils;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocationConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 
 /**
  * Responsible for running coverage allocation analysis on a single {@link AnalysisTopologySegment}.
@@ -58,8 +57,6 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
 
     private final CloudTopology<TopologyEntityDTO> cloudTierTopology;
 
-    private final MinimalCloudTopology<MinimalEntity> cloudTopology;
-
     private final Map<Long, CloudCommitmentData> cloudCommitmentDataMap;
 
     private final AnalysisTopologySegment analysisSegment;
@@ -69,7 +66,6 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
                                     @Nonnull CoverageAllocatorFactory coverageAllocatorFactory,
                                     @Nonnull AggregateDemandPreferenceFactory aggregateDemandPreferenceFactory,
                                     @Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
-                                    @Nonnull MinimalCloudTopology<MinimalEntity> cloudTopology,
                                     @Nonnull Map<Long, CloudCommitmentData> cloudCommitmentDataMap,
                                     @Nonnull AnalysisTopologySegment analysisSegment) {
 
@@ -78,7 +74,6 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         this.coverageAllocatorFactory = Objects.requireNonNull(coverageAllocatorFactory);
         this.aggregateDemandPreferenceFactory = Objects.requireNonNull(aggregateDemandPreferenceFactory);
         this.cloudTierTopology = Objects.requireNonNull(cloudTierTopology);
-        this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.cloudCommitmentDataMap = ImmutableMap.copyOf(Objects.requireNonNull(cloudCommitmentDataMap));
         this.analysisSegment = Objects.requireNonNull(analysisSegment);
     }
@@ -114,12 +109,11 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
 
         final Set<CloudCommitmentAggregate> commitmentAggregates =
                 createCommitmentAggregatesForSegment();
-        final Map<Long, Double> commitmentCapacityById =
+        final Map<Long, CloudCommitmentAmount> commitmentCapacityById =
                 calculateCommitmentAggregateCapacity(commitmentAggregates, analysisSegment);
 
         final AnalysisCoverageTopology coverageTopology = coverageTopologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 analysisSegment.aggregateCloudTierDemandSet().values(),
                 commitmentAggregates,
                 commitmentCapacityById);
@@ -133,10 +127,10 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
                 .coverageEntityPreference(aggregateDemandPreferenceFactory.newPreference(coverageTopology))
                 .build();
 
-        final ReservedInstanceCoverageAllocator coverageAllocator =
+        final CloudCommitmentCoverageAllocator coverageAllocator =
                 coverageAllocatorFactory.createAllocator(allocationConfig);
 
-        final ReservedInstanceCoverageAllocation coverageAllocation = coverageAllocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation coverageAllocation = coverageAllocator.allocateCoverage();
 
         return processResults(coverageTopology, coverageAllocation);
     }
@@ -160,7 +154,7 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         return commitmentAggregator.getAggregates();
     }
 
-    private Map<Long, Double> calculateCommitmentAggregateCapacity(
+    private Map<Long, CloudCommitmentAmount> calculateCommitmentAggregateCapacity(
             @Nonnull Set<CloudCommitmentAggregate> commitmentAggregateSet,
             @Nonnull AnalysisTopologySegment analysisSegment) {
 
@@ -173,14 +167,14 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
                                 .map(commitmentData -> capacityByCommitmentId.getOrDefault(
                                         commitmentData.commitmentId(),
                                         CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT))
-                                .mapToDouble(CloudCommitmentAmount::getCoupons)
-                                .reduce(0.0, Double::sum)));
+                                .reduce(CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT,
+                                        CommitmentAmountCalculator::sum)));
 
     }
 
     @Nonnull
     private CoverageCalculationResult processResults(@Nonnull AnalysisCoverageTopology coverageTopology,
-                                                     @Nonnull ReservedInstanceCoverageAllocation coverageAllocation) {
+                                                     @Nonnull CloudCommitmentCoverageAllocation coverageAllocation) {
 
         final Map<Long, AggregateCloudTierDemand> aggregateDemandById =
                 coverageTopology.getAggregatedDemandById();
@@ -197,6 +191,7 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
                                 allocation.getRowKey(),
                                 allocation.getColumnKey(),
                                 allocation.getValue()))
+                        .filter(Objects::nonNull)
                         .collect(ImmutableSetMultimap.toImmutableSetMultimap(
                                 (allocation) -> aggregateDemandById.get(allocation.getLeft()),
                                 (allocation) -> CoverageInfo.builder()
@@ -232,7 +227,6 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         return CoverageCalculationSummary.builder()
                 .aggregateDemand(totalDemand)
                 .coveredDemand(totalCoverage)
-                .commitmentCapacity(totalCapacity)
                 .calculationDuration(analysisDuration)
                 .build();
 
@@ -292,8 +286,7 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         Duration calculationDuration();
 
         /**
-         * The amount of covered demand. Currently, given only RIs are supported, the unit of
-         * demand will be in coupons.
+         * The amount of covered demand. The amount will be in hours of demand.
          * @return The amount of covered demand.
          */
         double coveredDemand();
@@ -303,12 +296,6 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
          * @return The amount of total aggregate demand.
          */
         double aggregateDemand();
-
-        /**
-         * The commitment capacity for the analysis segment (in coupons).
-         * @return The commitment capacity for the analysis segment (in coupons).
-         */
-        double commitmentCapacity();
 
         /**
          * Constructs and returns a new {@link Builder} instance.
@@ -397,14 +384,12 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         /**
          * Creates a new {@link CoverageCalculationTask}.
          * @param cloudTierTopology The cloud topology containing cloud tier entities.
-         * @param cloudTopology The minimal cloud topology.
          * @param cloudCommitmentDataMap The map of cloud commitments, indexed by commitment OID.
          * @param analysisSegment The analysis segment for this coverage calculation task.
          * @return The {@link CoverageCalculationTask}.
          */
         @Nonnull
         public CoverageCalculationTask newTask(@Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
-                                               @Nonnull MinimalCloudTopology<MinimalEntity> cloudTopology,
                                                @Nonnull Map<Long, CloudCommitmentData> cloudCommitmentDataMap,
                                                @Nonnull AnalysisTopologySegment analysisSegment) {
 
@@ -414,7 +399,6 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
                     coverageAllocatorFactory,
                     aggregateDemandPreferenceFactory,
                     cloudTierTopology,
-                    cloudTopology,
                     cloudCommitmentDataMap,
                     analysisSegment);
         }

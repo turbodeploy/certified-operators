@@ -12,8 +12,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageEntityPreference;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
 
 /**
  * An implementation of {@link CoverageEntityPreference}, in which recommendation candidate demand
@@ -41,8 +42,9 @@ public class AggregateDemandPreference implements CoverageEntityPreference {
      */
     @Nonnull
     @Override
-    public Iterable<Long> sortEntities(@Nonnull final ReservedInstanceCoverageJournal coverageJournal,
-                                        @Nonnull final Set<Long> entityOids) {
+    public Iterable<Long> sortEntities(@Nonnull CloudCommitmentCoverageJournal coverageJournal,
+                                       @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo,
+                                       @Nonnull Set<Long> entityOids) {
 
         final Collection<AggregateCloudTierDemand> aggregateDemandSet =
                 Maps.filterKeys(aggregateDemandMap, entityOids::contains).values();

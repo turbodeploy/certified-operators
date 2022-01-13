@@ -27,12 +27,14 @@ import org.junit.Test;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
@@ -55,20 +57,19 @@ import com.vmturbo.cost.component.reserved.instance.SQLReservedInstanceBoughtSto
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
-public class SupplementalRICoverageAnalysisTest {
+public class SupplementalCoverageAnalysisTest {
 
     private final CoverageAllocatorFactory allocatorFactory =
             mock(CoverageAllocatorFactory.class);
 
     private final CoverageTopologyFactory coverageTopologyFactory =
             mock(CoverageTopologyFactory.class);
-
 
 
     private final DSLContext dsl = Mockito.mock(DSLContext.class);
@@ -90,8 +91,8 @@ public class SupplementalRICoverageAnalysisTest {
 
     private CloudCommitmentAggregatorFactory cloudCommitmentAggregatorFactory;
 
-    private final ReservedInstanceCoverageAllocator riCoverageAllocator =
-            mock(ReservedInstanceCoverageAllocator.class);
+    private final CloudCommitmentCoverageAllocator riCoverageAllocator =
+            mock(CloudCommitmentCoverageAllocator.class);
     private final CoverageTopology coverageTopology = mock(CoverageTopology.class);
 
 
@@ -153,23 +154,24 @@ public class SupplementalRICoverageAnalysisTest {
                         .build());
 
         // setup RI allocator output
-        final ReservedInstanceCoverageAllocation coverageAllocation = ReservedInstanceCoverageAllocation.from(
+        final CloudCommitmentCoverageAllocation coverageAllocation = CloudCommitmentCoverageAllocation.from(
                 // total coverage
-                ImmutableTable.<Long, Long, Double>builder()
-                        .put(1L, 4L, 4.0)
-                        .put(2L, 5L, 4.0)
-                        .put(3L, 6L, 4.0)
+                ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
+                        .put(1L, 4L, CloudCommitmentAmount.newBuilder().setCoupons(4.0).build())
+                        .put(2L, 5L, CloudCommitmentAmount.newBuilder().setCoupons(4.0).build())
+                        .put(3L, 6L, CloudCommitmentAmount.newBuilder().setCoupons(4.0).build())
                         .build(),
                 // supplemental allocations
-                ImmutableTable.<Long, Long, Double>builder()
-                        .put(1L, 4L, 2.0)
-                        .put(3L, 6L, 4.0)
+                ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
+                        .put(1L, 4L, CloudCommitmentAmount.newBuilder().setCoupons(2.0).build())
+                        .put(3L, 6L, CloudCommitmentAmount.newBuilder().setCoupons(4.0).build())
                         .build());
         when(riCoverageAllocator.allocateCoverage()).thenReturn(coverageAllocation);
 
         // setup coverage topology
         // Entity ID 3 will require resolution of the coverage capacity
-        when(coverageTopology.getCoverageCapacityForEntity(eq(3L))).thenReturn(8.0);
+        when(coverageTopology.getCoverageCapacityForEntity(3L, CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
+                .thenReturn(8.0);
 
         // set up undiscovered usage
         AccountRIMappingItem item = mock(AccountRIMappingItem.class);
@@ -259,8 +261,8 @@ public class SupplementalRICoverageAnalysisTest {
         /*
         Setup SUT
          */
-        final SupplementalRICoverageAnalysisFactory factory =
-                new SupplementalRICoverageAnalysisFactory(
+        final SupplementalCoverageAnalysisFactory factory =
+                new SupplementalCoverageAnalysisFactory(
                         allocatorFactory,
                         coverageTopologyFactory,
                         reservedInstanceBoughtStore,
@@ -272,7 +274,7 @@ public class SupplementalRICoverageAnalysisTest {
         /*
         Invoke SUT
          */
-        final SupplementalRICoverageAnalysis coverageAnalysis = factory.createCoverageAnalysis(
+        final SupplementalCoverageAnalysis coverageAnalysis = factory.createCoverageAnalysis(
                 cloudTopology,
                 entityRICoverageUploads);
         final List<EntityRICoverageUpload> aggregateRICoverages =

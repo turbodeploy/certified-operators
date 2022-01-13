@@ -92,7 +92,6 @@ public class TableCleanupWorker {
                     logger.error("Cleanup of '{}' failed up to the retry limit", cleanupInfo.shortTableName());
                 }
             } finally {
-
                 isLongRunning.set(false);
                 cleanupLock.release();
             }

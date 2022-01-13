@@ -30,6 +30,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AnalysisCoverageTopology.AnalysisCoverageTopologyFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.PlatformInfo;
@@ -38,8 +39,8 @@ import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
-import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope.GroupScope;
@@ -61,8 +62,6 @@ public class AnalysisCoverageTopologyTest {
     private final IdentityProvider identityProvider = new DefaultIdentityProvider(0);
 
     private final CloudTopology cloudTierTopology = mock(CloudTopology.class);
-
-    private final MinimalCloudTopology cloudTopology = mock(MinimalCloudTopology.class);
 
     private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory =
             mock(ComputeTierFamilyResolverFactory.class);
@@ -149,7 +148,6 @@ public class AnalysisCoverageTopologyTest {
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 ImmutableSet.of(demandA, demandB),
                 Collections.emptySet(),
                 Collections.emptyMap());
@@ -165,7 +163,6 @@ public class AnalysisCoverageTopologyTest {
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 Collections.emptySet(),
                 ImmutableSet.of(riAggregateA, riAggregateB),
                 Collections.emptyMap());
@@ -181,20 +178,26 @@ public class AnalysisCoverageTopologyTest {
     @Test
     public void testGetCommitmentCapacityByOid() {
 
-        final Map<Long, Double> commitmentCapacityMap = ImmutableMap.of(
-                1L, 2.0,
-                3L, 4.0);
+        final CloudCommitmentAmount commitment1Capacity = CloudCommitmentAmount.newBuilder().setCoupons(2.0).build();
+        final CloudCommitmentAmount commitment3Capacity = CloudCommitmentAmount.newBuilder().setCoupons(4.0).build();
+        final Map<Long, CloudCommitmentAmount> commitmentCapacityMap = ImmutableMap.of(
+                1L, commitment1Capacity,
+                3L, commitment3Capacity);
 
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 Collections.emptySet(),
                 Collections.emptySet(),
                 commitmentCapacityMap);
 
         // ASSERTIONS
-        assertThat(analysisTopology.getCommitmentCapacityByOid(), equalTo(commitmentCapacityMap));
+        assertThat(analysisTopology.getCommitmentCapacity(1, CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO),
+                equalTo(commitment1Capacity.getCoupons()));
+        assertThat(analysisTopology.getCommitmentCapacity(3, CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO),
+                equalTo(commitment3Capacity.getCoupons()));
+        assertThat(analysisTopology.getCommitmentCapacity(123, CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO),
+                equalTo(0.0));
     }
 
     @Test
@@ -206,7 +209,6 @@ public class AnalysisCoverageTopologyTest {
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 ImmutableSet.of(demandA),
                 Collections.emptySet(),
                 Collections.emptyMap());
@@ -219,9 +221,11 @@ public class AnalysisCoverageTopologyTest {
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Cant find demand ID"));
         // should be equal to 3.0 (from aggregate) * 4 (for coupon value)
-        assertThat(analysisTopology.getCoverageCapacityForEntity(demandAID), equalTo(12.0));
+        assertThat(analysisTopology.getCoverageCapacityForEntity(demandAID, CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO),
+                equalTo(12.0));
         // check a random ID not contained within the aggregate demand map
-        assertThat(analysisTopology.getCoverageCapacityForEntity(1231232L), equalTo(0.0));
+        assertThat(analysisTopology.getCoverageCapacityForEntity(1231232L, CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO),
+                equalTo(0.0));
     }
 
     @Test
@@ -230,7 +234,6 @@ public class AnalysisCoverageTopologyTest {
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 ImmutableSet.of(demandA),
                 Collections.emptySet(),
                 Collections.emptyMap());
@@ -261,7 +264,6 @@ public class AnalysisCoverageTopologyTest {
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 ImmutableSet.of(demandA),
                 Collections.emptySet(),
                 Collections.emptyMap());
@@ -307,7 +309,6 @@ public class AnalysisCoverageTopologyTest {
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
-                cloudTopology,
                 ImmutableSet.of(demandA),
                 Collections.emptySet(),
                 Collections.emptyMap());

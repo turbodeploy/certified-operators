@@ -255,13 +255,12 @@ public class CommitmentAmountUtilsTest {
                 .setCoupons(5)
                 .build();
 
-        final Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> actualGrouping =
+        final Map<CloudCommitmentCoverageTypeInfo, Double> actualGrouping =
                 CommitmentAmountUtils.groupByKey(amount);
 
-        final Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> expectedGrouping = ImmutableMap.of(
+        final Map<CloudCommitmentCoverageTypeInfo, Double> expectedGrouping = ImmutableMap.of(
                 CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO,
-                amount);
-
+                amount.getCoupons());
         assertThat(actualGrouping, equalTo(expectedGrouping));
     }
 
@@ -278,15 +277,15 @@ public class CommitmentAmountUtilsTest {
                         .build())
                 .build();
 
-        final Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> actualGrouping =
+        final Map<CloudCommitmentCoverageTypeInfo, Double> actualGrouping =
                 CommitmentAmountUtils.groupByKey(amount);
 
-        final Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> expectedGrouping = ImmutableMap.of(
+        final Map<CloudCommitmentCoverageTypeInfo, Double> expectedGrouping = ImmutableMap.of(
                 CloudCommitmentCoverageTypeInfo.newBuilder()
                         .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
                         .setCoverageSubtype(123)
                         .build(),
-                amount);
+                amount.getAmount().getAmount());
 
         assertThat(actualGrouping, equalTo(expectedGrouping));
     }
@@ -311,33 +310,21 @@ public class CommitmentAmountUtilsTest {
                         .build())
                 .build();
 
-        final Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> actualGrouping =
+        final Map<CloudCommitmentCoverageTypeInfo, Double> actualGrouping =
                 CommitmentAmountUtils.groupByKey(amount);
 
-        final Map<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount> expectedGrouping =
-                ImmutableMap.<CloudCommitmentCoverageTypeInfo, CloudCommitmentAmount>builder()
+        final Map<CloudCommitmentCoverageTypeInfo, Double> expectedGrouping =
+                ImmutableMap.<CloudCommitmentCoverageTypeInfo, Double>builder()
                         .put(CloudCommitmentCoverageTypeInfo.newBuilder()
                                         .setCoverageType(CloudCommitmentCoverageType.COMMODITY)
                                         .setCoverageSubtype(CommodityType.NUM_VCORE.getNumber())
                                         .build(),
-                                CloudCommitmentAmount.newBuilder()
-                                        .setCommoditiesBought(CommittedCommoditiesBought.newBuilder()
-                                                .addCommodity(CommittedCommodityBought.newBuilder()
-                                                        .setCommodityType(CommodityType.NUM_VCORE)
-                                                        .setCapacity(2)
-                                                        .build()))
-                                        .build())
+                                2.0)
                         .put(CloudCommitmentCoverageTypeInfo.newBuilder()
                                         .setCoverageType(CloudCommitmentCoverageType.COMMODITY)
                                         .setCoverageSubtype(CommodityType.MEM_PROVISIONED.getNumber())
                                         .build(),
-                                CloudCommitmentAmount.newBuilder()
-                                        .setCommoditiesBought(CommittedCommoditiesBought.newBuilder()
-                                                .addCommodity(CommittedCommodityBought.newBuilder()
-                                                        .setCommodityType(CommodityType.MEM_PROVISIONED)
-                                                        .setCapacity(4)
-                                                        .build()))
-                                        .build())
+                                4.0)
                         .build();
 
         assertThat(actualGrouping, equalTo(expectedGrouping));

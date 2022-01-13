@@ -160,7 +160,7 @@ public interface StaticCoverageRuleSet {
                                     .includePlatform(false)
                                     .includeTenancy(true)
                                     .build(),
-                            // Azure can only match to billing family if RI size-flexible
+                            // Azure can only match to billing family if RI is size-flexible
                             VirtualMachineMatcherConfig.builder()
                                     .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                     .addLocations(CloudCommitmentLocation.REGION)

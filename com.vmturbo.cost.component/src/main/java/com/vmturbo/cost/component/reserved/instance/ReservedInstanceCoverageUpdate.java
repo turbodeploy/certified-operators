@@ -38,8 +38,8 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
-import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
-import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysis;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -83,7 +83,7 @@ public class ReservedInstanceCoverageUpdate {
 
     private final ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory;
 
-    private final SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory;
+    private final SupplementalCoverageAnalysisFactory supplementalCoverageAnalysisFactory;
 
     private final CostNotificationSender costNotificationSender;
 
@@ -103,7 +103,7 @@ public class ReservedInstanceCoverageUpdate {
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
             @Nonnull final ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory,
-            @Nonnull final SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory,
+            @Nonnull final SupplementalCoverageAnalysisFactory supplementalCoverageAnalysisFactory,
             @Nonnull final CostNotificationSender costNotificationSender,
             final long riCoverageCacheExpireMinutes) {
         this.dsl = Objects.requireNonNull(dsl);
@@ -113,8 +113,8 @@ public class ReservedInstanceCoverageUpdate {
         this.reservedInstanceCoverageStore = Objects.requireNonNull(reservedInstanceCoverageStore);
         this.reservedInstanceCoverageValidatorFactory =
                 Objects.requireNonNull(reservedInstanceCoverageValidatorFactory);
-        this.supplementalRICoverageAnalysisFactory =
-                Objects.requireNonNull(supplementalRICoverageAnalysisFactory);
+        this.supplementalCoverageAnalysisFactory =
+                Objects.requireNonNull(supplementalCoverageAnalysisFactory);
         this.costNotificationSender = Objects.requireNonNull(costNotificationSender);
         this.riCoverageEntityCache = CacheBuilder.newBuilder()
                 .expireAfterAccess(riCoverageCacheExpireMinutes, TimeUnit.MINUTES)
@@ -375,7 +375,7 @@ public class ReservedInstanceCoverageUpdate {
      * Resolves the {@link EntityRICoverageUpload} records to process for the {@code topologyId}.
      * First, resolves any cached billing records. If billing records exist, they will be validated
      * through the {@link ReservedInstanceCoverageValidator}. Subsequently, the
-     * {@link SupplementalRICoverageAnalysis} will be invoked to add any additional RI coverage
+     * {@link SupplementalCoverageAnalysis} will be invoked to add any additional RI coverage
      * through our own internal analysis.
      *
      * @param topologyId The target topology ID
@@ -432,8 +432,8 @@ public class ReservedInstanceCoverageUpdate {
             validUploadedCoverageEntries =  Collections.EMPTY_LIST;
         }
 
-        final SupplementalRICoverageAnalysis supplementalRICoverageAnalysis =
-                supplementalRICoverageAnalysisFactory.createCoverageAnalysis(
+        final SupplementalCoverageAnalysis supplementalRICoverageAnalysis =
+                supplementalCoverageAnalysisFactory.createCoverageAnalysis(
                         cloudTopology,
                         validUploadedCoverageEntries);
         return supplementalRICoverageAnalysis.createCoverageRecordsFromSupplementalAllocation();

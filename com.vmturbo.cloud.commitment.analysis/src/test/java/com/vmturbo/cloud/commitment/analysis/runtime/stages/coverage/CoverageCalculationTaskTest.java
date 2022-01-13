@@ -19,9 +19,9 @@ import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 
 public class CoverageCalculationTaskTest {
 
@@ -33,8 +33,8 @@ public class CoverageCalculationTaskTest {
     private final AnalysisCoverageTopology coverageTopology = mock(AnalysisCoverageTopology.class);
 
     private final CoverageAllocatorFactory coverageAllocatorFactory = mock(CoverageAllocatorFactory.class);
-    private final ReservedInstanceCoverageAllocator coverageAllocator =
-            mock(ReservedInstanceCoverageAllocator.class);
+    private final CloudCommitmentCoverageAllocator coverageAllocator =
+            mock(CloudCommitmentCoverageAllocator.class);
 
     private final AggregateDemandPreferenceFactory preferenceFactory =
             mock(AggregateDemandPreferenceFactory.class);
@@ -62,9 +62,9 @@ public class CoverageCalculationTaskTest {
     @Before
     public void setup() {
         when(aggregatorFactory.newAggregator(any())).thenReturn(commitmentAggregator);
-        when(coverageTopologyFactory.newTopology(any(), any(), any(), any(), any())).thenReturn(coverageTopology);
+        when(coverageTopologyFactory.newTopology(any(), any(), any(), any())).thenReturn(coverageTopology);
         when(coverageAllocatorFactory.createAllocator(any())).thenReturn(coverageAllocator);
         when(preferenceFactory.newPreference(any())).thenReturn(demandPreference);
-        when(coverageAllocator.allocateCoverage()).thenReturn(ReservedInstanceCoverageAllocation.EMPTY_ALLOCATION);
+        when(coverageAllocator.allocateCoverage()).thenReturn(CloudCommitmentCoverageAllocation.EMPTY_ALLOCATION);
     }
 }

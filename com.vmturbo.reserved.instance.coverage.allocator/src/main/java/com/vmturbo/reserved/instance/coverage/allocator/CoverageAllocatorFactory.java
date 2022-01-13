@@ -9,18 +9,18 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFactory;
 
 /**
- * A factory for creating instances of {@link ReservedInstanceCoverageAllocator}.
+ * A factory for creating instances of {@link CloudCommitmentCoverageAllocator}.
  */
 public interface CoverageAllocatorFactory {
 
     /**
-     * Creates a new instance of {@link ReservedInstanceCoverageAllocator}, based on the provided
+     * Creates a new instance of {@link CloudCommitmentCoverageAllocator}, based on the provided
      * {@link CoverageAllocationConfig}.
-     * @param config The configuration of the requested {@link ReservedInstanceCoverageAllocator} instance
-     * @return The newly created {@link ReservedInstanceCoverageAllocator} instance
+     * @param config The configuration of the requested {@link CloudCommitmentCoverageAllocator} instance
+     * @return The newly created {@link CloudCommitmentCoverageAllocator} instance
      */
     @Nonnull
-    ReservedInstanceCoverageAllocator createAllocator(@Nonnull CoverageAllocationConfig config);
+    CloudCommitmentCoverageAllocator createAllocator(@Nonnull CoverageAllocationConfig config);
 
     /**
      * The default instance of {@link CoverageAllocatorFactory}.
@@ -37,9 +37,9 @@ public interface CoverageAllocatorFactory {
          * {@inheritDoc}
          */
         @Override
-        public ReservedInstanceCoverageAllocator createAllocator(@Nonnull final CoverageAllocationConfig config) {
+        public CloudCommitmentCoverageAllocator createAllocator(@Nonnull final CoverageAllocationConfig config) {
             Preconditions.checkNotNull(config);
-            return new ReservedInstanceCoverageAllocator(coverageRulesFactory, config);
+            return new CloudCommitmentCoverageAllocator(coverageRulesFactory, config);
         }
     }
 }
