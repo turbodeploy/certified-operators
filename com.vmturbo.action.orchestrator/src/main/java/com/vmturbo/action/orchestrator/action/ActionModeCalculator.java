@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -973,7 +974,8 @@ public class ActionModeCalculator {
             case PROVISION:
                 final String horizontalScaleUp = ConfigurableActionSettings.HorizontalScaleUp.getSettingName();
                 final Provision provision = action.getInfo().getProvision();
-                if (settingsForTargetEntity.containsKey(horizontalScaleUp)
+                if (FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()
+                        && settingsForTargetEntity.containsKey(horizontalScaleUp)
                         && SettingDTOUtil.isActionEnabled(settingsForTargetEntity.get(horizontalScaleUp))
                         && provision.getEntityToClone().getType() == EntityType.CONTAINER_POD_VALUE) {
                     return Stream.of(new ActionSpecifications(ConfigurableActionSettings.HorizontalScaleUp));
@@ -989,7 +991,8 @@ public class ActionModeCalculator {
             case DEACTIVATE:
                 final Deactivate deactivate = action.getInfo().getDeactivate();
                 final String horizontalScaleDown = ConfigurableActionSettings.HorizontalScaleDown.getSettingName();
-                if (settingsForTargetEntity.containsKey(horizontalScaleDown)
+                if (FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()
+                        && settingsForTargetEntity.containsKey(horizontalScaleDown)
                         && SettingDTOUtil.isActionEnabled(settingsForTargetEntity.get(horizontalScaleDown))
                         && deactivate.getTarget().getType() == EntityType.CONTAINER_POD_VALUE) {
                     return Stream.of(new ActionSpecifications(ConfigurableActionSettings.HorizontalScaleDown));

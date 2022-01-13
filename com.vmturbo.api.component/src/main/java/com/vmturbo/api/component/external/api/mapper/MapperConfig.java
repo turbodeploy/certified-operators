@@ -325,7 +325,7 @@ public class MapperConfig {
                 scheduleMapper(),
                 ImmutableMap.of(
                         Feature.CloudScaleEnhancement, enableCloudScaleEnhancement,
-                        Feature.ServiceHorizontalScale, true));
+                        Feature.ServiceHorizontalScale, FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()));
     }
 
     @Bean

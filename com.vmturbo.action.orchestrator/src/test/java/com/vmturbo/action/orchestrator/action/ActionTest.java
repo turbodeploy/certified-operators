@@ -85,6 +85,13 @@ public class ActionTest {
 
     private ActionModeCalculator actionModeCalculator = spy(new ActionModeCalculator());
 
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.SERVICE_HORIZONTAL_SCALE);
+
     @Before
     public void setup() throws UnsupportedActionException {
         IdentityGenerator.initPrefix(0);

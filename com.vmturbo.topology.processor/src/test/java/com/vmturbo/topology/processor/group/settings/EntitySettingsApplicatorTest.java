@@ -596,12 +596,27 @@ public class EntitySettingsApplicatorTest {
     private CpuCapacityServiceBlockingStub cpuCapacityService;
 
     /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.SERVICE_HORIZONTAL_SCALE);
+
+    /**
      * Setup the mocked services that cannot be initialized as fields.
      */
     @Before
     public void init() {
         applicator = new EntitySettingsApplicator(false, false);
         cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
+    }
+
+    /**
+     * Tear down the test.
+     */
+    @After
+    public void teardown() {
+        featureFlagTestRule.reset();
     }
 
     private static <E extends Enum<E>> Setting createEnumSetting(EntitySettingSpecs settingSpecs,
@@ -2380,6 +2395,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testHorizontalScaleEnabledForAppComponent() {
+        featureFlagTestRule.enable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         // Scale up is enabled
         HORIZONTAL_SCALE_UP_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
@@ -2402,6 +2418,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testHorizontalScaleDisabledForAppComponent() {
+        featureFlagTestRule.enable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();
         // Set a non horizontal scale up/down policy
@@ -2422,6 +2439,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testScalingPolicyResizeForAppComponent() {
+        featureFlagTestRule.disable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();
 
@@ -2441,6 +2459,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testScalingPolicyProvisionForAppComponent() {
+        featureFlagTestRule.disable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         builder.getAnalysisSettingsBuilder().setCloneable(false);
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();

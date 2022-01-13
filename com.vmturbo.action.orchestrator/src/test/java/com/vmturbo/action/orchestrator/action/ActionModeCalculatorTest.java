@@ -31,6 +31,7 @@ import com.google.common.collect.Maps;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
@@ -70,6 +71,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -77,6 +79,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test class for calculating Action Mode.
@@ -114,6 +117,13 @@ public class ActionModeCalculatorTest {
     private static final long JAN_8_202_1 = 1578445240000L;
     private static final long ACTION_OID = 10289L;
     private static final long AN_HOUR_IN_MILLIS = 3600000L;
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.SERVICE_HORIZONTAL_SCALE);
 
     /**
      * Should return AUTOMATIC for a storage host action, with the target having an AUTOMATIC
