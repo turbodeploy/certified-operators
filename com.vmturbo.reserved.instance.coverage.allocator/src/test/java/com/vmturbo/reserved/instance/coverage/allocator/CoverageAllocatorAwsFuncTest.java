@@ -14,17 +14,18 @@ import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopo
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.VIRTUAL_MACHINE_SMALL_A;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -40,7 +41,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
-public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReservedInstanceCoverageAllocatorTest{
+public class CoverageAllocatorAwsFuncTest extends AbstractCoverageAllocatorTest {
 
     /**
      * Setup method for tests.
@@ -73,21 +74,24 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 VIRTUAL_MACHINE_SMALL_A,
                 BUSINESS_ACCOUNT);
 
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.of(
+                VIRTUAL_MACHINE_SMALL_A.getOid(),
+                zonalRiBought.getId(),
+                CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build());
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
-                        zonalRiBought.getId(), 1.0)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
     }
 
     @Test
@@ -117,21 +121,24 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.of(
+                VIRTUAL_MACHINE_SMALL_A.getOid(),
+                zonalRiBoughtB.getId(),
+                CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build());
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
-                        zonalRiBoughtB.getId(), 1.0)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
     }
 
     @Test
@@ -151,21 +158,24 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.of(
+                VIRTUAL_MACHINE_SMALL_A.getOid(),
+                RI_BOUGHT_SMALL_REGIONAL.getId(),
+                CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build());
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
-                        RI_BOUGHT_SMALL_REGIONAL.getId(), 1.0)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
     }
 
     @Test
@@ -194,21 +204,24 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.of(
+                VIRTUAL_MACHINE_SMALL_A.getOid(),
+                regionalRIB.getId(),
+                CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build());
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
-                        regionalRIB.getId(), 1.0)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
     }
 
     @Test
@@ -236,13 +249,12 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
@@ -277,13 +289,12 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
@@ -341,27 +352,26 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
-        /*
-         * Asserts
-         */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
+                .put(VIRTUAL_MACHINE_SMALL_A.getOid(), sizeFlexibleRI.getId(), CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build())
+                .put(virtualMachineMedium.getOid(), sizeFlexibleRI.getId(), CloudCommitmentAmount.newBuilder()
+                        .setCoupons(2.0)
+                        .build())
+                .build();
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(2));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
-                        sizeFlexibleRI.getId(), 1.0)));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(virtualMachineMedium.getOid(), Collections.singletonMap(
-                        sizeFlexibleRI.getId(), 2.0)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
 
     }
 
@@ -382,23 +392,28 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of(
+                        .sourceCoverage(ImmutableTable.of(
                                 VIRTUAL_MACHINE_SMALL_A.getOid(),
                                 RI_BOUGHT_SMALL_REGIONAL.getId(),
-                                0.5))
+                                CloudCommitmentAmount.newBuilder()
+                                        .setCoupons(0.5)
+                                        .build()))
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
+                .put(VIRTUAL_MACHINE_SMALL_A.getOid(), RI_BOUGHT_SMALL_REGIONAL.getId(), CloudCommitmentAmount.newBuilder()
+                        .setCoupons(.5)
+                        .build())
+                .build();
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
-                        RI_BOUGHT_SMALL_REGIONAL.getId(), .5)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
     }
 }

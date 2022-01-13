@@ -7,15 +7,18 @@ import static org.hamcrest.core.Is.is;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
-public class RICoverageAllocationMetricsProviderTest {
+public class CoverageAllocationMetricsProviderTest {
 
     private static final ServiceProviderInfo AWS_SERVICE_PROVIDER_INFO = ServiceProviderInfo.builder()
             .oid(1L)
             .name("AWS")
             .build();
+
 
     @Test
     public void testTotalCoverageAnalysisDuration() {
@@ -26,8 +29,8 @@ public class RICoverageAllocationMetricsProviderTest {
                         .withHelp("testTotalCoverageAnalysisDuration help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
                         .totalCoverageAnalysisDuration(metricSummary)
                         .build();
 
@@ -44,8 +47,8 @@ public class RICoverageAllocationMetricsProviderTest {
                         .withHelp("firstPassRIFilterDuration help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
                         .firstPassRIFilterDuration(metricSummary)
                         .build();
 
@@ -62,8 +65,8 @@ public class RICoverageAllocationMetricsProviderTest {
                         .withHelp("firstPassEntityFilterDuration help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
                         .firstPassEntityFilterDuration(metricSummary)
                         .build();
 
@@ -80,8 +83,8 @@ public class RICoverageAllocationMetricsProviderTest {
                         .withHelp("contextCreationDuration help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
                         .contextCreationDuration(metricSummary)
                         .build();
 
@@ -91,15 +94,14 @@ public class RICoverageAllocationMetricsProviderTest {
 
     @Test
     public void testCoverableEntityCountForCSP() {
-
         final DataMetricSummary metricSummary =
-                RICoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
+                CoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
                         .withName("coverableEntityCountForCSP")
                         .withHelp("coverableEntityCountForCSP help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
                         .coverableEntityCountByCSP(metricSummary)
                         .build();
 
@@ -108,70 +110,34 @@ public class RICoverageAllocationMetricsProviderTest {
     }
 
     @Test
-    public void testReservedInstanceCountForCSP() {
+    public void testCloudCommitmentCount() {
 
         final DataMetricSummary metricSummary =
-                RICoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
+                CoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
                         .withName("reservedInstanceCountForCSP")
                         .withHelp("reservedInstanceCountForCSP help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
-                        .reservedInstanceCountByCSP(metricSummary)
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
+                        .cloudCommitmentCount(metricSummary)
                         .build();
 
-        assertThat(metricsProvider.reservedInstanceCountForCSP(AWS_SERVICE_PROVIDER_INFO), is(not(nullValue())));
-        assertThat(metricsProvider.reservedInstanceCountForCSP(AWS_SERVICE_PROVIDER_INFO).get(), is(not(nullValue())));
-    }
-
-    @Test
-    public void testUncoveredEntityCapacityForCSP() {
-
-        final DataMetricSummary metricSummary =
-                RICoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
-                        .withName("uncoveredEntityCapacityForCSP")
-                        .withHelp("uncoveredEntityCapacityForCSP help")
-                        .build();
-
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
-                        .uncoveredEntityCapacityByCSP(metricSummary)
-                        .build();
-
-        assertThat(metricsProvider.uncoveredEntityCapacityForCSP(AWS_SERVICE_PROVIDER_INFO), is(not(nullValue())));
-        assertThat(metricsProvider.uncoveredEntityCapacityForCSP(AWS_SERVICE_PROVIDER_INFO).get(), is(not(nullValue())));
-    }
-
-    @Test
-    public void testUnallocatedRICapacityForCSP() {
-
-        final DataMetricSummary metricSummary =
-                RICoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
-                        .withName("unallocatedRICapacityForCSP")
-                        .withHelp("unallocatedRICapacityForCSP help")
-                        .build();
-
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
-                        .unallocatedRICapacityByCSP(metricSummary)
-                        .build();
-
-        assertThat(metricsProvider.unallocatedRICapacityForCSP(AWS_SERVICE_PROVIDER_INFO), is(not(nullValue())));
-        assertThat(metricsProvider.unallocatedRICapacityForCSP(AWS_SERVICE_PROVIDER_INFO).get(), is(not(nullValue())));
+        assertThat(metricsProvider.cloudCommitmentCount(AWS_SERVICE_PROVIDER_INFO), is(not(nullValue())));
+        assertThat(metricsProvider.cloudCommitmentCount(AWS_SERVICE_PROVIDER_INFO).get(), is(not(nullValue())));
     }
 
     @Test
     public void testAllocationDurationForCSP() {
 
         final DataMetricSummary metricSummary =
-                RICoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
+                CoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
                         .withName("allocationDurationForCSP")
                         .withHelp("allocationDurationForCSP help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
                         .allocationDurationByCSP(metricSummary)
                         .build();
 
@@ -183,13 +149,13 @@ public class RICoverageAllocationMetricsProviderTest {
     public void testAllocationCountForCSP() {
 
         final DataMetricSummary metricSummary =
-                RICoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
+                CoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
                         .withName("allocationCountForCSP")
                         .withHelp("allocationCountForCSP help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
                         .allocationCountByCSP(metricSummary)
                         .build();
 
@@ -200,19 +166,23 @@ public class RICoverageAllocationMetricsProviderTest {
     @Test
     public void testAllocatedCoverageCountForCSP() {
 
+        final CloudCommitmentCoverageTypeInfo coverageTypeInfo = CloudCommitmentCoverageTypeInfo.newBuilder()
+                .setCoverageType(CloudCommitmentCoverageType.COUPONS)
+                .build();
+
         final DataMetricSummary metricSummary =
-                RICoverageAllocationMetricsProvider.newCloudServiceProviderMetric()
+                CoverageAllocationMetricsProvider.newCoverageTypeMetric()
                         .withName("allocatedCoverageCountForCSP")
                         .withHelp("allocatedCoverageCountForCSP help")
                         .build();
 
-        final RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.newBuilder()
-                        .allocatedCoverageAmountByCSP(metricSummary)
+        final CoverageAllocationMetricsProvider metricsProvider =
+                CoverageAllocationMetricsProvider.newBuilder()
+                        .allocatedCoverageAmount(metricSummary)
                         .build();
 
-        assertThat(metricsProvider.allocatedCoverageAmountForCSP(AWS_SERVICE_PROVIDER_INFO), is(not(nullValue())));
-        assertThat(metricsProvider.allocatedCoverageAmountForCSP(AWS_SERVICE_PROVIDER_INFO).get(), is(not(nullValue())));
+        assertThat(metricsProvider.allocatedCoverageAmount(AWS_SERVICE_PROVIDER_INFO, coverageTypeInfo), is(not(nullValue())));
+        assertThat(metricsProvider.allocatedCoverageAmount(AWS_SERVICE_PROVIDER_INFO, coverageTypeInfo).get(), is(not(nullValue())));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -224,8 +194,8 @@ public class RICoverageAllocationMetricsProviderTest {
                         .build();
 
         // This should throw an exception due to not having a CSP label for the metric
-        RICoverageAllocationMetricsProvider.newBuilder()
-                .allocatedCoverageAmountByCSP(metricSummary)
+        CoverageAllocationMetricsProvider.newBuilder()
+                .allocatedCoverageAmount(metricSummary)
                 .build();
     }
 }

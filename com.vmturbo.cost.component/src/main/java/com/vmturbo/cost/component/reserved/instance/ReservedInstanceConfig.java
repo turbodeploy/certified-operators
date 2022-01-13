@@ -35,7 +35,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisConfig;
-import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -123,7 +123,7 @@ public class ReservedInstanceConfig {
     private EntityCostConfig entityCostConfig;
 
     @Autowired
-    private SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory;
+    private SupplementalCoverageAnalysisFactory supplementalCoverageAnalysisFactory;
 
     // OM-66854 - normalization with consider the sample count of each data point within the
     // down-sampled RI coverage/utilization tables (rollup tables). If this is disabled, the behavior
@@ -322,7 +322,7 @@ public class ReservedInstanceConfig {
                     entityReservedInstanceMappingStore(), accountRIMappingStore(),
                     reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
                     reservedInstanceCoverageValidatorFactory(),
-                    supplementalRICoverageAnalysisFactory, costNotificationConfig.costNotificationSender(), riCoverageCacheExpireMinutes);
+                    supplementalCoverageAnalysisFactory, costNotificationConfig.costNotificationSender(), riCoverageCacheExpireMinutes);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

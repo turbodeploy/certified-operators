@@ -26,18 +26,18 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocationConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageProvider;
-import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.metrics.CoverageAllocationMetricsProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 /**
@@ -111,7 +111,7 @@ public class BuyRIImpactAnalysis {
     /**
      * A summary metric for collecting the runtime duration of buy RI impact analysis.
      */
-    private static final DataMetricSummary ALLOCATION_DURATION_METRIC = RICoverageAllocationMetricsProvider
+    private static final DataMetricSummary ALLOCATION_DURATION_METRIC = CoverageAllocationMetricsProvider
             .newCloudServiceProviderMetric()
             .withName("mkt_buy_ri_impact_allocation_duration_seconds")
             .withHelp("Time for buy RI impact analysis.")
@@ -126,7 +126,7 @@ public class BuyRIImpactAnalysis {
     /**
      * A summary metric for collecting the count of coverable entities at the start of buy RI impact analysis.
      */
-    private static final DataMetricSummary COVERABLE_ENTITIES_COUNT_METRIC = RICoverageAllocationMetricsProvider
+    private static final DataMetricSummary COVERABLE_ENTITIES_COUNT_METRIC = CoverageAllocationMetricsProvider
             .newCloudServiceProviderMetric()
             .withName("mkt_buy_ri_impact_coverable_entities_counts")
             .withHelp("The number of coverable entities at the start of buy RI impact analysis.")
@@ -142,7 +142,7 @@ public class BuyRIImpactAnalysis {
      * A summary metric for collecting the count of RIs with unallocated coverage capacity
      * at the start of buy RI impact analysis.
      */
-    private static final DataMetricSummary RESERVED_INSTANCE_COUNT_METRIC = RICoverageAllocationMetricsProvider
+    private static final DataMetricSummary RESERVED_INSTANCE_COUNT_METRIC = CoverageAllocationMetricsProvider
             .newCloudServiceProviderMetric()
             .withName("mkt_buy_ri_impact_reserved_instance_count")
             .withHelp("The number of RIs with unallocated coverage at the start of buy RI impact analysis.")
@@ -158,7 +158,7 @@ public class BuyRIImpactAnalysis {
      * A summary metric for collecting the sum of uncovered coverage amount for entities
      * at the start of buy RI impact analysis.
      */
-    private static final DataMetricSummary UNCOVERED_ENTITY_CAPACITY_METRIC = RICoverageAllocationMetricsProvider
+    private static final DataMetricSummary UNCOVERED_ENTITY_CAPACITY_METRIC = CoverageAllocationMetricsProvider
             .newCloudServiceProviderMetric()
             .withName("mkt_buy_ri_impact_uncovered_entity_capacity")
             .withHelp("The sum of uncovered entity capacity at the start of buy RI impact analysis.")
@@ -174,8 +174,8 @@ public class BuyRIImpactAnalysis {
      * A summary metric for collecting the sum of unallocated coverage for RIs at the start of buy
      * RI impact analysis.
      */
-    private static final DataMetricSummary UNALLOCATED_RI_CAPACITY_METRIC = RICoverageAllocationMetricsProvider
-            .newCloudServiceProviderMetric()
+    private static final DataMetricSummary UNALLOCATED_RI_CAPACITY_METRIC = CoverageAllocationMetricsProvider
+            .newCoverageTypeMetric()
             .withName("mkt_buy_ri_impact_unallocated_ri_capacity")
             .withHelp("The sum of unallocated RI capacity at the start of buy RI impact analysis.")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
@@ -189,7 +189,7 @@ public class BuyRIImpactAnalysis {
     /**
      * A summary metric for collecting the count of allocations created as part of buy RI impact analysis.
      */
-    private static final DataMetricSummary ALLOCATION_COUNT_METRIC = RICoverageAllocationMetricsProvider
+    private static final DataMetricSummary ALLOCATION_COUNT_METRIC = CoverageAllocationMetricsProvider
             .newCloudServiceProviderMetric()
             .withName("mkt_buy_ri_impact__allocation_count")
             .withHelp("The number of allocations for buy RI impact analysis.")
@@ -204,8 +204,8 @@ public class BuyRIImpactAnalysis {
     /**
      * A summary metric for collecting the sum of allocated coverage for through the buy RI impact analysis.
      */
-    private static final DataMetricSummary ALLOCATED_COVERAGE_AMOUNT_METRIC = RICoverageAllocationMetricsProvider
-            .newCloudServiceProviderMetric()
+    private static final DataMetricSummary ALLOCATED_COVERAGE_AMOUNT_METRIC = CoverageAllocationMetricsProvider
+            .newCoverageTypeMetric()
             .withName("mkt_buy_ri_impact_allocated_cov_amount")
             .withHelp("The total coverage amount allocated through buy RI impact analysis.")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
@@ -238,9 +238,9 @@ public class BuyRIImpactAnalysis {
      * @param topologyInfo The {@link TopologyInfo} of the {@code coverageTopology}
      * @param coverageTopology The target {@link CoverageTopology} of the analysis
      * @param riCoverageByEntityOid The source RI coverage as a basis for analysis
-     * @param allocatorConcurrentProcessing Whether the {@link ReservedInstanceCoverageAllocator}
+     * @param allocatorConcurrentProcessing Whether the {@link CloudCommitmentCoverageAllocator}
      *                                      should use concurrent processing
-     * @param validateCoverages Whether the {@link ReservedInstanceCoverageAllocator} should validate
+     * @param validateCoverages Whether the {@link CloudCommitmentCoverageAllocator} should validate
      *                          coverage after analysis
      * @param cloudTopology The target {@link CloudTopology} of the analysis
      */
@@ -263,7 +263,7 @@ public class BuyRIImpactAnalysis {
     }
 
     /**
-     * Runs buy RI impact analysis (through the {@link ReservedInstanceCoverageAllocator}), creating
+     * Runs buy RI impact analysis (through the {@link CloudCommitmentCoverageAllocator}), creating
      * and returning {@link EntityReservedInstanceCoverage} representing the complete set of RI coverage
      * (both RIs in inventory and buy RI recommendations for entities within scope.
      *
@@ -281,21 +281,26 @@ public class BuyRIImpactAnalysis {
             logger.info("Running BuyRIImpactAnalysis (Topology Context ID={}, Topology ID={})",
                     topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId());
 
-            final ReservedInstanceCoverageProvider coverageProvider = createCoverageProvider();
-            final ReservedInstanceCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
+            final CloudCommitmentCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
                     CoverageAllocationConfig.builder()
-                            .coverageProvider(coverageProvider)
+                            .sourceCoverage(createSourceCoverage())
                             .coverageTopology(coverageTopology)
                             .metricsProvider(createMetricsProvider())
                             .concurrentProcessing(allocatorConcurrentProcessing)
                             .validateCoverages(validateCoverages)
                             .build());
 
-            final ReservedInstanceCoverageAllocation coverageAllocation =
+            final CloudCommitmentCoverageAllocation coverageAllocation =
                     coverageAllocator.allocateCoverage();
 
             final Table<Long, Long, Double> buyRIAllocatedCoverage =
-                    coverageAllocation.allocatorCoverageTable();
+                    // Convert CloudCommitmentAmount back to coupons. Buy RI analysis currently
+                    // only supports RIs
+                    coverageAllocation.allocatorCoverageTable().cellSet().stream()
+                            .collect(ImmutableTable.toImmutableTable(
+                                    Table.Cell::getRowKey,
+                                    Table.Cell::getColumnKey,
+                                    coverageCell -> coverageCell.getValue().getCoupons()));
             final List<Action.Builder> allocateActions = generateBuyRIAllocateActions(
                     buyRIAllocatedCoverage.rowKeySet());
 
@@ -315,15 +320,14 @@ public class BuyRIImpactAnalysis {
     }
 
     /**
-     * Creates the coverage provider as a starting point for the {@link ReservedInstanceCoverageAllocator}.
+     * Creates the source coverage as a starting point for the {@link CloudCommitmentCoverageAllocator}.
      * The coverage is built from the input {@link EntityReservedInstanceCoverage} records.
      *
-     * @return A {@link ReservedInstanceCoverageProvider}, with an immutable mapping for
-     * {@link ReservedInstanceCoverageProvider#getAllCoverages()}
+     * @return A {@link Table}, representing the source coverage.
      */
     @Nonnull
-    private ReservedInstanceCoverageProvider createCoverageProvider() {
-        final Table<Long, Long, Double> coverage = riCoverageByEntityOid.values()
+    private Table<Long, Long, CloudCommitmentAmount> createSourceCoverage() {
+        final Table<Long, Long, CloudCommitmentAmount> coverage = riCoverageByEntityOid.values()
                 .stream()
                 .map(entityRICoverage ->
                         entityRICoverage.getCouponsCoveredByRiMap()
@@ -338,29 +342,31 @@ public class BuyRIImpactAnalysis {
                 .collect(ImmutableTable.toImmutableTable(
                         ImmutableTriple::getLeft,
                         ImmutableTriple::getMiddle,
-                        ImmutableTriple::getRight));
+                        coverageEntry -> CloudCommitmentAmount.newBuilder()
+                                .setCoupons(coverageEntry.getRight())
+                                .build()));
 
-        return () -> coverage;
+        return coverage;
     }
 
     /**
-     * Creates a {@link RICoverageAllocationMetricsProvider}.
-     * @return The newly created {@link RICoverageAllocationMetricsProvider} instance.
+     * Creates a {@link CoverageAllocationMetricsProvider}.
+     * @return The newly created {@link CoverageAllocationMetricsProvider} instance.
      */
     @Nonnull
-    private RICoverageAllocationMetricsProvider createMetricsProvider() {
-        return RICoverageAllocationMetricsProvider.newBuilder()
+    private CoverageAllocationMetricsProvider createMetricsProvider() {
+        return CoverageAllocationMetricsProvider.newBuilder()
                 .totalCoverageAnalysisDuration(TOTAL_COVERAGE_ANALYSIS_DURATION_METRIC)
                 .firstPassRIFilterDuration(FIRST_PASS_RI_FILTER_DURATION_METRIC)
                 .firstPassEntityFilterDuration(FIRST_PASS_ENTITY_FILTER_DURATION_METRIC)
                 .contextCreationDuration(CONTEXT_CREATION_DURATION_METRIC)
                 .allocationDurationByCSP(ALLOCATION_DURATION_METRIC)
                 .coverableEntityCountByCSP(COVERABLE_ENTITIES_COUNT_METRIC)
-                .reservedInstanceCountByCSP(RESERVED_INSTANCE_COUNT_METRIC)
-                .uncoveredEntityCapacityByCSP(UNCOVERED_ENTITY_CAPACITY_METRIC)
-                .unallocatedRICapacityByCSP(UNALLOCATED_RI_CAPACITY_METRIC)
+                .cloudCommitmentCount(RESERVED_INSTANCE_COUNT_METRIC)
+                .uncoveredEntityPercentage(UNCOVERED_ENTITY_CAPACITY_METRIC)
+                .unallocatedCommitmentCapacity(UNALLOCATED_RI_CAPACITY_METRIC)
                 .allocationCountByCSP(ALLOCATION_COUNT_METRIC)
-                .allocatedCoverageAmountByCSP(ALLOCATED_COVERAGE_AMOUNT_METRIC)
+                .allocatedCoverageAmount(ALLOCATED_COVERAGE_AMOUNT_METRIC)
                 .build();
     }
 

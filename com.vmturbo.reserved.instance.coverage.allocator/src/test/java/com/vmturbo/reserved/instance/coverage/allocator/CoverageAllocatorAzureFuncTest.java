@@ -10,17 +10,18 @@ import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTo
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.VIRTUAL_MACHINE_SMALL_A;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -30,9 +31,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 /**
- * Tests the RI allocator for for Azure.
+ * Tests the commitment allocator for for Azure.
  */
-public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractReservedInstanceCoverageAllocatorTest {
+public class CoverageAllocatorAzureFuncTest extends AbstractCoverageAllocatorTest {
 
     /**
      * Setup method for tests.
@@ -58,21 +59,23 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
+                .put(VIRTUAL_MACHINE_SMALL_A.getOid(), RI_BOUGHT_SMALL.getId(), CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build())
+                .build();
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
-                        RI_BOUGHT_SMALL.getId(), 1.0)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
     }
 
     /**
@@ -102,20 +105,22 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
                 CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
-                        .coverageProvider(() -> ImmutableTable.of())
                         .build());
 
-        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
 
         /*
          * Asserts
          */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
+                .put(virtualMachineWindows.getOid(), RI_BOUGHT_SMALL.getId(), CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build())
+                .build();
         assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
-        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
-                hasEntry(virtualMachineWindows.getOid(), Collections.singletonMap(
-                        RI_BOUGHT_SMALL.getId(), 1.0)));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
     }
 }

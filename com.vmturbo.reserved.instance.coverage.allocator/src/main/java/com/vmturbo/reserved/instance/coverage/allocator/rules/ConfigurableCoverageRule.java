@@ -5,7 +5,6 @@ import static com.google.common.base.Predicates.not;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -14,10 +13,14 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilter;
 import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilterFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatcher;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCommitmentMatcher.ComputeCommitmentMatcherFactory;
@@ -35,7 +38,7 @@ public class ConfigurableCoverageRule implements CoverageRule {
 
     private final CoverageTopology coverageTopology;
 
-    private final ReservedInstanceCoverageJournal coverageJournal;
+    private final CloudCommitmentCoverageJournal coverageJournal;
 
     private final CommitmentMatcher commitmentMatcher;
 
@@ -46,7 +49,7 @@ public class ConfigurableCoverageRule implements CoverageRule {
     private final String ruleTag;
 
     private ConfigurableCoverageRule(@Nonnull CloudProviderCoverageContext coverageContext,
-                                     @Nonnull ReservedInstanceCoverageJournal coverageJournal,
+                                     @Nonnull CloudCommitmentCoverageJournal coverageJournal,
                                      @Nonnull CommitmentMatcher commitmentMatcher,
                                      @Nonnull CloudCommitmentFilter cloudCommitmentFilter,
                                      @Nonnull SetMultimap<Long, CoverageKey> entityKeyMap,
@@ -75,7 +78,7 @@ public class ConfigurableCoverageRule implements CoverageRule {
 
 
         return coverageKeyIntersection.stream()
-                .map(k -> this.createGroupFromKey(k, keyRepository));
+                .flatMap(k -> this.createGroupsFromKey(k, keyRepository));
     }
 
     /**
@@ -100,9 +103,10 @@ public class ConfigurableCoverageRule implements CoverageRule {
 
         getCloudCommitmentsInScope().forEach(commitment ->
                 commitmentMatcher.createKeysForCommitment(commitment).forEach(coverageKey ->
-                        repositoryBuilder.putCommitmentsByKey(coverageKey, commitment.aggregateId())));
+                    repositoryBuilder.putCommitmentsByKey(coverageKey, commitment.aggregateId())));
 
-        getEntitiesInScope().forEach(entityOid ->
+
+        coverageContext.coverableEntityOids().forEach(entityOid ->
                 entityKeyMap.get(entityOid).forEach(coverageKey ->
                         repositoryBuilder.putEntitiesByKey(coverageKey, entityOid)));
 
@@ -110,32 +114,40 @@ public class ConfigurableCoverageRule implements CoverageRule {
     }
 
     @Nonnull
-    private CoverageGroup createGroupFromKey(@Nonnull CoverageKey coverageKey,
-                                             @Nonnull CoverageKeyRepository keyRepository) {
+    private Stream<CoverageGroup> createGroupsFromKey(@Nonnull CoverageKey coverageKey,
+                                                      @Nonnull CoverageKeyRepository keyRepository) {
         final Set<Long> commitmentOids = keyRepository.getCommitmentsForKey(coverageKey);
+
+        final SetMultimap<CloudCommitmentCoverageTypeInfo, Long> commitmentsByCoverageType =
+                commitmentOids.stream()
+                        .map(coverageTopology::getCloudCommitment)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .flatMap(commitment -> commitment.coverageTypeInfoSet().stream()
+                                .map(coverageTypeInfo -> ImmutablePair.of(coverageTypeInfo, commitment.aggregateId())))
+                        .collect(ImmutableSetMultimap.toImmutableSetMultimap(
+                                Pair::getKey,
+                                Pair::getValue));
+
         final Set<Long> entityOids = keyRepository.getEntitiesForKey(coverageKey);
 
-        return CoverageGroup.builder()
-                .cloudServiceProvider(coverageContext.serviceProviderInfo())
-                .sourceKey(coverageKey)
-                .sourceTag(ruleTag)
-                .addAllCommitmentOids(commitmentOids)
-                .addAllEntityOids(entityOids)
-                .build();
+        return commitmentsByCoverageType.asMap().entrySet()
+                .stream()
+                .map(commitmentCoverageGroup -> CoverageGroup.builder()
+                        .cloudServiceProvider(coverageContext.serviceProviderInfo())
+                        .sourceKey(coverageKey)
+                        .sourceTag(ruleTag)
+                        .coverageTypeInfo(commitmentCoverageGroup.getKey())
+                        .addAllCommitmentOids(commitmentCoverageGroup.getValue())
+                        .addAllEntityOids(entityOids)
+                        .build());
 
-    }
-
-    @Nonnull
-    private LongStream getEntitiesInScope() {
-        return coverageContext.coverableEntityOids().stream()
-                .filter(not(coverageJournal::isEntityAtCapacity))
-                .mapToLong(Long::valueOf);
     }
 
     @Nonnull
     private Stream<CloudCommitmentAggregate> getCloudCommitmentsInScope() {
-        return coverageContext.reservedInstanceOids().stream()
-                .filter(not(coverageJournal::isReservedInstanceAtCapacity))
+        return coverageContext.cloudCommitmentOids().stream()
+                .filter(not(coverageJournal::isCommitmentAtCapacity))
                 .map(coverageTopology::getCloudCommitment)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -168,7 +180,7 @@ public class ConfigurableCoverageRule implements CoverageRule {
          * commitment inventory within {@code coverageContext}, and a {@link CommitmentMatcher}, used
          * to generate coverag keys to match commitments to entities contained within {@code entityKeyMap}.
          * @param coverageContext The {@link CloudProviderCoverageContext}.
-         * @param coverageJournal The {@link ReservedInstanceCoverageJournal}, used to check whether
+         * @param coverageJournal The {@link CloudCommitmentCoverageJournal}, used to check whether
          *                        the commitments or entities are at capacity.
          * @param entityKeyMap The map of entities to precomputed {@link CoverageKey} instances. The entity
          *                     coverage keys are precomputed based on all possible matching configurations
@@ -179,7 +191,7 @@ public class ConfigurableCoverageRule implements CoverageRule {
          */
         @Nonnull
         public ConfigurableCoverageRule createRule(@Nonnull CloudProviderCoverageContext coverageContext,
-                                                   @Nonnull ReservedInstanceCoverageJournal coverageJournal,
+                                                   @Nonnull CloudCommitmentCoverageJournal coverageJournal,
                                                    @Nonnull SetMultimap<Long, CoverageKey> entityKeyMap,
                                                    @Nonnull CoverageRuleConfig ruleConfig) {
 

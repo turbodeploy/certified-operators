@@ -27,7 +27,7 @@ import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFacto
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
 /**
- * A spring configuration for {@link SupplementalRICoverageAnalysisFactory}.
+ * A spring configuration for {@link SupplementalCoverageAnalysisFactory}.
  */
 @Configuration
 @Import({
@@ -137,13 +137,13 @@ public class SupplementalCoverageAnalysisConfig {
     }
 
     /**
-     * The {@link SupplementalRICoverageAnalysisFactory}.
-     * @return The {@link SupplementalRICoverageAnalysisFactory}.
+     * The {@link SupplementalCoverageAnalysisFactory}.
+     * @return The {@link SupplementalCoverageAnalysisFactory}.
      */
     @Lazy
     @Bean
-    public SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory() {
-        return new SupplementalRICoverageAnalysisFactory(
+    public SupplementalCoverageAnalysisFactory supplementalCoverageAnalysisFactory() {
+        return new SupplementalCoverageAnalysisFactory(
                 coverageAllocatorFactory(),
                 coverageTopologyFactory(),
                 reservedInstanceBoughtStore,

@@ -58,8 +58,8 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
-import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
-import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysis;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -116,10 +116,10 @@ public class ReservedInstanceCoverageUpdateTest extends MultiDbTestBase {
     private ReservedInstanceCoverageValidator reservedInstanceCoverageValidator =
             mock(ReservedInstanceCoverageValidator.class);
 
-    private SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory =
-            mock(SupplementalRICoverageAnalysisFactory.class);
-    private SupplementalRICoverageAnalysis supplementalRICoverageAnalysis =
-            mock(SupplementalRICoverageAnalysis.class);
+    private SupplementalCoverageAnalysisFactory supplementalRICoverageAnalysisFactory =
+            mock(SupplementalCoverageAnalysisFactory.class);
+    private SupplementalCoverageAnalysis supplementalRICoverageAnalysis =
+            mock(SupplementalCoverageAnalysis.class);
 
     private CostNotificationSender costNotificationSender =
             mock(CostNotificationSender.class);

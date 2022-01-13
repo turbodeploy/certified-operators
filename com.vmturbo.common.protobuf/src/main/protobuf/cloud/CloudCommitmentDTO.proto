@@ -11,11 +11,6 @@ enum CloudCommitmentType {
     RESERVED_INSTANCE = 1;
 }
 
-enum CloudCommitmentScope {
-    BILLING_FAMILY = 1;
-    ACCOUNT = 2;
-}
-
 enum CloudCommitmentLocation {
     AVAILABILITY_ZONE = 1;
     REGION = 2;

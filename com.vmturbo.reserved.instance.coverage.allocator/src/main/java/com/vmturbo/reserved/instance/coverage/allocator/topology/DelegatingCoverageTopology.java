@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -85,33 +86,34 @@ public class DelegatingCoverageTopology implements CoverageTopology {
                 .collect(ImmutableSet.toImmutableSet());
     }
 
-    /**
-     * {@inheritDoc}.
-     */
-    @Nonnull
     @Override
-    public Map<Long, Double> getCommitmentCapacityByOid() {
-        // Assumes all commitments are reserved instances
-        return commitmentAggregatesMap.values()
-                .stream()
-                .filter(CloudCommitmentAggregate::isReservedInstance)
-                .map(CloudCommitmentAggregate::asReservedInstanceAggregate)
-                .collect(ImmutableMap.toImmutableMap(
-                        ReservedInstanceAggregate::aggregateId,
-                        (aggregate) -> aggregate.commitments().stream()
-                                .mapToDouble(riData -> riData.commitment()
-                                        .getReservedInstanceBoughtInfo()
-                                        .getReservedInstanceBoughtCoupons()
-                                        .getNumberOfCoupons())
-                                .reduce(0.0, Double::sum)));
+    public Set<CloudCommitmentAggregate> getAllCloudCommitmentAggregates() {
+        return ImmutableSet.copyOf(commitmentAggregatesMap.values());
+    }
+
+    @Override
+    public double getCommitmentCapacity(long commitmentOid,
+                                                       @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
+
+        return commitmentAggregatesMap.containsKey(commitmentOid)
+                ? commitmentAggregatesMap.get(commitmentOid).capacityByType(coverageTypeInfo)
+                : 0.0;
     }
 
     /**
      * {@inheritDoc}.
      */
     @Override
-    public double getCoverageCapacityForEntity(final long entityOid) {
-        return cloudTopology.getRICoverageCapacityForEntity(entityOid);
+    public double getCoverageCapacityForEntity(final long entityOid,
+                                                              @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
+
+        switch (coverageTypeInfo.getCoverageType()) {
+            case COUPONS:
+                return cloudTopology.getRICoverageCapacityForEntity(entityOid);
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Cloud commitment type %s is not supported", coverageTypeInfo));
+        }
     }
 
     /**

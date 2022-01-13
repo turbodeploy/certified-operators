@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -20,15 +21,16 @@ import org.apache.commons.lang3.tuple.Triple;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountUtils;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
-import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -46,26 +48,22 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
     private final CloudTopology<TopologyEntityDTO> cloudTierTopology;
 
-    private final MinimalCloudTopology<MinimalEntity> cloudTopology;
-
     private final ComputeTierFamilyResolver computeTierFamilyResolver;
 
     private final Map<Long, AggregateCloudTierDemand> aggregatedDemandById;
 
     private final Map<Long, CloudCommitmentAggregate> commitmentAggregatesMap;
 
-    private final Map<Long, Double> commitmentCapacityById;
+    private final Map<Long, CloudCommitmentAmount> commitmentCapacityById;
 
 
     private AnalysisCoverageTopology(@Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
-                                     @Nonnull MinimalCloudTopology<MinimalEntity> cloudTopology,
                                      @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
                                      @Nonnull Map<Long, AggregateCloudTierDemand> aggregatedDemandById,
                                      @Nonnull Set<CloudCommitmentAggregate> commitmentAggregateSet,
-                                     @Nonnull Map<Long, Double> commitmentCapacityById) {
+                                     @Nonnull Map<Long, CloudCommitmentAmount> commitmentCapacityById) {
 
         this.cloudTierTopology = Objects.requireNonNull(cloudTierTopology);
-        this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.aggregatedDemandById = ImmutableMap.copyOf(Objects.requireNonNull(aggregatedDemandById));
         this.commitmentAggregatesMap = Objects.requireNonNull(commitmentAggregateSet)
@@ -103,28 +101,35 @@ public class AnalysisCoverageTopology implements CoverageTopology {
      * Generally, this will convert from coupons (for RIs) to hours of demand.
      * @param aggregateId The aggregate ID.
      * @param commitmentId The commitment ID.
-     * @param coverageAmount The coverage amount (generally in coupons).
+     * @param coverageAmount The coverage amount.
      * @return The aggregate demand amount (generally in terms of hours of uptime).
      */
+    @Nullable
     public Triple<Long, Long, Double> convertAllocationDemandToAggregate(
             long aggregateId,
             long commitmentId,
-            double coverageAmount) {
+            @Nonnull CloudCommitmentAmount coverageAmount) {
 
         if (aggregatedDemandById.containsKey(aggregateId)) {
             // assumes compute tier demand
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(aggregateId);
 
-            // This will need to be abstracted when multiple commitment types are supported
-            final Optional<Double> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
-                    aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
+            switch (coverageAmount.getValueCase()) {
+                case COUPONS:
+                    // This will need to be abstracted when multiple commitment types are supported
+                    final Optional<Double> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
+                            aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
 
-            // TODO(ejf) log error
-            final double aggregateAmount = coverageAmount / normalizationFactor.orElse(1D);
-            return ImmutableTriple.of(aggregateId, commitmentId, aggregateAmount);
+                    // TODO(ejf) log error
+                    final double aggregateAmount = coverageAmount.getCoupons() / normalizationFactor.orElse(1D);
+                    return ImmutableTriple.of(aggregateId, commitmentId, aggregateAmount);
+
+                default:
+                    throw new UnsupportedOperationException(
+                            String.format("Cloud commitment type %s is not supported", coverageAmount.getValueCase()));
+            }
         } else {
-            // TODO(ejf) log error
-            return ImmutableTriple.of(aggregateId, commitmentId, coverageAmount);
+            return null;
         }
     }
 
@@ -163,30 +168,42 @@ public class AnalysisCoverageTopology implements CoverageTopology {
                 .collect(ImmutableSet.toImmutableSet());
     }
 
-    /**
-     * {@inheritDoc}.
-     */
-    @Nonnull
     @Override
-    public Map<Long, Double> getCommitmentCapacityByOid() {
-        return commitmentCapacityById;
+    public Set<CloudCommitmentAggregate> getAllCloudCommitmentAggregates() {
+        return ImmutableSet.copyOf(commitmentAggregatesMap.values());
+    }
+
+    @Override
+    public double getCommitmentCapacity(long commitmentOid,
+                                        @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
+
+        return commitmentCapacityById.containsKey(commitmentOid)
+                ? CommitmentAmountUtils.filterByCoverageKey(commitmentCapacityById.get(commitmentOid), coverageTypeInfo)
+                : 0.0;
     }
 
     /**
      * {@inheritDoc}.
      */
     @Override
-    public double getCoverageCapacityForEntity(final long entityOid) {
+    public double getCoverageCapacityForEntity(long entityOid,
+                                               CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
         if (aggregatedDemandById.containsKey(entityOid)) {
             // assumes compute tier demand
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
 
-            // This will need to be abstracted when multiple commitment types are supported
-            final Optional<Double> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
-                    aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
+            switch (coverageTypeInfo.getCoverageType()) {
+                case COUPONS:
+                    // This will need to be abstracted when multiple commitment types are supported
+                    final Optional<Double> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
+                            aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
 
-            // TODO(ejf) log error
-            return aggregateDemand.demandAmount() * normalizationFactor.orElse(1D);
+                    // If the normalization factor cannot be determined, ignore this demand
+                    return aggregateDemand.demandAmount() * normalizationFactor.orElse(0D);
+                default:
+                    throw new UnsupportedOperationException(
+                            String.format("Cloud commitment type %s is not supported", coverageTypeInfo));
+            }
         } else {
             return 0.0;
         }
@@ -302,7 +319,6 @@ public class AnalysisCoverageTopology implements CoverageTopology {
         /**
          * Creates a new {@link AnalysisCoverageTopology} instance.
          * @param cloudTierTopology The cloud tier topology.
-         * @param cloudTopology The cloud topology.
          * @param aggregatedDemandSet The {@link AggregateCloudTierDemand} set, in which each instance
          *                           will be represented as a coverage entity through this topology.
          * @param commitmentAggregateSet The set of cloud commitment aggregates to include in this topology.
@@ -311,10 +327,9 @@ public class AnalysisCoverageTopology implements CoverageTopology {
          */
         @Nonnull
         public AnalysisCoverageTopology newTopology(@Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
-                                                    @Nonnull MinimalCloudTopology<MinimalEntity> cloudTopology,
                                                     @Nonnull Collection<AggregateCloudTierDemand> aggregatedDemandSet,
                                                     @Nonnull Set<CloudCommitmentAggregate> commitmentAggregateSet,
-                                                    @Nonnull Map<Long, Double> commitmentCapacityById) {
+                                                    @Nonnull Map<Long, CloudCommitmentAmount> commitmentCapacityById) {
             // Assign an ID to each aggregate demand instance
             final Map<Long, AggregateCloudTierDemand> aggregateDemandById = aggregatedDemandSet.stream()
                     .collect(ImmutableMap.toImmutableMap(
@@ -323,7 +338,6 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
             return new AnalysisCoverageTopology(
                     cloudTierTopology,
-                    cloudTopology,
                     computeTierFamilyResolverFactory.createResolver(cloudTierTopology),
                     aggregateDemandById,
                     commitmentAggregateSet,

@@ -1,6 +1,5 @@
 package com.vmturbo.reserved.instance.coverage.allocator.topology;
 
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -9,6 +8,8 @@ import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 
 /**
  * An interface similar to a cloud topology, providing topology information required for coverage
@@ -23,7 +24,7 @@ public interface CoverageTopology {
      * @return The set of entity OIDs matching the specified type.
      */
     @Nonnull
-    Set<Long> getEntitiesOfType(@Nonnull int entityType);
+    Set<Long> getEntitiesOfType(int entityType);
 
     /**
      * Finds and returns the cloud commitment aggregate corresponding to the provided ID.
@@ -41,20 +42,32 @@ public interface CoverageTopology {
     Set<ReservedInstanceAggregate> getAllRIAggregates();
 
     /**
-     * Resolves the capacity for each instance of {@link CloudCommitmentAggregate} contained within
-     * this topology.
-     * @return An immutable map of {@literal <Commitment Aggregate ID, Coverage Capacity>}.
+     * The immutable set of all {@link CloudCommitmentAggregate} instances in the topology.
+     * @return The immutable set of all {@link CloudCommitmentAggregate} instances in the topology.
      */
     @Nonnull
-    Map<Long, Double> getCommitmentCapacityByOid();
+    Set<CloudCommitmentAggregate> getAllCloudCommitmentAggregates();
+
+    /**
+     * Queries the capacity of {@code commitmentOid} for the specified coverage type. If the commitment
+     * does not exist or does not have capacity of that coverage type, an empty {@link CloudCommitmentAmount}
+     * will be returned.
+     * @param commitmentOid The commitment aggregate OID.
+     * @param coverageTypeInfo The coverage type info.
+     * @return The commitment capacity of the commitment aggregate.
+     */
+    @Nonnull
+    double getCommitmentCapacity(long commitmentOid, CloudCommitmentCoverageTypeInfo coverageTypeInfo);
 
     /**
      * Get the coverage capacity for the specified {@code entityOid}. The capacity will be specified
      * in coupons.
      * @param entityOid The target entity OID.
+     * @param coverageTypeInfo The coverage type info.
      * @return The coverage capacity of the entity. Zero will be returned if the entity is not found.
      */
-    double getCoverageCapacityForEntity(long entityOid);
+    double getCoverageCapacityForEntity(long entityOid,
+                                        @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo);
 
     /**
      * Resolves and returns the aggregation info for the specified {@code entityOid}.

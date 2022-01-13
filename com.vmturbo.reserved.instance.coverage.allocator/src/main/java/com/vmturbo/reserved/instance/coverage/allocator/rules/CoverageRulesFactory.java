@@ -16,7 +16,7 @@ import com.google.common.collect.SetMultimap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.CoverageEntityMatcher;
@@ -62,14 +62,14 @@ public class CoverageRulesFactory {
     @Nonnull
     public List<CoverageRule> createRules(
             @Nonnull CloudProviderCoverageContext coverageContext,
-            @Nonnull ReservedInstanceCoverageJournal coverageJournal) {
+            @Nonnull CloudCommitmentCoverageJournal coverageJournal) {
 
         final ServiceProviderInfo csp = coverageContext.serviceProviderInfo();
         final SetMultimap<Long, CoverageKey> entityKeyMap = createEntityKeyMap(coverageContext);
         final List<CoverageRuleConfig> ruleConfigs = RULE_SET_BY_CLOUD_PROVIDER.get(csp.referenceId());
 
         //Add the first pass coverage rules to the start of the list
-        final ImmutableList.Builder rulesBuilder = ImmutableList.builder()
+        final ImmutableList.Builder<CoverageRule> rulesBuilder = ImmutableList.<CoverageRule>builder()
                 .add(FirstPassCoverageRule.newInstance(coverageContext, coverageJournal));
 
         ruleConfigs.stream()

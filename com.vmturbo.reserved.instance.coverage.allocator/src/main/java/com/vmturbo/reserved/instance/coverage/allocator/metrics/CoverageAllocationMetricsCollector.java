@@ -10,8 +10,12 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AtomicDouble;
 
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal.CoverageJournalEntry;
+import org.immutables.value.Value.Immutable;
+
+import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal.CoverageJournalEntry;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
@@ -20,24 +24,24 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProvider
  * directly measured by a {@link InstrumentedAllocationOperation}, which wraps a metric specific
  * to the operation type.
  */
-public class RICoverageAllocationMetricsCollector {
+public class CoverageAllocationMetricsCollector {
 
-    private final RICoverageAllocationMetricsProvider metricsProvider;
+    private final CoverageAllocationMetricsProvider metricsProvider;
 
     private final Map<ServiceProviderInfo, AtomicLong> allocationCountByCSP =
             new ConcurrentHashMap<>();
 
-    private final Map<ServiceProviderInfo, AtomicDouble> allocatedCoverageByCSP =
+    private final Map<ServiceProviderCoverageKey, AtomicDouble> allocatedCoverageMap =
             new ConcurrentHashMap<>();
 
     /**
-     * Constructs an instance of {@link RICoverageAllocationMetricsCollector}. The lifetime of the
+     * Constructs an instance of {@link CoverageAllocationMetricsCollector}. The lifetime of the
      * collector is intended to be a single RI coverage allocation analysis
      * @param metricsProvider A provider of metrics for specific stages of the coverage analysis. Metrics
      *                        for each stage will only be available, if configured by the caller of the
      *                        coverage library
      */
-    public RICoverageAllocationMetricsCollector(@Nonnull RICoverageAllocationMetricsProvider metricsProvider) {
+    public CoverageAllocationMetricsCollector(@Nonnull CoverageAllocationMetricsProvider metricsProvider) {
         this.metricsProvider = Objects.requireNonNull(metricsProvider);
     }
 
@@ -47,39 +51,39 @@ public class RICoverageAllocationMetricsCollector {
      * @return An {@link InstrumentedAllocationOperation}.
      */
     @Nonnull
-    public RICoverageAllocationOperation onCoverageAnalysis() {
+    public CoverageAllocationOperation onCoverageAnalysis() {
         return metricsProvider.totalCoverageAnalysisDuration()
                 .map(timerProvider ->
                         new InstrumentedAllocationOperation(timerProvider, this::onAnalysisCompletion))
-                .map(RICoverageAllocationOperation.class::cast)
+                .map(CoverageAllocationOperation.class::cast)
                 .orElseGet(() -> new InstrumentedAllocationOperation(
                         DataMetricTimerProvider.EMPTY_PROVIDER, this::onAnalysisCompletion));
     }
 
     /**
-     * Collects the duration of the first pass RI filter
+     * Collects the duration of the first pass coverage filter.
      *
      * @return An {@link InstrumentedAllocationOperation}.
      */
     @Nonnull
-    public RICoverageAllocationOperation onFirstPassRIFilter() {
+    public CoverageAllocationOperation onFirstPassCoverageFilter() {
         return metricsProvider.firstPassRIFilterDuration()
                 .map(InstrumentedAllocationOperation::new)
-                .map(RICoverageAllocationOperation.class::cast)
-                .orElse(RICoverageAllocationOperation.PASS_THROUGH_OPERATION);
+                .map(CoverageAllocationOperation.class::cast)
+                .orElse(CoverageAllocationOperation.PASS_THROUGH_OPERATION);
     }
 
     /**
-     * Collects the duration of the first pass entity filter
+     * Collects the duration of the first pass entity filter.
      *
      * @return An {@link InstrumentedAllocationOperation}.
      */
     @Nonnull
-    public RICoverageAllocationOperation onFirstPassEntityFilter() {
+    public CoverageAllocationOperation onFirstPassEntityFilter() {
         return metricsProvider.firstPassEntityFilterDuration()
                 .map(InstrumentedAllocationOperation::new)
-                .map(RICoverageAllocationOperation.class::cast)
-                .orElse(RICoverageAllocationOperation.PASS_THROUGH_OPERATION);
+                .map(CoverageAllocationOperation.class::cast)
+                .orElse(CoverageAllocationOperation.PASS_THROUGH_OPERATION);
     }
 
     /**
@@ -89,25 +93,25 @@ public class RICoverageAllocationMetricsCollector {
      * @return An {@link InstrumentedAllocationOperation}.
      */
     @Nonnull
-    public RICoverageAllocationOperation onContextCreation() {
+    public CoverageAllocationOperation onContextCreation() {
         return metricsProvider.contextCreationDuration()
                 .map(InstrumentedAllocationOperation::new)
-                .map(RICoverageAllocationOperation.class::cast)
-                .orElse(RICoverageAllocationOperation.PASS_THROUGH_OPERATION);
+                .map(CoverageAllocationOperation.class::cast)
+                .orElse(CoverageAllocationOperation.PASS_THROUGH_OPERATION);
     }
 
     /**
-     * Collects the duration of coverage analysis for a specific CSP
+     * Collects the duration of coverage analysis for a specific CSP.
      *
      * @param coverageContext The coverage context, specific to an individual CSP.
-     * @param coverageJournal The {@link ReservedInstanceCoverageJournal} for the coverage context,
+     * @param coverageJournal The {@link CloudCommitmentCoverageJournal} for the coverage context,
      *                        used to collect metrics for coverage capacity prior to analysis
      * @return An {@link InstrumentedAllocationOperation}.
      */
     @Nonnull
-    public RICoverageAllocationOperation onCoverageAnalysisForCSP(
+    public CoverageAllocationOperation onCoverageAnalysisForCSP(
             @Nonnull CloudProviderCoverageContext coverageContext,
-            @Nonnull ReservedInstanceCoverageJournal coverageJournal) {
+            @Nonnull CloudCommitmentCoverageJournal coverageJournal) {
 
         Preconditions.checkNotNull(coverageContext);
         Preconditions.checkNotNull(coverageJournal);
@@ -116,10 +120,13 @@ public class RICoverageAllocationMetricsCollector {
         // Record entity + RI counts for the CSP
         metricsProvider.coverableEntityCountForCSP(csp)
                 .ifPresent(metric -> metric.observe((double)coverageContext.coverableEntityOids().size()));
-        metricsProvider.reservedInstanceCountForCSP(csp)
-                .ifPresent(metric -> metric.observe((double)coverageContext.reservedInstanceOids().size()));
+        metricsProvider.cloudCommitmentCount(csp)
+                .ifPresent(metric -> metric.observe((double)coverageContext.cloudCommitmentOids().size()));
         // Record entity + RI coverage capacity for the CSP,
         // prior to analysis
+        /*
+        TODO:ejf - make this a percentage and add commitment type
+
         metricsProvider.uncoveredEntityCapacityForCSP(csp)
                 .ifPresent(metric -> metric.observe(
                         coverageContext.coverableEntityOids()
@@ -132,12 +139,12 @@ public class RICoverageAllocationMetricsCollector {
                                 .stream()
                                 .mapToDouble(coverageJournal::getUnallocatedCapacity)
                                 .sum()));
-
+         */
         // return a timer for the allocation operation
         return metricsProvider.allocationDurationForCSP(csp)
                 .map(InstrumentedAllocationOperation::new)
-                .map(RICoverageAllocationOperation.class::cast)
-                .orElse(RICoverageAllocationOperation.PASS_THROUGH_OPERATION);
+                .map(CoverageAllocationOperation.class::cast)
+                .orElse(CoverageAllocationOperation.PASS_THROUGH_OPERATION);
     }
 
     /**
@@ -152,8 +159,12 @@ public class RICoverageAllocationMetricsCollector {
         final ServiceProviderInfo csp = coverageEntry.cloudServiceProvider();
         allocationCountByCSP.computeIfAbsent(csp, __ -> new AtomicLong())
                 .incrementAndGet();
+        /*
+        TODO:ejf add coverage type
         allocatedCoverageByCSP.computeIfAbsent(csp, __ -> new AtomicDouble())
                 .addAndGet(coverageEntry.allocatedCoverage());
+CloudCommitmentUtils.java
+         */
     }
 
     private void onAnalysisCompletion() {
@@ -161,9 +172,22 @@ public class RICoverageAllocationMetricsCollector {
         allocationCountByCSP.forEach((csp, allocationCount) ->
                 metricsProvider.allocationCountForCSP(csp)
                         .ifPresent(metric -> metric.observe(allocationCount.doubleValue())));
-        allocatedCoverageByCSP.forEach((csp, coverageAmount) ->
-                metricsProvider.allocatedCoverageAmountForCSP(csp)
+        allocatedCoverageMap.forEach((cspCoverageKey, coverageAmount) ->
+                metricsProvider.allocatedCoverageAmount(cspCoverageKey.cloudServiceProvider(), cspCoverageKey.coverageTypeInfo())
                         .ifPresent(metric -> metric.observe(coverageAmount.get())));
     }
 
+    /**
+     * A tuple of ({@link ServiceProviderInfo}, {@link CloudCommitmentCoverageTypeInfo}).
+     */
+    @HiddenImmutableTupleImplementation
+    @Immutable(prehash = true)
+    interface ServiceProviderCoverageKey {
+
+        @Nonnull
+        ServiceProviderInfo cloudServiceProvider();
+
+        @Nonnull
+        CloudCommitmentCoverageTypeInfo coverageTypeInfo();
+    }
 }
