@@ -334,9 +334,7 @@ public class EntitySettingsApplicator {
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
-                FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()
-                                        ? new HorizontalScalePolicyApplicator()
-                                        : new ScalingPolicyApplicator(),
+                new HorizontalScalePolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
                         CommodityType.DB_MEM),
                 new EnableScaleApplicator(),
@@ -1587,8 +1585,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applicator to apply resize or horizontal scale policy on Application Components when
-     * SERVICE_HORIZONTAL_SCALE feature is enabled.
+     * Applicator to apply resize or horizontal scale policy on Application Components.
      * Resize or horizontal scale policies are applied to Application Components only, and are
      * mutually exclusive.
      * We check the Horizontal Scale Up and Horizontal Scale Down setting. When both settings are
