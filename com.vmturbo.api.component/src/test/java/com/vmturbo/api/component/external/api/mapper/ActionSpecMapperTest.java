@@ -41,7 +41,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -77,8 +76,6 @@ import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
-import com.vmturbo.api.dto.action.NoDetailsApiDTO;
-import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -959,63 +956,6 @@ public class ActionSpecMapperTest {
     }
 
     /**
-     * Test map reconfigure action to ActionApiDTO with settings policy information populated.
-     */
-    @Test
-    public void testMapReconfigureWithSettingsPolicy() {
-        Map<Long, ApiPartialEntity> entitiesMap = new HashMap<>();
-        ApiPartialEntity entity = topologyEntityDTO("Test Entity", 3L, EntityType.VIRTUAL_MACHINE_VALUE);
-        entitiesMap.put(1L, entity);
-        Set<Long> settingsPolicyIds = new HashSet<>();
-        long firstPolicyOid = 12345L;
-        long secondPolicyOid = 67890L;
-        settingsPolicyIds.add(firstPolicyOid);
-        settingsPolicyIds.add(secondPolicyOid);
-        Map<Long, PolicyApiDTO> policyApiDto = new HashMap<>();
-        Map< Long, BaseApiDTO> relatedSettingsPolicies = new HashMap<>();
-        BaseApiDTO settingsPolicyDto = new BaseApiDTO();
-        settingsPolicyDto.setUuid(Long.toString(12345L));
-        settingsPolicyDto.setDisplayName("Test1");
-        settingsPolicyDto.setClassName("SettingPolicy");
-
-        BaseApiDTO settingsPolicyDto1 = new BaseApiDTO();
-        settingsPolicyDto1.setUuid(Long.toString(67890L));
-        settingsPolicyDto1.setDisplayName("Test2");
-        settingsPolicyDto1.setClassName("SettingPolicy");
-
-        relatedSettingsPolicies.put(firstPolicyOid, settingsPolicyDto);
-        relatedSettingsPolicies.put(firstPolicyOid, settingsPolicyDto);
-        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
-                Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, relatedSettingsPolicies, Collections.emptyMap());
-
-        ActionInfo info =
-                ActionInfo.newBuilder().setReconfigure(
-                                Reconfigure.newBuilder()
-                                        .setTarget(ApiUtilsTest.createActionEntityForCloud(3))
-                                        .setSource(ApiUtilsTest.createActionEntityForCloud(1))
-                                        .setIsProvider(false)
-                                        .build())
-                        .build();
-        Explanation reconfigure =
-                Explanation.newBuilder()
-                        .setReconfigure(ReconfigureExplanation.newBuilder()
-                                .addAllReasonSettings(settingsPolicyIds).build())
-                        .build();
-
-        Action reconf = Action.newBuilder().setInfo(info).setId(2222L).setExplanation(reconfigure)
-                .setDeprecatedImportance(1).build();
-        ActionApiDTO output = new ActionApiDTO();
-        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
-        when(repositoryApi.entitiesRequest(Collections.emptySet()))
-                .thenReturn(dbReq);
-        mapper.populateSettingsPolicyForActionApiDto(reconf, output, context);
-
-        assertEquals(2, output.getRelatedSettingsPolicies().stream().count());
-    }
-
-    /**
      * Test map reconfigure action to ActionApiDTO with policy information populated.
      */
     @Test
@@ -1034,7 +974,7 @@ public class ActionSpecMapperTest {
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap(), Collections.emptyMap());
+            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap());
 
         final ReasonCommodity placement =
                         createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, String.valueOf(policyOid));
@@ -1472,82 +1412,6 @@ public class ActionSpecMapperTest {
         assertEquals(8f, cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 0);
         assertEquals(1.0, cloudResizeActionDetailsApiDTO.getEntityUptime().getUptimePercentage(), 0);
     }
-
-    /**
-     * Test the data for {@link OnPremResizeActionDetailsApiDTO}
-     */
-    @Test
-    public void testOnPremResizeActionDetailsApiDTO() {
-
-        final ActionEntity actionEntity = ActionEntity.newBuilder()
-                .setId(TARGET_ID)
-                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
-                .build();
-
-        ActionInfo actionInfo = ActionInfo.newBuilder()
-                .setResize(Resize.newBuilder()
-                        .setTarget(actionEntity)
-                        .setNewCapacity(4).setOldCapacity(2).setOldCpsr(1).setNewCpsr(4)
-                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
-                )
-                .build();
-        final ActionSpec actionSpec = ActionSpec.newBuilder().setRecommendation(
-                Action.newBuilder()
-                        .setId(ACTION_STABLE_IMPACT_ID)
-                        .setInfo(actionInfo)
-                        .setDeprecatedImportance(0)
-                        .setExplanation(Explanation.newBuilder())).build();
-
-        final ActionOrchestratorAction actionOrchestratorAction =
-                ActionOrchestratorAction.newBuilder()
-                        .setActionId(ACTION_LEGACY_INSTANCE_ID)
-                        .setActionSpec(actionSpec)
-                        .build();
-        final OnPremResizeActionDetailsApiDTO onPremResizeActionDetailsApiDTO = (OnPremResizeActionDetailsApiDTO)mapper.createActionDetailsApiDTO(actionOrchestratorAction, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        assertNotNull(onPremResizeActionDetailsApiDTO);
-        assertEquals(2, onPremResizeActionDetailsApiDTO.getVcpuBefore());
-        assertEquals(4, onPremResizeActionDetailsApiDTO.getVcpuAfter());
-        assertEquals(1, onPremResizeActionDetailsApiDTO.getCoresPerSocketBefore());
-        assertEquals(4, onPremResizeActionDetailsApiDTO.getCoresPerSocketAfter());
-        assertEquals(2, onPremResizeActionDetailsApiDTO.getSocketsBefore());
-        assertEquals(1, onPremResizeActionDetailsApiDTO.getSocketsAfter());
-    }
-
-    /**
-     * Test the data for {@link OnPremResizeActionDetailsApiDTO}
-     */
-    @Test
-    public void testNoOnPremResizeActionDetailsApiDTOForVMemResize() {
-
-        final ActionEntity actionEntity = ActionEntity.newBuilder()
-                .setId(TARGET_ID)
-                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
-                .build();
-
-        ActionInfo actionInfo = ActionInfo.newBuilder()
-                .setResize(Resize.newBuilder()
-                        .setTarget(actionEntity)
-                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
-                )
-                .build();
-        final ActionSpec actionSpec = ActionSpec.newBuilder().setRecommendation(
-                Action.newBuilder()
-                        .setId(ACTION_STABLE_IMPACT_ID)
-                        .setInfo(actionInfo)
-                        .setDeprecatedImportance(0)
-                        .setExplanation(Explanation.newBuilder())).build();
-
-        final ActionOrchestratorAction actionOrchestratorAction =
-                ActionOrchestratorAction.newBuilder()
-                        .setActionId(ACTION_LEGACY_INSTANCE_ID)
-                        .setActionSpec(actionSpec)
-                        .build();
-        final OnPremResizeActionDetailsApiDTO onPremResizeActionDetailsApiDTO = (OnPremResizeActionDetailsApiDTO)mapper.createActionDetailsApiDTO(actionOrchestratorAction, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        assertNull(onPremResizeActionDetailsApiDTO);
-    }
-
 
     /**
      * Test that the on-demand cost and on-demand rate values can be properly aggregated and

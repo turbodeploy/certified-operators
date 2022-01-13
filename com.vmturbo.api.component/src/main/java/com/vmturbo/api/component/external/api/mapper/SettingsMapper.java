@@ -30,7 +30,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
@@ -105,9 +104,6 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
-import com.vmturbo.components.common.setting.VcpuScalingCoresPerSocketSocketModeEnum;
-import com.vmturbo.components.common.setting.VcpuScalingSocketsCoresPerSocketModeEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -758,36 +754,6 @@ public class SettingsMapper {
     }
 
     /**
-     * Convert {@link SettingPolicy} objects to {@link BaseApiDTO}s that
-     * can be returned to API clients.
-     *
-     * @param settingPolicy The setting policies retrieved from the group components.
-     * @return {@link BaseApiDTO}
-     */
-    public BaseApiDTO convertSettingPolicyToBaseDTO(
-            @Nonnull final SettingPolicy settingPolicy) {
-
-        final BaseApiDTO apiDto = new BaseApiDTO();
-        apiDto.setUuid(Long.toString(settingPolicy.getId()));
-        apiDto.setDisplayName(settingPolicy.getInfo().hasDisplayName() ? settingPolicy.getInfo().getDisplayName() : settingPolicy.getInfo().getName());
-        apiDto.setClassName(StringConstants.SETTING_POLICY);
-        return apiDto;
-    }
-
-    /**
-     * Convert a list of {@link SettingPolicy} objects to {@link BaseApiDTO}s that
-     * can be returned to API clients.
-     *
-     * @param {@Link settingPolicies} The setting policies retrieved from the group components.
-     * @return A list of {@link BaseApiDTO}
-     */
-    public Collection<BaseApiDTO> convertSettingPoliciesToBaseDTO(
-            @Nonnull final List<SettingPolicy> settingPolicies) {
-            return settingPolicies.stream().map(this::convertSettingPolicyToBaseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
      * Convert a list of {@link SettingPolicy} objects to {@link SettingsPolicyApiDTO}s that
      * can be returned to API clients.
      *
@@ -1002,11 +968,6 @@ public class SettingsMapper {
         final ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         builder.put(OperatingSystem.RHEL.name(), "RHEL");
         builder.put(OperatingSystem.SLES.name(), "SLES");
-        builder.put(VCPUScalingUnitsEnum.MHZ.name(), "Sockets (MHz legacy behavior)");
-        builder.put(VCPUScalingUnitsEnum.CORES.name(), "Cores per socket");
-        builder.put(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE.name(), "Preserve existing VM sockets");
-        builder.put(VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST.name(), "Match Host sockets");
-        builder.put(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE.name(), "Preserve existing cores per socket");
         // In VDI, we want to show all this values as "{DIGIT} windows per day" in UI
         for (DailyObservationWindowsCount value : DailyObservationWindowsCount.values()) {
             builder.put(value.name(), value.toString());

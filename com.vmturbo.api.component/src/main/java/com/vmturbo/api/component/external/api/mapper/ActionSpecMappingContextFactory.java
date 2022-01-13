@@ -28,9 +28,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -75,9 +73,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyCha
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -120,12 +115,6 @@ public class ActionSpecMappingContextFactory {
     private final PoliciesService policiesService;
 
     private final ReservedInstancesService reservedInstancesService;
-
-    @Autowired
-    private CommunicationConfig communicationConfig;
-
-    @Autowired
-    private MapperConfig mapperConfig;
 
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
@@ -232,29 +221,14 @@ public class ActionSpecMappingContextFactory {
         // Get the policies needed for conversion
         final Set<Long> involvedPolicies = extractPolicyIdsRequiredForActionConversion(actions);
         final Map<Long, PolicyApiDTO> policyIdToPolicyApiDto;
-        final Map<Long, BaseApiDTO> settingPolicyIdToBaseApiDTO;
         if (!involvedPolicies.isEmpty()) {
-            if (actions.get(0).getExplanation().hasReconfigure() &&
-                    actions.get(0).getInfo().getReconfigure().getTarget().getEnvironmentType() == EnvironmentType.CLOUD){
-                SettingsMapper mapper = mapperConfig.settingsMapper();
-                settingPolicyIdToBaseApiDTO =  executorService.submit(() -> mapper
-                                .convertSettingPoliciesToBaseDTO(getSettingsPolicies(involvedPolicies))
-                                .stream()
-                                .collect(Collectors.toMap(p -> Long.valueOf(p.getUuid()), Function.identity())))
-                                .get();
-                policyIdToPolicyApiDto = Collections.emptyMap();
-
-            } else {
-                policyIdToPolicyApiDto = executorService.submit(() -> policiesService
-                                .convertPolicyDTOCollection(getPolicies(involvedPolicies))
-                                .stream()
-                                .collect(Collectors.toMap(p -> Long.valueOf(p.getUuid()), Function.identity())))
-                        .get();
-                settingPolicyIdToBaseApiDTO = Collections.emptyMap();
-            }
+            policyIdToPolicyApiDto = executorService.submit(() -> policiesService
+                    .convertPolicyDTOCollection(getPolicies(involvedPolicies))
+                    .stream()
+                    .collect(Collectors.toMap(p -> Long.valueOf(p.getUuid()), Function.identity())))
+                .get();
         } else {
             policyIdToPolicyApiDto = Collections.emptyMap();
-            settingPolicyIdToBaseApiDTO = Collections.emptyMap();
         }
 
         Map<Long, ApiPartialEntity> entitiesById = entities.get();
@@ -329,7 +303,7 @@ public class ActionSpecMappingContextFactory {
             return new ActionSpecMappingContext(entitiesById, entityIdToRegion,
                 volumesAspectsByEntity, cloudAspects, containerPlatformAspects, Collections.emptyMap(), Collections.emptyMap(),
                 buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false,
-                policyIdToPolicyApiDto, settingPolicyIdToBaseApiDTO , entityToCluster);
+                policyIdToPolicyApiDto, entityToCluster);
         }
 
         // fetch all vm aspects
@@ -349,7 +323,7 @@ public class ActionSpecMappingContextFactory {
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById, entityIdToRegion,
             volumesAspectsByEntity, cloudAspects, containerPlatformAspects, vmAspects, dbAspects,
             buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true,
-            policyIdToPolicyApiDto, settingPolicyIdToBaseApiDTO, entityToCluster);
+            policyIdToPolicyApiDto, entityToCluster);
 
         if (hasMigrationActions(actions)) {
             final Map<Long, EntityAspect> vmProjectedAspects =
@@ -720,17 +694,6 @@ public class ActionSpecMappingContextFactory {
         return policies;
     }
 
-    @Nonnull
-    private List<SettingProto.SettingPolicy> getSettingsPolicies(@Nonnull Collection<Long> policyIds) {
-
-        final List<SettingProto.SettingPolicy> settingsPolicies = new ArrayList<>(policyIds.size());
-        SettingPolicyServiceBlockingStub settingsPolicyService = communicationConfig.settingPolicyRpcService();
-        policyIds.stream().forEach(id -> settingsPolicies
-                .add((settingsPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
-                .setId(id).build()).getSettingPolicy())));
-        return settingsPolicies;
-    }
-
     /**
      * Fetch the volume aspects needed for given actions, and make sure the stats have both
      * beforePlan and afterPlan StorageAmount.
@@ -841,16 +804,6 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, PolicyApiDTO> policyIdToPolicyApiDto;
 
-        public void setReservedInstanceApiDTOs(Set<ReservedInstanceApiDTO> reservedInstanceApiDTOs) {
-            this.reservedInstanceApiDTOs = reservedInstanceApiDTOs;
-        }
-
-        public Map<Long, BaseApiDTO> getSettingPolicyIdToBaseApiDto() {
-            return settingPolicyIdToBaseApiDto;
-        }
-
-        private final Map<Long, BaseApiDTO> settingPolicyIdToBaseApiDto;
-
         private Set<ReservedInstanceApiDTO> reservedInstanceApiDTOs;
 
         /**
@@ -882,7 +835,6 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull ServiceEntityMapper serviceEntityMapper,
                                  final boolean isPlan,
                                  final Map<Long, PolicyApiDTO> policyIdToPolicyApiDto,
-                                 final Map<Long, BaseApiDTO> relatedSettingsPoliciesMap,
                                  @Nonnull Map<Long, BaseApiDTO> entityClusters) {
 
             /* topologyEntityDTOs contain some ZoneId -> Region entries,
@@ -920,7 +872,6 @@ public class ActionSpecMappingContextFactory {
             this.oidToDatacenter = oidToDatacenter;
             this.isPlan = isPlan;
             this.policyIdToPolicyApiDto = Objects.requireNonNull(policyIdToPolicyApiDto);
-            this.settingPolicyIdToBaseApiDto = Objects.requireNonNull(relatedSettingsPoliciesMap);
             this.entityClusters = entityClusters;
         }
 
