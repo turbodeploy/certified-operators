@@ -626,7 +626,12 @@ public class ActionSpecMapper {
             default:
                 throw new UnsupportedActionException(recommendation);
         }
-        populatePolicyForActionApiDto(recommendation, actionApiDTO, context);
+        if (recommendation.getInfo().hasReconfigure() && recommendation.getInfo().getReconfigure().getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+            populateSettingsPolicyForActionApiDto(recommendation, actionApiDTO, context);
+        } else {
+            populatePolicyForActionApiDto(recommendation, actionApiDTO, context);
+        }
+
         // record the times for this action
         final String createTime = DateTimeUtil.toString(actionSpec.getRecommendationTime());
         actionApiDTO.setCreateTime(createTime);
@@ -1156,6 +1161,25 @@ public class ActionSpecMapper {
                         ? ActionReversibility.REVERSIBLE : ActionReversibility.IRREVERSIBLE);
             }
             wrapperDto.setExecutionCharacteristics(actionExecutionCharacteristicsDTO);
+        }
+    }
+
+    /**
+     * Set policy for ActionApiDTO if the reason commodity associates with a segmentation policy.
+     *
+     * @param action the action
+     * @param wrapperDto the actionApiDTO
+     * @param context ActionSpecMappingContext
+     */
+    protected void populateSettingsPolicyForActionApiDto(@Nonnull final ActionDTO.Action action,
+                                                         @Nonnull final ActionApiDTO wrapperDto,
+                                                         @Nonnull final ActionSpecMappingContext context) {
+        final Map<Long, BaseApiDTO> settingsPolicies = context.getSettingPolicyIdToBaseApiDto();
+        List<BaseApiDTO> policies = new ArrayList<>();
+        if (!settingsPolicies.isEmpty()) {
+            RiskUtil.extractPolicyIds(action)
+                    .stream().forEach(p -> policies.add(settingsPolicies.get(p)));
+            wrapperDto.setRelatedSettingsPolicies(policies);
         }
     }
 
