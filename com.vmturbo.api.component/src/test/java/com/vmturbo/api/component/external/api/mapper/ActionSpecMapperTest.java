@@ -44,6 +44,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import org.junit.Assert;
 import org.junit.Before;
+import org.mockito.Mock;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -63,6 +64,7 @@ import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.QueryInputApiDTO;
@@ -149,6 +151,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -173,6 +176,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -229,6 +233,9 @@ public class ActionSpecMapperTest {
 
     private ActionSpecMapper mapper;
     private ActionSpecMapper mapperWithStableIdEnabled;
+
+    private GroupExpander groupExpander;
+    private GroupServiceBlockingStub groupServiceGrpc;
 
     private PoliciesService policiesService = mock(PoliciesService.class);
     private final ReservedInstancesService reservedInstancesService =
@@ -292,8 +299,9 @@ public class ActionSpecMapperTest {
                 .thenReturn(Collections.singletonList(policyApiDTO));
         PolicyServiceGrpc.PolicyServiceBlockingStub policyService =
                 PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        GroupServiceGrpc.GroupServiceBlockingStub groupService =
-            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        groupServiceGrpc = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        groupExpander = new GroupExpander(groupServiceGrpc,
+                                          new GroupMemberRetriever(groupServiceGrpc));
         final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(
             makeGetMultiSupplyChainResponse(1L, DATACENTER1_ID),
             makeGetMultiSupplyChainResponse(2L, DATACENTER2_ID),
@@ -355,7 +363,7 @@ public class ActionSpecMapperTest {
                         supplyChainService,
                         policiesService,
                         reservedInstancesService,
-                        groupService);
+                        groupServiceGrpc);
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
@@ -376,6 +384,7 @@ public class ActionSpecMapperTest {
             REAL_TIME_TOPOLOGY_CONTEXT_ID,
             uuidMapper,
             cloudSavingsDetailsDtoConverter,
+            groupExpander,
             false);
         mapperWithStableIdEnabled = new ActionSpecMapper(
             actionSpecMappingContextFactory,
@@ -387,6 +396,7 @@ public class ActionSpecMapperTest {
             REAL_TIME_TOPOLOGY_CONTEXT_ID,
             uuidMapper,
             cloudSavingsDetailsDtoConverter,
+            groupExpander,
             true);
     }
 
