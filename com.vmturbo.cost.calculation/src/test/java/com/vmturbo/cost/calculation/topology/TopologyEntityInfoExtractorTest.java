@@ -7,15 +7,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
-
-import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.MapEntry;
 
 import org.junit.Test;
 
@@ -35,7 +27,6 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierC
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -123,9 +114,7 @@ public class TopologyEntityInfoExtractorTest {
         .setOid(DEFAULT_ID)
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setComputeTier(ComputeTierInfo.newBuilder()
-                .setNumCoupons(COMPUTE_NUM_OF_COUPONS).setNumCores(2).build()))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
-                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).build()).setCapacity(10D))
+                .setNumCoupons(COMPUTE_NUM_OF_COUPONS).build()))
         .build();
 
     private static final TopologyEntityDTO DB = TopologyEntityDTO.newBuilder()
@@ -281,26 +270,6 @@ public class TopologyEntityInfoExtractorTest {
         assertFalse(networkConfig.isPresent());
         Optional<DatabaseConfig> databaseConfig = entityInfoExtractor.getDatabaseConfig(COMPUTE_TIER);
         assertFalse(databaseConfig.isPresent());
-    }
-
-    /**
-     * Tests for the pricing commodities extraction given a compute tier.
-     */
-    @Test
-    public void testExtractPricingCommodities() {
-        Optional<Map<CommodityType, Double>> pricingCommodities =
-                entityInfoExtractor.getComputeTierPricingCommodities(COMPUTE_TIER);
-        assertTrue(pricingCommodities.isPresent());
-        assertTrue(pricingCommodities.get().size() == 2);
-        Map<Integer, Double> expectedPricingCommodities = ImmutableMap.of(
-                CommodityDTO.CommodityType.MEM_PROVISIONED.getNumber(), 10D,
-                CommodityDTO.CommodityType.NUM_VCORE.getNumber(), 2D);
-        for (Entry<CommodityType, Double> entry : pricingCommodities.get().entrySet()) {
-            assertThat("Pricing commodity key not expected",
-                    expectedPricingCommodities.containsKey(entry.getKey().getType()));
-            assertEquals(expectedPricingCommodities.get(entry.getKey().getType()), entry.getValue(),
-                    0.0001);
-        }
     }
 
 }

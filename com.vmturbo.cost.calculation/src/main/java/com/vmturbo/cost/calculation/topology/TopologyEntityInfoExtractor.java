@@ -2,7 +2,6 @@ package com.vmturbo.cost.calculation.topology;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -13,7 +12,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -157,26 +155,6 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                 .build());
     }
 
-    @Nonnull
-    @Override
-    public Optional<Map<TopologyDTO.CommodityType, Double>> getComputeTierPricingCommodities(
-            @Nonnull TopologyEntityDTO entity) {
-        if (entity.getEntityType() != EntityType.COMPUTE_TIER_VALUE) {
-            return Optional.empty();
-        }
-        Map<TopologyDTO.CommodityType, Double> computeTierPricingCommodities = new HashMap<>();
-        final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
-        computeTierPricingCommodities.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.NUM_VCORE_VALUE).build(),
-                Double.valueOf(tierInfo.getNumCores()));
-        Optional<Float> memProvisioned = getRawCommodityCapacity(entity, CommodityType.MEM_PROVISIONED);
-        if (memProvisioned.isPresent()) {
-            computeTierPricingCommodities.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_PROVISIONED_VALUE).build(),
-                    memProvisioned.get().doubleValue());
-        } else {
-            logger.warn("Could not find the mem provisioned commodity for tier {}", entity.getDisplayName());
-        }
-        return  Optional.of(computeTierPricingCommodities);
-    }
 
     @Override
     @Nonnull
@@ -236,5 +214,4 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         }
         return typeSpecificInfo.getVirtualVolume().getIsEphemeral();
     }
-
 }

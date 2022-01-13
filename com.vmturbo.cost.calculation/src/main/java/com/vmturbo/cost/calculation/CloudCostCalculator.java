@@ -40,7 +40,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.FuzzyDouble;
@@ -589,48 +588,30 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                       ComputeTierConfigPrice basePrice, ENTITY_CLASS computeTier, ComputeConfig computeConfig,
                                       ENTITY_CLASS entity) {
         if (basePrice.getConsumerCommodityPricesList().size() > 0) {
-            // Use the Compute Config priced commodities if present. This will be available for real time pricing.
-            // If not available, as in the case of projected topologies retrieve pricing commodities based on
-            // the compute tier.
-            Map<TopologyDTO.CommodityType, Double> pricedCommodities = computeConfig.getPricedCommoditiesBought();
-            if (pricedCommodities.size() < 2) {
-                Optional<Map<TopologyDTO.CommodityType, Double>> computeTierPricingCommodities =
-                        entityInfoExtractor.getComputeTierPricingCommodities(computeTier);
-                if (computeTierPricingCommodities.isPresent()) {
-                    pricedCommodities = computeTierPricingCommodities.get();
-                } else {
-                    logger.warn("Can't find pricing commodities for entity {} with id {} for compute tier {} with ID {}",
-                            entityInfoExtractor.getName(entity),
-                            entityInfoExtractor.getId(entity), entityInfoExtractor.getName(computeTier),
-                            entityInfoExtractor.getId(computeTier));
+            for (Entry<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> entry : computeConfig.getPricedCommoditiesBought().entrySet()) {
+                com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType = entry.getKey();
+                List<Price> unitPriceList = basePrice.getConsumerCommodityPricesList().stream()
+                        .filter(c -> c.getCommodityType().getNumber() == commodityType.getType())
+                        .map(c -> c.getPrice())
+                        .collect(Collectors.toList());
+                if (unitPriceList.size() != 1) {
+                    String typeName = commodityType.getType() == CommodityType.NUM_VCORE_VALUE ? "NUM_VCORE" :
+                            commodityType.getType() == CommodityType.MEM_PROVISIONED_VALUE ? "MEM_PROVISIONED" :
+                                                                                            commodityType.getKey();
+                    logger.error("Can't find commodity price for commodity type name: {}, type value: {} " +
+                            "(entity name: {} with ID {} with compute tier {} with ID {})",
+                            typeName, commodityType.getType(), entityInfoExtractor.getName(entity), entityInfoExtractor.getId(entity),
+                            entityInfoExtractor.getName(computeTier), entityInfoExtractor.getId(computeTier));
+                    break;
                 }
-            }
-            if (pricedCommodities.size() < 2) {
-                logger.warn("Cost calculation may be missing a resource capacity for entity {} with id {} ",
-                        entityInfoExtractor.getName(entity), entityInfoExtractor.getId(entity));
-            }
-            for (Entry<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> entry : pricedCommodities.entrySet()) {
-                    com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType =
-                            entry.getKey();
-                    List<Price> unitPriceList = basePrice.getConsumerCommodityPricesList().stream().filter(c -> c.getCommodityType().getNumber()
-                            == commodityType.getType()).map(c -> c.getPrice()).collect(Collectors.toList());
-                    if (unitPriceList.size() != 1) {
-                        String typeName = CommodityType.forNumber(commodityType.getType()).name();
-                        logger.error(
-                                "Can't find commodity price for commodity type name: {}, type value: {} "
-                                        + "(entity name: {} with ID {} with compute tier {} with ID {})",
-                                typeName, commodityType.getType(), entityInfoExtractor.getName(entity),
-                                entityInfoExtractor.getId(entity), entityInfoExtractor.getName(computeTier),
-                                entityInfoExtractor.getId(computeTier));
-                        break;
-                    }
-                    Double pricingConversionFactor =
-                            basePrice.getConsumerCommodityPricesList().stream().filter(
-                                    c -> c.getCommodityType().getNumber() == commodityType.getType()).map(
-                                    c -> c.getPricingConversionFactor()).collect(Collectors.toList()).get(0);
-                    journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
-                            unitPriceList.get(0), trax(entry.getValue() / pricingConversionFactor,
-                                    "Commodities billed amount"), Optional.of(commodityType));
+                Double pricingConversionFactor = basePrice.getConsumerCommodityPricesList().stream()
+                        .filter(c -> c.getCommodityType().getNumber() == commodityType.getType())
+                        .map(c -> c.getPricingConversionFactor())
+                        .collect(Collectors.toList())
+                        .get(0);
+                journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
+                        unitPriceList.get(0), trax(entry.getValue() / pricingConversionFactor, "Commodities billed amount"),
+                        Optional.of(commodityType));
             }
         } else {
             journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
