@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
@@ -754,6 +755,36 @@ public class SettingsMapper {
             }).forEach(infoBuilder::addSettings);
 
         return infoBuilder.build();
+    }
+
+    /**
+     * Convert {@link SettingPolicy} objects to {@link BaseApiDTO}s that
+     * can be returned to API clients.
+     *
+     * @param settingPolicy The setting policies retrieved from the group components.
+     * @return {@link BaseApiDTO}
+     */
+    public BaseApiDTO convertSettingPolicyToBaseDTO(
+            @Nonnull final SettingPolicy settingPolicy) {
+
+        final BaseApiDTO apiDto = new BaseApiDTO();
+        apiDto.setUuid(Long.toString(settingPolicy.getId()));
+        apiDto.setDisplayName(settingPolicy.getInfo().hasDisplayName() ? settingPolicy.getInfo().getDisplayName() : settingPolicy.getInfo().getName());
+        apiDto.setClassName(StringConstants.SETTING_POLICY);
+        return apiDto;
+    }
+
+    /**
+     * Convert a list of {@link SettingPolicy} objects to {@link BaseApiDTO}s that
+     * can be returned to API clients.
+     *
+     * @param {@Link settingPolicies} The setting policies retrieved from the group components.
+     * @return A list of {@link BaseApiDTO}
+     */
+    public Collection<BaseApiDTO> convertSettingPoliciesToBaseDTO(
+            @Nonnull final List<SettingPolicy> settingPolicies) {
+            return settingPolicies.stream().map(this::convertSettingPolicyToBaseDTO)
+                .collect(Collectors.toList());
     }
 
     /**

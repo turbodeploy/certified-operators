@@ -41,6 +41,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -958,6 +959,63 @@ public class ActionSpecMapperTest {
     }
 
     /**
+     * Test map reconfigure action to ActionApiDTO with settings policy information populated.
+     */
+    @Test
+    public void testMapReconfigureWithSettingsPolicy() {
+        Map<Long, ApiPartialEntity> entitiesMap = new HashMap<>();
+        ApiPartialEntity entity = topologyEntityDTO("Test Entity", 3L, EntityType.VIRTUAL_MACHINE_VALUE);
+        entitiesMap.put(1L, entity);
+        Set<Long> settingsPolicyIds = new HashSet<>();
+        long firstPolicyOid = 12345L;
+        long secondPolicyOid = 67890L;
+        settingsPolicyIds.add(firstPolicyOid);
+        settingsPolicyIds.add(secondPolicyOid);
+        Map<Long, PolicyApiDTO> policyApiDto = new HashMap<>();
+        Map< Long, BaseApiDTO> relatedSettingsPolicies = new HashMap<>();
+        BaseApiDTO settingsPolicyDto = new BaseApiDTO();
+        settingsPolicyDto.setUuid(Long.toString(12345L));
+        settingsPolicyDto.setDisplayName("Test1");
+        settingsPolicyDto.setClassName("SettingPolicy");
+
+        BaseApiDTO settingsPolicyDto1 = new BaseApiDTO();
+        settingsPolicyDto1.setUuid(Long.toString(67890L));
+        settingsPolicyDto1.setDisplayName("Test2");
+        settingsPolicyDto1.setClassName("SettingPolicy");
+
+        relatedSettingsPolicies.put(firstPolicyOid, settingsPolicyDto);
+        relatedSettingsPolicies.put(firstPolicyOid, settingsPolicyDto);
+        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
+                Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, relatedSettingsPolicies, Collections.emptyMap());
+
+        ActionInfo info =
+                ActionInfo.newBuilder().setReconfigure(
+                                Reconfigure.newBuilder()
+                                        .setTarget(ApiUtilsTest.createActionEntityForCloud(3))
+                                        .setSource(ApiUtilsTest.createActionEntityForCloud(1))
+                                        .setIsProvider(false)
+                                        .build())
+                        .build();
+        Explanation reconfigure =
+                Explanation.newBuilder()
+                        .setReconfigure(ReconfigureExplanation.newBuilder()
+                                .addAllReasonSettings(settingsPolicyIds).build())
+                        .build();
+
+        Action reconf = Action.newBuilder().setInfo(info).setId(2222L).setExplanation(reconfigure)
+                .setDeprecatedImportance(1).build();
+        ActionApiDTO output = new ActionApiDTO();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
+        mapper.populateSettingsPolicyForActionApiDto(reconf, output, context);
+
+        assertEquals(2, output.getRelatedSettingsPolicies().stream().count());
+    }
+
+    /**
      * Test map reconfigure action to ActionApiDTO with policy information populated.
      */
     @Test
@@ -976,7 +1034,7 @@ public class ActionSpecMapperTest {
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap());
+            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap(), Collections.emptyMap());
 
         final ReasonCommodity placement =
                         createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, String.valueOf(policyOid));
