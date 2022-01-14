@@ -5,7 +5,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Collection;
 import java.util.Optional;
 
 import javax.sql.DataSource;
@@ -545,20 +544,6 @@ public abstract class DbAdapter {
      * @throws SQLException if the operation fails
      */
     public abstract String getConnectionUser(Connection conn) throws SQLException;
-
-
-    /**
-     * Truncate all tables in the database configured for this endpoint.
-     *
-     * <p>This is intended primarily for use in tests, to reset a test database to an initial
-     * state prior to each test execution.</p>
-     *
-     * @param conn the connection to use
-     * @throws SQLException if a DB operation fails
-     */
-    public abstract void truncateAllTables(Connection conn) throws SQLException;
-
-    protected abstract Collection<String> getAllTableNames(Connection conn) throws SQLException;
 
     /**
      * Delete database, user and groups associated with this endpoint.
