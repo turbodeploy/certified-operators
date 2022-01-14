@@ -35,13 +35,13 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageGroupBy;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsRequest.GroupByCondition;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore.AccountCoverageFilter;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore.AccountCoverageStatsFilter;
@@ -372,7 +372,7 @@ public class SQLCloudCommitmentCoverageStoreTest extends MultiDbTestBase {
         // query the stats
         final AccountCoverageStatsFilter statsFilter = AccountCoverageStatsFilter.builder()
                 .granularity(CloudStatGranularity.HOURLY)
-                .addGroupByList(GroupByCondition.SERVICE_PROVIDER)
+                .addGroupByList(CloudCommitmentCoverageGroupBy.COMMITMENT_COVERAGE_GROUP_BY_SERVICE_PROVIDER)
                 .build();
         final List<CloudCommitmentStatRecord> actualStats = coverageStore.streamCoverageStats(statsFilter)
                 .collect(ImmutableList.toImmutableList());
@@ -485,7 +485,7 @@ public class SQLCloudCommitmentCoverageStoreTest extends MultiDbTestBase {
         // query the stats
         final AccountCoverageStatsFilter statsFilter = AccountCoverageStatsFilter.builder()
                 .granularity(CloudStatGranularity.HOURLY)
-                .addGroupByList(GroupByCondition.CLOUD_SERVICE)
+                .addGroupByList(CloudCommitmentCoverageGroupBy.COMMITMENT_COVERAGE_GROUP_BY_CLOUD_SERVICE)
                 .build();
         final List<CloudCommitmentStatRecord> actualStats = coverageStore.streamCoverageStats(statsFilter)
                 .collect(ImmutableList.toImmutableList());

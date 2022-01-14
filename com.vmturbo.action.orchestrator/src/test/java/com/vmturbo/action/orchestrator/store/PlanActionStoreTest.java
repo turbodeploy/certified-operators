@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -230,9 +231,9 @@ public class PlanActionStoreTest extends MultiDbTestBase {
         dedupAction1 = createDedupAtomicAction(dedupActionId1, dedup1);
         atomicAction = createAtomicAction(atomicActionId);
 
-        atomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Arrays.asList(atomicAction), Arrays.asList(dedupAction1));
+        atomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Arrays.asList(atomicAction), Arrays.asList(dedupAction1), new HashMap<>(), new HashMap<>());
 
-        emptyAtomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Collections.emptyList(), Collections.emptyList());
+        emptyAtomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Collections.emptyList(), Collections.emptyList(), new HashMap<>(), new HashMap<>());
     }
 
     private static ActionDTO.Action createResizeAction(long actionId,

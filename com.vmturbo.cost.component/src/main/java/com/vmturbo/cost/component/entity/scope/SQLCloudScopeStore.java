@@ -3,13 +3,17 @@ package com.vmturbo.cost.component.entity.scope;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
@@ -24,14 +28,9 @@ import org.jooq.Table;
 import org.jooq.impl.TableImpl;
 import org.springframework.scheduling.TaskScheduler;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterators;
-
 import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
-import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
@@ -169,20 +168,20 @@ public class SQLCloudScopeStore implements CloudScopeStore,
 
         final Set<Condition> conditions = new HashSet<>();
 
-        if (!filter.getEntityOidList().isEmpty()) {
-            conditions.add(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID.in(filter.getEntityOidList()));
+        if (filter.hasEntityFilter() && filter.getEntityFilter().getEntityIdCount() > 0) {
+            conditions.add(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID.in(filter.getEntityFilter().getEntityIdList()));
         }
 
-        if (!filter.getAccountOidList().isEmpty()) {
-            conditions.add(Tables.ENTITY_CLOUD_SCOPE.ACCOUNT_OID.in(filter.getAccountOidList()));
+        if (filter.hasAccountFilter() && filter.getAccountFilter().getAccountIdCount() > 0) {
+            conditions.add(Tables.ENTITY_CLOUD_SCOPE.ACCOUNT_OID.in(filter.getAccountFilter().getAccountIdList()));
         }
 
-        if (!filter.getRegionOidList().isEmpty()) {
-            conditions.add(Tables.ENTITY_CLOUD_SCOPE.REGION_OID.in(filter.getRegionOidList()));
+        if (filter.hasRegionFilter() && filter.getRegionFilter().getRegionIdCount() > 0) {
+            conditions.add(Tables.ENTITY_CLOUD_SCOPE.REGION_OID.in(filter.getRegionFilter().getRegionIdList()));
         }
 
-        if (!filter.getServiceProviderOidList().isEmpty()) {
-            conditions.add(Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID.in(filter.getServiceProviderOidList()));
+        if (filter.hasServiceProviderFilter() && filter.getServiceProviderFilter().getServiceProviderIdCount() > 0) {
+            conditions.add(Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID.in(filter.getServiceProviderFilter().getServiceProviderIdList()));
         }
 
         return conditions;

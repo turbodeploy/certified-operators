@@ -2,7 +2,6 @@ package com.vmturbo.market.runner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -94,6 +93,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
@@ -267,8 +267,11 @@ public class AnalysisTest {
         when(wastedFilesAnalysis.getMbReleasedOnProvider(anyLong())).thenReturn(OptionalLong.empty());
         final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine =
             mock(NamespaceQuotaAnalysisEngine.class);
+        final NamespaceQuotaAnalysisResult nsQuotaAnalysisResult = mock(NamespaceQuotaAnalysisResult.class);
         when(namespaceQuotaAnalysisEngine.execute(any(), any(), any(), any()))
-            .thenReturn(Collections.singletonList(namespaceResizeAction));
+            .thenReturn(nsQuotaAnalysisResult);
+        when(nsQuotaAnalysisResult.getNamespaceQuotaResizeActions())
+                .thenReturn(Collections.singletonList(namespaceResizeAction));
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 

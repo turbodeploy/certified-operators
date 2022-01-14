@@ -1,8 +1,6 @@
 package com.vmturbo.market.runner.postprocessor;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -84,10 +82,10 @@ public class NamespaceQuotaAnalysisEngine {
      * @return List of generated namespace resizing actions.
      */
     @Nonnull
-    public List<Action> execute(@Nonnull final TopologyInfo topologyInfo,
-                                @Nonnull final Map<Long, TopologyEntityDTO> originalEntities,
-                                @Nonnull final Map<Long, ProjectedTopologyEntity> projectedEntities,
-                                @Nonnull final List<Action> actions) {
+    public NamespaceQuotaAnalysisResult execute(@Nonnull final TopologyInfo topologyInfo,
+                                                @Nonnull final Map<Long, TopologyEntityDTO> originalEntities,
+                                                @Nonnull final Map<Long, ProjectedTopologyEntity> projectedEntities,
+                                                @Nonnull final List<Action> actions) {
         final StopWatch stopWatch = StopWatch.createStarted();
         final String logPrefix = String.format("%s topology [ID=%d, context=%d]:",
             topologyInfo.getTopologyType(), topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
@@ -99,8 +97,8 @@ public class NamespaceQuotaAnalysisEngine {
         stopWatch.stop();
         logger.info("{} Finished generating {} resource quota resizing actions on {} namespaces in {} ms.",
             logPrefix, namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions().size(),
-            namespaceQuotaAnalysisResult.getNamespacesWithActions().size(), stopWatch.getTime(TimeUnit.MILLISECONDS));
-        return namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions();
+            namespaceQuotaAnalysisResult.getNSActionsByEntityOIDAndCommodityType().size(), stopWatch.getTime(TimeUnit.MILLISECONDS));
+        return namespaceQuotaAnalysisResult;
     }
 
     /**
@@ -187,9 +185,11 @@ public class NamespaceQuotaAnalysisEngine {
 
     /**
      * Generate namespace resizing up actions based on commodity capacity changes from container resizing
-     * actions. If the increase of container capacity plus namespace current quota usage is larger than
-     * current quota capacity, generated quota resizing up action and update projected commodity capacity
-     * on this namespace.
+     * actions. And populate nsActionsByEntityOIDAndCommodityType map in NamespaceQuotaAnalysisResult
+     * to calculate mapping from container resizing to corresponding related namespace resizing action.
+     * If the increase of container capacity plus namespace current quota usage is larger than current
+     * quota capacity, generated quota resizing up action and update projected commodity capacity on
+     * this namespace.
      *
      * @param logPrefix                 Given log prefix.
      * @param nsToCommCapacityChangeMap Map of namespace OID to map of capacity changes of corresponding commodities.
@@ -277,38 +277,5 @@ public class NamespaceQuotaAnalysisEngine {
 
         action.setInfo(infoBuilder);
         return action.build();
-    }
-
-    /**
-     * Wrapper class for namespace quota analysis result, including list of generated namespace quota
-     * resizing actions and set of namespaces with actions.
-     */
-    private static class NamespaceQuotaAnalysisResult {
-        /**
-         * Set of namespaces with resize actions.
-         */
-        private final Set<Long> namespacesWithActions;
-        /**
-         * List of namespace quota resize actions.
-         */
-        private final List<Action> namespaceQuotaResizeActions;
-
-        private NamespaceQuotaAnalysisResult() {
-            this.namespacesWithActions = new HashSet<>();
-            this.namespaceQuotaResizeActions = new ArrayList<>();
-        }
-
-        private void addNamespaceResizeAction(@Nonnull final Action nsResizeAction) {
-            namespaceQuotaResizeActions.add(nsResizeAction);
-            namespacesWithActions.add(nsResizeAction.getInfo().getResize().getTarget().getId());
-        }
-
-        private Set<Long> getNamespacesWithActions() {
-            return namespacesWithActions;
-        }
-
-        private List<Action> getNamespaceQuotaResizeActions() {
-            return namespaceQuotaResizeActions;
-        }
     }
 }

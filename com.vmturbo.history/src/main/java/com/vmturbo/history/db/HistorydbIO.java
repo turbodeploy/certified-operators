@@ -1412,11 +1412,10 @@ public class HistorydbIO {
             // The collation of this temp table should be unicode because the monthly and the daily stats tables have
             // unicode collation. If the collation does not match, there could be a problem executing joins with this
             // temp table.
-            dsl.execute(String.format(
-                    "CREATE TEMPORARY TABLE %s ( %s varchar(%d), "
-                            + "primary key (%s)) COLLATE=utf8_unicode_ci;",
-                    tempTableName, StringConstants.TARGET_OBJECT_UUID, 80,
-                    StringConstants.TARGET_OBJECT_UUID));
+            dsl.execute(
+                    String.format("CREATE TEMPORARY TABLE %s ( %s varchar(%d), primary key (%s))",
+                            tempTableName, StringConstants.TARGET_OBJECT_UUID, 80,
+                            StringConstants.TARGET_OBJECT_UUID));
             // Collect to set to avoid duplicates
             final List<String> uuidStrings = uuids.stream()
                     .distinct()

@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.store.atomic;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,9 +27,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
+import com.vmturbo.common.protobuf.action.ActionDTO.BlockedByRelation;
+import com.vmturbo.common.protobuf.action.ActionDTO.BlockedByRelation.BlockedByResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.MarketRelatedAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -46,6 +50,18 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     protected Set<Long> executableActions;
     protected Set<Long> nonExecutableActions;
 
+    // map of blocking action id and its corresponding BlockingAction data
+    // that includes the commodity it is blocking
+    Map<Long, BlockingAction> blockingActionMap = new HashMap<>();
+
+    // Which commodity resize is blocked - this map is shared across the different de-dup targets
+    // since they belong to the same namespace
+    // Map of commodity whose resize is blocked and the blocking action id
+    Map<CommodityType, Long> blockedBy = new HashMap<>();
+
+    Map<Long, Map<CommodityType, List<Action>>> deDupActionsByCommMap = new HashMap<>();
+    Map<Long, Map<CommodityType, List<Action>>> deDupActionsWithRelatedActionsByCommMap = new HashMap<>();
+
     /**
      * Constructor for a new builder.
      *
@@ -56,6 +72,30 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         this.aggregatedAction = aggregatedAction;
         executableActions = getExecutableActionIds();
         nonExecutableActions = getNonExecutableActionIds();
+
+        aggregatedAction.deDupedActionsMap().forEach((deDupTargetOid, deDupedActions) -> {
+            Map<CommodityType, List<Action>> actionsByCommMap
+                    = deDupedActions.actions().stream()
+                            .collect(Collectors.groupingBy(action -> action.getInfo().getResize().getCommodityType()));
+            deDupActionsByCommMap.put(deDupTargetOid, actionsByCommMap);
+
+            // separate the actions associated with related actions
+            Map<CommodityType, List<Action>> actionsWithRelatedByCommMap = new HashMap<>();
+            for (CommodityType comm : actionsByCommMap.keySet()) {
+                List<Action> actionsWithRelatedActions = actionsByCommMap.get(comm).stream()
+                        .filter(action -> aggregatedAction.hasRelatedActions(action.getId()))
+                        .collect(Collectors.toList());
+                if (actionsWithRelatedActions.size() > 0) {
+                    actionsWithRelatedByCommMap.put(comm, actionsWithRelatedActions);
+                }
+            }
+            if (actionsWithRelatedByCommMap.size() > 0) {
+                deDupActionsWithRelatedActionsByCommMap.put(deDupTargetOid, actionsWithRelatedByCommMap);
+            }
+        });
+
+        // Extract the blocking action info if present in the de-duped actions
+        extractBlockingActions();
     }
 
     protected AtomicResizeBuilder() {}
@@ -160,8 +200,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                     = deDuplicatedResizeInfoAndExplanation(deDupedActions);
 
             if (resizeInfoAndExplanations.isEmpty()) {
-                logger.trace("cannot create atomic action for de-duplication target {}",
-                                                deDupedActions.targetName());
+                logger.trace("cannot create atomic action for de-duplication target {}", deDupedActions.targetName());
                 return;
             }
 
@@ -199,6 +238,8 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         }
 
         // ---- Non-executable atomic action that aggregates the commodity resizes that are non-executable
+        List<MarketRelatedAction> relatedBlockingActions = new ArrayList<>();
+        Map<Long, ActionDTO.RelatedAction> blockedActionsMap = new HashMap<>();
         if (!nonExecutableResizeInfoAndExplanations.isEmpty()) {
             Action.Builder nonExecutableMergedAction = createAtomicResizeAction(aggregatedAction.targetName(),
                                                                                 aggregatedAction.targetEntity(),
@@ -206,6 +247,11 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                                                                                 nonExecutableTargets);
             // This is used to set the recommend mode on the action
             nonExecutableMergedAction.setExecutable(false);
+
+            // Only update the atomic action with the blocking action
+            // Save the related action for the blocking action in a map that will be returned in the result
+            relatedBlockingActions = createdBlockingRelatedActions();
+            blockedActionsMap = createdBlockedRelatedActions(nonExecutableMergedAction.getId());
 
             atomicActionResultBuilder.nonExecutableAtomicAction(nonExecutableMergedAction.build());
 
@@ -223,6 +269,8 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                 .aggregationTarget(aggregatedAction.targetEntity())
                 .deDuplicatedActions(deduplicatedActionMap)
                 .mergedActions(aggregatedAction.actionsWithoutDeDuplicationTarget())
+                .relatedActions(relatedBlockingActions)
+                .relatedActionsByImpactingActionId(blockedActionsMap)
                 .build();
 
         atomicActionResult.atomicAction().ifPresent( atomicAction ->
@@ -412,7 +460,8 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     protected Set<Long> getExecutableActionIds() {
         // Set of action ID of individual container resizes not in recommend mode.
         return aggregatedAction.actionViews.entrySet().stream()
-                .filter(entry -> entry.getValue().getMode() != ActionMode.RECOMMEND)
+                .filter(entry -> entry.getValue().getMode() != ActionMode.RECOMMEND
+                        && entry.getValue().getRecommendation().getExecutable() == true)
                 .map(Entry::getKey)
                 .collect(Collectors.toSet());
     }
@@ -439,6 +488,99 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         recommendModeActions.addAll(nonExecutableActions);
 
         return recommendModeActions;
+    }
+
+    protected void extractBlockingActions() {
+
+        deDupActionsWithRelatedActionsByCommMap.forEach((deDupTargetOid, actionsByCommMap) -> {
+            for (CommodityType commType: actionsByCommMap.keySet()) {   // this is the commodity that is being blocked
+                // select the first action since all the actions in this list will be merged to one resize info
+                // and contain the same related actions
+                Action action = actionsByCommMap.get(commType).stream().findFirst().get();
+                ActionDTO.ActionPlan.MarketRelatedActionsList relatedActionList
+                            = aggregatedAction.getRelatedActions(action.getId());
+                // there will be one action blocking one commodity resize
+                ActionDTO.MarketRelatedAction relatedAction = relatedActionList.getRelatedActionsList().stream()
+                                                                .filter(ra -> ra.hasBlockedByRelation())
+                                                                .findFirst().get();
+                long blockingActionId = relatedAction.getActionId();
+                if (!blockingActionMap.containsKey(blockingActionId)) {
+                    if (relatedAction.hasBlockedByRelation()
+                                && relatedAction.getBlockedByRelation().hasResize()) {
+                        CommodityType comm // this is comm on the namespace is blocking this resize
+                                    = relatedAction.getBlockedByRelation().getResize().getCommodityType();
+                        BlockingAction ba = new BlockingAction(blockingActionId,
+                                    relatedAction.getActionEntity(), comm);
+                        blockingActionMap.put(blockingActionId, ba);
+                        blockedBy.put(commType, blockingActionId);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Create {@link MarketRelatedAction} corresponding to the actions
+     * that is blocking this atomic action.
+     * One MarketRelatedAction is created using the MarketRelatedAction for actions that are being de-duplicated.
+     *
+     * <p>Eg. Suppose a Namespace N1 has 4 resize actions pending for its 4 commodities (C1, C2, C3, C4).
+     * Aggregate Target WC with 4 ContainerSpecs (CS) is required to merge resizes for these 4 commodities
+     * for all its containers, and each CS is blocked by a different commodity resize as follows-
+     * CS1::C1 is blocked by N1::C1 but CS1::C2, CS1::C3, CS1::C4 are executable
+     * CS2::C2 is blocked by N1::C2 but CS2::C1, CS2::C3, CS2::C4 are executable
+     * CS3::C3 is blocked by N1::C3 but CS3::C1, CS3::C2, CS3::C4 are executable
+     * CS4::C4 is blocked by N1::C4 but CS4::C1, CS4::C2, CS4::C3 are executable
+     *
+     * <p>Executable Aggregated Atomic action will aggregate 4 resizes
+     *  - CS1::C2, CS1::C3, CS1::C4,
+     *  - CS2::C1, CS2::C3, CS2::C4
+     *  - CS3::C1, CS3::C2, CS3::C4,
+     *  - CS4::C1, CS4::C2, CS4::C3
+     *
+     * <p>Non-Executable Aggregated Atomic action will aggregate 4 resizes that are blocked by the namesapce resizes.
+     * CS1::C1, CS2::C2, CS3::C3, CS4::C4
+     *
+     * <p>Additionally, in this case, 4 MarketRelatedActions will be created pointing
+     * to each of the 4 Namespace commodity resizes
+     * Related Action will contain reference to NS1::C1, NS2::C2, NS3::C3 NS4::C4
+     *
+     * @return List of blocking related actions.
+     */
+    protected List<MarketRelatedAction> createdBlockingRelatedActions() {
+        List<MarketRelatedAction> blockingActionsList = new ArrayList<>();
+
+        // Only update the atomic action with the blocking action
+        // Save the related action for the blocking action in a map that will be returned in the result
+        for (CommodityType commType : blockedBy.keySet()) {
+            BlockingAction blockingAction = blockingActionMap.get(blockedBy.get(commType));
+            MarketRelatedAction.Builder ra = ActionDTO.MarketRelatedAction.newBuilder()
+                    .setActionId(blockingAction.actionId)
+                    .setActionEntity(blockingAction.blockingEntity)
+                    .setBlockedByRelation(BlockedByRelation.newBuilder()
+                            .setResize(BlockedByResize.newBuilder()
+                                    .setCommodityType(blockingAction.commType)));
+            blockingActionsList.add(ra.build());
+        }
+        return blockingActionsList;
+    }
+
+    protected Map<Long, ActionDTO.RelatedAction> createdBlockedRelatedActions(long atomicActionId) {
+        Map<Long, ActionDTO.RelatedAction> blockedActionsMap = new HashMap<>();
+
+        // Create the reverse BlockingAction for the namespace action blocking this atomic resize
+        // This is done to map the atomic resize's commodity that is being impacted by the namespace blocking action
+        for (CommodityType commType : blockedBy.keySet()) {
+            BlockingAction blockingAction = blockingActionMap.get(blockedBy.get(commType));
+            ActionDTO.RelatedAction.Builder ra = ActionDTO.RelatedAction.newBuilder()
+                    .setRecommendationId(atomicActionId)
+                    .setActionEntity(aggregatedAction.targetEntity())
+                    .setBlockingRelation(ActionDTO.BlockingRelation.newBuilder()
+                            .setResize(ActionDTO.BlockingRelation.BlockingResize.newBuilder()
+                                    .setCommodityType(commType)));
+            blockedActionsMap.put(blockingAction.actionId, ra.build());
+        }
+        return blockedActionsMap;
     }
 
      List<ActionDTO.ResizeInfo> resizeInfos(List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
@@ -554,8 +696,8 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
 
         List<Action> actionsToDeDuplicate = deDupedActions.actions();
 
-        Map<CommodityType, List<Action>> actionsByCommMap = actionsToDeDuplicate.stream()
-                .collect(Collectors.groupingBy(action -> action.getInfo().getResize().getCommodityType()));
+        Map<CommodityType, List<Action>> actionsByCommMap
+                = deDupActionsByCommMap.get(deDupedActions.targetEntity().getId());
 
         List<ResizeInfoAndExplanation>  result = new ArrayList<>();
         // Create one resize info all the de-duplicated actions per commodity
@@ -570,6 +712,33 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         }
 
         return result;
+    }
+
+    /**
+     * Helper class to hold the data for a related action blocking a given resize action.
+     */
+     static class BlockingAction {
+        /**
+         * Action entity of the blocking action.
+         */
+        private final ActionEntity blockingEntity;
+
+        /**
+         * Action id of the blocking action.
+         */
+        private final Long actionId;
+
+        /**
+         * Commodity type which is blocking the given resize action.
+         */
+        private final CommodityType commType;
+
+        BlockingAction(Long actionId, ActionEntity blockingEntity, CommodityType commType) {
+
+            this.blockingEntity = blockingEntity;
+            this.actionId = actionId;
+            this.commType = commType;
+        }
     }
 }
 

@@ -34,11 +34,12 @@ import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
-import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequest;
 import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterResponse;
@@ -238,7 +239,10 @@ public class CloudAspectMapperTest {
                         .putEntities(ZONE_OID, PartialEntity.newBuilder().setMinimal(zone).build()).build()).build());
         when(entityUptimeServiceMole.getEntityUptimeByFilter(
                 GetEntityUptimeByFilterRequest.newBuilder()
-                        .setFilter(CloudScopeFilter.newBuilder().addEntityOid(VIRTUAL_MACHINE_OID))
+                        .setFilter(CloudScopeFilter.newBuilder()
+                                .setEntityFilter(EntityFilter.newBuilder()
+                                        .addEntityId(VIRTUAL_MACHINE_OID)
+                                        .build()))
                         .build())).thenReturn(GetEntityUptimeByFilterResponse.newBuilder()
                 .putEntityUptimeByOid(VIRTUAL_MACHINE_OID, EntityUptimeDTO.newBuilder()
                         .setTotalDurationMs(TOTAL_ANALYZED_DURATION)

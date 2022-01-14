@@ -205,4 +205,10 @@ public class CostProtoUtil {
         }
         return currency.getSymbol() + "/h";
     }
+
+    public static String getCurrencyUnit(int currencyCode) {
+
+        final Currency currency = CURRENCIES_BY_NUMERIC_CODE.getOrDefault(currencyCode, DEFAULT_CURRENCY);
+        return currency.getSymbol() + "/h";
+    }
 }

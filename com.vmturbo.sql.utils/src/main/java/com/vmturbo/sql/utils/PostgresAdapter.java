@@ -5,9 +5,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 import javax.sql.DataSource;
@@ -358,30 +355,6 @@ public class PostgresAdapter extends DbAdapter {
     @Override
     public String getConnectionUser(final Connection conn) throws SQLException {
         return conn.getClientInfo().getProperty("ClientUser");
-    }
-
-    @Override
-    public void truncateAllTables(Connection conn) throws SQLException {
-        for (final String table : getAllTableNames(conn)) {
-            try (Statement statement = conn.createStatement()) {
-                statement.execute(String.format("TRUNCATE TABLE %s CASCADE", quote(table)));
-            }
-        }
-    }
-
-    @Override
-    protected Collection<String> getAllTableNames(Connection conn) throws SQLException {
-        try (Statement statement = conn.createStatement();
-             ResultSet results = statement.executeQuery(String.format(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s' "
-                        + "AND table_type = 'BASE TABLE' AND table_name != 'schema_version'",
-                config.getSchemaName()))) {
-            List<String> tables = new ArrayList<>();
-            while (results.next()) {
-                tables.add(results.getString(1));
-            }
-            return tables;
-        }
     }
 
     @Override

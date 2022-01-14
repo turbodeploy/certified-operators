@@ -64,6 +64,7 @@ import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
+import com.vmturbo.api.dto.entity.DiscoveredEntityApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VMEntityAspectApiDTO;
@@ -680,6 +681,9 @@ public class ActionSpecMapper {
         if (actionSpec.hasExternalActionUrl()) {
             actionApiDTO.setExternalActionUrl(actionSpec.getExternalActionUrl());
         }
+
+        // Set the related action count by type of impacting relation
+        actionApiDTO.setRelatedActionsCountByType(RelatedActionMapper.countRelatedActionsByType(actionSpec));
 
         return actionApiDTO;
     }
@@ -2996,5 +3000,20 @@ public class ActionSpecMapper {
             default:
                 throw new IllegalArgumentException("Unknown action reversibility" + actionReversibility);
         }
+    }
+
+    /**
+     * Get minimal entityApiDTO from action entity. Note that this returns {@link DiscoveredEntityApiDTO}
+     * instead of {@link ServiceEntityApiDTO} to avoid redundant fields in entityApiDTO in an ActionApiDTO.
+     *
+     * @param actionEntity Given {@link ActionEntity} to be converted to {@link DiscoveredEntityApiDTO}.
+     * @return {@link DiscoveredEntityApiDTO} converted from {@link ActionEntity}.
+     */
+    public static DiscoveredEntityApiDTO getDiscoveredEntityApiDTOFromActionEntity(ActionEntity actionEntity) {
+        DiscoveredEntityApiDTO discoveredEntityApiDTO = new DiscoveredEntityApiDTO();
+        discoveredEntityApiDTO.setUuid(String.valueOf(actionEntity.getId()));
+        discoveredEntityApiDTO.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(actionEntity.getEnvironmentType()));
+        discoveredEntityApiDTO.setClassName(ApiEntityType.fromType(actionEntity.getType()).apiStr());
+        return discoveredEntityApiDTO;
     }
 }

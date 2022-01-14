@@ -41,6 +41,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.MarketRelatedActionsList;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -96,6 +97,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerClusterPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerSpecPostProcessor;
@@ -118,6 +120,7 @@ import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.ShoppingListInfo;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
+import com.vmturbo.market.topology.conversions.action.RelatedActionInterpreter;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
 import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -321,6 +324,9 @@ public class Analysis {
 
     private final String contextType;
 
+    // RelatedActionInterpreter is to interpret relations between 2 actions.
+    private final RelatedActionInterpreter relatedActionInterpreter;
+
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -397,6 +403,7 @@ public class Analysis {
                 : TopologyConversionConstants.LIVE_CONTEXT_TYPE_LABEL;
         this.externalReconfigureActionEngine = externalReconfigureActionEngine;
         this.diagnosticsCleaner = diagnosticsCleaner;
+        relatedActionInterpreter = new RelatedActionInterpreter(topologyInfo);
     }
 
     /**
@@ -873,12 +880,14 @@ public class Analysis {
                         }
                     });
 
+                    NamespaceQuotaAnalysisResult namespaceQuotaAnalysisResult = null;
                     if (FeatureFlags.NAMESPACE_QUOTA_RESIZING.isEnabled()) {
                         try (TracingScope ignored = Tracing.trace("namespace_quota_resizing_analysis")) {
-                            final Collection<Action> namespaceResourceQuotaResizeActions =
-                                namespaceQuotaAnalysisEngine.execute(topologyInfo, topologyDTOs,
-                                    projectedEntities, actions);
-                            actionPlanBuilder.addAllAction(namespaceResourceQuotaResizeActions);
+                            namespaceQuotaAnalysisResult =
+                                    namespaceQuotaAnalysisEngine.execute(topologyInfo, topologyDTOs,
+                                            projectedEntities, actions);
+                            actionPlanBuilder.addAllAction(
+                                    namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions());
                         }
                     }
 
@@ -913,6 +922,14 @@ public class Analysis {
                     List<Action> reconfigurationActions = this.externalReconfigureActionEngine.execute(topologyDTOs, actions);
 
                     actionPlanBuilder.addAllAction(reconfigurationActions);
+
+                    // Interpret related actions add all MarketRelatedActions to actionPlanBuilder.
+                    try (TracingScope ignored = Tracing.trace("interpret_related_actions")) {
+                        Map<Long, ActionPlan.MarketRelatedActionsList> actionToRelatedActionsMap =
+                                relatedActionInterpreter.interpret(actionsList, actionPlanBuilder.getActionList(),
+                                        projectedEntities, namespaceQuotaAnalysisResult);
+                        actionPlanBuilder.putAllRelatedActionsByActionId(actionToRelatedActionsMap);
+                    }
                     completionTime = clock.instant();
                     processResultTime.observe();
                     actionPlan = actionPlanBuilder.setAnalysisCompleteTimestamp(completionTime.toEpochMilli())
