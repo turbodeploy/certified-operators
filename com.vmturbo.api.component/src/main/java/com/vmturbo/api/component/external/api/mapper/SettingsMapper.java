@@ -104,6 +104,9 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
+import com.vmturbo.components.common.setting.VcpuScalingCoresPerSocketSocketModeEnum;
+import com.vmturbo.components.common.setting.VcpuScalingSocketsCoresPerSocketModeEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -968,6 +971,10 @@ public class SettingsMapper {
         final ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         builder.put(OperatingSystem.RHEL.name(), "RHEL");
         builder.put(OperatingSystem.SLES.name(), "SLES");
+        builder.put(VCPUScalingUnitsEnum.MHZ.name(), "Sockets (MHz legacy behavior)");
+        builder.put(VCPUScalingUnitsEnum.CORES.name(), "Cores per socket");
+        builder.put(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE.name(), "Preserve existing VM sockets");
+        builder.put(VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST.name(), "Match Host sockets");
         // In VDI, we want to show all this values as "{DIGIT} windows per day" in UI
         for (DailyObservationWindowsCount value : DailyObservationWindowsCount.values()) {
             builder.put(value.name(), value.toString());
