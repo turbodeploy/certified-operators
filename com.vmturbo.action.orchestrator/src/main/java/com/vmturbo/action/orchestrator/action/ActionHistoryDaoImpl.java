@@ -4,7 +4,6 @@ import static com.vmturbo.action.orchestrator.db.tables.ActionHistory.ACTION_HIS
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -13,7 +12,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +22,7 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionHistoryRecord;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
@@ -113,32 +109,19 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
     }
 
     /**
-     * Returns all the existing action history filtered by action query filter parameters, like 'startDate' and
-     * 'endDate', and scope filters.
+     * Returns all the existing action history between 'startDate' and 'endDate'.
      *
-     * @param actionQueryFilter the query filter with filter parameters to fetch by.
-     * @return List of {@link Action} matching the filters in the action query filter.
+     * @param startDate the start date
+     * @param endDate   the end date
+     * @return List of {@link Action} within the startDate and endDate.
      */
     @Nonnull
     @Override
-    public List<ActionView> getActionHistoryByFilter(@Nonnull final ActionQueryFilter actionQueryFilter) {
-        final LocalDateTime startDate = ActionDTOUtil.getLocalDateTime(actionQueryFilter.getStartDate());
-        final LocalDateTime endDate = ActionDTOUtil.getLocalDateTime(actionQueryFilter.getEndDate());
-        final List<Condition> conditions = new ArrayList<>();
-        conditions.add(ACTION_HISTORY.CREATE_TIME.between(startDate, endDate));
-        List<Long> accountOids;
-        if (actionQueryFilter.hasAccountFilter() && !(accountOids = actionQueryFilter.getAccountFilter()
-                .getAccountIdList()).isEmpty()) {
-            conditions.add(ACTION_HISTORY.ASSOCIATED_ACCOUNT_ID.in(accountOids));
-        }
-        final List<Long> rgOids;
-        if (actionQueryFilter.hasResourceGroupFilter() && !(rgOids = actionQueryFilter.getResourceGroupFilter()
-                .getResourceGroupOidList()).isEmpty()) {
-            conditions.add(ACTION_HISTORY.ASSOCIATED_RESOURCE_GROUP_ID.in(rgOids));
-        }
+    public List<ActionView> getActionHistoryByDate(@Nonnull final LocalDateTime startDate,
+                                               @Nonnull final LocalDateTime endDate) {
         try (Stream<ActionHistoryRecord> stream =  dsl
                 .selectFrom(ACTION_HISTORY)
-                .where(conditions)
+                .where(ACTION_HISTORY.CREATE_TIME.between(startDate, endDate))
                 .fetchSize(Integer.MIN_VALUE) // use streaming fetch
                 .stream()) {
             return stream.map(actionHistory -> mapDbActionHistoryToAction(actionHistory))
