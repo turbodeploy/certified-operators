@@ -26,7 +26,8 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.CostProtoUtil;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationRequest;
@@ -36,7 +37,6 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCo
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsRequest;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse.CloudCommitmentUtilizationRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
@@ -136,7 +136,7 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
                 cloudCommitmentStatsServiceGrpc.getTopologyCommitmentCoverage(request)
                         .forEachRemaining(response ->
                                 response.getCommitmentCoverageStatChunkList().forEach(chunk -> {
-                                    final StatApiDTO stat = makeInnerStat(chunk.getCapacity(), chunk.getUsed());
+                                    final StatApiDTO stat = makeInnerStat(chunk.getCoverageTypeInfo(), chunk.getCapacity(), chunk.getValues());
                                     stat.setName(StringConstants.CLOUD_COMMITMENT_COVERAGE);
                                     snapshots.add(makeTopologySnapshot(topologyType, stat));
                                 })
@@ -146,17 +146,16 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
         return snapshots;
     }
 
-    private StatSnapshotApiDTO makeUtilizationSnapshot(TopologyType topologyType, CloudCommitmentUtilizationRecord chunk) {
-        final StatApiDTO stat = makeInnerStat(chunk.getUtilization().getCapacity(), chunk.getUtilization().getUsed());
+    private StatSnapshotApiDTO makeUtilizationSnapshot(TopologyType topologyType, CloudCommitmentStatRecord chunk) {
+        final StatApiDTO stat = makeInnerStat(chunk.getCoverageTypeInfo(), chunk.getCapacity(), chunk.getValues());
         stat.setName(StringConstants.CLOUD_COMMITMENT_UTILIZATION);
-        if (chunk.hasCommitmentOid()) {
+        if (chunk.hasCommitmentId()) {
             final BaseApiDTO relatedCloudCommitment = new BaseApiDTO();
-            relatedCloudCommitment.setUuid(String.valueOf(chunk.getCommitmentOid()));
+            relatedCloudCommitment.setUuid(String.valueOf(chunk.getCommitmentId()));
             relatedCloudCommitment.setClassName(StringConstants.CLOUD_COMMITMENT);
             stat.setRelatedEntityType(StringConstants.CLOUD_COMMITMENT);
             stat.setRelatedEntity(relatedCloudCommitment);
         }
-        stat.setReserved(extractStatValue(chunk.getUtilization().getOverhead()));
         return makeTopologySnapshot(topologyType, stat);
     }
 
@@ -172,29 +171,22 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
         return result;
     }
 
-    private StatValueApiDTO extractStatValue(CloudCommitmentAmount amount) {
+    private StatValueApiDTO extractStatValue(CloudCommitmentStatRecord.StatValue value) {
         final StatValueApiDTO result = new StatValueApiDTO();
-        if (amount.hasAmount()) {
-            float value = (float)amount.getAmount().getAmount();
-            result.setAvg(value);
-            result.setTotal(value);
-            result.setMin(value);
-            result.setMax(value);
-        } else if (amount.hasCoupons()) {
-            float value = (float)amount.getCoupons();
-            result.setAvg(value);
-            result.setTotal(value);
-            result.setMin(value);
-            result.setMax(value);
-        }
+        result.setAvg((float)value.getAvg());
+        result.setTotal((float)value.getTotal());
+        result.setMax((float)value.getMax());
+        result.setMin((float)value.getMin());
         return result;
     }
 
-    private StatApiDTO makeInnerStat(CloudCommitmentAmount capacity, CloudCommitmentAmount used) {
+    private StatApiDTO makeInnerStat(@Nonnull CloudCommitmentCoverageTypeInfo vectorTypeInfo,
+                                     @Nonnull CloudCommitmentStatRecord.StatValue capacity,
+                                     @Nonnull CloudCommitmentStatRecord.StatValue used) {
         final StatApiDTO stat = new StatApiDTO();
-        if (capacity.hasAmount()) {
-            stat.setUnits(CostProtoUtil.getCurrencyUnit(capacity.getAmount()));
-        } else if (capacity.hasCoupons()) {
+        if (vectorTypeInfo.getCoverageType() == CloudCommitmentCoverageType.SPEND_COMMITMENT) {
+            stat.setUnits(CostProtoUtil.getCurrencyUnit(vectorTypeInfo.getCoverageSubtype()));
+        } else if (vectorTypeInfo.getCoverageType() == CloudCommitmentCoverageType.COUPONS) {
             stat.setUnits(StringConstants.NUMBER_OF_COUPONS);
         }
         stat.setCapacity(extractStatValue(capacity));

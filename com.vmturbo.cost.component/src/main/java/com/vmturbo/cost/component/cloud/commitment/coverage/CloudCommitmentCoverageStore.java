@@ -12,9 +12,9 @@ import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageGroupBy;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsRequest.GroupByCondition;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
@@ -146,7 +146,7 @@ public interface CloudCommitmentCoverageStore {
          * @return The list of group by conditions.
          */
         @Nonnull
-        List<GroupByCondition> groupByList();
+        List<CloudCommitmentCoverageGroupBy> groupByList();
 
         /**
          * Constructs and returns a new builder instance.

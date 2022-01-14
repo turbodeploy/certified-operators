@@ -1,12 +1,14 @@
 package com.vmturbo.cost.component.cloud.commitment.coverage;
 
-import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Nonnull;
 
 import org.immutables.gson.Gson;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ScopedCommitmentCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
@@ -22,14 +24,16 @@ public interface CoverageInfo {
      *
      * @return the {@link TopologyInfo}.
      */
+    @Nonnull
     TopologyInfo topologyInfo();
 
     /**
-     * Gets the list of {@link CloudCommitmentCoverage}.
+     * Gets the map of entity ID to {@link ScopedCommitmentCoverage}.
      *
-     * @return the list of {@link CloudCommitmentCoverage}.
+     * @return the map of entity ID to {@link ScopedCommitmentCoverage}.
      */
-    List<CloudCommitmentCoverage> coverageDataPoints();
+    @Nonnull
+    Map<Long, ScopedCommitmentCoverage> entityCoverageMap();
 
     /**
      * Constructs and returns a new {@link CoverageInfo.Builder} instance.
@@ -43,5 +47,6 @@ public interface CoverageInfo {
     /**
      * A builder class for constructing {@link CoverageInfo} instances.
      */
+    @Nonnull
     class Builder extends ImmutableCoverageInfo.Builder {}
 }
