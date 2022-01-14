@@ -78,6 +78,8 @@ import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.NoDetailsApiDTO;
+import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -1422,6 +1424,82 @@ public class ActionSpecMapperTest {
         assertEquals(8f, cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 0);
         assertEquals(1.0, cloudResizeActionDetailsApiDTO.getEntityUptime().getUptimePercentage(), 0);
     }
+
+    /**
+     * Test the data for {@link OnPremResizeActionDetailsApiDTO}
+     */
+    @Test
+    public void testOnPremResizeActionDetailsApiDTO() {
+
+        final ActionEntity actionEntity = ActionEntity.newBuilder()
+                .setId(TARGET_ID)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                .build();
+
+        ActionInfo actionInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                        .setTarget(actionEntity)
+                        .setNewCapacity(4).setOldCapacity(2).setOldCpsr(1).setNewCpsr(4)
+                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                )
+                .build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder().setRecommendation(
+                Action.newBuilder()
+                        .setId(ACTION_STABLE_IMPACT_ID)
+                        .setInfo(actionInfo)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(Explanation.newBuilder())).build();
+
+        final ActionOrchestratorAction actionOrchestratorAction =
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(ACTION_LEGACY_INSTANCE_ID)
+                        .setActionSpec(actionSpec)
+                        .build();
+        final OnPremResizeActionDetailsApiDTO onPremResizeActionDetailsApiDTO = (OnPremResizeActionDetailsApiDTO)mapper.createActionDetailsApiDTO(actionOrchestratorAction, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        assertNotNull(onPremResizeActionDetailsApiDTO);
+        assertEquals(2, onPremResizeActionDetailsApiDTO.getVcpuBefore());
+        assertEquals(4, onPremResizeActionDetailsApiDTO.getVcpuAfter());
+        assertEquals(1, onPremResizeActionDetailsApiDTO.getCoresPerSocketBefore());
+        assertEquals(4, onPremResizeActionDetailsApiDTO.getCoresPerSocketAfter());
+        assertEquals(2, onPremResizeActionDetailsApiDTO.getSocketsBefore());
+        assertEquals(1, onPremResizeActionDetailsApiDTO.getSocketsAfter());
+    }
+
+    /**
+     * Test the data for {@link OnPremResizeActionDetailsApiDTO}
+     */
+    @Test
+    public void testNoOnPremResizeActionDetailsApiDTOForVMemResize() {
+
+        final ActionEntity actionEntity = ActionEntity.newBuilder()
+                .setId(TARGET_ID)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                .build();
+
+        ActionInfo actionInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                        .setTarget(actionEntity)
+                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                )
+                .build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder().setRecommendation(
+                Action.newBuilder()
+                        .setId(ACTION_STABLE_IMPACT_ID)
+                        .setInfo(actionInfo)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(Explanation.newBuilder())).build();
+
+        final ActionOrchestratorAction actionOrchestratorAction =
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(ACTION_LEGACY_INSTANCE_ID)
+                        .setActionSpec(actionSpec)
+                        .build();
+        final OnPremResizeActionDetailsApiDTO onPremResizeActionDetailsApiDTO = (OnPremResizeActionDetailsApiDTO)mapper.createActionDetailsApiDTO(actionOrchestratorAction, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        assertNull(onPremResizeActionDetailsApiDTO);
+    }
+
 
     /**
      * Test that the on-demand cost and on-demand rate values can be properly aggregated and
