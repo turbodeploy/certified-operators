@@ -13,7 +13,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
+import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
@@ -30,7 +30,7 @@ public class CloudProviderCoverageContext {
 
     private final ServiceProviderInfo serviceProviderInfo;
     private final CoverageTopology coverageTopology;
-    private final Set<Long> reservedInstanceOids;
+    private final Set<Long> cloudCommitmentOids;
     private final Set<Long> coverableEntityOids;
 
 
@@ -38,7 +38,7 @@ public class CloudProviderCoverageContext {
 
         this.serviceProviderInfo = Objects.requireNonNull(builder.serviceProviderInfo);
         this.coverageTopology = Objects.requireNonNull(builder.coverageTopology);
-        this.reservedInstanceOids = ImmutableSet.copyOf(builder.reservedInstanceOids);
+        this.cloudCommitmentOids = ImmutableSet.copyOf(builder.cloudCommitmentOids);
         this.coverableEntityOids = ImmutableSet.copyOf(builder.coverableEntityOids);
     }
 
@@ -64,8 +64,8 @@ public class CloudProviderCoverageContext {
      * of this context
      */
     @Nonnull
-    public Set<Long> reservedInstanceOids() {
-        return reservedInstanceOids;
+    public Set<Long> cloudCommitmentOids() {
+        return cloudCommitmentOids;
     }
 
     /**
@@ -96,21 +96,24 @@ public class CloudProviderCoverageContext {
      */
     public static Set<CloudProviderCoverageContext> createContexts(
             @Nonnull CoverageTopology coverageTopology,
-            @Nonnull Stream<ReservedInstanceAggregate> riAggregates,
+            @Nonnull Stream<CloudCommitmentAggregate> commitmentAggregates,
             @Nonnull Stream<Long> coverableEntityOids,
             boolean skipPartialContexts) {
 
         final Map<ServiceProviderInfo, CloudProviderCoverageContext.Builder> contextBuildersByProvider =
                 new HashMap<>();
 
-        riAggregates.forEach(riAggregate -> {
-            final long serviceProviderOid = riAggregate.aggregateInfo().serviceProviderOid();
+        commitmentAggregates.forEach(commitmentAggregate -> {
+            // For RIs, the CSP is determined through the associated tier, given the
+            // RIs may not be aggregated by purchasing account (if they are scoped to accounts
+            // outside of their purchasing account)
+            final long serviceProviderOid = commitmentAggregate.aggregateInfo().serviceProviderOid();
             coverageTopology.getServiceProviderInfo(serviceProviderOid).ifPresent(serviceProviderInfo ->
                     contextBuildersByProvider.computeIfAbsent(serviceProviderInfo, (csp) ->
                             CloudProviderCoverageContext.newBuilder()
                                     .serviceProviderInfo(serviceProviderInfo)
                                     .coverageTopology(coverageTopology))
-                            .reservedInstanceOid(riAggregate.aggregateId()));
+                            .addCloudCommitmentOid(commitmentAggregate.aggregateId()));
         });
 
         coverableEntityOids.forEach(entityOid -> coverageTopology.getAggregationInfo(entityOid)
@@ -123,7 +126,7 @@ public class CloudProviderCoverageContext {
 
         return contextBuildersByProvider.values().stream()
                 .filter(contextBuilder -> !skipPartialContexts ||
-                        (contextBuilder.hasReservedInstanceOids() &&
+                        (contextBuilder.hasCommitments() &&
                                 contextBuilder.hasCoverableEntityOids()))
                 .map(CloudProviderCoverageContext.Builder::build)
                 .collect(Collectors.toSet());
@@ -143,7 +146,7 @@ public class CloudProviderCoverageContext {
     public static class Builder {
         private ServiceProviderInfo serviceProviderInfo;
         private CoverageTopology coverageTopology;
-        private final Set<Long> reservedInstanceOids = new HashSet<>();
+        private final Set<Long> cloudCommitmentOids = new HashSet<>();
         private final Set<Long> coverableEntityOids = new HashSet<>();
 
         /**
@@ -167,21 +170,21 @@ public class CloudProviderCoverageContext {
         }
 
         /**
-         * Add an oid of a {@link ReservedInstanceBought} to this builder
-         * @param riOid A {@link ReservedInstanceBought} oid
+         * Add an oid of a cloud commitment to add to this builder
+         * @param commitmentOid A commitment oid
          * @return The instance of {@link Builder} for method chaining
          */
-        public Builder reservedInstanceOid(@Nonnull long riOid) {
-            this.reservedInstanceOids.add(Objects.requireNonNull(riOid));
+        public Builder addCloudCommitmentOid(long commitmentOid) {
+            this.cloudCommitmentOids.add(commitmentOid);
             return this;
         }
 
         /**
-         * @return True, if this builder is configured with {@link ReservedInstanceBought} oids.
+         * @return True, if this builder is configured with commitment oids.
          * False, otherwise.
          */
-        public boolean hasReservedInstanceOids() {
-            return !reservedInstanceOids.isEmpty();
+        public boolean hasCommitments() {
+            return !cloudCommitmentOids.isEmpty();
         }
 
         /**

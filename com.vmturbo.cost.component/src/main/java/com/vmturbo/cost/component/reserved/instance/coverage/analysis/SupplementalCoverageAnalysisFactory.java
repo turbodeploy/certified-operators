@@ -28,39 +28,14 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
-import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
 /**
- * A factory class for creating instances of {@link SupplementalRICoverageAnalysis}.
+ * A factory class for creating instances of {@link SupplementalCoverageAnalysis}.
  */
-public class SupplementalRICoverageAnalysisFactory {
-
-    private static final DataMetricSummary RI_SPEC_DURATION_SUMMARY_METRIC =
-            DataMetricSummary.builder()
-                    .withName("cost_ri_cov_ri_spec_duration_seconds")
-                    .withHelp("Total time for supplemental RI coverage analysis.")
-                    .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-                    .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-                    .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-                    .withMaxAgeSeconds(60 * 60) // 60 mins.
-                    .withAgeBuckets(10) // 10 buckets, so buckets get switched every 6 minutes.
-                    .build()
-                    .register();
-
-    private static final DataMetricSummary RI_BOUGHT_DURATION_SUMMARY_METRIC =
-            DataMetricSummary.builder()
-                    .withName("cost_ri_cov_ri_bought_duration_seconds")
-                    .withHelp("Total time for supplemental RI coverage analysis.")
-                    .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-                    .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-                    .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-                    .withMaxAgeSeconds(60 * 60) // 60 mins.
-                    .withAgeBuckets(10) // 10 buckets, so buckets get switched every 6 minutes.
-                    .build()
-                    .register();
+public class SupplementalCoverageAnalysisFactory {
 
     private final CoverageAllocatorFactory allocatorFactory;
 
@@ -79,7 +54,7 @@ public class SupplementalRICoverageAnalysisFactory {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * Constructs a new instance of {@link SupplementalRICoverageAnalysis}.
+     * Constructs a new instance of {@link SupplementalCoverageAnalysis}.
      * @param allocatorFactory An instance of {@link CoverageAllocatorFactory}
      * @param coverageTopologyFactory An instance of {@link CoverageTopologyFactory}
      * @param reservedInstanceBoughtStore An instance of {@link ReservedInstanceSpecStore}
@@ -90,7 +65,7 @@ public class SupplementalRICoverageAnalysisFactory {
      * @param cloudCommitmentAggregatorFactory A factory for creating {@link CloudCommitmentAggregator}
      *                                         instances.
      */
-    public SupplementalRICoverageAnalysisFactory(
+    public SupplementalCoverageAnalysisFactory(
             @Nonnull CoverageAllocatorFactory allocatorFactory,
             @Nonnull CoverageTopologyFactory coverageTopologyFactory,
             @Nonnull ReservedInstanceBoughtStore reservedInstanceBoughtStore,
@@ -112,14 +87,14 @@ public class SupplementalRICoverageAnalysisFactory {
      * First resolves all available instances of both {@link ReservedInstanceBought} and {@link ReservedInstanceSpec}
      * from the applicable store. After resolving available RIs, a new instance of {@link CoverageTopology}
      * is constructed from the {@code cloudTopology} and resolved RIs/RISpecs. Finally, a new instance of
-     * {@link SupplementalRICoverageAnalysis} is constructed based on the {@link CoverageTopology} and
+     * {@link SupplementalCoverageAnalysis} is constructed based on the {@link CoverageTopology} and
      * {@code entityRICoverageUploads}.
      *
      * @param cloudTopology The {@link CloudTopology}, used to create an instance of {@link CoverageTopology}
      * @param entityRICoverageUploads The source {@link EntityRICoverageUpload} records
-     * @return A newly created instance of {@link SupplementalRICoverageAnalysis}
+     * @return A newly created instance of {@link SupplementalCoverageAnalysis}
      */
-    public SupplementalRICoverageAnalysis createCoverageAnalysis(
+    public SupplementalCoverageAnalysis createCoverageAnalysis(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull List<EntityRICoverageUpload> entityRICoverageUploads) {
 
@@ -127,7 +102,7 @@ public class SupplementalRICoverageAnalysisFactory {
                 cloudTopology,
                 resolveCloudCommitmentAggregates(cloudTopology));
 
-        return new SupplementalRICoverageAnalysis(
+        return new SupplementalCoverageAnalysis(
                 allocatorFactory,
                 coverageTopology,
                 entityRICoverageUploads,

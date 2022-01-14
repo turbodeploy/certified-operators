@@ -3,32 +3,36 @@ package com.vmturbo.reserved.instance.coverage.allocator;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
+
 import org.immutables.value.Value;
 import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
-import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.metrics.CoverageAllocationMetricsProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 /**
- * A configuration for a {@link ReservedInstanceCoverageAllocator} instance.
+ * A configuration for a {@link CloudCommitmentCoverageAllocator} instance.
  */
 @HiddenImmutableImplementation
 @Immutable
 public interface CoverageAllocationConfig {
 
     /**
-     * The {@link ReservedInstanceCoverageProvider} used to configure an {@link ReservedInstanceCoverageAllocator}
-     * instance. The coverage provider provides the basis for RI coverage & utilization, which the allocator
-     * will build upon.
-     * @return The {@link ReservedInstanceCoverageProvider} instance.
+     * The source coverage as a starting point for the coverage allocator.
+     * @return The source coverage, following a format of
+     * Entity OID -> Commitment Aggregate OID -> coverage amount.
      */
     @Default
-    default ReservedInstanceCoverageProvider coverageProvider() {
-        return ReservedInstanceCoverageProvider.EMPTY_COVERAGE_PROVIDER;
+    @Nonnull
+    default Table<Long, Long, CloudCommitmentAmount> sourceCoverage() {
+        return ImmutableTable.of();
     }
 
     /**
@@ -81,14 +85,14 @@ public interface CoverageAllocationConfig {
 
     /**
      * An optional metrics provider (a default provider will be used if none are configured), used
-     * in collecting metrics. Only metrics provided by the {@link RICoverageAllocationMetricsProvider}
+     * in collecting metrics. Only metrics provided by the {@link CoverageAllocationMetricsProvider}
      * instance will be collected.
-     * @return The {@link RICoverageAllocationMetricsProvider} instance.
+     * @return The {@link CoverageAllocationMetricsProvider} instance.
      */
     @Nonnull
     @Value.Default
-    default RICoverageAllocationMetricsProvider metricsProvider() {
-        return RICoverageAllocationMetricsProvider.EMPTY_PROVIDER;
+    default CoverageAllocationMetricsProvider metricsProvider() {
+        return CoverageAllocationMetricsProvider.EMPTY_PROVIDER;
     }
 
     /**

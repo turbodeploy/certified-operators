@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
@@ -53,6 +54,13 @@ public interface CoverageGroup {
      */
     @Nonnull
     Set<Long> commitmentOids();
+
+    /**
+     * The coverage type info for this group.
+     * @return The coverage type info for this group.
+     */
+    @Nonnull
+    CloudCommitmentCoverageTypeInfo coverageTypeInfo();
 
     /**
      * A collection of entity OIDs within this group.

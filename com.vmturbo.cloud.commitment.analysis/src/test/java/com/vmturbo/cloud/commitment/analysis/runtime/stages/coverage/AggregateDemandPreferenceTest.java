@@ -20,16 +20,17 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AggregateDemandPreference.AggregateDemandPreferenceFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal;
 
 public class AggregateDemandPreferenceTest {
 
     private final AnalysisCoverageTopology coverageTopology = mock(AnalysisCoverageTopology.class);
 
-    private final ReservedInstanceCoverageJournal coverageJournal = mock(ReservedInstanceCoverageJournal.class);
+    private final CloudCommitmentCoverageJournal coverageJournal = mock(CloudCommitmentCoverageJournal.class);
 
     private final AggregateDemandPreferenceFactory preferenceFactory =
             new AggregateDemandPreferenceFactory();
@@ -75,6 +76,7 @@ public class AggregateDemandPreferenceTest {
         // invoke the preference
         final Iterable<Long> sortedOids = demandPreference.sortEntities(
                 coverageJournal,
+                CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO,
                 ImmutableSet.of(6L, 7L));
 
         // ASSERTIONS
@@ -125,6 +127,7 @@ public class AggregateDemandPreferenceTest {
         // invoke the preference
         final Iterable<Long> sortedOids = demandPreference.sortEntities(
                 coverageJournal,
+                CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO,
                 ImmutableSet.of(6L, 7L));
 
         // ASSERTIONS

@@ -41,14 +41,14 @@ public class CommitmentAmountCalculator {
             case AMOUNT:
                 return subtrahendAmount.getValueCase() != ValueCase.VALUE_NOT_SET
                         ? CloudCommitmentAmount.newBuilder()
-                        .setAmount(subtractCurrencyAmount(minuendAmount.getAmount(), subtrahendAmount.getAmount()))
-                        .build()
+                                .setAmount(subtractCurrencyAmount(minuendAmount.getAmount(), subtrahendAmount.getAmount()))
+                                .build()
                         : minuendAmount;
             case COUPONS:
                 return subtrahendAmount.getValueCase() != ValueCase.VALUE_NOT_SET
                         ? CloudCommitmentAmount.newBuilder()
-                        .setCoupons(minuendAmount.getCoupons() - subtrahendAmount.getCoupons())
-                        .build()
+                                .setCoupons(minuendAmount.getCoupons() - subtrahendAmount.getCoupons())
+                                .build()
                         : minuendAmount;
             case VALUE_NOT_SET:
                 return negate(subtrahendAmount);
@@ -93,14 +93,14 @@ public class CommitmentAmountCalculator {
             case AMOUNT:
                 return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
                         ? CloudCommitmentAmount.newBuilder()
-                        .setAmount(opCurrencyAmount(amountA.getAmount(), amountB.getAmount(), Double::sum))
-                        .build()
+                                .setAmount(opCurrencyAmount(amountA.getAmount(), amountB.getAmount(), Double::sum))
+                                .build()
                         : amountA;
             case COUPONS:
                 return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
                         ? CloudCommitmentAmount.newBuilder()
-                        .setCoupons(amountA.getCoupons() + amountB.getCoupons())
-                        .build()
+                                .setCoupons(amountA.getCoupons() + amountB.getCoupons())
+                                .build()
                         : amountA;
             case VALUE_NOT_SET:
                 return amountB;

@@ -19,21 +19,23 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.commons.Units;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocationConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageProvider;
-import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.metrics.CoverageAllocationMetricsProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 /**
- * This class is a wrapper around {@link ReservedInstanceCoverageAllocator}, invoking it on the
+ * This class is a wrapper around {@link CloudCommitmentCoverageAllocator}, invoking it on the
  * realtime topology with RI inventory in order to fill in RI coverage & utilization due to any
  * delays in the coverage reported from cloud billing probes. This supplemental analysis is required,
  * due to billing probes generally returning coverage day with ~24 hour delay, which may cause
@@ -44,7 +46,7 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  * the providers billing data. Therefore this analysis accepts {@link EntityRICoverageUpload}
  * entries, representing the RI coverage extracted from the bill
  */
-public class SupplementalRICoverageAnalysis {
+public class SupplementalCoverageAnalysis {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -112,7 +114,7 @@ public class SupplementalRICoverageAnalysis {
      * A summary metric for collecting the runtime duration of RI coverage allocation analysis.
      */
     private static final DataMetricSummary ALLOCATION_DURATION_SUMMARY_METRIC =
-            RICoverageAllocationMetricsProvider
+            CoverageAllocationMetricsProvider
                     .newCloudServiceProviderMetric()
                     .withName("cost_ri_cov_allocation_duration_seconds")
                     .withHelp("Time for supplemental RI coverage analysis.")
@@ -128,7 +130,7 @@ public class SupplementalRICoverageAnalysis {
      * A summary metric for collecting the count of coverable entities at the start of RI coverage analysis.
      */
     private static final DataMetricSummary COVERABLE_ENTITIES_COUNT_SUMMARY_METRIC =
-            RICoverageAllocationMetricsProvider
+            CoverageAllocationMetricsProvider
                     .newCloudServiceProviderMetric()
                     .withName("cost_ri_cov_coverable_entities_counts")
                     .withHelp("The number of coverable entities at the start of supplemental RI coverage analysis.")
@@ -145,7 +147,7 @@ public class SupplementalRICoverageAnalysis {
      * at the start of RI coverage analysis.
      */
     private static final DataMetricSummary RESERVED_INSTANCE_COUNT_SUMMARY_METRIC =
-            RICoverageAllocationMetricsProvider
+            CoverageAllocationMetricsProvider
                     .newCloudServiceProviderMetric()
                     .withName("cost_ri_cov_reserved_instance_count")
                     .withHelp("The number of RIs with unallocated coverage at the start of supplemental RI coverage analysis.")
@@ -162,7 +164,7 @@ public class SupplementalRICoverageAnalysis {
      * at the start of RI coverage analysis.
      */
     private static final DataMetricSummary UNCOVERED_ENTITY_CAPACITY_SUMMARY_METRIC =
-            RICoverageAllocationMetricsProvider
+            CoverageAllocationMetricsProvider
                     .newCloudServiceProviderMetric()
                     .withName("cost_ri_cov_uncovered_entity_capacity")
                     .withHelp("The sum of uncovered entity capacity at the start of supplemental RI coverage analysis.")
@@ -179,8 +181,8 @@ public class SupplementalRICoverageAnalysis {
      * coverage analysis.
      */
     private static final DataMetricSummary UNALLOCATED_RI_CAPACITY_SUMMARY_METRIC =
-            RICoverageAllocationMetricsProvider
-                    .newCloudServiceProviderMetric()
+            CoverageAllocationMetricsProvider
+                    .newCoverageTypeMetric()
                     .withName("cost_ri_cov_unallocated_ri_capacity")
                     .withHelp("The sum of unallocated RI capacity at the start of supplemental RI coverage analysis.")
                     .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
@@ -196,7 +198,7 @@ public class SupplementalRICoverageAnalysis {
      * allocation analysis.
      */
     private static final DataMetricSummary ALLOCATION_COUNT_SUMMARY_METRIC =
-            RICoverageAllocationMetricsProvider
+            CoverageAllocationMetricsProvider
                     .newCloudServiceProviderMetric()
                     .withName("cost_ri_cov_allocation_count")
                     .withHelp("The number of allocations for supplemental RI coverage analysis.")
@@ -213,8 +215,8 @@ public class SupplementalRICoverageAnalysis {
      * allocator analysis.
      */
     private static final DataMetricSummary ALLOCATED_COVERAGE_AMOUNT_SUMMARY_METRIC =
-            RICoverageAllocationMetricsProvider
-                    .newCloudServiceProviderMetric()
+            CoverageAllocationMetricsProvider
+                    .newCoverageTypeMetric()
                     .withName("cost_ri_cov_allocated_cov_amount")
                     .withHelp("The total coverage amount allocated through supplemental RI coverage analysis.")
                     .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
@@ -236,18 +238,18 @@ public class SupplementalRICoverageAnalysis {
     private final boolean validateCoverages;
 
     /**
-     * Constructor for creating an instance of {@link SupplementalRICoverageAnalysis}.
+     * Constructor for creating an instance of {@link SupplementalCoverageAnalysis}.
      * @param allocatorFactory An instance of {@link CoverageAllocatorFactory} to create allocator
      *                         instances
      * @param coverageTopology The {@link CoverageTopology} to pass through to the
-     *                         {@link ReservedInstanceCoverageAllocator}
+     *                         {@link CloudCommitmentCoverageAllocator}
      * @param entityRICoverageUploads The baseline RI coverage entries
      * @param allocatorConcurrentProcessing A boolean flag indicating whether concurrent coverage
      *                                      allocation should be enabled
-     * @param validateCoverages A boolean flag indicating whether {@link ReservedInstanceCoverageAllocator}
+     * @param validateCoverages A boolean flag indicating whether {@link CloudCommitmentCoverageAllocator}
      *                          validation should be enabled.
      */
-    public SupplementalRICoverageAnalysis(
+    public SupplementalCoverageAnalysis(
             @Nonnull CoverageAllocatorFactory allocatorFactory,
             @Nonnull CoverageTopology coverageTopology,
             @Nonnull List<EntityRICoverageUpload> entityRICoverageUploads,
@@ -264,7 +266,7 @@ public class SupplementalRICoverageAnalysis {
 
 
     /**
-     * Invokes the {@link ReservedInstanceCoverageAllocator}, converting the response and to
+     * Invokes the {@link CloudCommitmentCoverageAllocator}, converting the response and to
      * {@link EntityRICoverageUpload} records and merging them with the source records.
      *
      * @return The merged {@link EntityRICoverageUpload} records. If an entity is covered by an
@@ -274,17 +276,16 @@ public class SupplementalRICoverageAnalysis {
     public List<EntityRICoverageUpload> createCoverageRecordsFromSupplementalAllocation() {
 
         try {
-            final ReservedInstanceCoverageProvider coverageProvider = createCoverageProvider();
-            final ReservedInstanceCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
+            final CloudCommitmentCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
                     CoverageAllocationConfig.builder()
-                            .coverageProvider(coverageProvider)
+                            .sourceCoverage(createSourceCoverage())
                             .coverageTopology(coverageTopology)
                             .metricsProvider(createMetricsProvider())
                             .concurrentProcessing(allocatorConcurrentProcessing)
                             .validateCoverages(validateCoverages)
                             .build());
 
-            final ReservedInstanceCoverageAllocation coverageAllocation = coverageAllocator.allocateCoverage();
+            final CloudCommitmentCoverageAllocation coverageAllocation = coverageAllocator.allocateCoverage();
 
             return ImmutableList.copyOf(createCoverageUploadsFromAllocation(coverageAllocation));
         } catch (Exception e) {
@@ -295,14 +296,14 @@ public class SupplementalRICoverageAnalysis {
     }
 
     /**
-     * Creates an instance of {@link ReservedInstanceCoverageProvider} based on the input
-     * {@link EntityRICoverageUpload} instances. The coverage provider is used by the
-     * {@link ReservedInstanceCoverageAllocator} as a starting point in adding supplemental coverage.
+     * Creates the source coverage based on the input
+     * {@link EntityRICoverageUpload} instances. The source coverage is used by the
+     * {@link CloudCommitmentCoverageAllocator} as a starting point in adding supplemental coverage.
      *
-     * @return The newly created {@link ReservedInstanceCoverageProvider} instance
+     * @return The source coverage.
      */
-    private ReservedInstanceCoverageProvider createCoverageProvider() {
-        final Table<Long, Long, Double> entityRICoverage = entityRICoverageUploads.stream()
+    private Table<Long, Long, CloudCommitmentAmount> createSourceCoverage() {
+        final Table<Long, Long, CloudCommitmentAmount> entityRICoverage = entityRICoverageUploads.stream()
                 .map(entityRICoverageUpload -> entityRICoverageUpload.getCoverageList()
                         .stream()
                         .map(coverage -> ImmutablePair.of(entityRICoverageUpload.getEntityId(),
@@ -312,38 +313,41 @@ public class SupplementalRICoverageAnalysis {
                 .collect(ImmutableTable.toImmutableTable(
                         Pair::getLeft,
                         coveragePair -> coveragePair.getRight().getReservedInstanceId(),
-                        coveragePair -> coveragePair.getRight().getCoveredCoupons(),
-                        (c1, c2) -> Double.sum(c1, c2)));
-        return () -> entityRICoverage;
+                        coveragePair -> CloudCommitmentAmount.newBuilder()
+                                .setCoupons(coveragePair.getRight().getCoveredCoupons())
+                                .build(),
+                        CommitmentAmountCalculator::sum));
+
+        return entityRICoverage;
     }
 
-    private RICoverageAllocationMetricsProvider createMetricsProvider() {
-        return RICoverageAllocationMetricsProvider.newBuilder()
+    private CoverageAllocationMetricsProvider createMetricsProvider() {
+        return CoverageAllocationMetricsProvider.newBuilder()
                 .totalCoverageAnalysisDuration(TOTAL_COVERAGE_ANALYSIS_DURATION_SUMMARY_METRIC)
                 .firstPassEntityFilterDuration(FIRST_PASS_ENTITY_FILTER_DURATION_SUMMARY_METRIC)
                 .firstPassRIFilterDuration(FIRST_PASS_RI_FILTER_DURATION_SUMMARY_METRIC)
                 .contextCreationDuration(CONTEXT_CREATION_DURATION_SUMMARY_METRIC)
                 .allocationDurationByCSP(ALLOCATION_DURATION_SUMMARY_METRIC)
                 .coverableEntityCountByCSP(COVERABLE_ENTITIES_COUNT_SUMMARY_METRIC)
-                .reservedInstanceCountByCSP(RESERVED_INSTANCE_COUNT_SUMMARY_METRIC)
-                .uncoveredEntityCapacityByCSP(UNCOVERED_ENTITY_CAPACITY_SUMMARY_METRIC)
-                .unallocatedRICapacityByCSP(UNALLOCATED_RI_CAPACITY_SUMMARY_METRIC)
+                .cloudCommitmentCount(RESERVED_INSTANCE_COUNT_SUMMARY_METRIC)
+                .uncoveredEntityPercentage(UNCOVERED_ENTITY_CAPACITY_SUMMARY_METRIC)
+                .unallocatedCommitmentCapacity(UNALLOCATED_RI_CAPACITY_SUMMARY_METRIC)
                 .allocationCountByCSP(ALLOCATION_COUNT_SUMMARY_METRIC)
-                .allocatedCoverageAmountByCSP(ALLOCATED_COVERAGE_AMOUNT_SUMMARY_METRIC)
+                .allocatedCoverageAmount(ALLOCATED_COVERAGE_AMOUNT_SUMMARY_METRIC)
                 .build();
 
     }
 
     /**
      * Merges the source coverage upload records with newly created records based on allocated
-     * coverage from the {@link ReservedInstanceCoverageAllocator}. The RI coverage source of the newly
+     * coverage from the {@link CloudCommitmentCoverageAllocator}. The RI coverage source of the newly
      * created records with be {@link RICoverageSource#SUPPLEMENTAL_COVERAGE_ALLOCATION}.
      *
-     * @param coverageAllocation The allocated coverage from the {@link ReservedInstanceCoverageAllocator}
+     * @param coverageAllocation The allocated coverage from the {@link CloudCommitmentCoverageAllocator}
      * @return Merged {@link EntityRICoverageUpload} records
      */
     private Collection<EntityRICoverageUpload> createCoverageUploadsFromAllocation(
-            @Nonnull ReservedInstanceCoverageAllocation coverageAllocation) {
+            @Nonnull CloudCommitmentCoverageAllocation coverageAllocation) {
 
         // First build a map of entity ID to EntityRICoverageUpload for faster lookup
         // in iterating coverageAllocation
@@ -351,6 +355,7 @@ public class SupplementalRICoverageAnalysis {
                 .collect(Collectors.toMap(
                         EntityRICoverageUpload::getEntityId,
                         Function.identity(), (a1, a2) -> a1));
+
 
         coverageAllocation.allocatorCoverageTable()
                 // Iterate over each entity -> RI coverage map, reducing the number of times the
@@ -360,20 +365,22 @@ public class SupplementalRICoverageAnalysis {
                     coverageUploadsByEntityOid.compute(entityOid, (oid, coverageUpload) -> {
                         // Either re-use a previously existing EntityRICoverageUpload, if one exists
                         // or create a new one
-                        final EntityRICoverageUpload.Builder coverageUploadBuilder =
-                                coverageUpload == null
+                        final EntityRICoverageUpload.Builder coverageUploadBuilder = coverageUpload == null
                                         ? EntityRICoverageUpload.newBuilder()
                                                 .setEntityId(entityOid)
                                                 .setTotalCouponsRequired(
-                                                        coverageTopology.getCoverageCapacityForEntity(entityOid))
+                                                        coverageTopology.getCoverageCapacityForEntity(entityOid,
+                                                                CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
                                         : coverageUpload.toBuilder();
                         // Add each coverage entry, setting the source appropriately
                         riCoverageMap.entrySet()
+                                .stream()
+                                .filter(commitmentEntry -> commitmentEntry.getValue().hasCoupons())
                                 .forEach(riEntry ->
                                         coverageUploadBuilder.addCoverage(
                                                 Coverage.newBuilder()
                                                         .setReservedInstanceId(riEntry.getKey())
-                                                        .setCoveredCoupons(riEntry.getValue())
+                                                        .setCoveredCoupons(riEntry.getValue().getCoupons())
                                                         .setUsageStartTimestamp(System.currentTimeMillis())
                                                         .setUsageEndTimestamp(System.currentTimeMillis()
                                                                                     + (long)Units.HOUR_MS * 24)
