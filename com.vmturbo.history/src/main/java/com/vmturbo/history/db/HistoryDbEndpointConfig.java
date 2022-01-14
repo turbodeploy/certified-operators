@@ -1,6 +1,5 @@
 package com.vmturbo.history.db;
 
-import org.jooq.SQLDialect;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -26,9 +25,7 @@ public class HistoryDbEndpointConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint historyEndpoint() {
-        return fixEndpointForMultiDb(dbEndpoint("dbs.history", SQLDialect.MARIADB)
-                // TODO remove next line as part of OM-77149
-                .withMigrationLocations("db.migration")
+        return fixEndpointForMultiDb(dbEndpoint("dbs.history", sqlDialect)
                 .withShouldProvision(true)
                 .withRootAccessEnabled(true)
                 .withAccess(DbEndpointAccess.ALL)

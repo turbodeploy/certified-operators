@@ -3,8 +3,6 @@ package com.vmturbo.history.listeners;
 import static com.vmturbo.history.schema.abstraction.tables.IngestionStatus.INGESTION_STATUS;
 import static java.time.temporal.ChronoUnit.HOURS;
 
-import java.io.Reader;
-import java.lang.reflect.Type;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -37,10 +35,12 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
 import com.vmturbo.history.schema.abstraction.tables.records.IngestionStatusRecord;
+import com.vmturbo.sql.utils.jooq.JooqUtil;
 
 /**
  * Manage status of live topology processing.
@@ -229,7 +229,9 @@ class ProcessingStatus {
                 records.forEach(stmt::addRecord);
                 stmt.onDuplicateKeyUpdate(true);
                 stmt.addValueForUpdate(INGESTION_STATUS.STATUS,
-                        DSL.field("VALUES({0})",
+                        FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                        ? JooqUtil.upsertValue(INGESTION_STATUS.STATUS, dsl.dialect())
+                        : DSL.field("VALUES({0})",
                                 INGESTION_STATUS.STATUS.getDataType(),
                                 INGESTION_STATUS.STATUS));
                 stmt.execute();

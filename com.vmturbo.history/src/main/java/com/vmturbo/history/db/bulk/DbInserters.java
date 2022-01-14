@@ -26,6 +26,9 @@ import org.jooq.VisitListener;
 import org.jooq.impl.DSL;
 import org.springframework.dao.DataAccessException;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.sql.utils.jooq.JooqUtil;
+
 /**
  * This class defines {@link DbInserter} implementations currently in use in history component.
  */
@@ -166,7 +169,9 @@ public class DbInserters {
                 .filter(f -> !primaryKey.contains(f))
                 .filter(f -> !fieldsToExclude.contains(f))
                 .collect(Collectors.toMap(Functions.identity(),
-                        f -> DSL.field(String.format("VALUES(%s)", f.getName()), f.getType())));
+                        FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                        ? f -> JooqUtil.upsertValue(f, dsl.dialect())
+                        : f -> DSL.field(String.format("VALUES(%s)", f.getName()), f.getType())));
         insert.addValuesForUpdate(updateFields);
         return insert;
     }
