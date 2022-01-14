@@ -5,6 +5,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -34,16 +35,24 @@ public class VolumeEntityAccessCapacityPostStitchingOperation
 
     @Override
     public TopologicalChangelog<TopologyEntity> performOperation(Stream<TopologyEntity> entities,
-                    EntitySettingsCollection settingsCollection,
-                    EntityChangesBuilder<TopologyEntity> resultBuilder) {
-        entities
-            .forEach(volume -> {
-                Optional<Double> providerCapacity = getProviderCapacity(volume.getProviders(),
-                                CommodityType.STORAGE_ACCESS_VALUE,
-                                ImmutableSet.of(EntityType.STORAGE_VALUE));
-                setCapacity(resultBuilder, volume, CommodityType.STORAGE_ACCESS_VALUE, false,
-                                providerCapacity.orElse(getNumericPolicyValue(volume, settingsCollection,
-                                                EntitySettingSpecs.IOPSCapacity)));
+            EntitySettingsCollection settingsCollection,
+            EntityChangesBuilder<TopologyEntity> resultBuilder) {
+        entities.forEach(volume -> {
+            Optional<Double> providerCapacity = getProviderCapacity(volume.getProviders(),
+                    CommodityType.STORAGE_ACCESS_VALUE, ImmutableSet.of(EntityType.STORAGE_VALUE));
+            final boolean isOnPremVolume = volume.getTopologyEntityDtoBuilder().getEnvironmentType()
+                    == EnvironmentType.ON_PREM;
+            final EntitySettingSpecs setting =
+                    isOnPremVolume ? EntitySettingSpecs.OnPremIopsCapacity
+                            : EntitySettingSpecs.IOPSCapacity;
+            final double iopsCapacityPolicyValue = getNumericPolicyValue(volume, settingsCollection,
+                    setting);
+            final double newCapacity =
+                    isOnPremVolume ? iopsCapacityPolicyValue : providerCapacity.orElse(
+                            iopsCapacityPolicyValue);
+            setCapacity(resultBuilder, volume, CommodityType.STORAGE_ACCESS_VALUE, isOnPremVolume,
+                    newCapacity);
+
         });
         return resultBuilder.build();
     }
