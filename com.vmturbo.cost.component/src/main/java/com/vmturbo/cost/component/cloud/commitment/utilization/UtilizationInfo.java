@@ -6,7 +6,7 @@ import org.immutables.gson.Gson;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentUtilization;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ScopedCommitmentUtilization;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
@@ -29,7 +29,7 @@ public interface UtilizationInfo {
      *
      * @return the mapping between commitment ID and utilization.
      */
-    Map<Long, CloudCommitmentUtilization> commitmentIdToUtilization();
+    Map<Long, ScopedCommitmentUtilization> commitmentUtilizationMap();
 
     /**
      * Constructs and returns a new {@link Builder} instance.
