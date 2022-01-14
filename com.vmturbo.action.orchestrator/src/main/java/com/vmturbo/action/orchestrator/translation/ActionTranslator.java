@@ -298,12 +298,15 @@ public class ActionTranslator {
 
         final TopologyInfo topologyInfo = actionStore instanceof PlanActionStore
                 ? ((PlanActionStore)actionStore).getTopologyInfo() : null;
+        List<ActionDTO.RelatedAction> relatedActionList =  actionView.getRelatedActions();
         ActionSpec.Builder specBuilder = ActionSpec.newBuilder()
             .setRecommendation(recommendationForDisplay)
             .setRecommendationId(actionView.getRecommendationOid())
             .setActionPlanId(actionView.getActionPlanId())
             .setRecommendationTime(actionView.getRecommendationTime()
                 .toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli())
+
+            .addAllRelatedActions(relatedActionList)
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(

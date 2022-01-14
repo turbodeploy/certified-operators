@@ -4,8 +4,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
@@ -14,8 +12,10 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
  * Contains methods for filtering GuestLoad applications.
  */
 public final class GuestLoadFilters {
-    @VisibleForTesting
-    static final String APPLICATION_TYPE_PATH = "common_dto.EntityDTO.ApplicationData.type";
+    /**
+     * Key for the entity property map where we expect the application type to be.
+     */
+    public static final String APPLICATION_TYPE_PATH = "common_dto.EntityDTO.ApplicationData.type";
 
     /**
      * This is to prevent instantiation of this utility class.

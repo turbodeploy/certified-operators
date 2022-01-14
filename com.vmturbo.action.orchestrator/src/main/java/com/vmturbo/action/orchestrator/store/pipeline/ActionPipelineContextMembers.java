@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.store.LiveActionStore.ActionSource;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.atomic.AggregatedAction;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.ActionDifference;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 
 /**
@@ -60,6 +61,33 @@ public class ActionPipelineContextMembers {
             (Class<Map<Long, AggregatedAction>>)(new TypeToken<Map<Long, AggregatedAction>>(){}).getRawType(),
             () -> "actionIdToAggregateAction",
             map -> "size=" + map.size());
+
+    /**
+     * Market Action Id and list of its related actions.
+     */
+    @SuppressWarnings("unchecked")
+    public static final PipelineContextMemberDefinition<Map<Long, List<ActionDTO.MarketRelatedAction>>> MARKET_ACTIONS_RELATIONS_BY_ACTION_ID =
+            PipelineContextMemberDefinition.member(
+                    (Class<Map<Long, List<ActionDTO.MarketRelatedAction>>>)(new TypeToken<Map<Long, List<ActionDTO.MarketRelatedAction>>>(){}).getRawType(),
+                    () -> "marketActionRelations",
+                    map -> "size=" + map.size());
+    /**
+     * Atomic Action Id and list of its related actions.
+     */
+    public static final PipelineContextMemberDefinition<Map<Long, List<ActionDTO.MarketRelatedAction>>> ATOMIC_ACTIONS_RELATIONS_BY_ACTION_ID =
+            PipelineContextMemberDefinition.member(
+                    (Class<Map<Long, List<ActionDTO.MarketRelatedAction>>>)(new TypeToken<Map<Long, List<ActionDTO.MarketRelatedAction>>>(){}).getRawType(),
+                    () -> "atomicActionRelations",
+                    map -> "size=" + map.size());
+
+    /**
+     * For atomic actions only - Blocking Action Ids and its corresponding Reverse Blocking RelatedAction.
+     */
+    public static final PipelineContextMemberDefinition<Map<Long, Map<Long, ActionDTO.RelatedAction>>> ATOMIC_ACTIONS_REVERSE_RELATIONS_BY_ACTION_ID =
+            PipelineContextMemberDefinition.member(
+                    (Class<Map<Long, Map<Long, ActionDTO.RelatedAction>>>)(new TypeToken<Map<Long, Map<Long, ActionDTO.RelatedAction>>>(){}).getRawType(),
+                    () -> "atomicActionsReverseRelations",
+                    map -> "size=" + map.size());
 
     /**
      * A snapshot of entities and settings for the topology whose actions are being processed.

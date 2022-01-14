@@ -26,9 +26,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.protobuf.AbstractMessage;
 
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.logging.log4j.LogManager;
@@ -48,8 +46,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanat
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
@@ -62,7 +58,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -77,8 +72,6 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
-import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityLookupType;
-import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityTypeWithLookup;
 import com.vmturbo.market.topology.conversions.action.ResizeInterpreter;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.CalculatedSavings;
@@ -356,7 +349,7 @@ public class ActionInterpreter {
         // The action importance should never be infinite, as setImportance() will fail.
         final Action.Builder action = Action.newBuilder()
                 // Assign a unique ID to each generated action.
-                .setId(IdentityGenerator.next())
+                .setId(actionTO.hasId() ? actionTO.getId() : IdentityGenerator.next())
                 .setDeprecatedImportance(actionTO.getImportance())
                 .setExecutable(!actionTO.getIsNotExecutable());
 

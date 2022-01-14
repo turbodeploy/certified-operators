@@ -21,6 +21,8 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.external.api.mapper.RelatedActionMapper;
+import com.vmturbo.api.dto.action.RelatedActionApiDTO;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -731,4 +733,16 @@ public class ActionsService implements IActionsService {
             throw new IllegalArgumentException(errorMsg);
         }
     }
+
+    @Override
+    public List<RelatedActionApiDTO> getRelatedActions(String uuid) throws Exception {
+        final long actionInstanceId = actionSearchUtil.getActionInstanceId(uuid, null).orElseThrow(() ->
+                new UnknownObjectException("Cannot find action with UUID " + uuid));
+        ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(actionInstanceId));
+        if (!action.hasActionSpec()) {
+            throw new UnknownObjectException("Cannot find action with action instance ID: " + actionInstanceId);
+        }
+        return RelatedActionMapper.mapXlRelatedActionsToApi(action.getActionSpec());
+    }
+
 }

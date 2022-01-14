@@ -155,6 +155,22 @@ public class Action implements ActionView {
         Collections.emptyMap();
 
     /**
+     * List of RelatedActions that this Action is associated with.
+     * Typically, the RelatedActions are part of the Action Plan. This field will be set after the
+     * {@link ActionDTO.MarketRelatedAction}'s are converted to {@link ActionDTO.RelatedAction}'s when the Recommendation OID
+     * for all actions is available.
+     *
+     * <p>For example: In the case of Namespace resize actions blocking the container actions.
+     * Container actions are first merged to actions on workload controllers.
+     * So the Namespace resize action's RelatedAction will refer to the Workload Controller's Atomic actions.
+     * The Recommendation OID for the atomic actions are obtained well after the ActionView for Namespace actions
+     * are created and it is not possible to alter the original ActionDTO of the namespace action
+     * with the updated RelatedAction data. This list is set when the MarketRelatedActions of the atomic actions
+     * are converted to RelatedAction messages.
+     */
+    private List<ActionDTO.RelatedAction> relatedActions = Collections.emptyList();
+
+    /**
      * The time at which this action was recommended.
      */
     private final LocalDateTime recommendationTime;
@@ -495,6 +511,24 @@ public class Action implements ActionView {
      */
     public long getRecommendationOid() {
         return recommendationOid;
+    }
+
+    /**
+     * Set the list of actions that this action is related to.
+     *
+     * @param relatedActions list of {@link ActionDTO.RelatedAction}
+     */
+    public void setRelatedActions(List<ActionDTO.RelatedAction> relatedActions) {
+        this.relatedActions  = relatedActions;
+    }
+
+    /**
+     * Get the list of actions related to this action.
+     *
+     * @return list of {@link ActionDTO.RelatedAction}
+     */
+    public List<ActionDTO.RelatedAction> getRelatedActions() {
+        return relatedActions;
     }
 
     /**
