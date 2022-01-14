@@ -132,6 +132,7 @@ public class MapperConfig {
             communicationConfig.getRealtimeTopologyContextId(),
             uuidMapper(),
             cloudSavingsDetailsDtoConverter(),
+            communicationConfig.groupExpander(),
             communicationConfig.useStableActionIdAsUuid());
     }
 

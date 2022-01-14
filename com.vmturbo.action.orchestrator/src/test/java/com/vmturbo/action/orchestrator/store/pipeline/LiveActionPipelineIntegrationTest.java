@@ -1009,7 +1009,7 @@ public class LiveActionPipelineIntegrationTest {
             spy(new Action(secondMove.build(), 1L, actionModeCalculator, secondOid)),
             spy(new Action(provision.build(), 1L, actionModeCalculator, provisionOid)));
         filteredActions.forEach(action -> when(action.getState()).thenReturn(ActionState.SUCCEEDED));
-        when(actionHistoryDao.getActionHistoryByDate(any(), any()))
+        when(actionHistoryDao.getActionHistoryByFilter(any()))
             .thenReturn(new ArrayList<>(filteredActions));
         pipelineFactory.actionPipeline(plan).run(plan);
         assertEquals(3, actionStore.size());
@@ -1178,7 +1178,7 @@ public class LiveActionPipelineIntegrationTest {
             .build();
 
         doAnswer(invocation -> {
-            Stream<Action> actionStream = (Stream<Action>)invocation.getArgumentAt(0, Stream.class);
+            Stream<Action> actionStream = invocation.getArgumentAt(0, Stream.class);
             return actionStream.peek(action -> action.getActionTranslation().setTranslationFailure());
         }).when(actionTranslator).translate(any(Stream.class), any(EntitiesAndSettingsSnapshot.class));
         final EntitiesAndSettingsSnapshot snapshot =
