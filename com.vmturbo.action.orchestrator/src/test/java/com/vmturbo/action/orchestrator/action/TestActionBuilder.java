@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
@@ -84,6 +85,12 @@ public class TestActionBuilder {
             moveBuilder.setScalingGroupId(scalingGroupId);
         }
         return ActionInfo.newBuilder().setMove(moveBuilder.build());
+    }
+
+    public static ActionInfo.Builder makeDeleteInfo(long targetId) {
+        Delete.Builder deleteBuilder = Delete.newBuilder()
+                .setTarget(createActionEntity(targetId));
+        return ActionInfo.newBuilder().setDelete(deleteBuilder.build());
     }
 
     /**

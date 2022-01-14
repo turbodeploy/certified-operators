@@ -589,6 +589,7 @@ class LiveActions implements QueryableActionViews {
     /**
      * {@inheritDoc}
      */
+    @Override
     @Nonnull
     public Optional<ActionView> get(final long actionId) {
         return internalGet(actionId, true);
@@ -696,13 +697,11 @@ class LiveActions implements QueryableActionViews {
 
         final Stream<ActionView> candidateActionViews;
         if (actionQueryFilter.hasStartDate() && actionQueryFilter.hasEndDate()) {
-            final LocalDateTime startDate = getLocalDateTime(actionQueryFilter.getStartDate());
-            final LocalDateTime endDate = getLocalDateTime(actionQueryFilter.getEndDate());
+            final LocalDateTime endDate = ActionDTOUtil.getLocalDateTime(actionQueryFilter.getEndDate());
             final List<ActionView> succeededOrFailedActionList =
-                actionHistoryDao.getActionHistoryByDate(startDate, endDate);
-            Stream<ActionView> historical = succeededOrFailedActionList.stream()
-                .filter(view -> {
-                    if (entitiesRestriction != null) {
+                                            actionHistoryDao.getActionHistoryByFilter(actionQueryFilter);
+            Stream<ActionView> historical = succeededOrFailedActionList.stream().filter(view -> {
+                   if (entitiesRestriction != null) {
                         try {
                             // include actions with ANY involved entities in the set.
                             return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
@@ -947,16 +946,6 @@ class LiveActions implements QueryableActionViews {
         }
 
         return true;
-    }
-
-    /**
-     * Convert date time to local date time.
-     *
-     * @param dateTime date time with long type.
-     * @return local date time with LocalDateTime type.
-     */
-    private LocalDateTime getLocalDateTime(final long dateTime) {
-        return LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime), clock.getZone());
     }
 
     @FunctionalInterface
