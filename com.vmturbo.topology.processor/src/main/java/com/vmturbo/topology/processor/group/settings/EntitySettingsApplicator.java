@@ -334,9 +334,7 @@ public class EntitySettingsApplicator {
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
-                FeatureFlags.SERVICE_HORIZONTAL_SCALE.isEnabled()
-                                        ? new HorizontalScalePolicyApplicator()
-                                        : new ScalingPolicyApplicator(),
+                new HorizontalScalePolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
                         CommodityType.DB_MEM),
                 new EnableScaleApplicator(),
@@ -1587,8 +1585,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applicator to apply resize or horizontal scale policy on Application Components when
-     * SERVICE_HORIZONTAL_SCALE feature is enabled.
+     * Applicator to apply resize or horizontal scale policy on Application Components.
      * Resize or horizontal scale policies are applied to Application Components only, and are
      * mutually exclusive.
      * We check the Horizontal Scale Up and Horizontal Scale Down setting. When both settings are
@@ -1638,48 +1635,6 @@ public class EntitySettingsApplicator {
                     .map(map -> map.get(actionModeSpec))
                     .map(SettingDTOUtil::isActionEnabled)
                     .orElse(false);
-        }
-    }
-
-    /**
-     * Applies the "ScalingPolicy" setting to a {@link TopologyEntityDTO.Builder}.
-     */
-    private static class ScalingPolicyApplicator extends SingleSettingApplicator {
-
-        private ScalingPolicyApplicator() {
-            super(EntitySettingSpecs.ScalingPolicy);
-        }
-
-        @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                          @Nonnull final Setting setting) {
-            if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
-                final String settingValue = setting.getEnumSettingValue().getValue();
-                boolean resizeScaling = ScalingPolicyEnum.RESIZE.name().equals(settingValue);
-                boolean horizontalScaling = ScalingPolicyEnum.HORIZONTAL_SCALE.name().equals(settingValue);
-
-                if (!resizeScaling && !horizontalScaling) {
-                    logger.error("Entity {} has an invalid scaling policy: {}",
-                            entity.getDisplayName(), settingValue);
-                    return;
-                }
-                // Explicitly disable provision and suspension only when the scaling policy is Resize
-                // Otherwise (i.e., the scaling policy is Horizontal Scale), leave the provision and
-                // suspension setting the way they were set by the probe.
-                if (!horizontalScaling) {
-                    entity.getAnalysisSettingsBuilder().setCloneable(false);
-                    entity.getAnalysisSettingsBuilder().setSuspendable(false);
-                }
-                // If resize scaling then leave isResizeable the way it was set by the probe,
-                // otherwise set to false (no resize).
-                if (!resizeScaling) {
-                    entity.getCommoditySoldListBuilderList().forEach(c ->
-                        c.setIsResizeable(false)
-                    );
-                }
-                logger.trace("Set scaling policy {} for entity {}",
-                        settingValue, entity.getDisplayName());
-            }
         }
     }
 

@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -68,7 +67,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.CpuScalingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -80,7 +78,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.applicators.InstanceStoreSettingApplicator;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -596,27 +593,12 @@ public class EntitySettingsApplicatorTest {
     private CpuCapacityServiceBlockingStub cpuCapacityService;
 
     /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-            FeatureFlags.SERVICE_HORIZONTAL_SCALE);
-
-    /**
      * Setup the mocked services that cannot be initialized as fields.
      */
     @Before
     public void init() {
         applicator = new EntitySettingsApplicator(false, false);
         cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
-    }
-
-    /**
-     * Tear down the test.
-     */
-    @After
-    public void teardown() {
-        featureFlagTestRule.reset();
     }
 
     private static <E extends Enum<E>> Setting createEnumSetting(EntitySettingSpecs settingSpecs,
@@ -2395,7 +2377,6 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testHorizontalScaleEnabledForAppComponent() {
-        featureFlagTestRule.enable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         // Scale up is enabled
         HORIZONTAL_SCALE_UP_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
@@ -2418,7 +2399,6 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testHorizontalScaleDisabledForAppComponent() {
-        featureFlagTestRule.enable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();
         // Set a non horizontal scale up/down policy
@@ -2439,7 +2419,6 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testScalingPolicyResizeForAppComponent() {
-        featureFlagTestRule.disable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();
 
@@ -2452,34 +2431,6 @@ public class EntitySettingsApplicatorTest {
         assertEquals(originalBuilder.getCommoditySoldListList(),
                 builder.getCommoditySoldListList());
         assertFalse(builder.getAnalysisSettings().getCloneable());
-    }
-
-    /**
-     * Testing affect provision scaling policy on application component.
-     */
-    @Test
-    public void testScalingPolicyProvisionForAppComponent() {
-        featureFlagTestRule.disable(FeatureFlags.SERVICE_HORIZONTAL_SCALE);
-        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
-        builder.getAnalysisSettingsBuilder().setCloneable(false);
-        final TopologyEntityDTO.Builder originalBuilder = builder.clone();
-
-        SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
-                .setValue(ScalingPolicyEnum.HORIZONTAL_SCALE.name()));
-
-        // Verify that we have at least one resizeable commodity in the test setup
-        assertTrue(builder.getCommoditySoldListList().stream()
-                .anyMatch(TopologyDTO.CommoditySoldDTO::getIsResizeable));
-
-        applySettings(TOPOLOGY_INFO, builder, SCALING_POLICY_SETTING_BUILDER.build());
-
-        // With PROVISION policy all commodities should be set to resizeable false
-        assertTrue(builder.getCommoditySoldListList().stream()
-                .noneMatch(TopologyDTO.CommoditySoldDTO::getIsResizeable));
-
-        // With PROVISION policy, the cloneable/suspendable setting should not change
-        assertEquals(originalBuilder.getAnalysisSettings().getCloneable(),
-                builder.getAnalysisSettings().getCloneable());
     }
 
     /**
