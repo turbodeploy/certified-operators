@@ -58,6 +58,7 @@ import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.ActionSource;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.store.RelatedActionsInjector;
 import com.vmturbo.action.orchestrator.store.atomic.AggregatedAction;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory.AtomicActionResult;
@@ -254,6 +255,33 @@ public class ActionPipelineStages {
                         actionIdToAggregateAction.put(action.getId(), aggregatedAction));
                     involvedEntityIds.get()
                         .addAll(aggregatedAction.getActionEntities());
+
+                    // Extract the blocking action ids from the actions that were merged
+                    // Map - {
+                    //  Namespace1 resizeX -> { controller1::container1 resizeX, controller1::container2 resizeX
+                    //                          controller2::container3 resizeX, controller2::container4 resizeX
+                    //                        }
+                    //  Namespace1 resizeY -> { controller1::container1 resizeY, controller1::container2 resizeY
+                    //                          controller2::container3 resizeY, controller2::container4 resizeY
+                    //                        }
+                    //  Namespace2 resizeX -> { controller3::container1 resizeX, controller3::container2 resizeX
+                    //                          controller4::container3 resizeX, controller4::container4 resizeX
+                    //                        }
+                    //  Namespace2 resizeY -> { controller3::container1 resizeY, controller3::container2 resizeY
+                    //                          controller4::container3 resizeY, controller4::container4 resizeY
+                    //                        }
+                    // }
+
+                    // get blocking actions from the action plan instead of the action dto
+                    Map<Long, ActionPlan.MarketRelatedActionsList> relatedActionsMap
+                            = input.getRelatedActionsByActionIdMap();
+                    aggregatedAction.getAllActions().forEach(action -> {
+                        //if action plan related action map contains this action_id
+                        // set the list of RAs for this action in the AggregatedAction data structure
+                        if (relatedActionsMap.containsKey(action.getId())) {
+                            aggregatedAction.setRelatedActions(action.getId(), relatedActionsMap.get(action.getId()));
+                        }
+                    });
                 }
             }
 
@@ -748,6 +776,10 @@ public class ActionPipelineStages {
 
         private final AtomicActionFactory atomicActionFactory;
 
+        private Map<Long, List<ActionDTO.MarketRelatedAction>> atomicActionRelationsMap =  new HashMap<>();
+
+        private Map<Long, Map<Long, ActionDTO.RelatedAction>> reverseAtomicActionRelationsMap =  new HashMap<>();
+
         /**
          * Create the {@link CreateAtomicActionsStage}.
          *
@@ -755,13 +787,30 @@ public class ActionPipelineStages {
          */
         public CreateAtomicActionsStage(@Nonnull final AtomicActionFactory atomicActionFactory) {
             this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
+            providesToContext(ActionPipelineContextMembers.ATOMIC_ACTIONS_RELATIONS_BY_ACTION_ID,
+                    (Supplier<Map<Long, List<ActionDTO.MarketRelatedAction>>>)this::atomicActionRelations);
+            providesToContext(ActionPipelineContextMembers.ATOMIC_ACTIONS_REVERSE_RELATIONS_BY_ACTION_ID,
+                    (Supplier<Map<Long, Map<Long, ActionDTO.RelatedAction>>>)this::reverseAtomicActionRelations);
         }
+
+        private Map<Long, List<ActionDTO.MarketRelatedAction>> atomicActionRelations() {
+            return atomicActionRelationsMap;
+        }
+
+        private Map<Long, Map<Long, ActionDTO.RelatedAction>> reverseAtomicActionRelations() {
+            return reverseAtomicActionRelationsMap;
+        }
+
 
         @Nonnull
         @Override
         protected StageResult<ActionDTOsAndStore> executeStage(@Nonnull LiveActionStore input) {
             final AtomicActionsPlan atomicActionsPlan = atomicActions(atomicActionFactory,
                     aggregatedActions.get(), logger);
+            //provide in the pipeline context
+            atomicActionRelationsMap = atomicActionsPlan.impactedActionRelations;
+            reverseAtomicActionRelationsMap = atomicActionsPlan.impactingActionRelations;
+
             final StringBuilder stringBuilder = new StringBuilder();
 
             return StageResult.withResult(new ActionDTOsAndStore(atomicActionsPlan.getAtomicActionDTOs(), input))
@@ -832,6 +881,28 @@ public class ActionPipelineStages {
         final List<AtomicActionResult> atomicActionResults =
                 atomicActionFactory.atomicActions(aggregatedActionMap);
 
+        // The related actions blocking the atomic actions
+        Map<Long, List<ActionDTO.MarketRelatedAction>> blockedAtomicActionRelations =  new HashMap<>();
+        atomicActionResults.stream()
+                .filter(result -> result.nonExecutableAtomicAction().isPresent())
+                .forEach(result -> {
+                    Long blockedActionId = result.nonExecutableAtomicAction().get().getId();
+                    blockedAtomicActionRelations.computeIfAbsent(blockedActionId,  value -> new ArrayList<>())
+                            .addAll(result.relatedActions());
+                }
+        );
+
+        Map<Long, Map<Long, ActionDTO.RelatedAction>> reverseBlockingRelations =  new HashMap<>();
+        atomicActionResults.stream()
+                .filter(result -> result.nonExecutableAtomicAction().isPresent())
+                .forEach(result -> {
+                    for (Long blockingActionId : result.relatedActionsByImpactingActionId().keySet()) {
+                        ActionDTO.RelatedAction ra = result.relatedActionsByImpactingActionId().get(blockingActionId);
+                        reverseBlockingRelations.computeIfAbsent(blockingActionId,  value -> new HashMap<>())
+                                .put(ra.getRecommendationId(), ra);
+                    }
+                });
+
         // List of all the Action DTOs for the atomic actions that will be created
         // The aggregated atomic actions that will be executed by the aggregation target
         final List<ActionDTO.Action> executableAtomicActions = atomicActionResults.stream()
@@ -851,7 +922,8 @@ public class ActionPipelineStages {
         logger.info("Created {} atomic actions, including {} executable atomic actions "
                         + "and {} non-executable actions",
                 totalAtomicActions, executableAtomicActionsCount, nonExecutableAtomicActionsCount);
-        return new AtomicActionsPlan(executableAtomicActions, nonExecutableAtomicActions);
+        return new AtomicActionsPlan(executableAtomicActions, nonExecutableAtomicActions,
+                blockedAtomicActionRelations, reverseBlockingRelations);
     }
 
     /**
@@ -927,7 +999,8 @@ public class ActionPipelineStages {
             final Map<Long, AggregatedAction> actionsToAggregateActions = actionIdToAggregateAction.get();
 
             // while iterating over action views for action dTOs, save the action views
-            // for the market actions that will be merged in the atomic actions
+            // for the market actions that will be merged in the atomic actions.
+            // This is required to obtain the action execution policy mode of the original actions.
             if (actionsToAggregateActions.containsKey(identifiedAction.action.getId())) {
                 mergedActions.add(action);
                 final AggregatedAction aa = actionsToAggregateActions.get(identifiedAction.action.getId());
@@ -979,6 +1052,7 @@ public class ActionPipelineStages {
 
             final int totalActions = input.actions.size();
             for (IdentifiedActionDTO identifiedAction : input.actions) {
+                // Create the Action for each action DTO
                 final Action action = processRecommendation(recommendations, identifiedAction);
                 processAction(identifiedAction, action);
 
@@ -1063,6 +1137,41 @@ public class ActionPipelineStages {
 
         private int getNewActionCount() {
             return newActionCount;
+        }
+    }
+
+    /**
+     * Stage to build related actions and set them in ActionSpecs.
+     */
+    public static class CreateRelatedActionsStage extends RequiredPassthroughStage<LiveActionStore> {
+        private static final Logger logger = LogManager.getLogger();
+        private final FromContext<Map<Long, List<ActionDTO.MarketRelatedAction>>> marketActionsRelations =
+                requiresFromContext(ActionPipelineContextMembers.MARKET_ACTIONS_RELATIONS_BY_ACTION_ID);
+        private final FromContext<Map<Long, List<ActionDTO.MarketRelatedAction>>> atomicActionsRelations =
+                requiresFromContext(ActionPipelineContextMembers.ATOMIC_ACTIONS_RELATIONS_BY_ACTION_ID);
+        private final FromContext<Map<Long, Map<Long, ActionDTO.RelatedAction>>> atomicActionsReverseRelations =
+                requiresFromContext(ActionPipelineContextMembers.ATOMIC_ACTIONS_REVERSE_RELATIONS_BY_ACTION_ID);
+        private final FromContext<EntitiesAndSettingsSnapshot> entitiesAndSettingsSnapshot =
+                requiresFromContext(ActionPipelineContextMembers.ENTITIES_AND_SETTINGS_SNAPSHOT);
+
+        /**
+         * Constructor for CreateRelatedActionsStage.
+         */
+        public CreateRelatedActionsStage() {
+
+        }
+
+        @Nonnull
+        @Override
+        public Status passthrough(@Nonnull final LiveActionStore actionStore)  {
+            // We have Recommendation OIDs for all the actions at this stage,
+            // so convert the MarketRelatedAction to RelatedAction containing the durable Recommendation OID for the actions
+            // In addition, the reversed RelatedActions that block actions are also created
+            RelatedActionsInjector relatedActionsInjector =
+                    new RelatedActionsInjector(marketActionsRelations.get(), atomicActionsRelations.get(),
+                            atomicActionsReverseRelations.get(), actionStore, entitiesAndSettingsSnapshot.get());
+            relatedActionsInjector.injectSymmetricRelatedActions();
+            return Status.success();
         }
     }
 
@@ -1485,6 +1594,8 @@ public class ActionPipelineStages {
     public static class MarketActionsSegment extends SegmentStage<
         ActionPlanAndStore, ActionDTOsAndStore, LiveActionStore, LiveActionStore, ActionPipelineContext> {
 
+        private Map<Long, List<ActionDTO.MarketRelatedAction>> marketRelatedActionsMap = new HashMap<>();
+
         /**
          * Construct a new {@link MarketActionsSegment}.
          *
@@ -1494,13 +1605,24 @@ public class ActionPipelineStages {
         public MarketActionsSegment(
             @Nonnull SegmentDefinition<ActionDTOsAndStore, LiveActionStore, ActionPipelineContext> segmentDefinition) {
             super(segmentDefinition);
+            providesToContext(ActionPipelineContextMembers.MARKET_ACTIONS_RELATIONS_BY_ACTION_ID,
+                    (Supplier<Map<Long, List<ActionDTO.MarketRelatedAction>>>)this::getMarketRelatedActions);
         }
 
         @Nonnull
         @Override
         protected ActionDTOsAndStore setupExecution(@Nonnull ActionPlanAndStore input) {
+            Map<Long, ActionDTO.ActionPlan.MarketRelatedActionsList> relatedActions
+                    = input.actionPlan.getRelatedActionsByActionIdMap();
+            relatedActions.entrySet().stream().forEach(entry -> {
+                marketRelatedActionsMap.put(entry.getKey(), entry.getValue().getRelatedActionsList());
+            });
             // Transform the input to the stage into the input for the first stage of the segment.
             return new ActionDTOsAndStore(input.actionPlan.getActionList(), input.actionStore);
+        }
+
+        private Map<Long, List<ActionDTO.MarketRelatedAction>> getMarketRelatedActions() {
+           return marketRelatedActionsMap;
         }
 
         @Nonnull
@@ -1925,16 +2047,26 @@ public class ActionPipelineStages {
 
         private List<ActionDTO.Action> atomicActions;
 
+        private Map<Long, List<ActionDTO.MarketRelatedAction>> impactedActionRelations;
+
+        private Map<Long, Map<Long, ActionDTO.RelatedAction>> impactingActionRelations;
+
         /**
          * Constructor for AtomicActionsPlan.
          * @param aggregatedAtomicActions       aggregated atomic actions
          * @param nonExecutableAggregatedAtomicActions non executable atomic actions
+         * @param impactedActionRelations   map of atomic actions and the related action lists for blocking actions
+         * @param impactingActionRelations  map of impacting action id to the map of impacted atomic action id
+         *                                  being impacted and the related action referencing this atomic action
          */
         public AtomicActionsPlan(@Nonnull final List<ActionDTO.Action> aggregatedAtomicActions,
-                                 @Nonnull final List<ActionDTO.Action> nonExecutableAggregatedAtomicActions) {
+                                 @Nonnull final List<ActionDTO.Action> nonExecutableAggregatedAtomicActions,
+                                 @Nonnull final Map<Long, List<ActionDTO.MarketRelatedAction>> impactedActionRelations,
+                                 @Nonnull final Map<Long, Map<Long, ActionDTO.RelatedAction>> impactingActionRelations) {
             this.aggregatedAtomicActions = aggregatedAtomicActions;
             this.nonExecutableAggregatedAtomicActions = nonExecutableAggregatedAtomicActions;
-
+            this.impactedActionRelations = impactedActionRelations;
+            this.impactingActionRelations = impactingActionRelations;
             atomicActions = new ArrayList<>(aggregatedAtomicActions);
             atomicActions.addAll(nonExecutableAggregatedAtomicActions);
         }

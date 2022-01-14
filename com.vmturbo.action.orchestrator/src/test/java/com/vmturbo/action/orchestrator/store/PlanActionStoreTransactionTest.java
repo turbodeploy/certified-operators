@@ -14,6 +14,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -105,7 +106,7 @@ public class PlanActionStoreTransactionTest {
         });
 
         emptyAtomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Collections.emptyList(),
-                Collections.emptyList());
+                Collections.emptyList(), new HashMap<>(), new HashMap<>());
         emptyMergedActions = new ArrayList<>();
     }
 

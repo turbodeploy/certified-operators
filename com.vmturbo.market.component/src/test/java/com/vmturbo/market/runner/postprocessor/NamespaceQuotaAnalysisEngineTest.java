@@ -3,14 +3,15 @@ package com.vmturbo.market.runner.postprocessor;
 import static com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.COMPARISON_EPSILON;
 import static org.junit.Assert.assertEquals;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -135,12 +136,18 @@ public class NamespaceQuotaAnalysisEngineTest {
     private final Map<Long, ProjectedTopologyEntity> projectedEntities = new HashMap<>();
 
     /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
+
+    /**
      * Set up the test environment.
      */
     @Before
     public void setup() {
-        IdentityGenerator.initPrefix(0);
-
         projectedEntities.put(containerOID1, container1);
         projectedEntities.put(containerOID2, container2);
         projectedEntities.put(containerOID3, container3);
@@ -168,12 +175,16 @@ public class NamespaceQuotaAnalysisEngineTest {
 
         Action containerResize1 = createContainerResizeAction(containerOID1, CommodityDTO.CommodityType.VCPU_VALUE, 500, 200);
         Action containerResize2 = createContainerResizeAction(containerOID2, CommodityDTO.CommodityType.VCPU_VALUE, 500, 800);
-        List<Action> actions = Arrays.asList(containerResize1, containerResize2);
+        List<Action> actions = ImmutableList.of(containerResize1, containerResize2);
 
-        List<Action> nsResizeActions = namespaceQuotaAnalysisEngine.execute(realTimeTopologyInfo, originalEntities, projectedEntities, actions);
+        NamespaceQuotaAnalysisResult namespaceQuotaAnalysisResult = namespaceQuotaAnalysisEngine.execute(realTimeTopologyInfo,
+                originalEntities, projectedEntities, actions);
+        List<Action> nsResizeActions = namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions();
         assertEquals(1, nsResizeActions.size());
-        assertEquals(1300, nsResizeActions.get(0).getInfo().getResize().getNewCapacity(), COMPARISON_EPSILON);
+        Action nsResizeAction = nsResizeActions.get(0);
+        assertEquals(1300, nsResizeAction.getInfo().getResize().getNewCapacity(), COMPARISON_EPSILON);
 
+        // Verify projected namespace commodity is correctly updated based on namespace resizing action.
         double projectedCommCapacity = projectedEntities.get(namespaceOID).getEntity().getCommoditySoldListList().stream()
             .filter(comm -> comm.getCommodityType().getType() == CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE)
             .findAny()
@@ -199,10 +210,10 @@ public class NamespaceQuotaAnalysisEngineTest {
 
         Action containerResize1 = createContainerResizeAction(containerOID1, CommodityDTO.CommodityType.VCPU_VALUE, 500, 200);
         Action containerResize2 = createContainerResizeAction(containerOID2, CommodityDTO.CommodityType.VCPU_VALUE, 500, 800);
-        List<Action> actions = Arrays.asList(containerResize1, containerResize2);
+        List<Action> actions = ImmutableList.of(containerResize1, containerResize2);
 
-        List<Action> nsResizeActions = namespaceQuotaAnalysisEngine.execute(realTimeTopologyInfo, originalEntities, projectedEntities, actions);
-        assertEquals(0, nsResizeActions.size());
+        NamespaceQuotaAnalysisResult nsQuotaAnalysisResult = namespaceQuotaAnalysisEngine.execute(realTimeTopologyInfo, originalEntities, projectedEntities, actions);
+        assertEquals(0, nsQuotaAnalysisResult.getNamespaceQuotaResizeActions().size());
     }
 
     /**
@@ -222,9 +233,10 @@ public class NamespaceQuotaAnalysisEngineTest {
 
         Action containerResize1 = createContainerResizeAction(containerOID1, CommodityDTO.CommodityType.VCPU_VALUE, 500, 200);
         Action containerResize2 = createContainerResizeAction(containerOID3, CommodityDTO.CommodityType.VCPU_VALUE, 500, 800);
-        List<Action> actions = Arrays.asList(containerResize1, containerResize2);
+        List<Action> actions = ImmutableList.of(containerResize1, containerResize2);
 
-        List<Action> nsResizeActions = namespaceQuotaAnalysisEngine.execute(realTimeTopologyInfo, originalEntities, projectedEntities, actions);
+        NamespaceQuotaAnalysisResult nsQuotaAnalysisResult = namespaceQuotaAnalysisEngine.execute(realTimeTopologyInfo, originalEntities, projectedEntities, actions);
+        List<Action> nsResizeActions = nsQuotaAnalysisResult.getNamespaceQuotaResizeActions();
         assertEquals(1, nsResizeActions.size());
         assertEquals(1300, nsResizeActions.get(0).getInfo().getResize().getNewCapacity(), COMPARISON_EPSILON);
 
@@ -253,9 +265,10 @@ public class NamespaceQuotaAnalysisEngineTest {
 
         Action containerResize1 = createContainerResizeAction(containerOID1, CommodityDTO.CommodityType.VCPU_VALUE, 500, 200);
         Action containerResize2 = createContainerResizeAction(containerOID2, CommodityDTO.CommodityType.VCPU_VALUE, 500, 900);
-        List<Action> actions = Arrays.asList(containerResize1, containerResize2);
+        List<Action> actions = ImmutableList.of(containerResize1, containerResize2);
 
-        List<Action> nsResizeActions = namespaceQuotaAnalysisEngine.execute(planTopologyInfo, originalEntities, projectedEntities, actions);
+        NamespaceQuotaAnalysisResult nsQuotaAnalysisResult = namespaceQuotaAnalysisEngine.execute(planTopologyInfo, originalEntities, projectedEntities, actions);
+        List<Action> nsResizeActions = nsQuotaAnalysisResult.getNamespaceQuotaResizeActions();
         assertEquals(1, nsResizeActions.size());
         assertEquals(1100, nsResizeActions.get(0).getInfo().getResize().getNewCapacity(), COMPARISON_EPSILON);
 
@@ -284,9 +297,10 @@ public class NamespaceQuotaAnalysisEngineTest {
 
         Action containerResize1 = createContainerResizeAction(containerOID1, CommodityDTO.CommodityType.VCPU_VALUE, 500, 200);
         Action containerResize2 = createContainerResizeAction(containerOID2, CommodityDTO.CommodityType.VCPU_VALUE, 500, 800);
-        List<Action> actions = Arrays.asList(containerResize1, containerResize2);
+        List<Action> actions = ImmutableList.of(containerResize1, containerResize2);
 
-        List<Action> nsResizeActions = namespaceQuotaAnalysisEngine.execute(planTopologyInfo, originalEntities, projectedEntities, actions);
+        NamespaceQuotaAnalysisResult nsQuotaAnalysisResult = namespaceQuotaAnalysisEngine.execute(planTopologyInfo, originalEntities, projectedEntities, actions);
+        List<Action> nsResizeActions = nsQuotaAnalysisResult.getNamespaceQuotaResizeActions();
         assertEquals(0, nsResizeActions.size());
     }
 

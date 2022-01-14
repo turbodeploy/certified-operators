@@ -7,10 +7,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -58,7 +61,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
  *
  */
 public class AggregatedAction {
-
+    private static final Logger logger = LogManager.getLogger();
     private final ActionTypeCase actionType;
     private final ActionEntity aggregationTarget;
     private final String targetName;
@@ -77,6 +80,8 @@ public class AggregatedAction {
 
     final Map<Long, ActionView> actionViews;
 
+    final Map<Long, ActionDTO.ActionPlan.MarketRelatedActionsList> relatedActionsMap;
+
     /**
      * Add the {@link ActionView} for the given market action.
      *
@@ -85,6 +90,39 @@ public class AggregatedAction {
      */
     public void updateActionView(long actionId, ActionView actionView) {
         actionViews.put(actionId, actionView);
+    }
+
+    /**
+     * Set the list of RelatedActions that are blocking the given action.
+     *
+     * @param actionId          action id
+     * @param relatedActions    list of RelatedActions that are blocking the given action
+     */
+    public void setRelatedActions(long actionId, ActionDTO.ActionPlan.MarketRelatedActionsList relatedActions) {
+        relatedActionsMap.put(actionId, relatedActions);
+    }
+
+    /**
+     * Return if the given action is being blocked.
+     *
+     * @param actionId  action id
+     *
+     * @return  true if  the given action is being blocked else false
+     */
+    public boolean hasRelatedActions(long actionId) {
+        return relatedActionsMap.containsKey(actionId);
+    }
+
+    /**
+     * Returns list of RelatedActions that are blocking the given action.
+     *
+     * @param actionId  action id
+     *
+     * @return  list of RelatedActions that are blocking the given action.
+     */
+    @Nullable
+    public ActionDTO.ActionPlan.MarketRelatedActionsList getRelatedActions(long actionId) {
+        return relatedActionsMap.get(actionId);
     }
 
     /**
@@ -104,6 +142,7 @@ public class AggregatedAction {
         deDupedActionsMap = new HashMap<>();
         actionsWithoutDeDuplicationTarget = new ArrayList<>();
         actionViews = new HashMap<>();
+        relatedActionsMap = new HashMap<>();
     }
 
     /**

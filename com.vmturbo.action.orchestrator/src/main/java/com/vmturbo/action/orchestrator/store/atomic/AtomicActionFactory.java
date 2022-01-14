@@ -176,6 +176,27 @@ public class AtomicActionFactory {
          * @return List of actions that were merged without de-duplication
          */
         List<ActionDTO.Action> mergedActions();
+
+        /**
+         * List of related action data for each of the actions that is impacting (blocking/causing) this atomic action.
+         * The atomic action view will be updated with this related action data
+         * after the durable recommendation OID for the atomic action is obtained.
+         * @return List containing the related action builders blocking the non-executable atomic action
+         */
+        List<ActionDTO.MarketRelatedAction> relatedActions();
+
+        /**
+         * Map of Action ids of the actions impacting this atomic action to RelatedAction for that action.
+         * Each of RelatedAction points to the non-executable atomic action that is being impacted.
+         * This intermediate RelatedAction is created to save the data about the blocking atomic action that will
+         * be used to construct the RelatedAction for the impacting.
+         * Example: while creating the RelatedAction for a namespace's resize action pointing to the atomic actions
+         * that are being blocked by it, the RelatedAction is this map will contain the atomic resize's commodity
+         * that is being impacted by the namespace's resize commodity.
+         *
+         * @return  Map of containing the action id of the blocking action and its reverse RelatedAction.
+         */
+        Map<Long, ActionDTO.RelatedAction> relatedActionsByImpactingActionId();
     }
 
     /**

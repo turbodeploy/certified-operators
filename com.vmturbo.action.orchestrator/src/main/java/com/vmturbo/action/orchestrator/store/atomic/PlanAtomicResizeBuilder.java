@@ -1,10 +1,15 @@
 package com.vmturbo.action.orchestrator.store.atomic;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 
 /**
  * Builder class to build Atomic Resize actions for Plan actions.
@@ -21,6 +26,13 @@ public class PlanAtomicResizeBuilder extends AtomicResizeBuilder {
         this.aggregatedAction = aggregatedAction;
         executableActions = getExecutableActionIds();
         nonExecutableActions = getNonExecutableActionIds();
+
+        aggregatedAction.deDupedActionsMap().forEach((deDupTargetOid, deDupedActions) -> {
+            Map<TopologyDTO.CommodityType, List<ActionDTO.Action>> actionsByCommMap
+                    = deDupedActions.actions().stream()
+                    .collect(Collectors.groupingBy(action -> action.getInfo().getResize().getCommodityType()));
+            deDupActionsByCommMap.put(deDupTargetOid, actionsByCommMap);
+        });
     }
 
     /**

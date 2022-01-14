@@ -264,6 +264,7 @@ public class LiveActionPipelineFactory {
                         ATOMIC.getNewActionCount(),
                         ATOMIC.getActionsToAdd()))
                     .asStage("AtomicActionsSegment"))
+                .addStage(new ActionPipelineStages.CreateRelatedActionsStage())
                 .addStage(new ActionStatisticsStage(actionsStatistician))
                 .addStage(new AuditAndCacheBookkeepingStage(actionAuditSender))
                 .finalStage(new ActionStoreSummaryStage())
