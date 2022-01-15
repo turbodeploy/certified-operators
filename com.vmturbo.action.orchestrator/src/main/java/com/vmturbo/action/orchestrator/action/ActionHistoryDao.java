@@ -9,7 +9,6 @@ import javax.annotation.Nullable;
 import com.vmturbo.action.orchestrator.db.tables.pojos.ActionHistory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 
 /**
@@ -50,12 +49,13 @@ public interface ActionHistoryDao {
             long recommendationOid);
 
     /**
-     * Returns all the existing action history filtered by action query filter parameters, like 'startDate' and
-     * 'endDate', and scope filters.
+     * Returns all the existing action history between 'startDate' and 'endDate'.
      *
-     * @param actionQueryFilter The filter parameters by which to filter the actions
-     * @return List of {@link Action} matching the filters in the action query filter.
+     * @param startDate the start date
+     * @param endDate   the end date
+     * @return List of {@link Action} within the startDate and endDate.
      */
     @Nonnull
-    List<ActionView> getActionHistoryByFilter(@Nonnull ActionQueryFilter actionQueryFilter);
+    List<ActionView> getActionHistoryByDate(@Nonnull LocalDateTime startDate,
+                                            @Nonnull LocalDateTime endDate);
 }

@@ -12,10 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Cursor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.SQLDialect;
-import org.jooq.SelectSeekStep1;
 import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -55,33 +52,25 @@ public class AggregationPerformanceDiagnostics implements StringDiagnosable {
     public void collectDiags(@Nonnull final DiagnosticsAppender appender)
             throws DiagnosticsException {
         try {
-            dsl.connection(conn -> {
-                // postgres requires autocommit to be off for streaming to work
-                conn.setAutoCommit(false);
-                SelectSeekStep1<ApplPerformanceRecord, Timestamp> query = DSL.using(conn)
-                        .selectFrom(Tables.APPL_PERFORMANCE)
-                        .where(Tables.APPL_PERFORMANCE.START_TIME.gt(
-                                Timestamp.from(clock.instant().minus(1, ChronoUnit.DAYS))))
-                        // Latest start time first.
-                        .orderBy(Tables.APPL_PERFORMANCE.START_TIME.desc());
-                try (Cursor<ApplPerformanceRecord> cursor = query
-                        // different required sizes for streaming in mariadb vs postgres
-                        .fetchSize(dsl.dialect() == SQLDialect.POSTGRES ? 1000 : Integer.MIN_VALUE)
-                        .fetchLazy()) {
-                    final StringBuilder prefixBuilder = new StringBuilder().append("Fields : ");
-                    for (Field<?> field : Tables.APPL_PERFORMANCE.fields()) {
-                        prefixBuilder.append(field.getName()).append(" , ");
-                    }
-                    prefixBuilder.append("\n---------------------\n");
-                    appender.appendString(prefixBuilder.toString());
-
-                    // create a stream with the header (prefixBuilder) and performance info from the DB
-                    for (ApplPerformance applPerformance : cursor.fetchInto(
-                            ApplPerformance.class)) {
-                        appender.appendString(applPerformance.toString());
-                    }
+            try (Cursor<ApplPerformanceRecord> cursor = dsl.selectFrom(Tables.APPL_PERFORMANCE)
+                    .where(Tables.APPL_PERFORMANCE.START_TIME.gt(
+                            Timestamp.from(clock.instant().minus(1, ChronoUnit.DAYS))))
+                    // Latest start time first.
+                    .orderBy(Tables.APPL_PERFORMANCE.START_TIME.desc())
+                    .fetchSize(Integer.MIN_VALUE)
+                    .fetchLazy()) {
+                final StringBuilder prefixBuilder = new StringBuilder().append("Fields : ");
+                for (Field<?> field : Tables.APPL_PERFORMANCE.fields()) {
+                    prefixBuilder.append(field.getName()).append(" , ");
                 }
-            });
+                prefixBuilder.append("\n---------------------\n");
+                appender.appendString(prefixBuilder.toString());
+
+                // create a stream with the header (prefixBuilder) and performance info from the DB
+                for (ApplPerformance applPerformance : cursor.fetchInto(ApplPerformance.class)) {
+                    appender.appendString(applPerformance.toString());
+                }
+            }
         } catch (DataAccessException e) {
             logger.error("Failed to write aggregation performance rows due to error: {}",
                     e.getMessage());

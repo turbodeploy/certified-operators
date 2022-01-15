@@ -10,7 +10,6 @@ import "CloudCostDTO.proto";
 import "CommonCost.proto";
 import "cost/EntityUptime.proto";
 import "cloud/CloudCommitmentDTO.proto";
-import "cloud/CloudCommon.proto";
 
 // NB All messages in this set of declarations are serialized in rdbms.
 // They are not modifiable, only extendable.
@@ -1497,8 +1496,7 @@ message ActionSpec {
 
 // A filter to be supplied with action queries.
 // The conditions in the query filter will be AND-ed together, so only actions
-// that match all of them will be returned.  This includes one more more scope filters,
-// if they were to be set at the same time.
+// that match all of them will be returned.
 message ActionQueryFilter {
     // If true, include only externally visible actions in the response.
     // If false, include only non-externally visible actions.
@@ -1514,7 +1512,6 @@ message ActionQueryFilter {
     // For example, the involved entities in a VM move are the VM, and the hosts.
     //
     // If not set, include any actions.
-    // See impact of setting scope filters (Account, ResourceGroups, ..) below.
     optional InvolvedEntities involved_entities = 3;
 
     // Include only actions that involve entities of the specific type.
@@ -1579,19 +1576,6 @@ message ActionQueryFilter {
 
     // If non-empty, include all actions with savings amount between the min and max range.
     optional ActionSavingsAmountRangeFilter savings_amount_range = 22;
-
-    // Filter to get items from ActionHistory db by Account(s). Ignore InvolvedEntities.
-    // Scoped users will have their entities restriction computed independently.
-    optional cloud_common.AccountFilter account_filter = 23;
-
-    // Filter to get items from ActionHistory db by ResourceGroup(s). Ignore InvolvedEntities.
-    // Scoped users will have their entities restriction computed independently.
-    optional ResourceGroupFilter resource_group_filter = 24;
-}
-
-message ResourceGroupFilter {
-    // A list of reource group OIDs
-    repeated int64 resource_group_oid = 1;
 }
 
 // A filter to be supplied with action query filter.

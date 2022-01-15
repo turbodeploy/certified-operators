@@ -9,7 +9,6 @@ import javax.annotation.Nullable;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentUtilizationVectors;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServiceGrpc.CloudCommitmentServiceImplBase;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse;
@@ -56,14 +55,14 @@ public class CloudCommitmentRpcService extends CloudCommitmentServiceImplBase {
                 mappingInfo -> getOrCreateCommitmentInfoBucket.apply(mappingInfo.topologyInfo())
                         .addAllCloudCommitmentMapping(mappingInfo.cloudCommitmentMappings()));
         sourceTopologyCommitmentUtilizationStore.getData().ifPresent(
-                utilizationInfo -> utilizationInfo.commitmentUtilizationMap()
-                        .forEach((commitmentId, scopedUtilization) ->
-                            getOrCreateCommitmentInfoBucket.apply(utilizationInfo.topologyInfo())
-                                    .putCloudCommitmentUtilization(
-                                            commitmentId,
-                                            CloudCommitmentUtilizationVectors.newBuilder()
-                                                    .addAllUtilizationVector(scopedUtilization.getUtilizationVectorList())
-                                                    .build())));
+                utilizationInfo -> utilizationInfo.commitmentIdToUtilization()
+                        .forEach((commitmentId, utilization) -> {
+                            if (utilization.hasOverhead()) {
+                                getOrCreateCommitmentInfoBucket.apply(
+                                        utilizationInfo.topologyInfo()).putCloudCommitmentOverhead(
+                                        commitmentId, utilization.getOverhead());
+                            }
+                        }));
         final GetCloudCommitmentInfoForAnalysisResponse.Builder response =
                 GetCloudCommitmentInfoForAnalysisResponse.newBuilder();
         timestampToBucket.values().forEach(response::addCommitmentBucket);

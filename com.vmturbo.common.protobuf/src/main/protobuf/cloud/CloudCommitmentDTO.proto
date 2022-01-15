@@ -50,20 +50,6 @@ message CloudCommitmentAmount {
     }
 }
 
-enum CloudCommitmentCoverageGroupBy {
-    COMMITMENT_COVERAGE_GROUP_BY_ACCOUNT = 1;
-    COMMITMENT_COVERAGE_GROUP_BY_REGION = 2;
-    COMMITMENT_COVERAGE_GROUP_BY_SERVICE_PROVIDER = 3;
-    COMMITMENT_COVERAGE_GROUP_BY_CLOUD_SERVICE = 4;
-}
-
-enum CloudCommitmentUtilizationGroupBy {
-    COMMITMENT_UTILIZATION_GROUP_BY_COMMITMENT = 1;
-    COMMITMENT_UTILIZATION_GROUP_BY_ACCOUNT = 2;
-    COMMITMENT_UTILIZATION_GROUP_BY_REGION = 3;
-    COMMITMENT_UTILIZATION_GROUP_BY_SERVICE_PROVIDER = 4;
-}
-
 // Contains the (coverage type, coverage subtype) tuple, where coverage type with be
 // spend amount, coupons, commodity capacity, etc and hte subtype meaning will be dependent on
 // the coverage type. For spend-based coverage, the subtype will indicate the currency. For
@@ -82,34 +68,6 @@ message CloudCommitmentCoverage {
     optional CloudCommitmentAmount used = 2;
 }
 
-message CloudCommitmentCoverageVector {
-
-    optional CloudCommitmentCoverageTypeInfo vector_type = 1;
-
-    optional double used = 2;
-
-    optional double capacity = 3;
-}
-
-message ScopedCommitmentCoverage {
-
-    optional int64 entity_oid = 1;
-
-    optional int64 entity_type = 2;
-
-    optional int64 account_oid = 3;
-
-    optional int64 region_oid = 4;
-
-    optional int64 zone_oid = 5;
-
-    optional int64 cloud_service_oid = 6;
-
-    optional int64 service_provider_oid = 7;
-
-    repeated CloudCommitmentCoverageVector coverage_vector = 20;
-}
-
 message CloudCommitmentUtilization {
 
     // Used within scope of the current analysis (e.g. RT or by entities within the plan scope).
@@ -119,35 +77,6 @@ message CloudCommitmentUtilization {
     optional CloudCommitmentAmount overhead = 2;
 
     optional CloudCommitmentAmount capacity = 3;
-}
-
-message CloudCommitmentUtilizationVector {
-
-    optional CloudCommitmentCoverageTypeInfo vector_type = 1;
-
-    optional double used = 2;
-
-    optional double overhead = 3;
-
-    optional double capacity = 4;
-}
-
-message CloudCommitmentUtilizationVectors {
-
-    repeated CloudCommitmentUtilizationVector utilization_vector = 1;
-}
-
-message ScopedCommitmentUtilization {
-
-    optional int64 cloud_commitment_oid = 1;
-
-    optional int64 account_oid = 2;
-
-    optional int64 region_oid = 3;
-
-    optional int64 service_provider_oid = 4;
-
-    repeated CloudCommitmentUtilizationVector utilization_vector = 21;
 }
 
 message CloudCommitmentMapping {

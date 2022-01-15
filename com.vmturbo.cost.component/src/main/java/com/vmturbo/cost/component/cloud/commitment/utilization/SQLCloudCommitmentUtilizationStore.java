@@ -30,11 +30,11 @@ import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentUtilizationGroupBy;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationRequest.GroupByCondition;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudCommitmentFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
@@ -186,19 +186,15 @@ public class SQLCloudCommitmentUtilizationStore implements CloudCommitmentUtiliz
                 .add(DSL.avg(utilizationTable.capacityField()).as(AVG_COMMITMENT_CAPACITY));
 
         if (statsFilter.groupByList().size() > 0) {
-            for (CloudCommitmentUtilizationGroupBy groupByCondition : statsFilter.groupByList()) {
+            for (GroupByCondition groupByCondition : statsFilter.groupByList()) {
                 switch (groupByCondition) {
-                    case COMMITMENT_UTILIZATION_GROUP_BY_COMMITMENT:
+                    case CLOUD_COMMITMENT:
                         selectFieldList.add(utilizationTable.cloudCommitmentIdField());
                         // Intentionally fall through to include account and service provider.
-                    case COMMITMENT_UTILIZATION_GROUP_BY_ACCOUNT:
+                    case ACCOUNT:
                         selectFieldList.add(utilizationTable.accountIdField());
                         // grouping by account can still provide service provider ID
-                    case COMMITMENT_UTILIZATION_GROUP_BY_SERVICE_PROVIDER:
-                        selectFieldList.add(utilizationTable.serviceProviderIdField());
-                        break;
-                    case COMMITMENT_UTILIZATION_GROUP_BY_REGION:
-                        selectFieldList.add(utilizationTable.regionIdField());
+                    case SERVICE_PROVIDER:
                         selectFieldList.add(utilizationTable.serviceProviderIdField());
                         break;
                     default:
@@ -222,17 +218,14 @@ public class SQLCloudCommitmentUtilizationStore implements CloudCommitmentUtiliz
 
         statsFilter.groupByList().forEach(groupByCondition -> {
             switch (groupByCondition) {
-                case COMMITMENT_UTILIZATION_GROUP_BY_COMMITMENT:
+                case CLOUD_COMMITMENT:
                     groupFields.add(utilizationTable.cloudCommitmentIdField());
                     break;
-                case COMMITMENT_UTILIZATION_GROUP_BY_SERVICE_PROVIDER:
+                case SERVICE_PROVIDER:
                     groupFields.add(utilizationTable.serviceProviderIdField());
                     break;
-                case COMMITMENT_UTILIZATION_GROUP_BY_ACCOUNT:
+                case ACCOUNT:
                     groupFields.add(utilizationTable.accountIdField());
-                    break;
-                case COMMITMENT_UTILIZATION_GROUP_BY_REGION:
-                    groupFields.add(utilizationTable.regionIdField());
                     break;
                 default:
                     throw new UnsupportedOperationException(

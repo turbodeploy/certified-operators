@@ -74,7 +74,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
@@ -563,12 +562,13 @@ public class LiveActionsTest {
         liveActions.replaceMarketActions(Stream.of(succeededAction, failedAction,
             lateRecommendedAction, liveAction, badLiveAction));
 
-        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
-                .setStartDate(start.toEpochMilli())
-                .setEndDate(end.toEpochMilli())
-                .build();
-        when(actionHistoryDao.getActionHistoryByFilter(actionQueryFilter))
+        when(actionHistoryDao.getActionHistoryByDate(startDate, endDate))
             .thenReturn(Arrays.asList(historicalAction, badHistoricalAction));
+
+        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+            .setStartDate(start.toEpochMilli())
+            .setEndDate(end.toEpochMilli())
+            .build();
 
         final QueryFilter queryFilter = mock(QueryFilter.class);
         when(queryFilter.test(liveAction)).thenReturn(true);
@@ -611,15 +611,16 @@ public class LiveActionsTest {
 
         liveActions.replaceMarketActions(Stream.of(liveAction, noInvolvedEntitiesLiveAction));
 
-        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
-                .setStartDate(start.toEpochMilli())
-                .setEndDate(end.toEpochMilli())
-                .setInvolvedEntities(InvolvedEntities.newBuilder()
-                        .addAllOids(ActionDTOUtil.getInvolvedEntityIds(liveAction.getRecommendation()))
-                        .addAllOids(ActionDTOUtil.getInvolvedEntityIds(historicalAction.getRecommendation())))
-                .build();
-        when(actionHistoryDao.getActionHistoryByFilter(actionQueryFilter))
+        when(actionHistoryDao.getActionHistoryByDate(startDate, endDate))
             .thenReturn(Arrays.asList(historicalAction, badHistoricalAction));
+
+        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+            .setStartDate(start.toEpochMilli())
+            .setEndDate(end.toEpochMilli())
+            .setInvolvedEntities(InvolvedEntities.newBuilder()
+                .addAllOids(ActionDTOUtil.getInvolvedEntityIds(liveAction.getRecommendation()))
+                .addAllOids(ActionDTOUtil.getInvolvedEntityIds(historicalAction.getRecommendation())))
+            .build();
 
         final QueryFilter queryFilter = mock(QueryFilter.class);
         when(queryFilter.test(liveAction)).thenReturn(true);

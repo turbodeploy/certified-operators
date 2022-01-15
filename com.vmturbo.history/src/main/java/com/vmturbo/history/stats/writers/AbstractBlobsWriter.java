@@ -30,7 +30,6 @@ import org.jooq.TableField;
 import org.jooq.conf.Settings;
 import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
-import org.postgresql.jdbc.PgConnection;
 
 import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -92,14 +91,10 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
             }
             if (connection == null) {
                 connection = dataSource.getConnection();
-                connection.setAutoCommit(false);
                 startTimestamp = startTimestampMs;
-                context = DSL.using(connection, getDialect(connection),
-                        new Settings().withRenderSchema(false));
+                context = DSL.using(connection, SQLDialect.MARIADB, new Settings().withRenderSchema(false));
                 try (PreparedStatement deleteExistingRecords = this.connection.prepareStatement(
-                        context.deleteFrom(blobsTable)
-                                .where(getStartTimestampField().eq(startTimestampMs))
-                                .getSQL())) {
+                        context.deleteFrom(blobsTable).where(getStartTimestampField().eq(startTimestampMs)).getSQL())) {
                     deleteExistingRecords.setLong(1, startTimestampMs);
                     deleteExistingRecords.execute();
                 }
@@ -109,14 +104,6 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
             processedChunks++;
         } catch (IOException | SQLException ex) {
             closeResources(new CloseResourceHandler(ex));
-        }
-    }
-
-    private static SQLDialect getDialect(Connection connection) throws SQLException {
-        if (connection.isWrapperFor(PgConnection.class)) {
-            return SQLDialect.POSTGRES;
-        } else {
-            return SQLDialect.MARIADB;
         }
     }
 

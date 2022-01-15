@@ -14,7 +14,6 @@ import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -250,11 +249,6 @@ public class PostStitchingTestUtilities {
 
         TopologyEntityBuilder withCommoditiesSold(@Nonnull final Collection<CommoditySoldDTO> commodities) {
             innerBuilder.addAllCommoditySoldList(commodities);
-            return this;
-        }
-
-        TopologyEntityBuilder withEnvironmentType(@Nonnull final EnvironmentType environmentType) {
-            innerBuilder.setEnvironmentType(environmentType);
             return this;
         }
 

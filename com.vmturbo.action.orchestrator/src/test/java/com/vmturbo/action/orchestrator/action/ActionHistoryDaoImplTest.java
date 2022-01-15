@@ -5,11 +5,7 @@ import static com.vmturbo.action.orchestrator.db.tables.ActionHistory.ACTION_HIS
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Set;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
@@ -32,15 +28,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDeci
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision.Reason;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResourceGroupFilter;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 
@@ -52,11 +45,9 @@ public class ActionHistoryDaoImplTest {
     /**
      * The unstable id of the action, not to be confused with the stable oid of the action.
      */
-    private static final long UNSTABLE_ACTION_ID = 143877300103332L;
+    private static final long UNSTALBE_ACTION_ID = 143877300103332L;
     private static final long REALTIME_CONTEXT_ID = 77777L;
     private static final Clock CLOCK = Clock.systemUTC();
-    private static final Set<Long> ASSOCIATED_ACCOUNT_IDS = ImmutableSet.of(0L, 7L);
-    private static final Set<Long> ASSOCIATED_RG_IDS = ImmutableSet.of(2L, 9L);
 
     @Mock
     private ActionModeCalculator actionModeCalculator;
@@ -69,16 +60,6 @@ public class ActionHistoryDaoImplTest {
         MockitoAnnotations.initMocks(this);
     }
 
-    private ActionQueryFilter.Builder setActionQueryFilterDates() {
-        return ActionQueryFilter.newBuilder()
-                        .setStartDate(LocalDateTime.now(CLOCK)
-                                      .toInstant(ZoneOffset.UTC)
-                                      .toEpochMilli())
-                      .setEndDate(LocalDateTime.now(CLOCK)
-                                  .toInstant(ZoneOffset.UTC)
-                                  .toEpochMilli());
-    }
-
     /**
      * The recommendation oid from the database is null when it was created in XL version 7.22.1
      * or earlier. We should be able to gracefully handle this situation without throwing an
@@ -89,92 +70,19 @@ public class ActionHistoryDaoImplTest {
         // Initialise your data provider (implementation further down):
         TestCaseJooqProvider provider = new TestCaseJooqProvider();
         MockConnection connection = new MockConnection(provider);
-        // Pass the mock connection to a jOOQ DSLContext:
-        DSLContext dslContext = DSL.using(connection, SQLDialect.MARIADB);
-
-        ActionHistoryDaoImpl dao =
-                                 new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
-        List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
-                                                              .build());
-
-        Assert.assertEquals(1, actuals.size());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getId());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getRecommendationOid());
-    }
-
-    /** Test non-empty Account Oids.
-     */
-    @Test
-    public void testBusinessAccountsFilter() {
-        // Initialise your data provider (implementation further down):
-        TestCaseJooqProvider provider = new TestCaseJooqProvider();
-        MockConnection connection = new MockConnection(provider);
 
         // Pass the mock connection to a jOOQ DSLContext:
         DSLContext dslContext = DSL.using(connection, SQLDialect.DEFAULT);
 
         ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
-        List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
-                                                      .setAccountFilter(AccountFilter.newBuilder()
-                                                        .addAllAccountId(ASSOCIATED_ACCOUNT_IDS)
-                                                                                         .build())
-                                                      .build());
+        List<ActionView> actuals = dao.getActionHistoryByDate(LocalDateTime.now(CLOCK), LocalDateTime.now(CLOCK));
 
         Assert.assertEquals(1, actuals.size());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getId());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getRecommendationOid());
+        Assert.assertEquals(UNSTALBE_ACTION_ID, actuals.get(0).getId());
+        Assert.assertEquals(UNSTALBE_ACTION_ID, actuals.get(0).getRecommendationOid());
     }
 
     /**
-     * Test non-empty Resource Group Oids.
-     */
-    @Test
-    public void testResourceGroupsFilter() {
-        // Initialise your data provider (implementation further down):
-        TestCaseJooqProvider provider = new TestCaseJooqProvider();
-        MockConnection connection = new MockConnection(provider);
-
-        // Pass the mock connection to a jOOQ DSLContext:
-        DSLContext dslContext = DSL.using(connection, SQLDialect.DEFAULT);
-
-        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
-        List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
-                        .setAccountFilter(AccountFilter.newBuilder()
-                                .addAllAccountId(ASSOCIATED_ACCOUNT_IDS))
-                        .build());
-
-        Assert.assertEquals(1, actuals.size());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getId());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getRecommendationOid());
-    }
-
-    /** Test setting Action Query Filter with non-empty Business Account and Resource Group Oids together.
-     *
-     * <p>This is not a use case from the UI, but backend could still set the filter with multiple scope filters
-     */
-    @Test
-    public void testBusinessAccountsAndResourceGroupsFilter() {
-        // Initialise your data provider (implementation further down):
-        TestCaseJooqProvider provider = new TestCaseJooqProvider();
-        MockConnection connection = new MockConnection(provider);
-
-        // Pass the mock connection to a jOOQ DSLContext:
-        DSLContext dslContext = DSL.using(connection, SQLDialect.DEFAULT);
-
-        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
-        List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
-                        .setAccountFilter(AccountFilter.newBuilder()
-                                .addAllAccountId(ASSOCIATED_ACCOUNT_IDS))
-                        .setResourceGroupFilter(ResourceGroupFilter.newBuilder()
-                                .addAllResourceGroupOid(ASSOCIATED_RG_IDS))
-                        .build());
-
-        Assert.assertEquals(1, actuals.size());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getId());
-        Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getRecommendationOid());
-    }
-
-   /**
      * Mock provider uses for mock data returned by jooq.
      */
     private static class TestCaseJooqProvider implements MockDataProvider {
@@ -197,7 +105,7 @@ public class ActionHistoryDaoImplTest {
                 REALTIME_CONTEXT_ID,
                 // This value was taken from a real instance reproducing the problem
                 ActionDTO.Action.newBuilder()
-                    .setId(UNSTABLE_ACTION_ID)
+                    .setId(UNSTALBE_ACTION_ID)
                     .setInfo(ActionInfo.newBuilder()
                         .setResize(Resize.newBuilder()
                             .setTarget(ActionEntity.newBuilder()
@@ -247,7 +155,7 @@ public class ActionHistoryDaoImplTest {
                 "userNameThatExecutedAction",
                 null,
                 0L,
-                2L,
+                0L,
                 null);
 
             return new MockResult[]{

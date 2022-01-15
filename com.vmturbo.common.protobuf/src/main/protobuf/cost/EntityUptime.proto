@@ -3,7 +3,15 @@ package cost;
 
 option java_package = "com.vmturbo.common.protobuf.cost";
 
-import "cloud/CloudCommon.proto";
+message CloudScopeFilter {
+
+    repeated int64 entity_oid = 1;
+    repeated int64 account_oid = 2;
+    repeated int64 region_oid = 3;
+    repeated int64 availability_zone_oid = 4;
+    repeated int64 service_provider_oid = 5;
+}
+
 
 message EntityUptimeDTO {
 
@@ -23,7 +31,7 @@ message GetEntityUptimeResponse {
 }
 
 message GetEntityUptimeByFilterRequest {
-    optional cloud_common.CloudScopeFilter filter = 1;
+    optional CloudScopeFilter filter = 1;
 }
 
 message GetEntityUptimeByFilterResponse {

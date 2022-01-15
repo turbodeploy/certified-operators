@@ -140,13 +140,6 @@ public class GroupDAO implements IGroupStore {
 
     private final GroupPaginationParams groupPaginationParams;
 
-    // The display_name field in GROUPING table is stored with a case sensitive collation by
-    // default (utf8mb4_bin). Thus, queries asking for case insensitive filtering by display
-    // name cannot be done. To bypass this, we use a case insensitive collation on the fly for case
-    // insensitive queries.
-    // For more details see https://dev.mysql.com/doc/refman/8.0/en/adding-collation.html
-    private static final String CASE_INSENSITIVE_COLLATION = "utf8mb4_unicode_ci";
-
     private static final DataMetricCounter GROUP_STORE_ERROR_COUNT = DataMetricCounter.builder()
             .withName("group_store_error_count")
             .withHelp("Number of errors encountered in operating the group store.")
@@ -171,7 +164,7 @@ public class GroupDAO implements IGroupStore {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Map<String, BiFunction<PropertyFilter, DSLContext, Optional<Condition>>>
+    private static final Map<String, Function<PropertyFilter, Optional<Condition>>>
             PROPERTY_FILTER_CONDITION_CREATORS;
 
     private final DSLContext dslContext;
@@ -180,14 +173,14 @@ public class GroupDAO implements IGroupStore {
 
     static {
         PROPERTY_FILTER_CONDITION_CREATORS =
-                ImmutableMap.<String, BiFunction<PropertyFilter, DSLContext, Optional<Condition>>>builder().put(
+                ImmutableMap.<String, Function<PropertyFilter, Optional<Condition>>>builder().put(
                         SearchableProperties.DISPLAY_NAME,
                         GroupDAO::createDisplayNameSearchCondition)
-                        .put(StringConstants.TAGS_ATTR, (propertyFilter, dslContext) -> Optional.of(
+                        .put(StringConstants.TAGS_ATTR, propertyFilter -> Optional.of(
                                 createTagsSearchCondition(propertyFilter)))
-                        .put(StringConstants.OID, (propertyFilter, dslContext) -> Optional.of(
+                        .put(StringConstants.OID, propertyFilter -> Optional.of(
                                 createOidCondition(propertyFilter, GROUPING.ID)))
-                        .put(StringConstants.ACCOUNTID, (propertyFilter, dslContext) -> Optional.of(
+                        .put(StringConstants.ACCOUNTID, propertyFilter -> Optional.of(
                                 createOidCondition(propertyFilter, GROUPING.OWNER_ID)))
                         .build();
     }
@@ -401,11 +394,11 @@ public class GroupDAO implements IGroupStore {
                             "Property filter " + propertyFilter.getPropertyName()
                                     + " is not supported");
                 }
-                final BiFunction<PropertyFilter, DSLContext, Optional<Condition>> conditionCreator =
+                final Function<PropertyFilter, Optional<Condition>> conditionCreator =
                     PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
                 // try to apply the filter and check if it can be translated into real
                 // conditions, if not it throws an exception
-                conditionCreator.apply(propertyFilter, dslContext);
+                conditionCreator.apply(propertyFilter);
             }
         }
     }
@@ -1711,13 +1704,13 @@ public class GroupDAO implements IGroupStore {
         }
         final Collection<Condition> allConditions = new ArrayList<>();
         for (PropertyFilter propertyFilter: propertyFilters) {
-            final BiFunction<PropertyFilter, DSLContext, Optional<Condition>> conditionCreator =
+            final Function<PropertyFilter, Optional<Condition>> conditionCreator =
                     PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
             if (conditionCreator == null) {
                 throw new IllegalArgumentException(
                         "Unsupported property filter found: " + propertyFilter.getPropertyName());
             }
-            conditionCreator.apply(propertyFilter, dslContext).ifPresent(allConditions::add);
+            conditionCreator.apply(propertyFilter).ifPresent(allConditions::add);
         }
 
         final BiFunction<Condition, Condition, Condition> combination;
@@ -1734,20 +1727,26 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     private static Optional<Condition> createDisplayNameSearchCondition(
-            @Nonnull PropertyFilter propertyFilter, @Nonnull DSLContext dslContext) {
+            @Nonnull PropertyFilter propertyFilter) {
         if (!propertyFilter.hasStringFilter()) {
             throw new IllegalArgumentException("Filter for display name must have StringFilter");
         }
         final StringFilter filter = propertyFilter.getStringFilter();
         if (filter.hasStringPropertyRegex()) {
-            Field<String> displayNameField = GROUPING.DISPLAY_NAME;
-            // We do a case insensitive regex match only for MySQL and MariaDB. This is not supported for PG
-            if (!dslContext.dialect().equals(SQLDialect.POSTGRES) && !filter.getCaseSensitive()) {
-                displayNameField = displayNameField.collate(CASE_INSENSITIVE_COLLATION);
+            if (filter.getPositiveMatch()) {
+                return filter.getCaseSensitive()
+                        ? Optional.of(GROUPING.DISPLAY_NAME
+                        .likeRegex(filter.getStringPropertyRegex()))
+                        : Optional.of(DSL.upper(GROUPING.DISPLAY_NAME)
+                        .likeRegex(DSL.upper(filter.getStringPropertyRegex())));
+            } else {
+                // if filter has the positive_match flag set to false, negate the regex matching
+                return filter.getCaseSensitive()
+                        ? Optional.of(GROUPING.DISPLAY_NAME
+                        .notLikeRegex(filter.getStringPropertyRegex()))
+                        : Optional.of(GROUPING.DISPLAY_NAME.upper()
+                        .notLikeRegex(DSL.upper(filter.getStringPropertyRegex())));
             }
-            Condition regex = filter.getPositiveMatch() ? displayNameField.likeRegex(filter.getStringPropertyRegex())
-                    : displayNameField.notLikeRegex(filter.getStringPropertyRegex());
-            return Optional.of(regex);
         } else if (filter.getOptionsCount() != 0) {
             final Optional<Condition> condition;
             if (filter.hasCaseSensitive() && filter.getCaseSensitive()) {

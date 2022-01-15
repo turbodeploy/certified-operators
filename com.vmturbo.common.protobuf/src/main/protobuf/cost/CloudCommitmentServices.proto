@@ -70,10 +70,16 @@ message GetHistoricalCloudCommitmentUtilizationRequest {
     optional cloud_common.ServiceProviderFilter service_provider_filter = 7;
 
     // returned stats will always be grouped by the timestamp
-    repeated cloud_commitment_dto.CloudCommitmentUtilizationGroupBy group_by = 8;
+    repeated GroupByCondition group_by = 8;
 
     // The number of stat records to return per chunk. The max value is 100.
     optional uint32 chunk_size = 9 [default = 100];
+
+    enum GroupByCondition {
+        CLOUD_COMMITMENT = 1;
+        SERVICE_PROVIDER = 2;
+        ACCOUNT = 3;
+    }
 }
 
 message GetHistoricalCloudCommitmentUtilizationResponse {
@@ -99,10 +105,17 @@ message GetHistoricalCommitmentCoverageStatsRequest {
     optional cloud_common.ServiceProviderFilter service_provider_filter = 7;
 
     // returned stats will always be grouped by the timestamp
-    repeated cloud_commitment_dto.CloudCommitmentCoverageGroupBy group_by = 8;
+    repeated GroupByCondition group_by = 8;
 
     // The number of stat records to return per chunk. The max value is 100.
     optional uint32 chunk_size = 9 [default = 100];
+
+    enum GroupByCondition {
+        ACCOUNT = 1;
+        REGION = 2;
+        SERVICE_PROVIDER = 3;
+        CLOUD_SERVICE = 4;
+    }
 }
 
 message GetHistoricalCommitmentCoverageStatsResponse {
@@ -160,7 +173,7 @@ message GetTopologyCommitmentCoverageStatsRequest {
 }
 
 message GetTopologyCommitmentCoverageStatsResponse {
-    repeated CloudCommitmentStatRecord commitment_coverage_stat_chunk = 1;
+    repeated cloud_commitment_dto.CloudCommitmentCoverage commitment_coverage_stat_chunk = 1;
 }
 
 message GetTopologyCommitmentUtilizationStatsRequest {
@@ -173,7 +186,12 @@ message GetTopologyCommitmentUtilizationStatsRequest {
 }
 
 message GetTopologyCommitmentUtilizationStatsResponse {
-    repeated CloudCommitmentStatRecord commitment_utilization_record_chunk = 1;
+    repeated CloudCommitmentUtilizationRecord commitment_utilization_record_chunk = 1;
+
+    message CloudCommitmentUtilizationRecord {
+        optional int64 commitment_oid = 1;
+        optional cloud_commitment_dto.CloudCommitmentUtilization utilization = 2;
+    }
 }
 
 service CloudCommitmentStatsService {
@@ -205,7 +223,7 @@ message GetCloudCommitmentInfoForAnalysisResponse {
 
         repeated cloud_commitment_dto.CloudCommitmentMapping cloud_commitment_mapping = 3;
 
-        map<int64, cloud_commitment_dto.CloudCommitmentUtilizationVectors> cloud_commitment_utilization = 4;
+        map<int64, cloud_commitment_dto.CloudCommitmentAmount> cloud_commitment_overhead = 4;
     }
 }
 

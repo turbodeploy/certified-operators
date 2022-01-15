@@ -4,7 +4,7 @@ import static com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineConte
 import static com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineContextMembers.LAST_EXECUTED_RECOMMENDATIONS_TRACKER;
 
 import java.time.Clock;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -71,7 +71,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
@@ -468,18 +467,13 @@ public class ActionPipelineStages {
             // NOTE: A corner case which is not handled: If the discovery is delayed for a long time, then just looking at the last n minutes
             // in the action_history DB may not be enough. We need to know the "freshness" of the discovered results. But this facility is
             // not currently available. So we don't handle this case.
+            final LocalDateTime startDate = LocalDateTime.now(clock).minusMinutes(queryTimeWindowForLastExecutedActionsMins);
+            final LocalDateTime endDate = LocalDateTime.now(clock);
             String warningMessage = null;
 
             List<ActionView> lastSuccessfullyExecutedActions = new ArrayList<>();
             try {
-                lastSuccessfullyExecutedActions = actionHistoryDao
-                                .getActionHistoryByFilter(ActionQueryFilter.newBuilder()
-                                        .setStartDate(clock.instant()
-                                                .minus(queryTimeWindowForLastExecutedActionsMins,
-                                                       ChronoUnit.MINUTES)
-                                                        .toEpochMilli())
-                                        .setEndDate(clock.instant().toEpochMilli())
-                                        .build());
+                lastSuccessfullyExecutedActions = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
             } catch (DataAccessException dae) {
                 // We continue on DB exception as we don't want to block actions.
                 logger.warn("Error while fetching last executed actions from action history", dae);

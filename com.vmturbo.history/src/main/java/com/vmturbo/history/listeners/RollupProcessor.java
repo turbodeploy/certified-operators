@@ -43,13 +43,11 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
@@ -120,14 +118,10 @@ public class RollupProcessor {
      */
 
     void performHourRollups(@Nonnull List<Table> tables, @Nonnull Instant msecSnapshot) {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() && dsl.dialect() == SQLDialect.POSTGRES) {
-            return;
-        }
         Timestamp snapshot = Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.SECONDS));
         MultiStageTimer timer = new MultiStageTimer(logger);
         performRollups(tables, snapshot, RollupType.BY_HOUR, timer);
-        addAvailableTimestamps(snapshot, RollupType.BY_HOUR, HistoryVariety.ENTITY_STATS,
-                HistoryVariety.PRICE_DATA);
+        addAvailableTimestamps(snapshot, RollupType.BY_HOUR, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
         timer.stopAll().info(
                 String.format("Rollup Processing for %s", snapshot), Detail.STAGE_SUMMARY);
     }
@@ -156,17 +150,12 @@ public class RollupProcessor {
      * @param doRetention  true to do retention processing after rollups
      */
     void performDayMonthRollups(final List<Table> tables, final Instant msecSnapshot, boolean doRetention) {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() && dsl.dialect() == SQLDialect.POSTGRES) {
-            return;
-        }
         Timestamp snapshot = Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.HOURS));
         MultiStageTimer timer = new MultiStageTimer(logger);
         performRollups(tables, snapshot, RollupType.BY_DAY, timer);
-        addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS,
-                HistoryVariety.PRICE_DATA);
+        addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
         performRollups(tables, snapshot, RollupType.BY_MONTH, timer);
-        addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS,
-                HistoryVariety.PRICE_DATA);
+        addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
         if (doRetention) {
             performRetentionProcessing(timer);
         }
@@ -226,9 +215,6 @@ public class RollupProcessor {
     }
 
     void performRetentionProcessing(MultiStageTimer timer, boolean doRepartitioning) {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() && dsl.dialect() == SQLDialect.POSTGRES) {
-            return;
-        }
         // retention processing for entity stats tables is done by reconfiguring their partitions so
         // that partitions containing expired records are dropped.
         if (doRepartitioning) {
@@ -388,8 +374,7 @@ public class RollupProcessor {
             Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
             String sql = String.format(
                     "CALL %s('%s', '%s', '%s', '%s', %s, %s, %d, %d, %d, %d, @count)",
-                    ENTITY_ROLLUP_PROC, source.getName(), rollup.getName(), snapshotTime,
-                    rollupTime,
+                    ENTITY_ROLLUP_PROC, source.getName(), rollup.getName(), snapshotTime, rollupTime,
                     low, high,
                     rollupType.isCopyHourKey() ? 1 : 0,
                     rollupType.isCopyDayKey() ? 1 : 0,
@@ -485,12 +470,9 @@ public class RollupProcessor {
     /**
      * Enum of the types of rollup we perform.
      */
-    public enum RollupType {
-        /** hourly rollups. */
+    enum RollupType {
         BY_HOUR(TimeFrame.HOUR, "Hourly Rollups", RetentionPolicy.HOURLY_STATS),
-        /** daily rollups. */
         BY_DAY(TimeFrame.DAY, "Daily Rollups", RetentionPolicy.DAILY_STATS),
-        /** monthly rollups. */
         BY_MONTH(TimeFrame.MONTH, "Monthly Rollups", RetentionPolicy.MONTHLY_STATS);
 
         private final TimeFrame timeFrame;
@@ -603,20 +585,13 @@ public class RollupProcessor {
             }
         }
 
-        /**
-         * Get the start time of the rollup period covered by this rollup.
-         *
-         * @param snapshotTime timestamp of data being rolled up
-         * @return rollup period start
-         */
         public Timestamp getPeriodStart(Timestamp snapshotTime) {
             switch (this) {
                 case BY_HOUR:
                 case BY_DAY:
                     return getRollupTime(snapshotTime);
                 case BY_MONTH:
-                    LocalDateTime periodStart = LocalDateTime.ofInstant(snapshotTime.toInstant(),
-                                    ZoneOffset.UTC)
+                    LocalDateTime periodStart = LocalDateTime.ofInstant(snapshotTime.toInstant(), ZoneOffset.UTC)
                             .truncatedTo(ChronoUnit.DAYS)
                             .withDayOfMonth(1);
                     return Timestamp.from(periodStart.toInstant(ZoneOffset.UTC));
@@ -626,23 +601,15 @@ public class RollupProcessor {
             }
         }
 
-        /**
-         * Get the end time of the rollup period covered by this rollup.
-         *
-         * @param snapshotTime timestamp of data being rolled up
-         * @return rollup period end
-         */
         public Timestamp getPeriodEnd(Timestamp snapshotTime) {
             Instant t = snapshotTime.toInstant();
             switch (this) {
                 case BY_HOUR:
-                    return Timestamp.from(
-                            t.truncatedTo(ChronoUnit.HOURS).plus(1, ChronoUnit.HOURS));
+                    return Timestamp.from(t.truncatedTo(ChronoUnit.HOURS).plus(1, ChronoUnit.HOURS));
                 case BY_DAY:
                     return Timestamp.from(t.truncatedTo(ChronoUnit.DAYS).plus(1, ChronoUnit.DAYS));
                 case BY_MONTH:
-                    return Timestamp.from(getRollupTime(snapshotTime).toInstant()
-                            .plus(1, ChronoUnit.DAYS));
+                    return Timestamp.from(getRollupTime(snapshotTime).toInstant().plus(1, ChronoUnit.DAYS));
                 default:
                     badValue();
                     return null;
