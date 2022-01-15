@@ -22,7 +22,6 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.junit.Before;
-import org.mockito.Mock;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -37,7 +36,6 @@ import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
@@ -60,7 +58,6 @@ import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -76,7 +73,6 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -87,9 +83,6 @@ public class CompoundMoveTest {
     private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
 
     private ActionSpecMapper mapper;
-
-    private GroupExpander groupExpander;
-    private GroupServiceBlockingStub groupServiceGrpc;
 
     private PolicyServiceMole policyMole = spy(PolicyServiceMole.class);
 
@@ -147,8 +140,6 @@ public class CompoundMoveTest {
         when(policyMole.getPolicies(Mockito.any())).thenReturn(policyResponses);
         grpcServer = GrpcTestServer.newServer(policyMole, groupMole);
         grpcServer.start();
-        groupServiceGrpc = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        groupExpander = new GroupExpander(groupServiceGrpc, new GroupMemberRetriever(groupServiceGrpc));
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         groupService = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
@@ -196,7 +187,6 @@ public class CompoundMoveTest {
                 REAL_TIME_TOPOLOGY_CONTEXT_ID,
                 mock(UuidMapper.class),
                 Mockito.mock(CloudSavingsDetailsDtoConverter.class),
-                groupExpander,
                 false);
         IdentityGenerator.initPrefix(0);
 

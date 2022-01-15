@@ -540,15 +540,6 @@ public enum EntitySettingSpecs {
             numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
-     * IOPS Capacity set for on-prem to cloud migration actions
-     */
-    OnPremIopsCapacity("onPremIopsCapacity",
-            "On-Premise IOPS Capacity",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_VOLUME),
-            numeric(1000.0f/*min*/, 100000.0f/*max*/, 50000.0f/*default*/), true),
-
-    /**
      * Resize target Utilization for IOPs.
      */
     ResizeTargetUtilizationIops("resizeTargetUtilizationIops", "Scaling Target IOPS Utilization",
@@ -600,7 +591,7 @@ public enum EntitySettingSpecs {
     VcpuScaling_Sockets_CoresPerSocketMode("vcpuScaling_sockets_coresPerSocketMode", "Cores per socket mode",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
+            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE_CORES_PER_SOCKET, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
 
     /**
      * Cores Per Socket value specified by user when CoresPerSocket mode is user_specified.

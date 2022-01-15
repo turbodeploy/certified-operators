@@ -15,16 +15,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.CreateTableColumnStep;
 import org.jooq.DSLContext;
-import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.bulk.BulkInserter.BatchStats;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
-import com.vmturbo.sql.utils.InformationSchema;
 
 /**
  * This class hands out {@link BulkInserter} instances on request.
@@ -234,26 +231,19 @@ public class BulkInserterFactory implements AutoCloseable {
      */
     public static void cleanupTransientTables(DSLContext ctx) {
         try {
-            if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                InformationSchema.getTables(null, ctx).stream()
-                        .filter(t -> t.getName().toLowerCase().contains(TRANSIENT_TABLE_SUFFIX))
-                        .map(ctx::dropTable)
-                        .forEach(Query::execute);
-            } else {
-                final List<String> tables =
-                        ctx.fetch("SHOW TABLES LIKE '%" + TRANSIENT_TABLE_SUFFIX + "%'").stream()
-                                .map(r -> r.getValue(0, String.class))
-                                .collect(Collectors.toList());
-                for (final String table : tables) {
-                    // Double-check - we really don't want to be deleting tables that we're not
-                    // supposed to!
-                    if (table.contains(TRANSIENT_TABLE_SUFFIX)) {
-                        logger.info("Dropping orphaned transient table {}", table);
-                        ctx.dropTable(table).execute();
-                    } else {
-                        logger.error("Narrowly avoided dropping table {} - should not be possible",
-                                table);
-                    }
+            final List<String> tables =
+                    ctx.fetch("SHOW TABLES LIKE '%" + TRANSIENT_TABLE_SUFFIX + "%'").stream()
+                            .map(r -> r.getValue(0, String.class))
+                            .collect(Collectors.toList());
+            for (final String table : tables) {
+                // Double-check - we really don't want to be deleting tables that we're not
+                // supposed to!
+                if (table.contains(TRANSIENT_TABLE_SUFFIX)) {
+                    logger.info("Dropping orphaned transient table {}", table);
+                    ctx.dropTable(table).execute();
+                } else {
+                    logger.error("Narrowly avoided dropping table {} - should not be possible",
+                            table);
                 }
             }
         } catch (DataAccessException e) {

@@ -15,7 +15,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -36,7 +35,6 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.AffectedEntitiesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -122,15 +120,16 @@ public class AffectedEntitiesManagerTest {
                 ActionDTO.ActionState.SUCCEEDED,
                 validExecutableStep,
                 validRecommendation);
-        final ArgumentCaptor<com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter> actionQueryFilterCaptor = ArgumentCaptor.forClass(ActionQueryFilter.class);
-        when(actionHistoryDao.getActionHistoryByFilter(actionQueryFilterCaptor.capture()))
-                                        .thenReturn(Arrays.asList(
-                                                                  failedAction,
-                                                                  invalidActionDueToExecutableStep,
-                                                                  invalidActionDueToCompletionTime,
-                                                                  invalidActionDueToRecommendation,
-                                                                  invalidActionDueToActionInfo,
-                                                                  validAction));
+        ArgumentCaptor<LocalDateTime> startDateTimeCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> endDateTimeCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        when(actionHistoryDao.getActionHistoryByDate(startDateTimeCaptor.capture(), endDateTimeCaptor.capture()))
+                .thenReturn(Arrays.asList(
+                    failedAction,
+                    invalidActionDueToExecutableStep,
+                    invalidActionDueToCompletionTime,
+                    invalidActionDueToRecommendation,
+                    invalidActionDueToActionInfo,
+                    validAction));
         ArgumentCaptor<Long> actionIdCaptor = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<ActionTypeCase> actionTypeCaptor = ArgumentCaptor.forClass(ActionTypeCase.class);
         ArgumentCaptor<EntityActionInfoState> entityActionInfoStateCaptor = ArgumentCaptor.forClass(EntityActionInfoState.class);
@@ -148,10 +147,9 @@ public class AffectedEntitiesManagerTest {
                 SHORT_TIMEOUT_MINS,
                 entitiesInCoolDownPeriodCache);
 
-        assertEquals(1, actionQueryFilterCaptor.getAllValues().size());
-        assertEquals(clock.instant().minus(SHORT_TIMEOUT_MINS, ChronoUnit.MINUTES).toEpochMilli(),
-                     actionQueryFilterCaptor.getValue().getStartDate());
-        assertEquals(clock.instant().toEpochMilli(), actionQueryFilterCaptor.getValue().getEndDate());
+        assertEquals(1, startDateTimeCaptor.getAllValues().size());
+        assertEquals(LocalDateTime.now(clock).minusMinutes(SHORT_TIMEOUT_MINS), startDateTimeCaptor.getValue());
+        assertEquals(LocalDateTime.now(clock), endDateTimeCaptor.getValue());
 
         assertEquals(1, actionIdCaptor.getAllValues().size());
         assertEquals(validAction.getId(), actionIdCaptor.getValue().longValue());

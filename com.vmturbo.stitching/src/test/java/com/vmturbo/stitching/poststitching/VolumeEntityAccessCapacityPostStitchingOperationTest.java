@@ -9,7 +9,6 @@ import java.util.stream.Stream;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -37,7 +36,6 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
                                                     .withType(COMMODITY_TYPE)
                                                     .withCapacity(CAPACITY_PROVIDER));
     private static final float CAPACITY_SETTING = 157.0F;
-    private static final float ON_PREM_IOPS_CAPACITY_SETTING = 200.0F;
     private static final double DELTA = 0.0001D;
 
     private static final Setting IOPS_SETTING = Setting.newBuilder()
@@ -45,11 +43,6 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
                     .setNumericSettingValue(
                                     NumericSettingValue.newBuilder().setValue(CAPACITY_SETTING))
                     .build();
-    private static final Setting ON_PREM_IOPS_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.OnPremIopsCapacity.getSettingName())
-            .setNumericSettingValue(
-                    NumericSettingValue.newBuilder().setValue(ON_PREM_IOPS_CAPACITY_SETTING))
-            .build();
 
     private static final CommoditySoldDTO COMMODITY_NO_CAP = CommoditySoldBuilder.newBuilder()
                     .withType(CommodityType.STORAGE_ACCESS).build();
@@ -105,69 +98,4 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
         assertEquals(0, resultBuilder.getChanges().size());
     }
 
-    private float testIopsCapacity(EnvironmentType environmentType,
-            EntitySettingSpecs entitySettingSpecs, Setting iopsSetting,
-            CommoditySoldDTO commoditySet) {
-        VolumeEntityAccessCapacityPostStitchingOperation op =
-                new VolumeEntityAccessCapacityPostStitchingOperation();
-        EntityChangesBuilder<TopologyEntity> resultBuilder = new UnitTestResultBuilder();
-
-        TopologyEntity volume = TopologyEntityBuilder.newBuilder()
-                .withEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .withCommoditiesSold(commoditySet)
-                .withEnvironmentType(environmentType)
-                .build();
-
-        when(settingsMock.getEntitySetting(volume, entitySettingSpecs)).thenReturn(
-                Optional.of(iopsSetting));
-        op.performOperation(Stream.of(volume), settingsMock, resultBuilder);
-
-        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
-
-        return (float)volume.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity();
-    }
-
-    /**
-     * Test that ON-PREM IOPS capacity setting is being pulled and set accordingly.
-     * When capacity is already set.
-     */
-    @Test
-    public void testOnPremIopsCapacityCommodityCapacitySet() {
-        float capacity = testIopsCapacity(EnvironmentType.ON_PREM,
-                EntitySettingSpecs.OnPremIopsCapacity, ON_PREM_IOPS_SETTING, COMMODITY_CAP);
-        assertEquals(ON_PREM_IOPS_CAPACITY_SETTING, capacity, DELTA);
-    }
-
-    /**
-     * Test that ON-PREM IOPS capacity setting is being pulled and set accordingly.
-     * When capacity is not already set.
-     */
-    @Test
-    public void testOnPremIopsCapacityCommodityCapacityNotSet() {
-        float capacity = testIopsCapacity(EnvironmentType.ON_PREM,
-                EntitySettingSpecs.OnPremIopsCapacity, ON_PREM_IOPS_SETTING, COMMODITY_NO_CAP);
-        assertEquals(ON_PREM_IOPS_CAPACITY_SETTING, capacity, DELTA);
-    }
-
-    /**
-     * Test that cloud IOPS capacity setting is being pulled and set accordingly.
-     * When capacity is already set.
-     */
-    @Test
-    public void testCloudIopsCapacityCommodityCapacitySet() {
-        float capacity = testIopsCapacity(EnvironmentType.CLOUD, EntitySettingSpecs.IOPSCapacity,
-                IOPS_SETTING, COMMODITY_CAP);
-        assertEquals(CAPACITY_ENTITY, capacity, DELTA);
-    }
-
-    /**
-     * Test that cloud IOPS capacity setting is being pulled and set accordingly.
-     * When capacity is not already set.
-     */
-    @Test
-    public void testCloudIopsCapacityCommodityCapacityNotSet() {
-        float capacity = testIopsCapacity(EnvironmentType.CLOUD, EntitySettingSpecs.IOPSCapacity,
-                IOPS_SETTING, COMMODITY_NO_CAP);
-        assertEquals(CAPACITY_SETTING, capacity, DELTA);
-    }
 }

@@ -35,11 +35,11 @@ import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequest;
 import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc.EntityUptimeServiceBlockingStub;
@@ -359,8 +359,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                 : entityUptimeService.getEntityUptimeByFilter(
                         GetEntityUptimeByFilterRequest.newBuilder()
                                 .setFilter(CloudScopeFilter.newBuilder()
-                                        .setEntityFilter(EntityFilter.newBuilder()
-                                                .addAllEntityId(entityIdsForUptimeQuery)))
+                                        .addAllEntityOid(entityIdsForUptimeQuery))
                                 .build()).getEntityUptimeByOidMap();
     }
 

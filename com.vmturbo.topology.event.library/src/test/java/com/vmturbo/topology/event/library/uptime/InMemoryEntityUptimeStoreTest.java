@@ -21,7 +21,7 @@ import org.junit.Test;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 
 public class InMemoryEntityUptimeStoreTest {
 

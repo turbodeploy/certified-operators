@@ -34,8 +34,9 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentUtilization;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationResponse;
@@ -44,12 +45,14 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyComm
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse.CloudCommitmentUtilizationRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesMoles.CloudCommitmentStatsServiceMole;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * Testing the CloudCommitmentStatsSubQuery.
@@ -215,37 +218,16 @@ public class CloudCommitmentStatsSubQueryTest {
         final double used = 1.5;
         final GetTopologyCommitmentCoverageStatsResponse response =
                 GetTopologyCommitmentCoverageStatsResponse.newBuilder()
-                        .addCommitmentCoverageStatChunk(CloudCommitmentStatRecord.newBuilder()
-                                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
-                                        .setCoverageType(CloudCommitmentCoverageType.COUPONS))
-                                .setValues(StatValue.newBuilder()
-                                        .setAvg(used)
-                                        .setMin(used)
-                                        .setMax(used)
-                                        .setTotal(used)
-                                        .build())
-                                .setCapacity(StatValue.newBuilder()
-                                        .setAvg(capacity)
-                                        .setMin(capacity)
-                                        .setMax(capacity)
-                                        .setTotal(capacity)
-                                        .build()))
-                        .addCommitmentCoverageStatChunk(CloudCommitmentStatRecord.newBuilder()
-                                .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
-                                        .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
-                                        .setCoverageSubtype(1))
-                                .setValues(StatValue.newBuilder()
-                                        .setAvg(used)
-                                        .setMin(used)
-                                        .setMax(used)
-                                        .setTotal(used)
-                                        .build())
-                                .setCapacity(StatValue.newBuilder()
-                                        .setAvg(capacity)
-                                        .setMin(capacity)
-                                        .setMax(capacity)
-                                        .setTotal(capacity)
-                                        .build()))
+                        .addCommitmentCoverageStatChunk(CloudCommitmentCoverage.newBuilder()
+                                .setCapacity(CloudCommitmentAmount.newBuilder().setCoupons(capacity))
+                                .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(used))
+                                .build())
+                        .addCommitmentCoverageStatChunk(CloudCommitmentCoverage.newBuilder()
+                                .setCapacity(CloudCommitmentAmount.newBuilder().setAmount(
+                                        CurrencyAmount.newBuilder().setCurrency(1).setAmount(capacity)))
+                                .setUsed(CloudCommitmentAmount.newBuilder().setAmount(
+                                        CurrencyAmount.newBuilder().setCurrency(1).setAmount(used)))
+                                .build())
                         .build();
         final ArgumentCaptor<GetTopologyCommitmentCoverageStatsRequest> captor =
                 ArgumentCaptor.forClass(GetTopologyCommitmentCoverageStatsRequest.class);
@@ -292,46 +274,36 @@ public class CloudCommitmentStatsSubQueryTest {
     public void testTopologyUtilizationStats() throws ConversionException, OperationFailedException, InterruptedException {
         final double capacity = 200.1;
         final double used = 10.8;
+        final double overhead = 50.7;
         final long oid = 123456789;
         final GetTopologyCommitmentUtilizationStatsResponse response =
                 GetTopologyCommitmentUtilizationStatsResponse.newBuilder()
                         .addCommitmentUtilizationRecordChunk(
-                                CloudCommitmentStatRecord.newBuilder()
-                                        .setCommitmentId(oid)
-                                        .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
-                                                .setCoverageType(CloudCommitmentCoverageType.COUPONS)
-                                                .build())
-                                        .setValues(StatValue.newBuilder()
-                                                .setTotal(used)
-                                                .setMin(used)
-                                                .setMax(used)
-                                                .setAvg(used)
-                                                .build())
-                                        .setCapacity(StatValue.newBuilder()
-                                                .setTotal(capacity)
-                                                .setMin(capacity)
-                                                .setMax(capacity)
-                                                .setAvg(capacity)
-                                                .build()))
+                                CloudCommitmentUtilizationRecord.newBuilder()
+                                        .setCommitmentOid(oid)
+                                        .setUtilization(CloudCommitmentUtilization.newBuilder()
+                                                .setCapacity(CloudCommitmentAmount.newBuilder()
+                                                        .setCoupons(capacity))
+                                                .setOverhead(CloudCommitmentAmount.newBuilder()
+                                                        .setCoupons(overhead))
+                                                .setUsed(CloudCommitmentAmount.newBuilder()
+                                                        .setCoupons(used))))
                         .addCommitmentUtilizationRecordChunk(
-                                CloudCommitmentStatRecord.newBuilder()
-                                        .setCommitmentId(oid)
-                                        .setCoverageTypeInfo(CloudCommitmentCoverageTypeInfo.newBuilder()
-                                                .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
-                                                .setCoverageSubtype(1)
-                                                .build())
-                                        .setValues(StatValue.newBuilder()
-                                                .setTotal(used)
-                                                .setMin(used)
-                                                .setMax(used)
-                                                .setAvg(used)
-                                                .build())
-                                        .setCapacity(StatValue.newBuilder()
-                                                .setTotal(capacity)
-                                                .setMin(capacity)
-                                                .setMax(capacity)
-                                                .setAvg(capacity)
-                                                .build()))
+                                CloudCommitmentUtilizationRecord.newBuilder()
+                                        .setCommitmentOid(oid)
+                                        .setUtilization(CloudCommitmentUtilization.newBuilder()
+                                                .setCapacity(CloudCommitmentAmount.newBuilder()
+                                                        .setAmount(CurrencyAmount.newBuilder()
+                                                                .setCurrency(1)
+                                                                .setAmount(capacity)))
+                                                .setOverhead(CloudCommitmentAmount.newBuilder()
+                                                        .setAmount(CurrencyAmount.newBuilder()
+                                                                .setCurrency(1)
+                                                                .setAmount(overhead)))
+                                                .setUsed(CloudCommitmentAmount.newBuilder()
+                                                        .setAmount(CurrencyAmount.newBuilder()
+                                                                .setCurrency(1)
+                                                                .setAmount(used)))))
                         .build();
         final ArgumentCaptor<GetTopologyCommitmentUtilizationStatsRequest> captor =
                 ArgumentCaptor.forClass(GetTopologyCommitmentUtilizationStatsRequest.class);
@@ -350,6 +322,7 @@ public class CloudCommitmentStatsSubQueryTest {
             assertEquals(1, stat.getStatistics().size());
             final StatApiDTO innerStat = stat.getStatistics().get(0);
             verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_UTILIZATION);
+            verifyStatValue(overhead, innerStat.getReserved());
             assertNotNull(innerStat.getRelatedEntity());
             assertEquals(oid, Long.valueOf(innerStat.getRelatedEntity().getUuid()).longValue());
             assertEquals(StringConstants.CLOUD_COMMITMENT, innerStat.getRelatedEntity().getClassName());
@@ -367,6 +340,7 @@ public class CloudCommitmentStatsSubQueryTest {
             assertEquals(1, stat.getStatistics().size());
             final StatApiDTO innerStat = stat.getStatistics().get(0);
             verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_UTILIZATION);
+            verifyStatValue(overhead, innerStat.getReserved());
             assertNotNull(innerStat.getRelatedEntity());
             assertEquals(oid, Long.valueOf(innerStat.getRelatedEntity().getUuid()).longValue());
             assertEquals(StringConstants.CLOUD_COMMITMENT, innerStat.getRelatedEntity().getClassName());

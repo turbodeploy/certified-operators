@@ -34,7 +34,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -199,16 +198,6 @@ public class SchedulerTest {
             NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
 
         scheduler.initialize();
-    }
-
-    @After
-    public void cleanup() {
-        fullDiscoveryExecutorSpy1.shutdownNow();
-        fullDiscoveryExecutorSpy2.shutdownNow();
-        incrementalDiscoveryExecutorSpy1.shutdownNow();
-        incrementalDiscoveryExecutorSpy2.shutdownNow();
-        broadcastExecutorSpy.shutdownNow();
-        expirationExecutorSpy.shutdownNow();
     }
 
     @Test

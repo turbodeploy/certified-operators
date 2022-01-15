@@ -32,8 +32,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAlloc
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents;
@@ -249,9 +248,7 @@ public class CCATopologyEventProvider implements TopologyEventProvider, ComputeT
         final Set<Long> oidsToFetch = Sets.difference(entityOids, cachedCreationTimeMap.keySet());
 
         final CloudScopeFilter cloudScopeFilter = CloudScopeFilter.newBuilder()
-                .setEntityFilter(EntityFilter.newBuilder()
-                        .addAllEntityId(oidsToFetch)
-                        .build())
+                .addAllEntityOid(oidsToFetch)
                 .build();
 
         try (Stream<EntityCloudScope> cloudScopeStream = cloudScopeStore.streamByFilter(cloudScopeFilter)) {

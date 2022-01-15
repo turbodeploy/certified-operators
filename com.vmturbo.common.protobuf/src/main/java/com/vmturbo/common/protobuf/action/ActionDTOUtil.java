@@ -1,8 +1,5 @@
 package com.vmturbo.common.protobuf.action;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1172,17 +1169,6 @@ public class ActionDTOUtil {
                 .append(" ")
                 .append(entityDTO.getDisplayName())
                 .toString();
-    }
-
-    /**
-     * Convert date time to local date time.
-     *
-     * @param dateTime date time with long type.
-     * @return local date time with LocalDateTime type.
-     */
-    public static LocalDateTime getLocalDateTime(final long dateTime) {
-        return LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime),
-                                            Clock.systemUTC().getZone());
     }
 
     /**

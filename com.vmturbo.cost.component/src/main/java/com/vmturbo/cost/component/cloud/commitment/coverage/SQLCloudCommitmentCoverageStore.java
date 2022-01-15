@@ -30,13 +30,13 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageGroupBy;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsRequest.GroupByCondition;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
@@ -188,21 +188,21 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
                 .add(DSL.avg(coverageTable.coverageCapacityField()).as(AVG_COVERAGE_CAPACITY));
 
         if (statsFilter.groupByList().size() > 0) {
-            for (CloudCommitmentCoverageGroupBy groupByCondition : statsFilter.groupByList()) {
+            for (GroupByCondition groupByCondition : statsFilter.groupByList()) {
                 switch (groupByCondition) {
-                    case COMMITMENT_COVERAGE_GROUP_BY_ACCOUNT:
+                    case ACCOUNT:
                         selectFields.add(coverageTable.accountIdField());
                         selectFields.add(coverageTable.serviceProviderIdField());
                         break;
-                    case COMMITMENT_COVERAGE_GROUP_BY_REGION:
+                    case REGION:
                         selectFields.add(coverageTable.regionIdField());
                         selectFields.add(coverageTable.serviceProviderIdField());
                         break;
-                    case COMMITMENT_COVERAGE_GROUP_BY_CLOUD_SERVICE:
+                    case CLOUD_SERVICE:
                         selectFields.add(coverageTable.cloudServiceIdField());
                         selectFields.add(coverageTable.serviceProviderIdField());
                         break;
-                    case COMMITMENT_COVERAGE_GROUP_BY_SERVICE_PROVIDER:
+                    case SERVICE_PROVIDER:
                         selectFields.add(coverageTable.serviceProviderIdField());
                         break;
                     default:
@@ -226,16 +226,16 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         statsFilter.groupByList().forEach(groupByCondition -> {
             switch (groupByCondition) {
-                case COMMITMENT_COVERAGE_GROUP_BY_ACCOUNT:
+                case ACCOUNT:
                     groupFields.add(coverageTable.accountIdField());
                     break;
-                case COMMITMENT_COVERAGE_GROUP_BY_REGION:
+                case REGION:
                     groupFields.add(coverageTable.regionIdField());
                     break;
-                case COMMITMENT_COVERAGE_GROUP_BY_SERVICE_PROVIDER:
+                case SERVICE_PROVIDER:
                     groupFields.add(coverageTable.serviceProviderIdField());
                     break;
-                case COMMITMENT_COVERAGE_GROUP_BY_CLOUD_SERVICE:
+                case CLOUD_SERVICE:
                     groupFields.add(coverageTable.cloudServiceIdField());
                     break;
                 default:

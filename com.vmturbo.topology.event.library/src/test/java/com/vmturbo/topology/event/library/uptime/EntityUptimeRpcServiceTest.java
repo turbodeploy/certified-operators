@@ -26,9 +26,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.cost.EntityUptime.ForceFullUptimeCalculationRequest;
 import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequest;
@@ -136,13 +134,9 @@ public class EntityUptimeRpcServiceTest {
 
         // invoke SUT
         final CloudScopeFilter filter = CloudScopeFilter.newBuilder()
-                .setAccountFilter(AccountFilter.newBuilder()
-                        .addAccountId(2)
-                        .addAccountId(3)
-                        .build())
-                .setRegionFilter(RegionFilter.newBuilder()
-                        .addRegionId(4)
-                        .build())
+                .addAccountOid(2)
+                .addAccountOid(3)
+                .addRegionOid(4)
                 .build();
         final GetEntityUptimeByFilterRequest request = GetEntityUptimeByFilterRequest.newBuilder()
                 .setFilter(filter)
