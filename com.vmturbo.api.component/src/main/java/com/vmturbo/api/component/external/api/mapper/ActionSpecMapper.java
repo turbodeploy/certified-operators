@@ -49,6 +49,7 @@ import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotF
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.converter.CloudSavingsDetailsDtoConverter;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -115,11 +116,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -149,6 +152,7 @@ import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -213,6 +217,8 @@ public class ActionSpecMapper {
 
     private final CloudSavingsDetailsDtoConverter cloudSavingsDetailsDtoConverter;
 
+    private final GroupExpander groupExpander;
+
     /**
      * Flag that enables all action uuids come from the stable recommendation oid instead of the
      * unstable action instance id.
@@ -250,6 +256,7 @@ public class ActionSpecMapper {
      * @param realtimeTopologyContextId the topology id of the live, real market.
      * @param uuidMapper coverts between API ids and XL ids.
      * @param cloudSavingsDetailsDtoConverter the {@link CloudSavingsDetailsDtoConverter}.
+     * @param groupExpander expands groups.
      * @param useStableActionIdAsUuid true when should use stable action recommendation oid instead
      *                                   of legacy action instance id as the uuid.
      */
@@ -262,6 +269,7 @@ public class ActionSpecMapper {
                             final long realtimeTopologyContextId,
                             @Nonnull final UuidMapper uuidMapper,
                             @Nonnull final CloudSavingsDetailsDtoConverter cloudSavingsDetailsDtoConverter,
+                            @Nonnull GroupExpander groupExpander,
                             final boolean useStableActionIdAsUuid) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -272,6 +280,7 @@ public class ActionSpecMapper {
         this.buyRiScopeHandler = buyRiScopeHandler;
         this.uuidMapper = uuidMapper;
         this.cloudSavingsDetailsDtoConverter = Objects.requireNonNull(cloudSavingsDetailsDtoConverter);
+        this.groupExpander = Objects.requireNonNull(groupExpander);
         this.useStableActionIdAsUuid = useStableActionIdAsUuid;
     }
 
@@ -1885,16 +1894,75 @@ public class ActionSpecMapper {
             OPERATIONAL_ACTION_STATES.forEach(queryBuilder::addStates);
         }
 
-        // Set involved entities from user input and Buy RI scope
-        final Set<Long> allInvolvedEntities = new HashSet<>(
-                buyRiScopeHandler.extractBuyRiEntities(scopeId));
-        involvedEntities.ifPresent(allInvolvedEntities::addAll);
-        if (!allInvolvedEntities.isEmpty()) {
-            queryBuilder.setInvolvedEntities(InvolvedEntities.newBuilder()
-                    .addAllOids(allInvolvedEntities));
+        // Set either scope related action query filters, or invoved entities.
+        // Scope Filters have precedence over InvolvedEntities, based on current UI workflows.
+        // Handling scope filter and involved entities together would exclude actions of deleted
+        // entities as they're no longer part of the scope.
+        // If a user is scoped, a separate entities restriction will be involved.
+        if (!setScopeRelatedActionQueryFilters(scopeId, queryBuilder)) {
+            // Set involved entities from user input and Buy RI scope
+            final Set<Long> allInvolvedEntities = new HashSet<>(
+                    buyRiScopeHandler.extractBuyRiEntities(scopeId));
+            involvedEntities.ifPresent(allInvolvedEntities::addAll);
+            if (!allInvolvedEntities.isEmpty()) {
+                queryBuilder.setInvolvedEntities(InvolvedEntities.newBuilder()
+                        .addAllOids(allInvolvedEntities));
+            }
         }
 
         return queryBuilder.build();
+    }
+
+    /**
+     * Set scope related filters in ActionQueryFilter.
+     *
+     * <p>At present UI supports one scope views, however, this method can be reworked to support
+     * multiple scopes, as fetching from multiple scopes is supported in the db.
+     * @param scopeId the api scope id.
+     * @param queryBuilder The action query filter builder.
+     * @return true if any filters were set, false otherwise;
+     */
+    private boolean setScopeRelatedActionQueryFilters(@Nullable final ApiId scopeId,
+                                                      @Nonnull final ActionQueryFilter.Builder queryBuilder) {
+        // Set Account Filter if scope is a supported scope or group.
+        if (scopeId != null && !scopeId.isRealtimeMarket()
+            && scopeId.getScopeTypes() != null
+            && scopeId.getScopeTypes().isPresent()) {
+            // Add blocks for other supported scopes here.
+            Set<ApiEntityType> scopeType = scopeId.getScopeTypes().get();
+            if (scopeType.contains(ApiEntityType.BUSINESS_ACCOUNT)) {
+                if (scopeId.isGroup()) { // Group of Business Accounts
+                    queryBuilder.setAccountFilter(AccountFilter.newBuilder()
+                            .addAllAccountId(groupExpander.expandOids(Collections
+                                    .singleton(scopeId))));
+                } else { // Single Business Account
+                    queryBuilder.setAccountFilter(AccountFilter.newBuilder()
+                            .addAllAccountId(Collections.singleton(scopeId.oid())));
+                }
+                return true;
+            } else if (scopeId.isResourceGroupOrGroupOfResourceGroups()) {
+                if (scopeId.getGroupType().isPresent()) {
+                    switch (scopeId.getGroupType().get()) {
+                        case RESOURCE: // Single Resouce Group
+                            // Single Resource Group
+                            queryBuilder.setResourceGroupFilter(ResourceGroupFilter.newBuilder()
+                                    .addAllResourceGroupOid(Collections
+                                            .singleton(scopeId.oid())));
+                            break;
+                        case REGULAR:
+                            // Group of Resource Groups
+                            Optional<GroupAndMembers> groupAndMembers =
+                                    groupExpander.getGroupWithImmediateMembersOnly(Long.toString(scopeId.oid()));
+                            groupAndMembers.ifPresent(g -> queryBuilder.setResourceGroupFilter(ResourceGroupFilter
+                                                                    .newBuilder()
+                                                        .addAllResourceGroupOid(g.members())));
+                            break;
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
