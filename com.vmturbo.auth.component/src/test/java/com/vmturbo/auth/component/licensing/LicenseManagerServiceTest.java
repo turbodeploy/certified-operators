@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableList;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -36,9 +35,9 @@ import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.auth.component.licensing.store.LicenseKVStore;
 import com.vmturbo.auth.component.store.LicenseLocalStoreTest;
+import com.vmturbo.common.protobuf.licensing.Licensing;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
-import com.vmturbo.common.protobuf.licensing.Licensing;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
@@ -166,10 +165,8 @@ public class LicenseManagerServiceTest {
     }
 
     @Test
-    @Ignore
     public void testStoreAndRetrieveCWOMLicense() {
-        LicenseDTO workloadLicense = LicenseDeserializer.deserialize(
-                LicenseLocalStoreTest.C1_LICENSE, "test.file");
+        LicenseDTO workloadLicense = LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_LICENSE, "test.file");
 
         AddLicensesResponse addResponse = clientStub.addLicenses(AddLicensesRequest.newBuilder()
                 .addLicenseDTO(workloadLicense)

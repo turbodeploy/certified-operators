@@ -43,7 +43,7 @@ public class PlanStatsAggregatorInfinityCapacityTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;

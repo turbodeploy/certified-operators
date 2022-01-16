@@ -119,13 +119,8 @@
                         <database>
 
                             <name>org.jooq.meta.mysql.MySQLDatabase</name>
-                            <includeExcludeColumns>true</includeExcludeColumns>
                             <includes>.*</includes>
-                            <excludes>
-                                schema_version
-                                | .*[.].*_stats_.*[.]aggregated
-                                | .*[.].*_stats_.*[.]new_samples
-                            </excludes>
+                            <excludes>schema_version</excludes>
 
                             <inputSchema>${db.schema}</inputSchema>
                             <outputSchema>${target.db.schema}</outputSchema>
