@@ -19,7 +19,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -102,6 +101,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -349,7 +349,7 @@ public class ActionPipelineStagesTest {
     public void testCreateLastExecutedRecommendationsTrackerStage() throws PipelineStageException, InterruptedException {
         final ActionHistoryDao actionDao = mock(ActionHistoryDao.class);
         final ActionView actionView = mock(ActionView.class);
-        when(actionDao.getActionHistoryByDate(any(LocalDateTime.class), any(LocalDateTime.class)))
+        when(actionDao.getActionHistoryByFilter(any(ActionQueryFilter.class)))
             .thenReturn(Collections.singletonList(actionView));
         when(actionView.getState()).thenReturn(ActionState.SUCCEEDED);
         when(actionView.getRecommendation()).thenReturn(moveAction);
