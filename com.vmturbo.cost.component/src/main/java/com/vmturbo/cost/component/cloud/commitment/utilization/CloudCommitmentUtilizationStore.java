@@ -12,9 +12,9 @@ import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentUtilizationGroupBy;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationRequest.GroupByCondition;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudCommitmentFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
@@ -155,7 +155,7 @@ public interface CloudCommitmentUtilizationStore {
          * @return The list of group by conditions.
          */
         @Nonnull
-        List<GroupByCondition> groupByList();
+        List<CloudCommitmentUtilizationGroupBy> groupByList();
 
         /**
          * Constructs and returns a new builder instance.

@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
 import io.grpc.Status;
@@ -28,7 +29,6 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyComm
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse.CloudCommitmentUtilizationRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceImplBase;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore;
@@ -50,6 +50,8 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
 
     private final CloudCommitmentUtilizationStore utilizationStore;
 
+    private final CloudCommitmentStatsConverter statsConverter;
+
     private final int maxStatRecordsPerChunk;
 
     private final Map<TopologyType, Supplier<Optional<UtilizationInfo>>>
@@ -63,6 +65,7 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
      * @param utilizationStore The cloud commitment utilization store.
      * @param topologyCoverageStore The cloud commitment topology coverage store
      * @param topologyUtilizationStore The topology commitment utilization store.
+     * @param statsConverter The commitment stats converter.
      * @param maxStatRecordsPerChunk The max number of records to return per chunk in streaming
      *                               commitment stats.
      */
@@ -71,6 +74,7 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
             @Nonnull final CloudCommitmentUtilizationStore utilizationStore,
             @Nonnull final SourceProjectedFieldsDataStore<CoverageInfo> topologyCoverageStore,
             @Nonnull final SourceProjectedFieldsDataStore<UtilizationInfo> topologyUtilizationStore,
+            @Nonnull CloudCommitmentStatsConverter statsConverter,
             final int maxStatRecordsPerChunk) {
 
         Preconditions.checkArgument(maxStatRecordsPerChunk > 0, "Max stat record per chunk must be positive");
@@ -80,6 +84,7 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
         this.maxStatRecordsPerChunk = maxStatRecordsPerChunk;
         this.topologyTypeToUtilizationGetter = createTopologyTypeToStoreMethod(
                 topologyUtilizationStore);
+        this.statsConverter = Objects.requireNonNull(statsConverter);
         this.topologyTypeToCoverageGetter = createTopologyTypeToStoreMethod(topologyCoverageStore);
     }
 
@@ -196,13 +201,12 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
         final Supplier<Optional<CoverageInfo>> coverageGetter = topologyTypeToCoverageGetter.get(
                 request.getTopologyType());
         if (coverageGetter != null) {
-            coverageGetter.get().ifPresent(coverageInfo -> Iterators.partition(
-                    coverageInfo.coverageDataPoints().iterator(),
-                    getRequestedChunkSize(request.getChunkSize()))
-                    .forEachRemaining(chunk -> responseObserver.onNext(
-                            GetTopologyCommitmentCoverageStatsResponse.newBuilder()
-                                    .addAllCommitmentCoverageStatChunk(chunk)
-                                    .build())));
+            coverageGetter.get().ifPresent(coverageInfo ->
+                    Iterables.partition(statsConverter.convertToCoverageStats(coverageInfo), getRequestedChunkSize(request.getChunkSize()))
+                            .forEach(chunk -> responseObserver.onNext(
+                                    GetTopologyCommitmentCoverageStatsResponse.newBuilder()
+                                            .addAllCommitmentCoverageStatChunk(chunk)
+                                            .build())));
         }
         responseObserver.onCompleted();
     }
@@ -214,16 +218,15 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
         final Supplier<Optional<UtilizationInfo>> utilizationGetter =
                 topologyTypeToUtilizationGetter.get(request.getTopologyType());
         if (utilizationGetter != null) {
-            utilizationGetter.get().ifPresent(utilizationInfo -> Iterators.partition(
-                    utilizationInfo.commitmentIdToUtilization().entrySet().iterator(),
-                    getRequestedChunkSize(request.getChunkSize())).forEachRemaining(chunk -> {
-                final GetTopologyCommitmentUtilizationStatsResponse.Builder nextResponse =
-                        GetTopologyCommitmentUtilizationStatsResponse.newBuilder();
-                chunk.forEach(u -> nextResponse.addCommitmentUtilizationRecordChunk(
-                        CloudCommitmentUtilizationRecord.newBuilder()
-                                .setCommitmentOid(u.getKey())
-                                .setUtilization(u.getValue())));
-                responseObserver.onNext(nextResponse.build());
+            utilizationGetter.get().ifPresent(utilizationInfo ->
+                    Iterables.partition(statsConverter.convertToUtilizationStats(utilizationInfo), getRequestedChunkSize(request.getChunkSize()))
+                            .forEach(chunk -> {
+                                final GetTopologyCommitmentUtilizationStatsResponse nextResponse =
+                                        GetTopologyCommitmentUtilizationStatsResponse.newBuilder()
+                                                .addAllCommitmentUtilizationRecordChunk(chunk)
+                                                .build();
+
+                                responseObserver.onNext(nextResponse);
             }));
         }
         responseObserver.onCompleted();
