@@ -16,6 +16,7 @@ import org.jooq.Field;
 import org.jooq.JoinType;
 import org.jooq.Record;
 import org.jooq.ResultQuery;
+import org.jooq.SQLDialect;
 import org.jooq.SelectConditionStep;
 import org.jooq.SelectHavingStep;
 import org.jooq.SelectJoinStep;
@@ -335,6 +336,10 @@ public abstract class QueryBase {
      * @return table with hint applied, if any is registered
      */
     private Table<?> applyHint(Table<?> table) {
+        if (dsl.dialect() == SQLDialect.POSTGRES) {
+            // postgres does not implement anything like the mysql index hints
+            return table;
+        }
         Pair<String, IndexHint> hint = indexHints.get(table.getName());
         if (hint != null) {
             switch (hint.getRight()) {

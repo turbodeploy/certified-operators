@@ -1,12 +1,7 @@
 package com.vmturbo.sql.utils;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
 import javax.sql.DataSource;
 
@@ -146,33 +141,6 @@ class MySqlFamilyAdapter extends DbAdapter {
     @Override
     public String getConnectionUser(final Connection conn) throws SQLException {
         return conn.getClientInfo("ClientUser");
-    }
-
-    @Override
-    public void truncateAllTables(Connection conn) throws SQLException {
-        for (final String table : getAllTableNames(conn)) {
-            try (Statement statement = conn.createStatement()) {
-                // Workaround to be able to truncate tables.
-                statement.execute("SET FOREIGN_KEY_CHECKS = 0;");
-                statement.execute(String.format("TRUNCATE TABLE %s", quote(table)));
-                statement.execute("SET FOREIGN_KEY_CHECKS = 1;");
-            }
-        }
-    }
-
-    @Override
-    protected Collection<String> getAllTableNames(final Connection conn) throws SQLException {
-        try (Statement statement = conn.createStatement();
-             ResultSet results = statement.executeQuery(String.format(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s' "
-                        + "AND table_type = 'BASE TABLE' AND table_name != 'schema_version'",
-                config.getSchemaName()))) {
-            List<String> tables = new ArrayList<>();
-            while (results.next()) {
-                tables.add(results.getString(1));
-            }
-            return tables;
-        }
     }
 
     @Override
