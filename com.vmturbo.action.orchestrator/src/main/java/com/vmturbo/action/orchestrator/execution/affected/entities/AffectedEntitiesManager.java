@@ -2,7 +2,6 @@ package com.vmturbo.action.orchestrator.execution.affected.entities;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,7 +29,6 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -267,14 +265,9 @@ public class AffectedEntitiesManager implements ActionStateMachine.ActionEventLi
     private void initializeTheCache(final int entitiesInCoolDownPeriodCacheSizeInMins) {
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        final List<ActionView> completedActions = actionHistoryDao
-                        .getActionHistoryByFilter(ActionQueryFilter.newBuilder()
-                                        .setStartDate(clock.instant()
-                                                .minus(entitiesInCoolDownPeriodCacheSizeInMins,
-                                                       ChronoUnit.MINUTES)
-                                                .toEpochMilli())
-                                        .setEndDate(clock.instant().toEpochMilli())
-                                        .build());
+        final List<ActionView> completedActions = actionHistoryDao.getActionHistoryByDate(
+                LocalDateTime.now(clock).minusMinutes(entitiesInCoolDownPeriodCacheSizeInMins),
+                LocalDateTime.now(clock));
         completedActions.stream()
             // Only SUCCEEDED actions are used for controllable flags.
             .filter(action -> action.getState() == ActionState.SUCCEEDED)

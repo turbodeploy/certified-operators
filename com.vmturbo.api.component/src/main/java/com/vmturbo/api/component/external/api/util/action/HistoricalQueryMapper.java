@@ -187,14 +187,7 @@ class HistoricalQueryMapper {
                     mgmtSubgroupFilterBldr.setMgmtUnitId(scope.oid());
                 }
 
-                // Don't set entity types for single BA and RG scopes, as the only entityType stored in db is -1 (UNSET)
-                // Groups of these scopes already pass empty related entity type lists.
-                // TODO: This clause would need to be re-evaluated along with any changes made in OM-79415.
-                if (!(scope.isEntity() && scope.getClassName().equals(ApiEntityType.BUSINESS_ACCOUNT.apiStr()))
-                        && !(scope.isResourceGroupOrGroupOfResourceGroups() && scope.getGroupType().isPresent()
-                        && scope.getGroupType().get() == GroupType.RESOURCE)) {
-                    mgmtSubgroupFilterBldr.addAllEntityType(query.getRelatedEntityTypes());
-                }
+                mgmtSubgroupFilterBldr.addAllEntityType(query.getRelatedEntityTypes());
                 query.getEnvironmentType().ifPresent(mgmtSubgroupFilterBldr::setEnvironmentType);
 
                 return mgmtSubgroupFilterBldr.build();

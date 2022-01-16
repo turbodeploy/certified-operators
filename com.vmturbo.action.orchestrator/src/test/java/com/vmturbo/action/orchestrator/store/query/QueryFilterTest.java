@@ -10,18 +10,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableList;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
-import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
@@ -32,7 +28,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDisruptiveness;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -47,9 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -357,36 +350,6 @@ public class QueryFilterTest {
 
         assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
                                     .test(actionView));
-    }
-
-    @Test
-    public void testAccountFilter() {
-        final ActionView actionView =
-            executableDeleteAction(0L/*id*/, 3L/*targetId*/, ActionState.SUCCEEDED/*actionState*/);
-
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-                        .addAllStates(ImmutableList.of(ActionState.SUCCEEDED, ActionState.FAILED))
-                        .setAccountFilter(AccountFilter.newBuilder().addAccountId(2L)
-                                          .build())
-                        .build();
-
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-                                    .test(actionView));
-    }
-
-    @Test
-    public void testResourceGroupFilter() {
-        final ActionView actionView =
-                executableDeleteAction(0L/*id*/, 3L/*targetId*/, ActionState.FAILED/*actionState*/);
-
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-                .addAllStates(ImmutableList.of(ActionState.SUCCEEDED, ActionState.FAILED))
-                .setResourceGroupFilter(ResourceGroupFilter.newBuilder().addResourceGroupOid(9L)
-                        .build())
-                .build();
-
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-                .test(actionView));
     }
 
     /**
@@ -937,28 +900,5 @@ public class QueryFilterTest {
             .build();
 
         return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator, 2244L));
-    }
-
-    private ActionView executableDeleteAction(long id, long targetId, ActionState actionState) {
-            final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                    .setId(id)
-                    .setDeprecatedImportance(0)
-                    .setExecutable(true)
-                    .setExplanation(Explanation.newBuilder().build())
-                    .setInfo(TestActionBuilder.makeDeleteInfo(targetId))
-                    .build();
-
-        return spy(new Action(new SerializationState(
-                ACTION_PLAN_ID,
-                action,
-                null,
-                ActionDecision.newBuilder().build(),
-                null,
-                actionState,
-                new ActionTranslation(action),
-                2L,
-                9L,
-                null,
-                id), actionModeCalculator));
     }
 }
