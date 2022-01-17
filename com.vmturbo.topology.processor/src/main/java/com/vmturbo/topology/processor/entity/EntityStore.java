@@ -66,6 +66,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -194,6 +195,13 @@ public class EntityStore {
                 })
     );
 
+    private static final Set<ProbeCategory> TRACK_STALENESS_PROBE_CATEGORIES =
+                    ImmutableSet.of(ProbeCategory.HYPERVISOR,
+                                    ProbeCategory.STORAGE_BROWSING,
+                                    ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE,
+                                    ProbeCategory.STORAGE,
+                                    ProbeCategory.PRIVATE_CLOUD,
+                                    ProbeCategory.HYPERCONVERGED);
     private static final Set<TargetHealthSubCategory> HEALTH_SUBCATEGORIES_FOR_STALENESS =
                     ImmutableSet.of(TargetHealthSubCategory.VALIDATION,
                                     TargetHealthSubCategory.DELAYED_DATA,
@@ -414,13 +422,14 @@ public class EntityStore {
         TargetStitchingDataMap stitchingDataMap;
 
         synchronized (topologyUpdateLock) {
-            // only set staleness for entities coming from hypervisors
+            // only set staleness for on-prem entities 
             // TODO this probe type-dependent logic should be temporary until a finer line for staleness is drawn
-            final Set<Long> hypervisorTargetIds = targetStore.getAll().stream()
+            final Set<Long> stalenessApplicableTargetIds = targetStore.getAll().stream()
                 .map(Target::getId)
                 .filter(targetId -> targetStore.getProbeCategoryForTarget(targetId)
                     .filter(Objects::nonNull)
-                    .map(category -> category == ProbeCategory.HYPERVISOR)
+                    .map(category -> TRACK_STALENESS_PROBE_CATEGORIES.contains(category)
+                                    || ProbeCategory.isAppOrContainerCategory(category))
                     .orElse(false))
                 .collect(Collectors.toSet());
 
@@ -446,7 +455,7 @@ public class EntityStore {
                             .targetId(targetId)
                             .lastUpdatedTime(cacheEntry.lastUpdatedTime)
                             .supportsConnectedTo(cacheEntry.supportsConnectedTo)
-                            .setStale(isDiscoveredEntityStale(stalenessProvider, targetId, entityDTO, hypervisorTargetIds))
+                            .setStale(isDiscoveredEntityStale(stalenessProvider, targetId, entityDTO, stalenessApplicableTargetIds))
                             .build();
                 }).forEach(stitchingDataMap::put);
             }
@@ -481,13 +490,16 @@ public class EntityStore {
     }
 
     private static boolean isDiscoveredEntityStale(StalenessInformationProvider stalenessProvider,
-                    long targetId, EntityDTO.Builder entityDTO, Set<Long> hypervisorTargetIds) {
+                    long targetId, EntityDTO.Builder entityDTO, Set<Long> stalenessApplicableTargetIds) {
+        if (!FeatureFlags.DELAYED_DATA_HANDLING.isEnabled()) {
+            return false;
+        }
         /**
          * For now, staleness is defined at target level but exposed to stitching at entity level.
          * Currently only on_prem entities are expected to have staleness flag ever set
          * (this is subject to change later when we define staleness at finer granularity).
          */
-        if (!hypervisorTargetIds.contains(targetId)) {
+        if (!stalenessApplicableTargetIds.contains(targetId)) {
             return false;
         }
         TargetHealth lastKnownTargetHealth =

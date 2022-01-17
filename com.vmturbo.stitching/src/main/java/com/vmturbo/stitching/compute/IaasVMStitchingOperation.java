@@ -21,6 +21,7 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.MergeEntities;
+import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 
 /**
  * A stitching operation appropriate for use by Container targets.
@@ -115,11 +116,15 @@ public class IaasVMStitchingOperation extends
         logger.debug("Stitching {} with {}",
                 hypervisorVM.getDisplayName(), containerVM.getDisplayName());
 
-        // All the commodities sold by the container VM should now be sold by the hypervisor vm.
-        resultBuilder
-            .queueChangeRelationships(hypervisorVM, toUpdate -> {
-                CopyCommodities.copyCommodities().from(containerVM).to(toUpdate);
-            })
-            .queueEntityMerger(MergeEntities.mergeEntity(containerVM).onto(hypervisorVM));
+        boolean mergeCommodities = MergeEntities.isMergeAllowedByStaleness(containerVM, hypervisorVM);
+        if (mergeCommodities) {
+            // All the commodities sold by the container VM should now be sold by the hypervisor vm.
+            resultBuilder
+                .queueChangeRelationships(hypervisorVM, toUpdate -> {
+                    CopyCommodities.copyCommodities().from(containerVM).to(toUpdate);
+                });
+        }
+        resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(containerVM).onto(hypervisorVM,
+                        MergePropertiesStrategy.KEEP_ONTO, mergeCommodities));
     }
 }

@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -335,4 +336,17 @@ public class MergeEntities {
     public static MergeEntitiesStart mergeEntities(@Nonnull final List<StitchingEntity> mergeFromEntities) {
         return new MergeEntitiesStart(mergeFromEntities);
     }
+
+    /**
+     * Whether the staleness states of the entities allows the merge operation.
+     * NB staleness is set on entity level (subject to change) and should affect commodities only (subject to change)
+     *
+     * @param from source entity
+     * @param onto destination entity
+     * @return true if merge should proceed
+     */
+    public static boolean isMergeAllowedByStaleness(@Nonnull StitchingEntity from, @Nonnull StitchingEntity onto) {
+        return !FeatureFlags.DELAYED_DATA_HANDLING.isEnabled() || !from.isStale() || onto.isStale();
+    }
+
 }

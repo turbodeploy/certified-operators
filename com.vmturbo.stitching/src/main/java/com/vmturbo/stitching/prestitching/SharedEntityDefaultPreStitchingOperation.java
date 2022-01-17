@@ -31,6 +31,7 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.EntityScopeFilters;
 import com.vmturbo.stitching.utilities.MergeEntities;
+import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 
 /**
  * Default pre stitching operation for shared entities.
@@ -113,11 +114,15 @@ public class SharedEntityDefaultPreStitchingOperation implements PreStitchingOpe
     protected void mergeSharedEntities(@Nonnull final StitchingEntity source,
             @Nonnull final StitchingEntity destination,
             @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        resultBuilder.queueChangeRelationships(destination,
-                dst -> CopyCommodities.copyCommodities().from(source).to(dst));
+        boolean mergeCommodities = MergeEntities.isMergeAllowedByStaleness(source, destination);
+        if (mergeCommodities) {
+            resultBuilder.queueChangeRelationships(destination,
+                            dst -> CopyCommodities.copyCommodities().from(source).to(dst));
+        }
         resultBuilder.queueUpdateEntityAlone(destination,
                 dst -> mergeMessageBuilders(source.getEntityBuilder(), dst.getEntityBuilder()));
-        resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(source).onto(destination));
+        resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(source).onto(destination,
+                        MergePropertiesStrategy.KEEP_ONTO, mergeCommodities));
     }
 
     /**
