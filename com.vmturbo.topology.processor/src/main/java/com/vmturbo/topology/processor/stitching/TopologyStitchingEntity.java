@@ -75,7 +75,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private long lastUpdatedTime;
 
-    private final boolean isStale;
+    private boolean isStale;
 
     /**
      * The errors encountered by this entity during any part of stitching.
@@ -210,7 +210,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     public StitchingEntity snapshot() {
         // Create a basic copy
         TopologyStitchingEntity copy = new TopologyStitchingEntity(entityBuilder.clone(), getOid(),
-            targetId, lastUpdatedTime);
+            targetId, lastUpdatedTime, isStale);
 
         // Copy consumers
         // Consumers do not need to be deep-copied because when performing a diff of consumers, we only
@@ -607,6 +607,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public boolean isStale() {
         return isStale;
+    }
+
+    public void setStale(boolean isStale) {
+        this.isStale = isStale;
     }
 
     private static <K,V> IdentityHashMap<K, V> miniIdentityHashMap() {

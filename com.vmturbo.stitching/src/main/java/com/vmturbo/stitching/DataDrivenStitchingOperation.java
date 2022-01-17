@@ -34,6 +34,7 @@ import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.MergeEntities;
+import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
 
 /**
@@ -273,15 +274,16 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
             internalProvider.ifPresent(provider -> {
                 Optional<StitchingEntity> externalEntityProvider =
                         getReplacedEntity(provider, externalEntity);
-
                 // Remove the externalProvider from the externalEntity provider-relationship.
                 externalEntityProvider.ifPresent(externalProvider -> {
-                    resultBuilder.queueChangeRelationships(externalEntity, toUpdate ->
+                    if (MergeEntities.isMergeAllowedByStaleness(provider, externalProvider)) {
+                        resultBuilder.queueChangeRelationships(externalEntity, toUpdate ->
                             toUpdate.removeProvider(externalProvider));
-                    // Remove external provider from the topology if it is replaceable.
-                    if (externalProvider.getEntityBuilder().getOrigin()
-                            == EntityOrigin.REPLACEABLE) {
-                        resultBuilder.queueEntityRemoval(externalProvider);
+                        // Remove external provider from the topology if it is replaceable.
+                        if (externalProvider.getEntityBuilder().getOrigin()
+                                == EntityOrigin.REPLACEABLE) {
+                            resultBuilder.queueEntityRemoval(externalProvider);
+                        }
                     }
                 });
             });
@@ -299,8 +301,10 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
         // of the list of sold commodities to merge from internal to external entity.
         // This MergeEntitiesDetails also handles merging of properties and entity fields.
         MergeEntities.MergeEntitiesDetails mergeEntitiesDetails =
-                MergeEntities.mergeEntity(internalEntity)
-                        .onto(externalEntity, getMergeCommoditySoldStrategy());
+                        MergeEntities.mergeEntity(internalEntity).onto(externalEntity,
+                                        getMergeCommoditySoldStrategy(),
+                                        MergePropertiesStrategy.KEEP_ONTO,
+                                        MergeEntities.isMergeAllowedByStaleness(internalEntity, externalEntity));
         matchingInformation.getPropertiesToPatch().forEach(prop -> {
             mergeEntitiesDetails.addFieldMerger(EntityFieldMergers.getPropertyFieldMerger(prop));
         });

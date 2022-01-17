@@ -365,6 +365,7 @@ public class StitchingManagerTest {
 
         verify(journal).recordTargets(any(Supplier.class));
     }
+
     @RunWith(Parameterized.class)
     public static class DelayedDataHandlingFunctionalityTest {
 
@@ -562,6 +563,7 @@ public class StitchingManagerTest {
             Assert.assertEquals(data.expectedControllable, externalEntity.getEntityDtoBuilder()
                     .getConsumerPolicyBuilder()
                     .getControllable());
+            Assert.assertEquals(!data.expectedControllable, externalEntity.isStale());
             Mockito.verify(stitchingOperation, Mockito.times(1)).stitch(stitchingPointsCapture.capture(),
                     Mockito.any());
             if (internalEntity != null) {

@@ -32,6 +32,7 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -55,6 +56,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalTargetEntrySupplier;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -347,9 +349,24 @@ public class StitchingManager {
         if (FeatureFlags.DELAYED_DATA_HANDLING.isEnabled()) {
             stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "START",
                             "Set the controllable flag to false for stale entities"));
+            // staleness atm should affect only on-prem, ignore it for the purpose of setting controllable
+            // for everything but hypervisors
+            // TODO remove to make this logic uniform when staleness is defined at finer granularity
+            final Set<Long> hypervisorTargets = targetStore.getAll().stream()
+                            .map(Target::getId)
+                            .filter(targetId -> targetStore.getProbeCategoryForTarget(targetId)
+                                .filter(Objects::nonNull)
+                                .map(category -> category == ProbeCategory.HYPERVISOR)
+                                .orElse(false))
+                            .collect(Collectors.toSet());
+
             final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(
                     scopeFactory.getStitchingContext());
             scopeFactory.globalScope().entities().forEach(e -> {
+                if (e.isStale() && !hypervisorTargets.contains(e.getTargetId())) {
+                    resultBuilder.queueUpdateEntityAlone(e, en -> ((TopologyStitchingEntity)en).setStale(false));
+                    return;
+                }
                 if (e.hasMergeInformation()) {
                     if (e.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED
                             && !e.isStale()) {
@@ -371,20 +388,22 @@ public class StitchingManager {
                         resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
                                 .getConsumerPolicyBuilder()
                                 .setControllable(false));
+                        resultBuilder.queueUpdateEntityAlone(e, en -> ((TopologyStitchingEntity)en).setStale(true));
                     }
                 } else {
                     if (e.isStale()) {
-                        resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
-                                .getConsumerPolicyBuilder()
-                                .setControllable(false));
+                        if (hypervisorTargets.contains(e.getTargetId())) {
+                            resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
+                                            .getConsumerPolicyBuilder()
+                                            .setControllable(false));
+                        }
                     }
                 }
             });
             TopologicalChangelog<StitchingEntity> results = resultBuilder.build();
             results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
             stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "END",
-                    "Set the controllable flag to false for " + results.getChanges().size()
-                            + "stale entities"));
+                    "Set the controllable flag to false for " + results.getChanges().size() + " stale entities"));
         }
     }
 
