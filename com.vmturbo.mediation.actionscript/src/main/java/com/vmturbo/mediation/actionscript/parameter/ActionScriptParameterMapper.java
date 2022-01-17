@@ -123,8 +123,8 @@ public class ActionScriptParameterMapper {
 
         typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_INTERNAL,
             action -> Optional.of(action)
-                .filter(ActionExecutionDTO::hasActionOid)
-                .map(ActionExecutionDTO::getActionOid)
+                .filter(ActionExecutionDTO::hasActionStableId)
+                .map(ActionExecutionDTO::getActionStableId)
                 .map(String::valueOf)
             );
 

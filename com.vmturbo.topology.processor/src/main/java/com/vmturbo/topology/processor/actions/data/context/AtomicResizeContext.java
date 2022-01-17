@@ -72,7 +72,7 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
 
         // Build ActionItemDTO for each resize info in the merged action
         AtomicResize atomicResizeInfo = getActionInfo().getAtomicResize();
-        boolean isPrimary = false;
+        boolean isPrimary = true;
         for (ResizeInfo resizeInfo : atomicResizeInfo.getResizesList()) {
             long originalActionEntityId = resizeInfo.getTarget().getId();
             EntityDTO originalEntityDTO = getFullEntityDTO(originalActionEntityId);
