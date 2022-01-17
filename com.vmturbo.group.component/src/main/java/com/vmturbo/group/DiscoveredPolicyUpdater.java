@@ -155,7 +155,7 @@ public abstract class DiscoveredPolicyUpdater<R, T extends AbstractMessage, D> {
         final Set<Long> objectsToDelete = new HashSet<>(
                 findPoliciesAssociatedTargetsRemoved(existingPolicies, discoveredPolicies.keySet(),
                         undiscoveredTargets));
-        logger.info("Will remove {} policies from removed targets: {}", objectsToDelete.size(),
+        logger.debug("Will remove {} policies from removed targets: {}", objectsToDelete.size(),
                 objectsToDelete);
         decisions.stream().filter(PolicyDecision::isDelete).map(PolicyDecision::getOid).forEach(
                 objectsToDelete::add);

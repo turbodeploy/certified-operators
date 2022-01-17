@@ -1925,11 +1925,11 @@ public class GroupRpcService extends GroupServiceImplBase {
                     }
                 }
             }
-            logger.info("Got {} new groups, {} for update, {} unchanged and {} to delete",
+            logger.debug("Got {} new groups, {} for update, {} unchanged and {} to delete",
                     groupsToAdd.size(), groupsToUpdate.size(), unchangedGroups.size(),
                     stitchingResult.getGroupsToDelete().size());
             if (!stitchingResult.getGroupsToDelete().isEmpty()) {
-                logger.info("Following groups are getting deleted: ", stitchingResult.getGroupsToDelete());
+                logger.debug("Following groups are getting deleted: {}", stitchingResult.getGroupsToDelete());
             }
             logger.debug("The following {} groups will not be updated as they are not changed: {}",
                     unchangedGroups::size, unchangedGroups::toString);

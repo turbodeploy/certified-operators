@@ -64,7 +64,7 @@ public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater<Po
             @Nonnull Map<Long, Collection<DiscoveredPolicyInfo>> discoveredPolicies,
             @Nonnull Table<Long, String, Long> groupOids, Set<Long> undiscoveredTargets) throws StoreOperationException {
         final DataMetricTimer timer = DURATION_TIMER.startTimer();
-        getLogger().info("Updating discovered placement policies for {} targets: {}",
+        getLogger().debug("Updating discovered placement policies for {} targets: {}",
                 discoveredPolicies.size(), discoveredPolicies.keySet());
         final Map<Long, Map<String, DiscoveredObjectVersionIdentity>> allExistingPolicies =
                 store.getDiscoveredPolicies();
@@ -81,7 +81,7 @@ public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater<Po
                         .map(policy -> policy.getPolicyInfo().getName() + "(" + policy.getId() + ")")
                         .collect(Collectors.joining(",")));
         store.createPolicies(update.getObjectsToAdd());
-        getLogger().info(
+        getLogger().debug(
                 "Successfully processed {} discovered placement policies. from {} targets. Took {}s",
                 discoveredPolicies.values()
                         .stream()
