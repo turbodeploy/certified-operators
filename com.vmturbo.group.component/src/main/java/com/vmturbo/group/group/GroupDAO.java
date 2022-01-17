@@ -1950,7 +1950,7 @@ public class GroupDAO implements IGroupStore {
         final Set<Long> groupsToIgnore =
                 getIgnoredDiscoveredGroups(context, Sets.union(newGroupOids, groupsToDelete));
         if (!groupsToIgnore.isEmpty()) {
-            logger.info("Following groups are ignored by update, as the related target has not been"
+            logger.debug("Following groups are ignored by update, as the related target has not been"
                     + " discovered yet: " + groupsToIgnore);
         }
         cleanDiscoveredGroupsChildTables(context, groupsToIgnore);

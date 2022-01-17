@@ -62,7 +62,7 @@ public class DiscoveredSettingPoliciesUpdater extends
             @Nonnull Map<Long, Collection<DiscoveredSettingPolicyInfo>> discoveredPolicies,
             @Nonnull Table<Long, String, Long> groupNamesByTarget, Set<Long> undiscoveredTargets) throws StoreOperationException {
         final DataMetricTimer timer = DURATION_TIMER.startTimer();
-        getLogger().info("Updating discovered setting policies for targets: {}",
+        getLogger().debug("Updating discovered setting policies for targets: {}",
                 discoveredPolicies::keySet);
         if (getLogger().isTraceEnabled()) {
             for (Entry<Long, Collection<DiscoveredSettingPolicyInfo>> entry : discoveredPolicies.entrySet()) {
