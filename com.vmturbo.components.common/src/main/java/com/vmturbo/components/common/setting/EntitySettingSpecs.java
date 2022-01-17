@@ -540,6 +540,15 @@ public enum EntitySettingSpecs {
             numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
+     * IOPS Capacity set for on-prem to cloud migration actions
+     */
+    OnPremIopsCapacity("onPremIopsCapacity",
+            "On-Premise IOPS Capacity",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(1000.0f/*min*/, 100000.0f/*max*/, 50000.0f/*default*/), true),
+
+    /**
      * Resize target Utilization for IOPs.
      */
     ResizeTargetUtilizationIops("resizeTargetUtilizationIops", "Scaling Target IOPS Utilization",
