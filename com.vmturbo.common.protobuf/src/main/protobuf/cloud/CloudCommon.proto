@@ -20,17 +20,9 @@ message RegionFilter {
     repeated int64 region_id = 1;
 }
 
-message ZoneFilter {
-    repeated int64 zone_id = 1;
-}
-
 message EntityFilter {
     // A list of entity ids need to filter by.
     repeated int64 entity_id = 1;
-}
-
-message EntityTypeFilter {
-    repeated int32 entity_type = 1;
 }
 
 message CloudCommitmentFilter {
@@ -39,14 +31,4 @@ message CloudCommitmentFilter {
 
 message ServiceProviderFilter {
     repeated int64 service_provider_id = 1;
-}
-
-message CloudScopeFilter {
-
-    optional cloud_common.EntityFilter entity_filter = 1;
-    optional cloud_common.EntityTypeFilter entity_type_filter = 2;
-    optional cloud_common.AccountFilter account_filter = 3;
-    optional cloud_common.RegionFilter region_filter = 4;
-    optional cloud_common.ZoneFilter availability_zone_filter = 5;
-    optional cloud_common.ServiceProviderFilter service_provider_filter = 6;
 }

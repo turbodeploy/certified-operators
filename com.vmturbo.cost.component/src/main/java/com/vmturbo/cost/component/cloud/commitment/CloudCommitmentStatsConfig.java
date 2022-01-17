@@ -258,33 +258,20 @@ public class CloudCommitmentStatsConfig {
     }
 
     /**
-     * A bean for {@link CloudCommitmentStatsConverter}.
-     * @return A bean for {@link CloudCommitmentStatsConverter}.
-     */
-    @Bean
-    public CloudCommitmentStatsConverter cloudCommitmentStatsConverter() {
-        return new CloudCommitmentStatsConverter();
-    }
-
-    /**
      * A bean for {@link CloudCommitmentStatsRpcService}.
      * @param topologyCommitmentCoverageStore A bean for topology commitment coverage store.
      * @param topologyCommitmentUtilizationStore A bean for topology commitment utilization
      *         store.
-     * @param cloudCommitmentStatsConverter The stats converter.
      * @return A bean for {@link CloudCommitmentStatsRpcService}.
      */
     @Nonnull
     @Bean
     public CloudCommitmentStatsRpcService cloudCommitmentStatsRpcService(
             @Nonnull final SourceProjectedFieldsDataStore<CoverageInfo> topologyCommitmentCoverageStore,
-            @Nonnull final SourceProjectedFieldsDataStore<UtilizationInfo> topologyCommitmentUtilizationStore,
-            @Nonnull CloudCommitmentStatsConverter cloudCommitmentStatsConverter) {
+            @Nonnull final SourceProjectedFieldsDataStore<UtilizationInfo> topologyCommitmentUtilizationStore) {
         return new CloudCommitmentStatsRpcService(cloudCommitmentCoverageStore(),
                 cloudCommitmentUtilizationStore(), topologyCommitmentCoverageStore,
-                topologyCommitmentUtilizationStore,
-                cloudCommitmentStatsConverter,
-                maxStatRecordsPerChunk);
+                topologyCommitmentUtilizationStore, maxStatRecordsPerChunk);
     }
 
     /**

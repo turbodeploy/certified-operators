@@ -148,7 +148,6 @@ public class TopologyConverterFromMarketTest {
     private static final long DA_OID = 30000L;
     private static final long SC_OID = 40000L;
     private static final long VOLUME_ID = 10L;
-    private static final long POD_ID = 11L;
     private static final Float SCALING_FACTOR = 1.5F;
     private static final Float RAW_PM_USED = 0.5F;
     private static final Float RAW_VM_USED = 0.2177F;
@@ -188,8 +187,8 @@ public class TopologyConverterFromMarketTest {
 
     private static final TopologyInfo REALTIME_TOPOLOGY_INFO =
             TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build();
-    private static final TopologyInfo PLAN_TOPOLOGY_INFO = TopologyInfo.newBuilder()
-            .setTopologyType(TopologyType.PLAN).setPlanInfo(PlanTopologyInfo.newBuilder().build()).build();
+    private static final TopologyInfo PLAN_TOPOLOGY_INFO =
+            TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build();
 
     private CommodityType topologyCommodity1;
     private CommodityType topologyCommodity2;
@@ -2650,33 +2649,6 @@ public class TopologyConverterFromMarketTest {
                         .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .build();
         assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume, CommoditiesBoughtFromProvider.getDefaultInstance()));
-    }
-
-    /**
-     * Checks if logic to skip shopping list creation for pods works or not.
-     */
-    @Test
-    public void skipShoppingListTestForPods() {
-        final TopologyDTO.TopologyEntityDTO pod = TopologyDTO.TopologyEntityDTO.newBuilder()
-                .setOid(POD_ID).setEntityType(EntityType.CONTAINER_POD_VALUE).build();
-        final CommoditiesBoughtFromProvider computeBought = CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
-                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE)))
-                .build();
-        final CommoditiesBoughtFromProvider storageBought = CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
-                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)))
-                .build();
-
-        // realtime - no skip
-        assertFalse(converter.skipShoppingListCreation(pod, computeBought));
-        assertFalse(converter.skipShoppingListCreation(pod, storageBought));
-        // plan - skip the storage, but not the compute
-        constructTopologyConverter(CommodityIndex.newFactory(), PLAN_TOPOLOGY_INFO);
-        assertFalse(converter.skipShoppingListCreation(pod, computeBought));
-        assertTrue(converter.skipShoppingListCreation(pod, storageBought));
     }
 
     /**

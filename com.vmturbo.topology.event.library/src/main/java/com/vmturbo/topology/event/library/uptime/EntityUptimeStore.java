@@ -6,7 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 
 /**
  * A store for {@link EntityUptime}.
