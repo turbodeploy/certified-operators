@@ -20,6 +20,16 @@ defaultProperties:
         clustermgr_port : 8080
         costHost: cost
         dbHost: db
+        dbs:
+            postgresDefault:
+                host: postgres
+                port: 5432
+            mariadbDefault:
+                host: db
+                port: 3306
+            mysqlDefault:
+                host: db
+                port: 3306
         groupHost: group
         historyHost: history
         marketHost: market
@@ -48,8 +58,8 @@ defaultProperties:
         com.vmturbo.communication.remote.iterator.timeout: 600000
         enableSearchApi: true
     extractor:
-        dbHost: timescaledb
-        dbPort: 5432
+        dbs.postgresDefault.host: timescaledb
+        dbs.postgresDefault.port: 5432
         enableReporting: true
     action-orchestrator:
         identityGeneratorPrefix: 9
