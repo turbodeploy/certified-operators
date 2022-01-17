@@ -69,7 +69,7 @@ import com.vmturbo.api.dto.target.TargetRelationship;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.TargetStatsGroupBy;
-import com.vmturbo.api.enums.healthCheck.HealthState;
+import com.vmturbo.api.enums.health.HealthState;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -1536,7 +1536,7 @@ public class TargetsService implements ITargetsService {
         @Override
         public int compare(TargetHealthApiDTO o1, TargetHealthApiDTO o2) {
             if (!sortByState || o1.getHealthState() == o2.getHealthState()) {
-                return o1.getCheckSubcategory().compareTo(o2.getCheckSubcategory());
+                return o1.getTargetStatusSubcategory().compareTo(o2.getTargetStatusSubcategory());
             }
             return o1.getHealthState().compareTo(o2.getHealthState());
         }

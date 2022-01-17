@@ -46,7 +46,7 @@ import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.component.security.SpringJdbcHttpSessionCondition;
-import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
+import com.vmturbo.api.dto.admin.HealthCategoryResponseDTO;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
 import com.vmturbo.api.dto.admin.ProductCapabilityDTO;
@@ -58,8 +58,8 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.enums.LoggingLevel;
-import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
-import com.vmturbo.api.enums.healthCheck.HealthState;
+import com.vmturbo.api.enums.health.HealthCategory;
+import com.vmturbo.api.enums.health.HealthState;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.IAdminService;
@@ -633,7 +633,7 @@ public class AdminService implements IAdminService {
         return productVersion;
     }
 
-    private boolean healthStateFilter(@Nonnull HealthCategoryReponseDTO categoryResponse,
+    private boolean healthStateFilter(@Nonnull HealthCategoryResponseDTO categoryResponse,
                     @Nullable HealthState state) {
         if (state == null)  {
             //If the health state is not specified then the default is to take all health states.
@@ -644,9 +644,9 @@ public class AdminService implements IAdminService {
 
     @Override
     @Nonnull
-    public List<HealthCategoryReponseDTO> getHealth(@Nullable HealthCheckCategory healthCheckCategory,
+    public List<HealthCategoryResponseDTO> getHealth(@Nullable HealthCategory healthCategory,
                     @Nullable HealthState state) {
-        return healthAggregator.getAggregatedHealth(healthCheckCategory).stream()
+        return healthAggregator.getAggregatedHealth(healthCategory).stream()
             .filter(categoryResponse -> healthStateFilter(categoryResponse, state))
             .collect(Collectors.toList());
     }

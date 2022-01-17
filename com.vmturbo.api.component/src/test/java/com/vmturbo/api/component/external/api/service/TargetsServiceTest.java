@@ -291,7 +291,7 @@ public class TargetsServiceTest {
 
         when(topologyProcessor.getTargets(Mockito.any()))
             .thenAnswer((Answer<List<TargetInfo>>)invocation -> {
-                final List<Long> ids = (List<Long>)invocation.getArgumentAt(0, List.class);
+                final List<Long> ids = invocation.getArgumentAt(0, List.class);
                 final List<TargetInfo> targetInfos =
                     ids.stream()
                     .map(registeredTargets::get)
@@ -553,12 +553,12 @@ public class TargetsServiceTest {
         // verify the response for the parent target
         assertEquals(parentTargetInfo, probeInfo, parentDto);
         assertThat(parentDto.getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.CRITICAL));
         assertThat(parentDto.getDerivedTargets().size(), equalTo(1));
         assertThat(parentDto.getParentTargets().size(), equalTo(0));
         assertEquals(derivedTargetInfo, probeInfo, parentDto.getDerivedTargets().get(0));
         assertThat(parentDto.getDerivedTargets().get(0).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+                equalTo(com.vmturbo.api.enums.health.HealthState.MINOR));
     }
 
     /**
@@ -618,7 +618,7 @@ public class TargetsServiceTest {
         // verify the response for the parent target
         assertEquals(parentTargetInfo, probeInfo, parentDto);
         assertThat(parentDto.getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.CRITICAL));
         assertThat(parentDto.getDerivedTargets().size(), equalTo(2));
         assertThat(parentDto.getParentTargets().size(), equalTo(0));
         final Map<Long, TargetApiDTO> derivedTargets = Maps.uniqueIndex(
@@ -626,9 +626,9 @@ public class TargetsServiceTest {
         assertEquals(derivedTargetInfo, probeInfo, derivedTargets.get(DERIVED_TARGET_ID));
         assertEquals(derivedHiddenTargetInfo, probeInfo, derivedTargets.get(DERIVED_HIDDEN_TARGET_ID));
         assertThat(derivedTargets.get(DERIVED_TARGET_ID).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+                equalTo(com.vmturbo.api.enums.health.HealthState.MINOR));
         assertThat(derivedTargets.get(DERIVED_HIDDEN_TARGET_ID).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.NORMAL));
     }
 
     /**
@@ -688,7 +688,7 @@ public class TargetsServiceTest {
         // verify the response for the parent target
         assertEquals(parentTargetInfo, probeInfo, parentDto);
         assertThat(parentDto.getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.CRITICAL));
         assertThat(parentDto.getDerivedTargets().size(), equalTo(2));
         assertThat(parentDto.getParentTargets().size(), equalTo(0));
         final Map<Long, TargetApiDTO> derivedTargets = Maps.uniqueIndex(
@@ -696,9 +696,9 @@ public class TargetsServiceTest {
         assertEquals(derivedTargetInfo, probeInfo, derivedTargets.get(DERIVED_TARGET_ID));
         assertEquals(derivedHiddenTargetInfo, probeInfo, derivedTargets.get(DERIVED_HIDDEN_TARGET_ID));
         assertThat(derivedTargets.get(DERIVED_TARGET_ID).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+                equalTo(com.vmturbo.api.enums.health.HealthState.MINOR));
         assertThat(derivedTargets.get(DERIVED_HIDDEN_TARGET_ID).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.NORMAL));
     }
 
     /**
@@ -750,12 +750,12 @@ public class TargetsServiceTest {
         // verify the response for the derived target
         assertEquals(derivedTargetInfo, probeInfo, derivedDto);
         assertThat(derivedDto.getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+                equalTo(com.vmturbo.api.enums.health.HealthState.MINOR));
         assertThat(derivedDto.getDerivedTargets().size(), equalTo(0));
         assertThat(derivedDto.getParentTargets().size(), equalTo(1));
         assertEquals(derivedTargetInfo, probeInfo, derivedDto.getParentTargets().get(0));
         assertThat(derivedDto.getParentTargets().get(0).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.CRITICAL));
     }
 
     /**
@@ -1281,29 +1281,29 @@ public class TargetsServiceTest {
         final TargetApiDTO parentDto = allTargetDtosMap.get(PARENT_TARGET_ID);
         assertEquals(parentTargetInfo, probeInfo, parentDto);
         assertThat(parentDto.getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.CRITICAL));
         assertThat(parentDto.getDerivedTargets().size(), equalTo(1));
         assertThat(parentDto.getParentTargets().size(), equalTo(0));
         assertEquals(derivedTargetInfo, probeInfo, parentDto.getDerivedTargets().get(0));
         assertThat(parentDto.getDerivedTargets().get(0).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+                equalTo(com.vmturbo.api.enums.health.HealthState.MINOR));
 
         // verify the response for the derived target
         final TargetApiDTO derivedTarget = allTargetDtosMap.get(DERIVED_TARGET_ID);
         assertEquals(derivedTargetInfo, probeInfo, derivedTarget);
         assertThat(derivedTarget.getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.MINOR));
+                equalTo(com.vmturbo.api.enums.health.HealthState.MINOR));
         assertThat(derivedTarget.getDerivedTargets().size(), equalTo(0));
         assertThat(derivedTarget.getParentTargets().size(), equalTo(1));
         assertEquals(parentTargetInfo, probeInfo, derivedTarget.getParentTargets().get(0));
         assertThat(derivedTarget.getParentTargets().get(0).getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.CRITICAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.CRITICAL));
 
         // verify the response for the regular target
         final TargetApiDTO regularTarget = allTargetDtosMap.get(REGULAR_TARGET_ID);
         assertEquals(regularTargetInfo, probeInfo, regularTarget);
         assertThat(regularTarget.getHealthSummary().getHealthState(),
-                equalTo(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL));
+                equalTo(com.vmturbo.api.enums.health.HealthState.NORMAL));
         assertThat(regularTarget.getDerivedTargets().size(), equalTo(0));
         assertThat(regularTarget.getParentTargets().size(), equalTo(0));
     }
@@ -2908,7 +2908,8 @@ public class TargetsServiceTest {
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
         assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
-        Assert.assertEquals(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL, targetApiDTO.getHealthSummary().getHealthState());
+        Assert.assertEquals(com.vmturbo.api.enums.health.HealthState.NORMAL,
+                        targetApiDTO.getHealthSummary().getHealthState());
         assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
         assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
@@ -2937,7 +2938,7 @@ public class TargetsServiceTest {
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
             assertNotNull(targetApiDTO);
             assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
-            Assert.assertEquals(com.vmturbo.api.enums.healthCheck.HealthState.NORMAL,
+            Assert.assertEquals(com.vmturbo.api.enums.health.HealthState.NORMAL,
                     targetApiDTO.getHealthSummary().getHealthState());
             assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
             assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());

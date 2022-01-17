@@ -22,9 +22,9 @@ import com.vmturbo.api.dto.target.DiscoveryInfoApiDTO;
 import com.vmturbo.api.dto.target.TargetErrorDetailsApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.target.TargetThirdPartyErrorDetailsApiDTO;
-import com.vmturbo.api.enums.healthCheck.HealthState;
-import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
-import com.vmturbo.api.enums.healthCheck.TargetErrorType;
+import com.vmturbo.api.enums.health.HealthState;
+import com.vmturbo.api.enums.health.TargetErrorType;
+import com.vmturbo.api.enums.health.TargetStatusSubcategory;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
@@ -106,16 +106,16 @@ public class HealthDataMapper {
         return result;
     }
 
-    private static final Map<TargetHealthSubCategory, TargetCheckSubcategory> TARGET_CHECK_SUBCATEGORIES_CONVERTER =
+    private static final Map<TargetHealthSubCategory, TargetStatusSubcategory> TARGET_CHECK_SUBCATEGORIES_CONVERTER =
                     initializeTargetCheckSubcategories();
 
-    private static Map<TargetHealthSubCategory, TargetCheckSubcategory> initializeTargetCheckSubcategories() {
-        final Map<TargetHealthSubCategory, TargetCheckSubcategory> result = new EnumMap<>(
+    private static Map<TargetHealthSubCategory, TargetStatusSubcategory> initializeTargetCheckSubcategories() {
+        final Map<TargetHealthSubCategory, TargetStatusSubcategory> result = new EnumMap<>(
                         TargetHealthSubCategory.class);
-        result.put(TargetHealthSubCategory.DISCOVERY, TargetCheckSubcategory.DISCOVERY);
-        result.put(TargetHealthSubCategory.VALIDATION, TargetCheckSubcategory.VALIDATION);
-        result.put(TargetHealthSubCategory.DUPLICATION, TargetCheckSubcategory.DUPLICATION);
-        result.put(TargetHealthSubCategory.DELAYED_DATA, TargetCheckSubcategory.DELAYED_DATA);
+        result.put(TargetHealthSubCategory.DISCOVERY, TargetStatusSubcategory.DISCOVERY);
+        result.put(TargetHealthSubCategory.VALIDATION, TargetStatusSubcategory.VALIDATION);
+        result.put(TargetHealthSubCategory.DUPLICATION, TargetStatusSubcategory.DUPLICATION);
+        result.put(TargetHealthSubCategory.DELAYED_DATA, TargetStatusSubcategory.DELAYED_DATA);
         return result;
     }
 
@@ -146,7 +146,7 @@ public class HealthDataMapper {
         result.setUuid(Long.toString(targetId));
         result.setTargetName(healthInfo.getTargetName());
 
-        result.setCheckSubcategory(TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(healthInfo.getSubcategory()));
+        result.setTargetStatusSubcategory(TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(healthInfo.getSubcategory()));
         result.setHealthState(HEALTH_STATE_CONVERTER.get(healthInfo.getHealthState()));
 
         if (healthInfo.hasMessageText() && !healthInfo.getMessageText().isEmpty()) {
@@ -188,7 +188,8 @@ public class HealthDataMapper {
         return result;
     }
 
-    private static Collection<TargetErrorDetailsApiDTO> addTargetErrorDetails(@Nonnull final List<ErrorTypeInfo> healthInfoErrorDetailList) {
+    private static Collection<TargetErrorDetailsApiDTO> addTargetErrorDetails(
+                    @Nonnull final List<ErrorTypeInfo> healthInfoErrorDetailList) {
         final Collection<TargetErrorDetailsApiDTO> targetErrorDetailsApiDTOS = new ArrayList<>();
         healthInfoErrorDetailList.forEach(errorTypeInfo -> {
             final TargetErrorDetailsApiDTO targetErrorDetailsApiDTO;
