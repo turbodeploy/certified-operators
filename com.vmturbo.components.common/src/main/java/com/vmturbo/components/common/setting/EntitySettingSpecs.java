@@ -600,7 +600,7 @@ public enum EntitySettingSpecs {
     VcpuScaling_Sockets_CoresPerSocketMode("vcpuScaling_sockets_coresPerSocketMode", "Cores per socket mode",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE_CORES_PER_SOCKET, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
+            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
 
     /**
      * Cores Per Socket value specified by user when CoresPerSocket mode is user_specified.

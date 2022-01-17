@@ -139,7 +139,7 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
         TopologyEntityDTO vm1 = makeVM(1, 2, true, false);
         TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
-        GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "PRESERVE_CORES_PER_SOCKET", null);
+        GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "PRESERVE", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
 
         when(settingPolicyServiceMole.getEntitySettings(any(GetEntitySettingsRequest.class)))
@@ -163,7 +163,7 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
         TopologyEntityDTO vm1 = makeVM(1, 4, true, false);
         TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         EntitySettingGroup.Builder settingGroup1 = makeEntitySettingGroup(ImmutableList.of(1L), 1, "USER_SPECIFIED", null);
-        EntitySettingGroup.Builder settingGroup2 = makeEntitySettingGroup(ImmutableList.of(2L), 1, "PRESERVE_CORES_PER_SOCKET", null);
+        EntitySettingGroup.Builder settingGroup2 = makeEntitySettingGroup(ImmutableList.of(2L), 1, "PRESERVE", null);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
         GetEntitySettingsResponse response2 = GetEntitySettingsResponse.newBuilder()
                 .addSettingGroup(settingGroup1)
