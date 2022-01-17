@@ -248,7 +248,7 @@ public class EntitySettingsApplicatorTest {
 
     private static final Setting VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_PRESERVE =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
-                                    VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE_CORES_PER_SOCKET);
+                                    VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE);
     private static final Setting VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_USER_SPECIFIED =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
                                     VcpuScalingSocketsCoresPerSocketModeEnum.USER_SPECIFIED);
