@@ -42,7 +42,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Unplac
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
-import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
@@ -79,6 +78,8 @@ public class InitialPlacementFinder {
      */
     private final String logPrefix = "FindInitialPlacement: ";
 
+    private final AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory;
+
 
     public EconomyCaches getEconomyCaches() {
         return economyCaches;
@@ -107,15 +108,18 @@ public class InitialPlacementFinder {
      * @param maxRetry The max number of retry if findInitialPlacement failed.
      * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
      *          within a certain grouping.
+     * @param analysisDiagnosticsCollectorFactory is the factory used for saving diags.
      */
     public InitialPlacementFinder(@Nonnull DSLContext dsl,
             @Nonnull final ReservationServiceBlockingStub stub,
-            final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry) {
+            final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
+            AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory) {
         economyCaches = new EconomyCaches(dsl);
         this.blockingStub = stub;
         this.prepareReservationCache = prepareReservationCache;
         this.maxRetry = maxRetry;
         this.maxGroupingRetry = maxGroupingRetry;
+        this.analysisDiagnosticsCollectorFactory = analysisDiagnosticsCollectorFactory;
     }
 
     /**
@@ -536,14 +540,14 @@ public class InitialPlacementFinder {
      */
     private void saveInitialPlacementDiags(List<InitialPlacementDTO> initialPlacements) {
         String now = String.valueOf((new Date()).getTime());
-        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(now, AnalysisMode.INITIAL_PLACEMENT).ifPresent(diagsCollector -> {
-            diagsCollector.saveInitialPlacementDiagsIfEnabled(now,
-                    economyCaches.getHistoricalCachedCommTypeMap(),
-                    economyCaches.getRealtimeCachedCommTypeMap(),
-                    initialPlacements,
-                    economyCaches.getHistoricalCachedEconomy(),
-                    economyCaches.getRealtimeCachedEconomy());
-        });
+        analysisDiagnosticsCollectorFactory.newDiagsCollector(now, AnalysisMode.INITIAL_PLACEMENT)
+                .ifPresent(diagsCollector -> {
+                    diagsCollector.saveInitialPlacementDiagsIfEnabled(now,
+                            economyCaches.getHistoricalCachedCommTypeMap(),
+                            economyCaches.getRealtimeCachedCommTypeMap(),
+                            initialPlacements,
+                            economyCaches.getHistoricalCachedEconomy(),
+                            economyCaches.getRealtimeCachedEconomy());
+                });
     }
 }

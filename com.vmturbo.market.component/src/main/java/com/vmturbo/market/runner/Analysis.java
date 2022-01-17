@@ -85,8 +85,8 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.diagnostics.ActionLogger;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
-import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsUtils;
 import com.vmturbo.market.diagnostics.IDiagnosticsCleaner;
@@ -324,6 +324,8 @@ public class Analysis {
 
     private final String contextType;
 
+    private final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory;
+
     // RelatedActionInterpreter is to interpret relations between 2 actions.
     private final RelatedActionInterpreter relatedActionInterpreter;
 
@@ -370,7 +372,8 @@ public class Analysis {
                     @Nonnull final CommodityIdUpdater commodityIdUpdater,
                     @Nonnull final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory,
                     @Nonnull final ExternalReconfigureActionEngine externalReconfigureActionEngine,
-                    @Nonnull final IDiagnosticsCleaner diagnosticsCleaner) {
+                    @Nonnull final IDiagnosticsCleaner diagnosticsCleaner,
+                    @Nonnull final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -403,7 +406,8 @@ public class Analysis {
                 : TopologyConversionConstants.LIVE_CONTEXT_TYPE_LABEL;
         this.externalReconfigureActionEngine = externalReconfigureActionEngine;
         this.diagnosticsCleaner = diagnosticsCleaner;
-        relatedActionInterpreter = new RelatedActionInterpreter(topologyInfo);
+        this.analysisDiagsCollectorFactory = analysisDiagsCollectorFactory;
+        this.relatedActionInterpreter = new RelatedActionInterpreter(topologyInfo);
     }
 
     /**
@@ -502,7 +506,8 @@ public class Analysis {
         if (!stopAnalysis) {
             List<CommoditySpecification> commsToAdjustOverheadInClone =
                     createCommsToAdjustOverheadInClone();
-            diagnosticsCleaner.setSaveAnalysisDiagsFuture(saveAnalysisDiagsAsync(traderTOs.values(), commsToAdjustOverheadInClone));
+            diagnosticsCleaner.setSaveAnalysisDiagsFuture(saveAnalysisDiagsAsync(traderTOs.values(),
+                    commsToAdjustOverheadInClone));
             Topology topology = TopologyEntitiesHandler.createTopology(traderTOs.values(),
                     topologyInfo, commsToAdjustOverheadInClone, config);
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
@@ -1038,17 +1043,16 @@ public class Analysis {
 
     private Future<?> saveAnalysisDiagsAsync(final Collection<TraderTO> traderTOs,
                                              final List<CommoditySpecification> commSpecsToAdjustOverhead) {
-        final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("analysis-diags-writer-%d").build();
-        final ExecutorService diagsWriterExecutorService = Executors.newFixedThreadPool(1, threadFactory);
-        return diagsWriterExecutorService.submit(() -> {
-            AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-            factory.newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo),
-                    AnalysisMode.M2).ifPresent(diagsCollector -> { diagsCollector.saveAnalysisIfEnabled(
-                            traderTOs.stream().collect(Collectors.toList()), topologyInfo, config, commSpecsToAdjustOverhead,
-                    diagnosticsCleaner.getNumRealTimeAnalysisDiagsToRetain());
-            });
-        });
+
+        Optional<AnalysisDiagnosticsCollector> collector = analysisDiagsCollectorFactory
+                .newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo),
+                AnalysisMode.M2);
+        if (collector.isPresent()) {
+            return collector.get().saveAnalysisAsyncIfEnabled(
+                    traderTOs.stream().collect(Collectors.toList()), topologyInfo, config,
+                    commSpecsToAdjustOverhead, diagnosticsCleaner.getNumRealTimeAnalysisDiagsToRetain());
+        }
+        return null;
     }
 
     /**
@@ -1158,11 +1162,12 @@ public class Analysis {
     }
 
     private void saveSMADiags(final SMAInput smaInput) {
-        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo), AnalysisMode.SMA)
-                .ifPresent(diagsCollector -> {
-                    diagsCollector.saveSMAInputIfEnabled(smaInput, topologyInfo);
-                });
+        analysisDiagsCollectorFactory
+            .newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo),
+                    AnalysisMode.SMA)
+            .ifPresent(diagsCollector -> {
+                diagsCollector.saveSMAInputIfEnabled(smaInput, topologyInfo);
+            });
     }
 
     /*
@@ -1173,8 +1178,7 @@ public class Analysis {
                                    CloudTopology<TopologyEntityDTO> projectedCloudTopology,
                                    TopologyConverter converter, CloudCostData cloudCostData) {
 
-        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo), AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
+        analysisDiagsCollectorFactory.newDiagsCollector(AnalysisDiagnosticsUtils.getTopologyUniqueIdentifier(topologyInfo), AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
             // Write actions to log file in CSV format
             ActionLogger externalize = new ActionLogger();
             List<String> actionLogs = new ArrayList<>();

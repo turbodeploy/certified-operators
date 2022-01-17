@@ -46,6 +46,7 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.topology.conversions.CommodityConverter;

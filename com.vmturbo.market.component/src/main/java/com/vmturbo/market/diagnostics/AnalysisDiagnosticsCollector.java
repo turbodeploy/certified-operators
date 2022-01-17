@@ -26,6 +26,8 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
@@ -66,6 +68,7 @@ public class AnalysisDiagnosticsCollector {
 
     private final String zipFilenameSuffix;
     private final AnalysisMode analysisMode;
+    private final ExecutorService diagsWriterExecutorService;
 
     /**
      * To identify which analysis diags we are saving.
@@ -117,10 +120,13 @@ public class AnalysisDiagnosticsCollector {
      *
      * @param zipFilenameSuffix   the diagnostics writer.
      * @param analysisMode the zip output stream.
+     * @param diagsWriterExecutorService the executor service used for saving analysisDiags.
      */
-    private AnalysisDiagnosticsCollector(String zipFilenameSuffix, AnalysisMode analysisMode) {
+    private AnalysisDiagnosticsCollector(String zipFilenameSuffix, AnalysisMode analysisMode,
+            @Nonnull ExecutorService diagsWriterExecutorService) {
         this.zipFilenameSuffix = zipFilenameSuffix;
         this.analysisMode = analysisMode;
+        this.diagsWriterExecutorService = diagsWriterExecutorService;
     }
 
     /**
@@ -317,6 +323,32 @@ public class AnalysisDiagnosticsCollector {
     }
 
     /**
+     * Save analysis data asynchronously and return future.
+     *
+     * @param traderTOs                 traders
+     * @param topologyInfo              topology info
+     * @param analysisConfig            analysis config
+     * @param commSpecsToAdjustOverhead commSpecsToAdjustOverhead
+     * @param numRealTimeAnalysisDiagsToRetain number of real time analysis diagnostics to retain
+     *
+     * @return future for the asynchronously running task.
+     */
+    public Future<?> saveAnalysisAsyncIfEnabled(final List<TraderTO> traderTOs,
+            final TopologyInfo topologyInfo,
+            final AnalysisConfig analysisConfig,
+            final List<CommoditySpecification> commSpecsToAdjustOverhead,
+            final int numRealTimeAnalysisDiagsToRetain) {
+        try {
+            return diagsWriterExecutorService.submit(
+                    () -> saveAnalysisIfEnabled(traderTOs, topologyInfo, analysisConfig,
+                            commSpecsToAdjustOverhead, numRealTimeAnalysisDiagsToRetain));
+        } catch (RuntimeException e) {
+            logger.error("Unable to save diags due to error.", e);
+            return null;
+        }
+    }
+
+    /**
      * Save analysis data.
      *
      * @param traderTOs                 traders
@@ -325,7 +357,7 @@ public class AnalysisDiagnosticsCollector {
      * @param commSpecsToAdjustOverhead commSpecsToAdjustOverhead
      * @param numRealTimeAnalysisDiagsToRetain number of real time analysis diagnostics to retain
      */
-    public void saveAnalysisIfEnabled(final List<TraderTO> traderTOs,
+    private void saveAnalysisIfEnabled(final List<TraderTO> traderTOs,
                                       final TopologyInfo topologyInfo,
                                       final AnalysisConfig analysisConfig,
                                       final List<CommoditySpecification> commSpecsToAdjustOverhead,
@@ -429,6 +461,7 @@ public class AnalysisDiagnosticsCollector {
      * Factory for instances of {@link AnalysisDiagnosticsCollector}.
      */
     public interface AnalysisDiagnosticsCollectorFactory {
+
         /**
          * Create a new {@link AnalysisDiagnosticsCollector}.
          *
@@ -442,6 +475,16 @@ public class AnalysisDiagnosticsCollector {
          * The default implementation of {@link AnalysisDiagnosticsCollectorFactory}, for use in "real" code.
          */
         class DefaultAnalysisDiagnosticsCollectorFactory implements AnalysisDiagnosticsCollectorFactory {
+
+            /*
+             * Executor service containing a single thread that handles saving of analysis diags.
+             */
+            final ExecutorService diagsWriterExecutorService;
+
+            public DefaultAnalysisDiagnosticsCollectorFactory(ExecutorService diagsWriterExecutorService) {
+                this.diagsWriterExecutorService = diagsWriterExecutorService;
+            }
+
             /**
              * Returns a new {@link AnalysisDiagnosticsCollector}.
              *
@@ -453,9 +496,8 @@ public class AnalysisDiagnosticsCollector {
             public Optional<AnalysisDiagnosticsCollector> newDiagsCollector(String zipFilenameSuffix, AnalysisMode analysisMode) {
                 AnalysisDiagnosticsCollector diagsCollector = null;
                 try {
-                    // ZipOutputStream diagnosticZip = createZipOutputStream(zipFilenameSuffix, analysisMode);
-                    // DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
-                    diagsCollector = new AnalysisDiagnosticsCollector(zipFilenameSuffix, analysisMode);
+                    diagsCollector = new AnalysisDiagnosticsCollector(zipFilenameSuffix,
+                            analysisMode, diagsWriterExecutorService);
                 } catch (Exception e) {
                     logger.error("Error when attempting to write DTOs. But analysis will continue.", e);
                 }

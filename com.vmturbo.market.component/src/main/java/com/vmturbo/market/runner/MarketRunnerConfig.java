@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.mapstruct.BeanMapping;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -255,7 +256,8 @@ public class MarketRunnerConfig {
                 singleVMonHost,
                 customUtilizationThreshold,
                 saveAnalysisDiagsTimeoutSecs,
-                numRealTimeAnalysisDiagsToRetain);
+                numRealTimeAnalysisDiagsToRetain,
+                marketRpcConfig.analysisDiagnosticsCollectorFactory());
     }
 
     /**
