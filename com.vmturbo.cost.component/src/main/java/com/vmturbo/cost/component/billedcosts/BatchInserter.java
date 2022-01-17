@@ -154,18 +154,18 @@ public class BatchInserter implements AutoCloseable {
         final InsertValuesStepN<?> insertValuesStepN = context.insertInto(table)
             .columns(records.get(0).fields());
         final Set<TableField<?, ?>> allKeys = table.getKeys().stream()
-            .map(Key::getFields)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet());
+                .map(Key::getFields)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
         records.forEach(r -> {
             Record copy = table.newRecord();
             copy.from(r);
             ((InsertSetMoreStep<?>)insertValuesStepN).set(copy).newRecord();
         });
         Map<Field<?>, Field<?>> updates = Stream.of(table.fields())
-            .filter(f -> !allKeys.contains(f))
-            .collect(Collectors.toMap(Functions.identity(),
-                f -> DSL.field(String.format(JooqUtil.createStringFormatForUpserts(context), f.getName()), f.getType())));
+                .filter(f -> !allKeys.contains(f))
+                .collect(Collectors.toMap(Functions.identity(),
+                        f -> JooqUtil.upsertValue(f, context.dialect())));
         ((InsertSetMoreStep<?>)insertValuesStepN).onConflict(
                 preferredUniqueKeys.getOrDefault(table.getName(), table.getPrimaryKey())
                         .getFields()).doUpdate().set(updates);

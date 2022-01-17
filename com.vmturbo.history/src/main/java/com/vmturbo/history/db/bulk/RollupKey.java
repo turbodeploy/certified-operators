@@ -25,6 +25,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.jooq.Record;
 import org.jooq.Table;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.RelationTypeConverter;
@@ -139,7 +140,9 @@ class RollupKey {
             Function<R, String> getTimestamp, Table<R> table, R record) {
         Objects.requireNonNull(table);
         Objects.requireNonNull(record);
-        return md5(getTimestamp.apply(record) + commonKey(table, record));
+        return md5(
+                (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? "" : getTimestamp.apply(record))
+                        + commonKey(table, record));
     }
 
     /**

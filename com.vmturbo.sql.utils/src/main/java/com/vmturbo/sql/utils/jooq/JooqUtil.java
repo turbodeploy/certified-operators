@@ -1,4 +1,5 @@
 package com.vmturbo.sql.utils.jooq;
+
 import java.sql.Connection;
 import java.util.HashMap;
 import java.util.Map;
@@ -259,23 +260,28 @@ public class JooqUtil {
     }
 
     /**
-     * Creates a string format that's compatible for mysql and postgres when
-     * performing an upsert.
+     * Get a jOOQ {@link Field} object that can be used in a SET clause of an upsert statement to
+     * refer to the value that would have been inserted for the given field had this record not
+     * resulted in a conflict.
      *
-     * @param dslContext {@link DSLContext}
-     * @return string format.
+     * @param f   field into which insert value would have been inserted
+     * @param dialect SQL dialect in which upsert will be executed
+     * @param <T> type of field
+     * @return field that will yield the insertion value for this field, in a SET clause of the
+     *         update side of an upsert
      */
-    public static String createStringFormatForUpserts(DSLContext dslContext) {
-        final SQLDialect dialect = dslContext.configuration().family();
+    public static <T> Field<T> upsertValue(Field<T> f, SQLDialect dialect) {
+        Class<T> type = f.getType();
+        Name name = DSL.name(f.getName());
         switch (dialect) {
             case POSTGRES:
-                return "EXCLUDED.%s";
+                return DSL.field("excluded.{0}", type, name);
             case MARIADB:
             case MYSQL:
-                return "VALUES(%s)";
+                return DSL.field("values({0})", type, name);
             default:
                 throw new UnsupportedOperationException(
-                        String.format("Dialect '%s' is not supported", dialect));
+                        String.format("Dialect %s is not supported", dialect));
         }
     }
 }

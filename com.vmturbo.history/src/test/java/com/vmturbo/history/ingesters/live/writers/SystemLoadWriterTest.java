@@ -86,7 +86,7 @@ public class SystemLoadWriterTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
@@ -586,8 +586,12 @@ public class SystemLoadWriterTest extends MultiDbTestBase {
     private void checkEntityCommodityRecords(String time, long clusterId, long entityId,
             double baseUsed, double basePeak, double baseCapacity) {
         // get the transient table - it's the only table we wrote to other than SYSTEM_LOAD
-        final Optional<String> transTableName = dsl.fetchValues("SHOW TABLES").stream()
-                .map(value -> (String)value)
+        final Optional<String> transTableName = dsl.select(DSL.field("table_name", String.class))
+                .from(DSL.table("information_schema.tables"))
+                .where(DSL.field("table_type", String.class).eq("BASE TABLE"))
+                .and(DSL.field("table_schema", String.class).eq(DSL.currentSchema()))
+                .fetch(0, String.class)
+                .stream()
                 .filter(t -> t.startsWith(SYSTEM_LOAD.getName()))
                 .filter(t -> !t.equals(SYSTEM_LOAD.getName()))
                 .findFirst();
