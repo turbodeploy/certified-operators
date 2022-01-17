@@ -37,6 +37,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -63,6 +64,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -310,7 +312,8 @@ public class AnalysisDebuggingTest {
                 mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder,
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                         new CommodityIdUpdater(), actionSavingsCalculatorFactory, mock(
-                ExternalReconfigureActionEngine.class), new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
+                ExternalReconfigureActionEngine.class), new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
+                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
         return analysis;
     }
 

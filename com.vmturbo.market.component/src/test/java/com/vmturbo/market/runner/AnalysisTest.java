@@ -87,6 +87,8 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
@@ -277,7 +279,9 @@ public class AnalysisTest {
 
         final ExternalReconfigureActionEngine externalReconfigureActionEngine = mock(
                 ExternalReconfigureActionEngine.class);
-
+        final AnalysisDiagnosticsCollectorFactory analysisCollectorFactory =
+                mock(AnalysisDiagnosticsCollectorFactory.class);
+        when(analysisCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
@@ -285,7 +289,8 @@ public class AnalysisTest {
             tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
             new CommodityIdUpdater(), actionSavingsCalculatorFactory,
-                externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
+                externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
+                analysisCollectorFactory);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of
@@ -831,7 +836,7 @@ public class AnalysisTest {
     }
 
     /**
-     * Create an{@link AnalysisConfig} with {@link GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning} setting.
+     * Create an{@link AnalysisConfig} with {@link GlobalSettingSpecs} setting.
      *
      * @param settingValue the setting value.
      * @return the analysis config.

@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -23,6 +24,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -77,7 +79,8 @@ public class CommodityIdUpdaterTest {
             mock(InitialPlacementFinder.class), mock(ReversibilitySettingFetcherFactory.class),
             mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
             mock(JournalActionSavingsCalculatorFactory.class), mock(ExternalReconfigureActionEngine.class),
-                new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
+            new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
+                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
     }
 
     /**

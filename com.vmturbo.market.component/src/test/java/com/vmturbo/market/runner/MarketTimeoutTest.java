@@ -55,6 +55,7 @@ import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -191,7 +192,8 @@ public class MarketTimeoutTest {
                                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                                         new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                                         externalReconfigureActionEngine,
-                                        mock(AnalysisDiagnosticsCleaner.class));
+                                        mock(AnalysisDiagnosticsCleaner.class),
+                                        mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
                     }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
             }
 

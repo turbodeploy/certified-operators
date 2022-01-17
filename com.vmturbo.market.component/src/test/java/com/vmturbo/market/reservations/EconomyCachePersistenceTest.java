@@ -41,6 +41,7 @@ import com.vmturbo.market.TestMarketDbEndpointConfig;
 import com.vmturbo.market.component.db.Market;
 import com.vmturbo.market.component.db.tables.EconomyCache;
 import com.vmturbo.market.component.db.tables.records.EconomyCacheRecord;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO;
@@ -191,7 +192,8 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
             e.printStackTrace();
         }
         ReservationServiceBlockingStub stub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        InitialPlacementFinder finder = new InitialPlacementFinder(dsl, stub, true, 2, 5);
+        InitialPlacementFinder finder = new InitialPlacementFinder(dsl, stub, true, 2, 5,
+                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
         final long buyer1Oid = 1234L;
         final long buyerSl1Oid = 1000L;
         final long reservation1Oid = 1L;

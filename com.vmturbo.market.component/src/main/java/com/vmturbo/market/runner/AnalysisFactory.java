@@ -32,6 +32,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.diagnostics.IDiagnosticsCleaner;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
@@ -160,6 +161,8 @@ public interface AnalysisFactory {
 
         private final int numRealTimeAnalysisDiagsToRetain;
 
+        private final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -192,7 +195,8 @@ public interface AnalysisFactory {
                                       final boolean singleVMonHost,
                                       final float customUtilizationThreshold,
                                       final int saveAnalysisDiagsTimeoutSecs,
-                                      final int numRealTimeAnalysisDiagsToRetain) {
+                                      final int numRealTimeAnalysisDiagsToRetain,
+                                      final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -232,6 +236,7 @@ public interface AnalysisFactory {
             this.customUtilizationThreshold = customUtilizationThreshold;
             this.saveAnalysisDiagsTimeoutSecs = saveAnalysisDiagsTimeoutSecs;
             this.numRealTimeAnalysisDiagsToRetain = numRealTimeAnalysisDiagsToRetain;
+            this.analysisDiagsCollectorFactory = analysisDiagsCollectorFactory;
         }
 
         /**
@@ -260,7 +265,8 @@ public interface AnalysisFactory {
                 buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine, tierExcluderFactory, listener,
                 consistentScalingHelperFactory, initialPlacementFinder, reversibilitySettingFetcherFactory,
                 migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
-                actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner);
+                actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner,
+                analysisDiagsCollectorFactory);
         }
 
         /**
@@ -425,7 +431,7 @@ public interface AnalysisFactory {
         private final float customUtilizationThreshold;
 
         /**
-         * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
+         * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map, boolean, int, boolean)}.
          *
          * @param marketMode              the run mode of the market?
          * @param useQuoteCacheDuringSNM Whether quotes should be cached for reuse during

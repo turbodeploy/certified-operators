@@ -86,6 +86,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.InitialPlacementCommTypeMap;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult;
@@ -216,8 +217,8 @@ public class AnalysisDiagnosticsCollectorTest {
         ReservationServiceBlockingStub reservationServiceBlockingStub =
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
         InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
-                reservationServiceBlockingStub,
-                true, 1, 5);
+                reservationServiceBlockingStub, true, 1, 5,
+                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
         BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();
         BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
         realtimeCachedCommType.stream().forEach(entry -> realtimeCachedCommTypeMap.put(entry.commodityType, entry.type));
