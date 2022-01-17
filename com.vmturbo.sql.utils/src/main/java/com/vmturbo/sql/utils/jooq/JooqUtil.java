@@ -1,5 +1,4 @@
 package com.vmturbo.sql.utils.jooq;
-
 import java.sql.Connection;
 import java.util.HashMap;
 import java.util.Map;
@@ -193,11 +192,16 @@ public class JooqUtil {
      *                   corresponding SQL statement.
      */
     public static void disableForeignKeyConstraints(@Nonnull DSLContext dslContext) {
-
         final SQLDialect dialect = dslContext.configuration().family();
-
         final String disableStatement;
         switch (dialect) {
+            case POSTGRES:
+                // TODO find a way to disable foreign key constraint for Postgres without requiring admin user.
+                // Postgres foreign key constrain is enforced by “system triggers” on a table.
+                // Only admin user can disable "system triggers". For now before restoring cost diags,
+                // we need to execute "set session_replication_role to replica;" and then
+                // "set session_replication_role to default;"; after finished.
+                return;
             case MARIADB:
             case MYSQL:
                 disableStatement = "SET FOREIGN_KEY_CHECKS=0;";
@@ -216,11 +220,11 @@ public class JooqUtil {
      *                   corresponding SQL statement.
      */
     public static void enableForeignKeyConstraints(@Nonnull DSLContext dslContext) {
-
         final SQLDialect dialect = dslContext.configuration().family();
-
         final String enableStatement;
         switch (dialect) {
+            case POSTGRES:
+                return;
             case MARIADB:
             case MYSQL:
                 enableStatement = "SET FOREIGN_KEY_CHECKS=1;";
@@ -229,7 +233,6 @@ public class JooqUtil {
                 throw new UnsupportedOperationException(
                         String.format("Dialect '%s' not supported", dialect));
         }
-
         dslContext.execute(enableStatement);
     }
 
@@ -249,6 +252,27 @@ public class JooqUtil {
                 return maxPackageSize.get(0).getValue("Value", int.class);
             case POSTGRES:
                 return POSTGRES_QUERY_SIZE_LIMIT;
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Dialect '%s' is not supported", dialect));
+        }
+    }
+
+    /**
+     * Creates a string format that's compatible for mysql and postgres when
+     * performing an upsert.
+     *
+     * @param dslContext {@link DSLContext}
+     * @return string format.
+     */
+    public static String createStringFormatForUpserts(DSLContext dslContext) {
+        final SQLDialect dialect = dslContext.configuration().family();
+        switch (dialect) {
+            case POSTGRES:
+                return "EXCLUDED.%s";
+            case MARIADB:
+            case MYSQL:
+                return "VALUES(%s)";
             default:
                 throw new UnsupportedOperationException(
                         String.format("Dialect '%s' is not supported", dialect));

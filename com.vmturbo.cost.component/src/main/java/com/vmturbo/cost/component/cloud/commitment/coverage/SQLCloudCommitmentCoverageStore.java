@@ -61,6 +61,7 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
     private static final String MAX_COVERAGE_CAPACITY = "max_coverage_capacity";
     private static final String SUM_COVERAGE_CAPACITY = "sum_coverage_capacity";
     private static final String AVG_COVERAGE_CAPACITY = "avg_coverage_capacity";
+    private static final String SERVICE_PROVIDER_ID = "service_provider_id";
 
     private final Logger logger = LogManager.getLogger();
 
@@ -192,15 +193,24 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
                 switch (groupByCondition) {
                     case ACCOUNT:
                         selectFields.add(coverageTable.accountIdField());
-                        selectFields.add(coverageTable.serviceProviderIdField());
+                        // SERVICE_PROVIDER_ID is not in GroupBy clause, adding dummy aggregate function
+                        // (min) to support Postgres
+                        selectFields.add(DSL.min(coverageTable.serviceProviderIdField()).as(
+                                SERVICE_PROVIDER_ID));
                         break;
                     case REGION:
                         selectFields.add(coverageTable.regionIdField());
-                        selectFields.add(coverageTable.serviceProviderIdField());
+                        // SERVICE_PROVIDER_ID is not in GroupBy clause, adding dummy aggregate function
+                        // (min) to support Postgres
+                        selectFields.add(DSL.min(coverageTable.serviceProviderIdField()).as(
+                                SERVICE_PROVIDER_ID));
                         break;
                     case CLOUD_SERVICE:
                         selectFields.add(coverageTable.cloudServiceIdField());
-                        selectFields.add(coverageTable.serviceProviderIdField());
+                        // SERVICE_PROVIDER_ID is not in GroupBy clause, adding dummy aggregate function
+                        // (min) to support Postgres
+                        selectFields.add(DSL.min(coverageTable.serviceProviderIdField()).as(
+                                SERVICE_PROVIDER_ID));
                         break;
                     case SERVICE_PROVIDER:
                         selectFields.add(coverageTable.serviceProviderIdField());

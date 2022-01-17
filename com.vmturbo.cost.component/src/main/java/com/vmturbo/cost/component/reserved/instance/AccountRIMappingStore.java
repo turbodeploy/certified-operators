@@ -21,8 +21,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.InsertSetMoreStep;
 import org.jooq.Record2;
-import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
 
@@ -63,7 +63,7 @@ public class AccountRIMappingStore implements TableDiagsRestorable {
      * of RI coverage per account.
      */
     public void updateAccountRICoverageMappings(@Nonnull final List<AccountRICoverageUpload> accRICoverageList) {
-        final List<UpdatableRecord<?>> records = new ArrayList<>();
+        final List<InsertSetMoreStep<?>> records = new ArrayList<>();
 
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         for (AccountRICoverageUpload accRIUpload : accRICoverageList) {
@@ -79,17 +79,18 @@ public class AccountRIMappingStore implements TableDiagsRestorable {
                     continue;
                 }
                 AccountToReservedInstanceMappingRiSourceCoverage dbRiSrcCoverage = convertRISource(riSource);
-                records.add(dsl.newRecord(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING,
-                        new AccountToReservedInstanceMappingRecord(
-                                currentTime,
-                                businessAccountOid,
-                                reservedInstanceId,
-                                usedCoupons,
-                                dbRiSrcCoverage)));
+                InsertSetMoreStep<?> record = dsl.insertInto(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING)
+                        .set(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.SNAPSHOT_TIME, currentTime)
+                        .set(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.BUSINESS_ACCOUNT_OID, businessAccountOid)
+                        .set(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID, reservedInstanceId)
+                        .set(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS, usedCoupons)
+                        // use DSL.inline to support enums for both mariadb and postgres.
+                        .set(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RI_SOURCE_COVERAGE, DSL.inline(dbRiSrcCoverage));
+                records.add(record);
             }
         }
         int countDel = dsl.deleteFrom(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING).execute();
-        Lists.partition(records, chunkSize).forEach(accountsChunk -> dsl.batchInsert(accountsChunk).execute());
+        Lists.partition(records, chunkSize).forEach(accountsChunk -> dsl.batch(accountsChunk).execute());
         logger.info("BA-RI-Mapping: Count of deleted records: {}, updated: {}",
                 countDel, records.size());
     }

@@ -71,7 +71,7 @@ public class CloudRateExtractorKeyIdentityStoreTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;

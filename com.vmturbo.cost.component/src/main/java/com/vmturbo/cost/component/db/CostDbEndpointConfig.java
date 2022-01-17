@@ -3,7 +3,6 @@ package com.vmturbo.cost.component.db;
 import java.sql.SQLException;
 
 import org.jooq.DSLContext;
-import org.jooq.SQLDialect;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -35,12 +34,11 @@ public class CostDbEndpointConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint costEndpoint() {
-        return fixEndpointForMultiDb(dbEndpoint("dbs.cost", SQLDialect.MARIADB)
+        return fixEndpointForMultiDb(dbEndpoint("dbs.cost", sqlDialect)
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true))
-                .withUserName(costDbUsername)
-                .withMigrationLocations("db.migration").build();
+                .withUserName(costDbUsername).build();
     }
 
     /**

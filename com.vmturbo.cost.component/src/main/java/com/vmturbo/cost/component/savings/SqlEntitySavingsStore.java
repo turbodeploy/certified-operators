@@ -354,8 +354,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                         rollupFields.valueField, rollupFields.samplesField)
                 .select(embeddedSelect)
                 .onDuplicateKeyUpdate()
-                .set(rollupFields.valueField, rollupFields.valueField.plus(RollupUtils.values(rollupFields.valueField)))
-                .set(rollupFields.samplesField, rollupFields.samplesField.plus(RollupUtils.values(rollupFields.samplesField)));
+                .set(rollupFields.valueField, rollupFields.valueField.plus(RollupUtils.values(dsl, rollupFields.valueField)))
+                .set(rollupFields.samplesField, rollupFields.samplesField.plus(RollupUtils.values(dsl, rollupFields.samplesField)));
     }
 
     /**

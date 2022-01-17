@@ -79,7 +79,9 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
         getDSLContext().transaction(transactionContext -> {
             final DSLContext transaction = DSL.using(transactionContext);
 
-            logger.info("Disabling foreign key constraint checks while loading diags for '{}'", getTable());
+            logger.info(
+                    "Disabling foreign key constraint checks while loading diags for '{}' with dialect '{}'",
+                    getTable(), transaction.configuration().family());
             JooqUtil.disableForeignKeyConstraints(transaction);
 
             Iterators.partition(lines.iterator(), getBatchRestoreSize()).forEachRemaining(batchLines -> {

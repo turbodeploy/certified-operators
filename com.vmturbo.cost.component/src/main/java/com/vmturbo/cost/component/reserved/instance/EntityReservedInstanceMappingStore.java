@@ -30,6 +30,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.InsertSetMoreStep;
 import org.jooq.Record2;
 import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
@@ -104,7 +105,7 @@ public class EntityReservedInstanceMappingStore implements
             @Nonnull final List<EntityRICoverageUpload> entityReservedInstanceCoverages) {
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
 
-        final List<EntityToReservedInstanceMappingRecord> records =
+        final List<InsertSetMoreStep<?>> records =
                 entityReservedInstanceCoverages.stream()
                         .filter(entityCoverage -> !entityCoverage.getCoverageList().isEmpty())
                         .map(entityCoverage -> createEntityToRIMappingRecords(
@@ -117,7 +118,7 @@ public class EntityReservedInstanceMappingStore implements
         // Replace table with the latest RI mapping records.
         final int countDel = context.deleteFrom(ENTITY_TO_RESERVED_INSTANCE_MAPPING).execute();
         Lists.partition(records, chunkSize).forEach(
-                entitiesChunk -> context.batchInsert(entitiesChunk).execute());
+                entitiesChunk -> context.batch(entitiesChunk).execute());
         logger.info("SE-RI-Mapping: Count of deleted records: {}, updated: {}",
                 countDel, records.size());
     }
@@ -359,7 +360,7 @@ public class EntityReservedInstanceMappingStore implements
      * @param riCoverageList a list of {@link EntityRICoverageUpload.Coverage}.
      * @return a list of {@link EntityToReservedInstanceMappingRecord}.
      */
-    private List<EntityToReservedInstanceMappingRecord> createEntityToRIMappingRecords(
+    private List<InsertSetMoreStep<?>> createEntityToRIMappingRecords(
             @Nonnull final DSLContext context,
             @Nonnull final LocalDateTime currentTime,
             final long entityId,
@@ -377,20 +378,13 @@ public class EntityReservedInstanceMappingStore implements
 
         return riCoverageBySource.cellSet().stream()
                 .map(riCoverage ->
-                        context.newRecord(ENTITY_TO_RESERVED_INSTANCE_MAPPING,
-                                new EntityToReservedInstanceMappingRecord(
-                                        currentTime,
-                                        entityId,
-                                        // reserved_instance_id bigint
-                                        // This ID will already be the Cost component assigned OID.
-                                        // For billing coverage, this is updated in RIAndExpenseUploadRpcService.
-                                        // For supplemental coverage, it is created with the correct OID.
-                                        riCoverage.getRowKey(),
-                                        // used_coupons float
-                                        riCoverage.getValue(),
-                                        // ri_source_coverage enum('BILLING','SUPPLEMENTAL_COVERAGE_ALLOCATION')
-                                        EntityToReservedInstanceMappingRiSourceCoverage.valueOf(
-                                                riCoverage.getColumnKey().toString()))))
+                        context.insertInto(ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                                .set(ENTITY_TO_RESERVED_INSTANCE_MAPPING.SNAPSHOT_TIME, currentTime)
+                                .set(ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID, entityId)
+                                .set(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID, riCoverage.getRowKey())
+                                .set(ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS, riCoverage.getValue())
+                                .set(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RI_SOURCE_COVERAGE, DSL.inline(EntityToReservedInstanceMappingRiSourceCoverage.valueOf(
+                                        riCoverage.getColumnKey().toString()))))
                 .collect(Collectors.toList());
     }
 
