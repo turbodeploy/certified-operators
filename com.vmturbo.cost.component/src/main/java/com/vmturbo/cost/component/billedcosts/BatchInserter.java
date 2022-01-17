@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -22,25 +23,35 @@ import com.google.common.collect.Lists;
 
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.InsertOnDuplicateSetStep;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertValuesStepN;
 import org.jooq.Key;
 import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.TableField;
+import org.jooq.UniqueKey;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.component.db.Keys;
+import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.jooq.JooqUtil;
 
 /**
  * Inserts records to a table in batches.
  */
 public class BatchInserter implements AutoCloseable {
+
+    // Postgres does not handle tables well with multiple constraints.
+    // In order to resolve this issue for 'billed_cost_daily' table,
+    // we specify the unique constraint to use for conflicts.
+    private static final Map<String, UniqueKey<?>> preferredUniqueKeys = Collections.singletonMap(
+            BilledCostDaily.BILLED_COST_DAILY.getName(),
+            Keys.KEY_BILLED_COST_DAILY_UNIQUE_CONSTRAINT_BILLING_ITEM);
 
     private final int batchSize;
     private final ExecutorService executorService;
@@ -151,12 +162,13 @@ public class BatchInserter implements AutoCloseable {
             copy.from(r);
             ((InsertSetMoreStep<?>)insertValuesStepN).set(copy).newRecord();
         });
-        ((InsertSetMoreStep<?>)insertValuesStepN).onDuplicateKeyUpdate();
         Map<Field<?>, Field<?>> updates = Stream.of(table.fields())
             .filter(f -> !allKeys.contains(f))
             .collect(Collectors.toMap(Functions.identity(),
-                f -> DSL.field(String.format("VALUES(%s)", f.getName()), f.getType())));
-        ((InsertOnDuplicateSetStep<?>)insertValuesStepN).set(updates);
+                f -> DSL.field(String.format(JooqUtil.createStringFormatForUpserts(context), f.getName()), f.getType())));
+        ((InsertSetMoreStep<?>)insertValuesStepN).onConflict(
+                preferredUniqueKeys.getOrDefault(table.getName(), table.getPrimaryKey())
+                        .getFields()).doUpdate().set(updates);
         return insertValuesStepN;
     }
 

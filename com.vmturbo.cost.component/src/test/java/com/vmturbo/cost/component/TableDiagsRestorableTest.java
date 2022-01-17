@@ -41,6 +41,11 @@ import com.vmturbo.sql.utils.MultiDbTestBase;
  */
 @RunWith(Parameterized.class)
 public class TableDiagsRestorableTest extends MultiDbTestBase {
+
+    private static final long RESERVED_INSTANCE_SPEC_TEST_ID = 706803569926466L;
+
+    // private SQLDialect dialect;
+
     /**
      * Provide test parameters.
      *
@@ -48,7 +53,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
@@ -67,6 +72,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
         super(Cost.COST, configurableDbDialect, dialect, "cost",
                 TestCostDbEndpointConfig::costEndpoint);
         this.dsl = super.getDslContext();
+        // this.dialect = dialect;
     }
 
     /** Rule chain to manage db provisioning and lifecycle. */
@@ -96,6 +102,12 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
 
         //clean table and export diagnostic
         dsl.truncate(dumper.getTable()).execute();
+
+        // Delete the dummy ReservedInstanceSpec record to simulate foreign key violation.
+        // BuyReservedInstance: FOREIGN KEY(reserved_instance_spec_id) REFERENCES reserved_instance_spec(id) ON DELETE CASCADE
+        // uncomment it when OM-79371 is addressed.
+        // dsl.deleteFrom(RESERVED_INSTANCE_SPEC).where(RESERVED_INSTANCE_SPEC.ID.eq(RESERVED_INSTANCE_SPEC_TEST_ID)).execute();
+
         dumper.restoreDiags(sb.stream(), null);
 
         Result<BuyReservedInstanceRecord> result = dsl.selectFrom(dumper.getTable()).where(
@@ -137,7 +149,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
         dummySpec.setTierId(6L);
         dummySpec.setRegionId(7L);
         dummySpec.setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().build());
-        dummySpec.setId(706803569926466L);
+        dummySpec.setId(RESERVED_INSTANCE_SPEC_TEST_ID);
         return dummySpec;
     }
 
@@ -152,7 +164,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
         rec1.setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
                 .setBusinessAccountId(73484869386730L)
                 .setNumBought(1)
-                .setReservedInstanceSpec(706803569926466L)
+                .setReservedInstanceSpec(RESERVED_INSTANCE_SPEC_TEST_ID)
 
                 .setReservedInstanceBoughtCost(ReservedInstanceBoughtCost.newBuilder()
                         .setFixedCost(CurrencyAmount.newBuilder().setAmount(270))
@@ -169,7 +181,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
                 .setDisplayName("Some name")
                 .setAvailabilityZoneId(73484869386731L)
                 .build());
-        rec1.setReservedInstanceSpecId(706803569926466L);
+        rec1.setReservedInstanceSpecId(RESERVED_INSTANCE_SPEC_TEST_ID);
         rec1.setTopologyContextId(777777L);
         return rec1;
     }
@@ -185,7 +197,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
         rec2.setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
                 .setBusinessAccountId(73484869386720L)
                 .setNumBought(1)
-                .setReservedInstanceSpec(706803569926466L)
+                .setReservedInstanceSpec(RESERVED_INSTANCE_SPEC_TEST_ID)
 
                 .setReservedInstanceBoughtCost(ReservedInstanceBoughtCost.newBuilder()
                         .setFixedCost(CurrencyAmount.newBuilder().setAmount(170))
@@ -202,7 +214,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
                 .setDisplayName("Some name2")
                 .setAvailabilityZoneId(73484869386721L)
                 .build());
-        rec2.setReservedInstanceSpecId(706803569926466L);
+        rec2.setReservedInstanceSpecId(RESERVED_INSTANCE_SPEC_TEST_ID);
         rec2.setTopologyContextId(777777L);
         return rec2;
     }
