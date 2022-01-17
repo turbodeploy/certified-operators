@@ -9,11 +9,10 @@ import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MON
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
 import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
-import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -21,15 +20,18 @@ import java.util.concurrent.ExecutorService;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
@@ -185,7 +187,7 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     private <R extends Record> RecordTransformer<R, R> getRecordTransformer(Table<R> table) {
         final Optional<EntityType> entityType = EntityType.fromTable(table);
         if (entityType.map(EntityType::rollsUp).orElse(false)) {
-            return new RollupKeyTransfomer<>();
+            return new RollupKeyTransfomer<>(dsl);
         } else {
             return RecordTransformer.identity();
         }
@@ -243,19 +245,38 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
         factory.close(logger);
     }
 
-    /** RecordTrnasformer that adds rollup keys to a stats record.
+    /**
+     * RecordTransformer that adds rollup keys to a stats record.
+     *
+     * <p>With POSTGRES_PRIMARY_DB feature flag enabled and POSTGRES dialect, we no only use a
+     * single key, which we place in the hour_key columnm of a stats_latest record, since the
+     * postgres schema does not include the other key columns. Currently this is immaterial for
+     * postgres because rollups are suppressed. When they are implemented for postgres, the new
+     * implementation will also apply to MARIADB dialect with POSTGRES_PRIMARY_DB enabled.
+     *
      * @param <R> Type of stats record
      */
     static class RollupKeyTransfomer<R extends Record> implements RecordTransformer<R, R> {
-        @Override
-        public Optional<R> transform(final R record, final Table<R> inTable, final Table<R> outTable) {
-            Map<String, Object> rollupKeyMap = ImmutableMap.<String, Object>builder()
-                .put(HOUR_KEY_FIELD_NAME, RollupKey.getHourKey(inTable, record))
-                .put(DAY_KEY_FIELD_NAME, RollupKey.getDayKey(inTable, record))
-                .put(MONTH_KEY_FIELD_NAME, RollupKey.getMonthKey(inTable, record))
-                .build();
 
-            record.fromMap(rollupKeyMap);
+        private final DSLContext dsl;
+
+        RollupKeyTransfomer(DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public Optional<R> transform(final R record, final Table<R> inTable,
+                final Table<R> outTable) {
+            Builder<String, Object> rollupKeyMapBuilder =
+                    ImmutableMap.<String, Object>builder()
+                            .put(HOUR_KEY_FIELD_NAME, RollupKey.getHourKey(inTable, record));
+            if (!FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                    || dsl.dialect() != SQLDialect.POSTGRES) {
+                rollupKeyMapBuilder
+                        .put(DAY_KEY_FIELD_NAME, RollupKey.getDayKey(inTable, record))
+                        .put(MONTH_KEY_FIELD_NAME, RollupKey.getMonthKey(inTable, record));
+            }
+            record.fromMap(rollupKeyMapBuilder.build());
             return Optional.of(record);
         }
     }

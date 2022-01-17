@@ -2,6 +2,7 @@ package com.vmturbo.history.db.bulk;
 
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -13,6 +14,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -52,7 +54,7 @@ public class RollupKeyTest {
         String relTypeAttr = String.valueOf(
                 new RelationTypeConverter().to((RelationType)record.getRelation()));
         rollupAttrs = "entity-CPUused" + relTypeAttr + "-";
-        transformer = new RollupKeyTransfomer<VmStatsLatestRecord>();
+        transformer = new RollupKeyTransfomer<VmStatsLatestRecord>(mock(DSLContext.class));
     }
 
     /**
@@ -61,39 +63,11 @@ public class RollupKeyTest {
      */
     @Test
     public void testHourKey() {
-        String hourString = RollupKey.rollupTimestamps(record).hour();
-        String expected = DigestUtils.md5Hex(hourString + rollupAttrs);
+        String expected = DigestUtils.md5Hex(rollupAttrs);
         final VmStatsLatestRecord transformed
                 = transformer.transform(record, VM_STATS_LATEST, VM_STATS_LATEST).get();
         assertEquals(expected, record.getHourKey());
     }
-
-    /**
-     * Check generation of day rollup keys by creating a record with the current time and ensuring
-     * that transformed record has the correct dayKey value.
-     */
-    @Test
-    public void testDayKey() {
-        String dayString = RollupKey.rollupTimestamps(record).day();
-        String expected = DigestUtils.md5Hex(dayString + rollupAttrs);
-        final VmStatsLatestRecord transformed
-                = transformer.transform(record, VM_STATS_LATEST, VM_STATS_LATEST).get();
-        assertEquals(expected, record.getDayKey());
-    }
-
-    /**
-     * Check generation of month rollup keys by creating a record with the current time and ensuring
-     * that transformed record has the correct monthKey value.
-     */
-    @Test
-    public void testMonthKey() {
-        String monthString = RollupKey.rollupTimestamps(record).month();
-        String expected = DigestUtils.md5Hex(monthString + rollupAttrs);
-        final VmStatsLatestRecord transformed
-                = transformer.transform(record, VM_STATS_LATEST, VM_STATS_LATEST).get();
-        assertEquals(expected, record.getMonthKey());
-    }
-
 
     private static final ZoneId UTC = ZoneId.of("Z");
 
