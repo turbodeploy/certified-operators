@@ -154,7 +154,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            actionStoreLoader, Mockito.mock(ActionAutomationManager.class));
+            actionStoreLoader);
     private final ActionExecutionListener actionExecutionListener =
         Mockito.mock(ActionExecutionListener.class);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
@@ -167,6 +167,7 @@ public class ActionExecutionSecureRpcTest {
 
     private final ActionAuditSender actionAuditSender = mock(ActionAuditSender.class);
     private final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
+    private final ActionAutomationManager actionAutomationManager = mock(ActionAutomationManager.class);
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
@@ -197,6 +198,7 @@ public class ActionExecutionSecureRpcTest {
         actionAuditSender,
         actionExecutionStore,
         actionCombiner,
+        actionAutomationManager,
         500,
         777777L);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;

@@ -5,7 +5,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +20,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -35,15 +33,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
  * Tests for {@link ActionStorehouse}.
  */
 public class ActionStorehouseTest {
-
-    private static final long REALTIME_TOPOLOGY_CONTEXT_ID = 1234;
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final EntitySeverityCache severityCache = Mockito.mock(EntitySeverityCache.class);
     private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
     private final long topologyContextId = 0xCAFE;
-    private final ActionAutomationManager automationManager = mock(ActionAutomationManager.class);
-
     private ActionStorehouse actionStorehouse;
     private final Action moveAction = Action.newBuilder()
         .setId(9999L)
@@ -66,7 +60,7 @@ public class ActionStorehouseTest {
 
     @Before
     public void setup() {
-        actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader, automationManager);
+        actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
         when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
         when(actionStore.allowsExecution()).thenReturn(true);
@@ -190,7 +184,7 @@ public class ActionStorehouseTest {
         when(actionStoreLoader.loadActionStores()).thenReturn(ImmutableList.of(persistedStore));
 
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                actionStoreLoader, automationManager);
+                actionStoreLoader);
         assertEquals(1, actionStorehouse.size());
         assertEquals(persistedStore, actionStorehouse.getStore(topologyContextId).get());
     }
@@ -228,14 +222,5 @@ public class ActionStorehouseTest {
     @Test
     public void testDeleteNonExistingStore() throws Exception {
         assertEquals(Optional.empty(), actionStorehouse.deleteStore(topologyContextId));
-    }
-
-    /**
-     * Test cancelling queued actions forwards to the automation manager.
-     */
-    @Test
-    public void testCancelQueuedActions() {
-        actionStorehouse.cancelQueuedActions();
-        verify(automationManager).cancelQueuedActions();
     }
 }

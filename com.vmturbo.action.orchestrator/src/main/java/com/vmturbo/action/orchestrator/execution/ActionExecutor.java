@@ -130,11 +130,12 @@ public class ActionExecutor implements ActionExecutionListener {
      * @throws ExecutionStartException if the Action fails to start
      * @throws InterruptedException if the "wait for completion" is interrupted
      * @throws SynchronousExecutionException any other execute exception
+     * @throws TimeoutException if the action execution timed out
      */
     public void executeSynchronously(
             final long targetId,
             @Nonnull final List<ActionWithWorkflow> actionList)
-            throws ExecutionStartException, InterruptedException, SynchronousExecutionException {
+            throws ExecutionStartException, InterruptedException, SynchronousExecutionException, TimeoutException {
         Objects.requireNonNull(actionList);
         final String actionIdString = getActionIdsString(actionList);
         logger.info("Starting synchronous actions: {}", actionIdString);
@@ -145,15 +146,8 @@ public class ActionExecutor implements ActionExecutionListener {
             final long actionId = actionWithWorkflow.getAction().getRecommendation().getId();
             inProgressSyncActions.put(actionId, synchronousExecutionState);
         }
-        try {
-            // TODO (roman, July 30 2019): OM-49081 - Handle TP restarts and dropped messages
-            // without relying only on timeout.
-            synchronousExecutionState.waitForActionCompletion(executionTimeout, executionTimeoutUnit);
-            logger.info("Completed synchronous actions: {}", actionIdString);
-        } catch (TimeoutException e) {
-            throw new SynchronousExecutionException(String.format("Actions %s timed out after %s %s",
-                    actionIdString, executionTimeout, executionTimeoutUnit.toString()));
-        }
+        synchronousExecutionState.waitForActionCompletion(executionTimeout, executionTimeoutUnit);
+        logger.info("Completed synchronous actions: {}", actionIdString);
     }
 
     /**
@@ -388,6 +382,15 @@ public class ActionExecutor implements ActionExecutionListener {
             .setActionId(id)
             .setErrorDescription("Topology Processor lost action state.")
             .build()));
+    }
+
+    public int getExecutionTimeout() {
+        return executionTimeout;
+    }
+
+    @Nonnull
+    public TimeUnit getExecutionTimeoutUnit() {
+        return executionTimeoutUnit;
     }
 
     /**

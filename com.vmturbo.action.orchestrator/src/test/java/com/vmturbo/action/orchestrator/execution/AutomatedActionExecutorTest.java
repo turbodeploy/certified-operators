@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -65,12 +66,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 public class AutomatedActionExecutorTest {
 
@@ -82,9 +85,11 @@ public class AutomatedActionExecutorTest {
 
     private final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
     private final ActionTemplateApplicator actionTemplateApplicator = Mockito.mock(ActionTemplateApplicator.class);
+    private final int executionTimeout = 1;
+    private final TimeUnit executionTimeoutUnit = TimeUnit.HOURS;
     private final ActionExecutor actionExecutor = Mockito.spy(
-            new ActionExecutor(channel, actionExecutionStore, clock, 1, TimeUnit.HOURS,
-                    licenseCheckClient, actionTemplateApplicator));
+            new ActionExecutor(channel, actionExecutionStore, clock, executionTimeout,
+                    executionTimeoutUnit, licenseCheckClient, actionTemplateApplicator));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =
@@ -96,6 +101,7 @@ public class AutomatedActionExecutorTest {
     private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
 
     private final ActionTopologyStore actionTopologyStore = Mockito.mock(ActionTopologyStore.class);
+    private final ActionExecutionListener actionExecutionListener = Mockito.mock(ActionExecutionListener.class);
     private final ActionCombiner actionCombiner = new ActionCombiner(actionTopologyStore);
 
     private final ScheduleServiceMole testScheduleService = spy(new ScheduleServiceMole());
@@ -136,7 +142,7 @@ public class AutomatedActionExecutorTest {
         CountDownSubmitter countDownSubmitter = new CountDownSubmitter(5, countDownLatch);
         AutomatedActionExecutor executor = new AutomatedActionExecutor(actionExecutor,
                 countDownSubmitter, workflowStore, actionTargetSelector, entitySettingsCache,
-                actionTranslator, actionCombiner);
+                actionTranslator, actionCombiner, actionExecutionListener);
 
         List<ConditionalFuture> result = executor.executeAutomatedFromStore(actionStore);
 
@@ -383,11 +389,12 @@ public class AutomatedActionExecutorTest {
 
         inOrder.verify(failedExecuteAction).receive(isA(AutomaticAcceptanceEvent.class));
         inOrder.verify(failedExecuteAction).receive(isA(BeginExecutionEvent.class));
-        final ArgumentCaptor<FailureEvent> failCaptor = ArgumentCaptor.forClass(FailureEvent.class);
-        inOrder.verify(failedExecuteAction).receive(failCaptor.capture());
-
-        String expectedFailure = String.format(AutomatedActionExecutor.EXECUTION_START_MSG, 99);
-        Assert.assertEquals(failCaptor.getValue().getErrorDescription(), expectedFailure);
+        final ArgumentCaptor<ActionFailure> actionFailure =
+                ArgumentCaptor.forClass(ActionFailure.class);
+        Mockito.verify(actionExecutionListener).onActionFailure(actionFailure.capture());
+        Assert.assertEquals(actionFailure.getValue().getErrorDescription(),
+                String.format(AutomatedActionExecutor.EXECUTION_START_MSG, 99));
+        Assert.assertEquals(actionFailure.getValue().getActionId(), 99);
 
         Mockito.verifyZeroInteractions(channel);
         Mockito.verify(actionStore).getActions();
@@ -396,6 +403,51 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionExecutor).executeSynchronously(targetId1,
                 Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
+    }
+
+    @Test
+    public void testAutomatedExecutionTimedOut() throws Exception {
+        final Action failedExecuteAction = Mockito.mock(Action.class);
+        final ActionDTO.Action rec =
+                makeActionRec(99L,
+                        makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
+
+        final ActionTranslation translation = new ActionTranslation(rec);
+        translation.setPassthroughTranslationSuccess();
+        setUpMocksForAutomaticAction(failedExecuteAction, 99L, rec);
+        // Map this action to target #1
+        when(actionTargetSelector.getTargetsForActions(any(), any(), any()))
+                .thenReturn(Collections.singletonMap(99L, actionTargetInfo(targetId1)));
+        when(failedExecuteAction.getActionTranslation()).thenReturn(translation);
+        when(failedExecuteAction.getWorkflow(workflowStore,
+                failedExecuteAction.getState())).thenReturn(Optional.empty());
+        when(failedExecuteAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
+        ActionDTO.ActionSpec actionSpec =
+                ActionDTO.ActionSpec.newBuilder().setRecommendation(rec).build();
+        when(actionTranslator.translateToSpec(failedExecuteAction)).thenReturn(actionSpec);
+        Mockito.doThrow(new TimeoutException("Action timed out!!!"))
+                .when(actionExecutor).executeSynchronously(targetId1,
+                        Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
+        executeAndWaitForCompletion(1);
+
+        InOrder inOrder = Mockito.inOrder(failedExecuteAction);
+
+        inOrder.verify(failedExecuteAction).receive(isA(AutomaticAcceptanceEvent.class));
+        inOrder.verify(failedExecuteAction).receive(isA(BeginExecutionEvent.class));
+        final ArgumentCaptor<ActionFailure> actionFailure =
+                ArgumentCaptor.forClass(ActionFailure.class);
+        Mockito.verify(actionExecutionListener).onActionFailure(actionFailure.capture());
+        Assert.assertEquals(actionFailure.getValue().getErrorDescription(),
+                String.format(AutomatedActionExecutor.TIMED_OUT_ACTION_EXECUTION_MSG, 99, executionTimeout, executionTimeoutUnit.toString().toLowerCase()));
+        Assert.assertEquals(actionFailure.getValue().getActionId(), 99);
+
+        Mockito.verifyZeroInteractions(channel);
+        Mockito.verify(actionStore).getActions();
+        Mockito.verify(actionStore).allowsExecution();
+        Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1,
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
+        Mockito.verifyNoMoreInteractions(actionStore, actionTargetSelector);
     }
 
     @Test
@@ -543,9 +595,12 @@ public class AutomatedActionExecutorTest {
         InOrder failExecOrder = Mockito.inOrder(failedExecuteAction);
         failExecOrder.verify(failedExecuteAction).receive(isA(AutomaticAcceptanceEvent.class));
         failExecOrder.verify(failedExecuteAction).receive(isA(BeginExecutionEvent.class));
-        failExecOrder.verify(failedExecuteAction).receive(failureCaptor.capture());
-        Assert.assertEquals(failureCaptor.getValue().getErrorDescription(),
+        final ArgumentCaptor<ActionFailure> actionFailure =
+                ArgumentCaptor.forClass(ActionFailure.class);
+        Mockito.verify(actionExecutionListener).onActionFailure(actionFailure.capture());
+        Assert.assertEquals(actionFailure.getValue().getErrorDescription(),
                 String.format(AutomatedActionExecutor.EXECUTION_START_MSG, execFailId));
+        Assert.assertEquals(actionFailure.getValue().getActionId(), execFailId);
 
         InOrder goodOrder = Mockito.inOrder(goodAction);
         goodOrder.verify(goodAction).receive(isA(AutomaticAcceptanceEvent.class));
@@ -566,12 +621,13 @@ public class AutomatedActionExecutorTest {
     @Test
     // Verify that only actions which are in READY state and which
     // have the executable flag set are submitted for execution.
-    public void testexecuteAutomatedFromStoreExecutableActions() throws Exception {
+    public void testExecuteAutomatedFromStoreExecutableActions() {
         ConditionalSubmitter submitter = mock(ConditionalSubmitter.class);
         ActionExecutor testActionExecutor = mock(ActionExecutor.class);
         final AutomatedActionExecutor automatedActionExecutor =
                 new AutomatedActionExecutor(testActionExecutor, submitter,
-                        workflowStore, actionTargetSelector, entitySettingsCache, actionTranslator, actionCombiner);
+                        workflowStore, actionTargetSelector, entitySettingsCache, actionTranslator, actionCombiner,
+                        actionExecutionListener);
         long actionId = 1L;
         ActionDTO.Action testRecommendation = makeRec(
                 TestActionBuilder.makeMoveInfo(targetId1, entityId1, pmType, entityId2, pmType),
@@ -727,7 +783,7 @@ public class AutomatedActionExecutorTest {
         when(action.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
         when(action.getState()).thenReturn(ActionState.READY);
         when(actionTranslator.translateToSpec(action)).thenReturn(actionSpec);
-        executeAndWaitForCompletion(1);
+            executeAndWaitForCompletion(1);
         // IN_PROGRESS state action would receive an AutomaticAcceptanceEvent and then a QueuedEvent.
         Mockito.verify(action).receive(isA(AutomaticAcceptanceEvent.class));
         Mockito.verify(action).receive(isA(QueuedEvent.class));
@@ -785,6 +841,7 @@ public class AutomatedActionExecutorTest {
         when(action.getSchedule()).thenReturn(Optional.empty());
         when(action.getState()).thenReturn(ActionState.READY);
         when(action.getWorkflow(any(), eq(ActionState.READY))).thenReturn(Optional.empty());
+        when(action.getTranslationResultOrOriginal()).thenReturn(recommendation);
     }
 
     private void setUpMocksForManuallyAcceptedAction(@Nonnull Action action, long id,
@@ -799,6 +856,7 @@ public class AutomatedActionExecutorTest {
         when(actionSchedule.getAcceptingUser()).thenReturn("administrator");
 
         when(action.getSchedule()).thenReturn(Optional.of(actionSchedule));
+        when(action.getTranslationResultOrOriginal()).thenReturn(recommendation);
     }
 
     private void setUpMocks(Action action, long id, ActionDTO.Action rec)

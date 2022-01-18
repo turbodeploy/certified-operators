@@ -49,6 +49,7 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
+import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
@@ -167,14 +168,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final ActionCombiner actionCombiner;
 
+    private final ActionAutomationManager actionAutomationManager;
+
     private final int actionPaginationMaxLimit;
 
     private final long realtimeTopologyContextId;
 
     /**
      * Create a new ActionsRpcService.
-     *
-     * @param clock the {@link Clock}
+     *  @param clock the {@link Clock}
      * @param actionStorehouse the storehouse containing action stores.
      * @param actionApprovalManager action approval manager
      * @param actionTranslator the translator for translating actions (from market to real-world).
@@ -190,6 +192,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param actionCombiner combines related actions together for a single execution
      * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
      * @param realtimeTopologyContextId the ID of the topology context for realtime market analysis
+     * @param actionAutomationManager action automation manager
      */
     public ActionsRpcService(@Nonnull final Clock clock,
             @Nonnull final ActionStorehouse actionStorehouse,
@@ -205,6 +208,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final ActionAuditSender actionAuditSender,
             @Nonnull final ActionExecutionStore actionExecutionStore,
             @Nonnull final ActionCombiner actionCombiner,
+            @Nonnull final ActionAutomationManager actionAutomationManager,
             final int actionPaginationMaxLimit,
             final long realtimeTopologyContextId) {
         this.clock = clock;
@@ -221,6 +225,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
         this.actionExecutionStore = Objects.requireNonNull(actionExecutionStore);
         this.actionCombiner = Objects.requireNonNull(actionCombiner);
+        this.actionAutomationManager = Objects.requireNonNull(actionAutomationManager);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
@@ -633,7 +638,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         responseObserver.onNext(
                 CancelQueuedActionsResponse.newBuilder()
                         .setCancelledCount(
-                                actionStorehouse.cancelQueuedActions())
+                                actionAutomationManager.cancelQueuedActions())
                         .build());
         responseObserver.onCompleted();
     }

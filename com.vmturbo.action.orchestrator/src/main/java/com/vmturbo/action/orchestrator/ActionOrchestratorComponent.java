@@ -25,7 +25,6 @@ import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.api.ApiSecurityConfig;
 import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnosticsConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
-import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConfig;
 import com.vmturbo.action.orchestrator.market.MarketConfig;
 import com.vmturbo.action.orchestrator.migration.MigrationConfig;
 import com.vmturbo.action.orchestrator.rpc.RpcConfig;
@@ -46,7 +45,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         ActionOrchestratorDiagnosticsConfig.class,
         MigrationConfig.class,
         RpcConfig.class,
-        NotificationsConfig.class,
         ActionExecutionConfig.class,
         MarketConfig.class,
         ActionStoreConfig.class,

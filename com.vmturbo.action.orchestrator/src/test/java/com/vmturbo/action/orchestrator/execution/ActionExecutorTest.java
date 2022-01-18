@@ -211,14 +211,14 @@ public class ActionExecutorTest {
             .when(actionExecutionBackend).executeAction(any());
 
         SynchronousExecutionState state = mock(SynchronousExecutionState.class);
-        doThrow(new TimeoutException("BOO")).when(state).waitForActionCompletion(anyLong(), any());
+        doThrow(new TimeoutException("Action timed out")).when(state).waitForActionCompletion(anyLong(), any());
         when(executionStateFactory.newState()).thenReturn(state);
 
         try {
             actionExecutor.executeSynchronously(TARGET_ID, actionList);
             Assert.fail("Expected synchronous execution exception.");
-        } catch (SynchronousExecutionException e) {
-            assertTrue(e.getMessage().contains("timed out"));
+        } catch (TimeoutException e) {
+            assertTrue(e.getMessage().contains("Action timed out"));
         }
     }
 
