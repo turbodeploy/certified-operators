@@ -94,7 +94,7 @@ public class ActionClassifier {
     /**
      * An atomic segment represents a segment of the supply chain that provisions and suspends as a
      * unit, and the bottom of the segment is the controllable entity.  This atomic segment is
-     * defined in the probe by setting the providerMustClone attribute in the entity.  Since these
+     * defined in the probe by setting the providerMustClone attribute in the entity. Since these
      * suspended entities are linked, they are exempt from the requirement that the entity's
      * customer list be empty before suspension.  Previously run classifiers here use the "no
      * customers" test when deciding whether to mark an action as not executable.  This classifier
@@ -559,6 +559,27 @@ public class ActionClassifier {
         } catch (Exception ex) {
             move.setExecutable(true);
             printLogMessageInDebugForExecutableFlag(move, ex);
+            addTradersToExceptionTraders(move);
+        }
+    }
+
+    /**
+     * Records trader that was part of causing the exception
+     * into the ExceptionTraders list of the economy, to create
+     * better diagnostics.
+     *
+     * @param move action.
+     */
+    private void addTradersToExceptionTraders(Move move) {
+        Trader target = move.getActionTarget();
+        Trader source = move.getSource();
+        Trader destination = move.getDestination();
+        if(target != null){
+            economy_.getExceptionTraders().add(target.getOid());
+        } else if(source != null){
+            economy_.getExceptionTraders().add(source.getOid());
+        } else if(destination != null){
+            economy_.getExceptionTraders().add(destination.getOid());
         }
     }
 
