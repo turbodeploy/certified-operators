@@ -99,8 +99,17 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @param connectionType type of he connected to relationships
      * @param entities collection of entities to which we are going connect to.
      */
-    void addConnectedTo(@Nonnull final ConnectionType connectionType,
-                    @Nonnull final Set<StitchingEntity> entities);
+    void addAllConnectedTo(@Nonnull final ConnectionType connectionType,
+                    @Nonnull final Collection<StitchingEntity> entities);
+
+    /**
+     * Adds connected from relationships between current entity and collection of entities.
+     *
+     * @param connectionType type of he connected from relationships
+     * @param entities collection of entities to which we are going connect from.
+     */
+    void addAllConnectedFrom(@Nonnull final ConnectionType connectionType,
+                    @Nonnull final Collection<StitchingEntity> entities);
 
     /**
      * Get the connected {@link StitchingEntity} instances that are "connectedTo" this entity
@@ -301,6 +310,31 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      */
     boolean removeConnectedFrom(@Nonnull StitchingEntity connectedFrom,
             @Nonnull ConnectionType type);
+
+    /**
+     * Remove the ConnectedTo connection to the oldConnectedTo and add the newConnectedTo in its
+     * place. If there is no connection to the oldConnectedTo, no changes are made.
+     *
+     * @param oldConnectedTo The old connected to swap out for the new one.
+     * @param newConnectedTo The enw connection to replace the old one.
+     * @param type The type of connectedTo connection.
+     * @return Whether the connection was swapped.
+     */
+    boolean swapConnectedTo(@Nonnull StitchingEntity oldConnectedTo,
+            @Nonnull StitchingEntity newConnectedTo, @Nonnull ConnectionType type);
+
+    /**
+     * Remove the ConnectedFrom connection to the oldConnectedFrom and add the newConnectedFrom in its
+     * place. If there is no connection to the oldConnectedFrom, no changes are made.
+     * anyway.
+     *
+     * @param oldConnectedFrom The old connected from swap out for the new one.
+     * @param newConnectedFrom The enw connection from replace the old one.
+     * @param type The type of connectedFrom connection.
+     * @return Whether the connection was swapped.
+     */
+    boolean swapConnectedFrom(@Nonnull StitchingEntity oldConnectedFrom,
+            @Nonnull StitchingEntity newConnectedFrom, @Nonnull ConnectionType type);
 
     /**
      * Check if this entity is providing commodities to another {@link StitchingEntity}.

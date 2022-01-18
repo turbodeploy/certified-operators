@@ -89,7 +89,7 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
             findProvider(hypervisorPM, EntityType.DATACENTER).ifPresent(dc -> {
                 if (keepDCsAfterFabricStitching) {
                     resultBuilder.queueChangeRelationships(chassis, ch -> {
-                        ch.addConnectedTo(ConnectionType.NORMAL_CONNECTION,
+                        ch.addAllConnectedTo(ConnectionType.NORMAL_CONNECTION,
                                         Collections.singleton(dc));
                     });
                 } else {

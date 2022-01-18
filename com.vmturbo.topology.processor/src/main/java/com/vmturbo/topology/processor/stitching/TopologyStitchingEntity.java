@@ -412,6 +412,34 @@ public class TopologyStitchingEntity implements StitchingEntity {
         }
     }
 
+    @Override
+    public boolean swapConnectedTo(@Nonnull StitchingEntity oldConnectedTo,
+            @Nonnull StitchingEntity newConnectedTo, @Nonnull ConnectionType type) {
+        final Set<StitchingEntity> connectedToOfType = this.connectedTo.get(type);
+        if (connectedToOfType != null) {
+            if (connectedToOfType.remove(oldConnectedTo)) {
+                connectedToOfType.add(newConnectedTo);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean swapConnectedFrom(@Nonnull StitchingEntity oldConnectedFrom,
+            @Nonnull StitchingEntity newConnectedFrom, @Nonnull ConnectionType type) {
+        final Set<StitchingEntity> connectedFromOfType = this.connectedFrom.get(type);
+        if (connectedFromOfType != null) {
+            if (connectedFromOfType.remove(oldConnectedFrom)) {
+                connectedFromOfType.add(newConnectedFrom);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public void addProviderCommodityBought(@Nonnull final StitchingEntity entity,
                                            @Nonnull final CommoditiesBought commoditiesBought) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
@@ -438,19 +466,19 @@ public class TopologyStitchingEntity implements StitchingEntity {
         commodityBoughtListByProvider.clear();
     }
 
-    public void addConnectedTo(@Nonnull final ConnectionType connectionType,
+    public boolean addConnectedTo(@Nonnull final ConnectionType connectionType,
                                @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
         if (connectedTo == UNINITIALIZED_CONNECTIONS) {
             connectedTo = new EnumMap<>(ConnectionType.class);
         }
 
-        connectedTo.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).add(entity);
+        return connectedTo.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).add(entity);
     }
 
     @Override
-    public void addConnectedTo(@Nonnull final ConnectionType connectionType,
-                               @Nonnull final Set<StitchingEntity> entities) {
+    public void addAllConnectedTo(@Nonnull final ConnectionType connectionType,
+                               @Nonnull final Collection<StitchingEntity> entities) {
         if (connectedTo == UNINITIALIZED_CONNECTIONS) {
             connectedTo = new EnumMap<>(ConnectionType.class);
         }
@@ -458,23 +486,24 @@ public class TopologyStitchingEntity implements StitchingEntity {
         connectedTo.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).addAll(entities);
     }
 
-    public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
+    @Override
+    public void addAllConnectedFrom(@Nonnull final ConnectionType connectionType,
+                               @Nonnull final Collection<StitchingEntity> entities) {
+        if (connectedFrom == UNINITIALIZED_CONNECTIONS) {
+            connectedFrom = new EnumMap<>(ConnectionType.class);
+        }
+
+        connectedFrom.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).addAll(entities);
+    }
+
+    public boolean addConnectedFrom(@Nonnull final ConnectionType connectionType,
                                  @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
         if (connectedFrom == UNINITIALIZED_CONNECTIONS) {
             connectedFrom = new EnumMap<>(ConnectionType.class);
         }
 
-        connectedFrom.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).add(entity);
-    }
-
-    public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
-                                 @Nonnull final Set<StitchingEntity> entities) {
-        if (connectedFrom == UNINITIALIZED_CONNECTIONS) {
-            connectedFrom = new EnumMap<>(ConnectionType.class);
-        }
-
-        connectedFrom.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).addAll(entities);
+        return connectedFrom.computeIfAbsent(connectionType, k -> smallIdentityHashSet()).add(entity);
     }
 
     public boolean removeConnectedFrom(@Nonnull final ConnectionType connectionType,

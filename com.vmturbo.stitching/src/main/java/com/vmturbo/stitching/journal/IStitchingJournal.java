@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -238,7 +237,7 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
      *                          recorded to this {@link IStitchingJournal}.
      */
     void recordChangeset(@Nonnull final String changesetPreamble,
-        @Nonnull final Consumer<JournalChangeset<T>> changesetConsumer);
+        @Nonnull final Consumer<IJournalChangeset<T>> changesetConsumer);
 
     /**
      * Record information about the topology associated with the journal entries in this stitching journal.
@@ -591,6 +590,53 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
         StitchingMetrics getMetrics();
 
         /**
+         * Call before applying changes to an entity in the topology in order to allow that
+         * change to be traced in the journal. This works by adding an entry and its snapshot
+         * to the changeset. If the entry was already added to the changeset, it will not be
+         * re-added. Instead, the earlier snapshot will be maintained and the new request
+         * to re-add will be ignored.
+         *
+         * If added, a snapshot of the entry will be taken and recorded. These entries and their
+         * snapshots can be diffed to generate a list of semantic differences via the
+         * {@link #semanticDifferences} method.
+         *
+         * @param entry The entry to add to the changeset along with its snapshot.
+         * @return true if the entry was successfully added (ie it was not already in the changeset)
+         *         false if the entry could not be added because it was already in the changeset.
+         */
+        boolean beforeChange(@Nonnull final T entry);
+
+        /**
+         * Add a removal to the changeset. Note that removed entities are NOT snapshotted.
+         * If the removal of this entity was already added to the changeset, the additional
+         * removal is ignored.
+         *
+         * If the changeset has a filter, the removal will only be added if the entity passes
+         * the filter.
+         *
+         * @param entry The entry to add to the changeset along.
+         * @return true if the entry was successfully added (ie it was not already in the changeset)
+         *         false if the entry could not be added because it was already added as a removal
+         *         in the changeset.
+         */
+        boolean observeRemoval(@Nonnull final T entry);
+
+        /**
+         * Add an addition to the changeset. Note that added entities are NOT snapshotted.
+         * If the addition of this entity was already added to the changeset, the additional
+         * addition is ignored.
+         *
+         * If the changeset has a filter, the addition will only be added if the entity passes
+         * the filter.
+         *
+         * @param entry The entry to add to the changeset along.
+         * @return true if the entry was successfully added (ie it was not already in the changeset)
+         *         false if the entry could not be added because the filter doesn't permit the entry
+         *         in the changeset.
+         */
+        boolean observeAddition(@Nonnull final T entry);
+
+        /**
          * Generate a description of the semantic differences for all the entries added to this
          * {@link JournalChangeset}.
          *
@@ -724,6 +770,7 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
          * @return true if the entry was successfully added (ie it was not already in the changeset)
          *         false if the entry could not be added because it was already in the changeset.
          */
+        @Override
         public boolean beforeChange(@Nonnull final T entry) {
             if (!mutated.containsKey(entry)) {
                 // TODO: Need to be merge-aware
@@ -749,6 +796,7 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
          *         false if the entry could not be added because it was already added as a removal
          *         in the changeset.
          */
+        @Override
         public boolean observeRemoval(@Nonnull final T entry) {
             if (filter.shouldEnter(entry)) {
                 removed.add(entry);
@@ -771,6 +819,7 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
          *         false if the entry could not be added because the filter doesn't permit the entry
          *         in the changeset.
          */
+        @Override
         public boolean observeAddition(@Nonnull final T entry) {
             if (filter.shouldEnter(entry)) {
                 added.add(entry);
@@ -823,6 +872,131 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
         @Override
         public List<String> getChangesetPreambles() {
             return Collections.singletonList(changesetPreamble);
+        }
+    }
+
+    /**
+     * A {@link MetricsOnlyChangeset} passes through all changes, skipping the recording of any
+     * stitching information to the stitching journal. It should only be paired with an {@code EmptyStitchingJournal}
+     * otherwise changes won't be properly recorded. It does record some stitching metrics so that
+     * the number of changes made can be logged in the pipeline stage results.
+     *
+     * @param <T> The type of the {@link JournalableEntity} whose changes will be recorded in the journal.
+     */
+    class MetricsOnlyChangeset<T extends JournalableEntity<T>> implements IJournalChangeset<T> {
+        /**
+         * Metrics to count the changes made as part of the changeset.
+         */
+        private final StitchingMetrics stitchingMetrics;
+
+        /**
+         * Create a new journal changeset for use with an empty stitching journal. Marked as private
+         * so that it can be created via the journal.
+         *
+         * @param stitchingMetrics Metrics to count the changes made as part of the changeset.
+         */
+        public MetricsOnlyChangeset(@Nonnull final StitchingMetrics stitchingMetrics) {
+            this.stitchingMetrics = Objects.requireNonNull(stitchingMetrics);
+        }
+
+        /**
+         * Call before applying changes to an entity in the topology in order to allow that
+         * change to be traced in the journal. This works by adding an entry and its snapshot
+         * to the changeset. If the entry was already added to the changeset, it will not be
+         * re-added. Instead, the earlier snapshot will be maintained and the new request
+         * to re-add will be ignored.
+         *
+         * If added, a snapshot of the entry will be taken and recorded. These entries and their
+         * snapshots can be diffed to generate a list of semantic differences via the
+         * {@link #semanticDifferences} method.
+         *
+         * @param entry The entry to add to the changeset along with its snapshot.
+         * @return true if the entry was successfully added (ie it was not already in the changeset)
+         *         false if the entry could not be added because it was already in the changeset.
+         */
+        @Override
+        public boolean beforeChange(@Nonnull final T entry) {
+            return false;
+        }
+
+        /**
+         * Add a removal to the changeset. Note that removed entities are NOT snapshotted.
+         * If the removal of this entity was already added to the changeset, the additional
+         * removal is ignored.
+         *
+         * If the changeset has a filter, the removal will only be added if the entity passes
+         * the filter.
+         *
+         * @param entry The entry to add to the changeset along.
+         * @return true if the entry was successfully added (ie it was not already in the changeset)
+         *         false if the entry could not be added because it was already added as a removal
+         *         in the changeset.
+         */
+        @Override
+        public boolean observeRemoval(@Nonnull final T entry) {
+            return false;
+        }
+
+        /**
+         * Add an addition to the changeset. Note that added entities are NOT snapshotted.
+         * If the addition of this entity was already added to the changeset, the additional
+         * addition is ignored.
+         *
+         * If the changeset has a filter, the addition will only be added if the entity passes
+         * the filter.
+         *
+         * @param entry The entry to add to the changeset along.
+         * @return true if the entry was successfully added (ie it was not already in the changeset)
+         *         false if the entry could not be added because the filter doesn't permit the entry
+         *         in the changeset.
+         */
+        @Override
+        public boolean observeAddition(@Nonnull final T entry) {
+            return false;
+        }
+
+        @Override
+        public int changedEntityCount() {
+            return 0;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public Stream<T> changedEntities() {
+            return Stream.empty();
+        }
+
+        @Override
+        public Map<T, T> getMutatedEntities() {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public Collection<T> getRemovedEntities() {
+            return Collections.emptySet();
+        }
+
+        @Override
+        public Collection<T> getAddedEntities() {
+            return Collections.emptySet();
+        }
+
+        @Override
+        public int getChangesetIndex() {
+            return -1;
+        }
+
+        @Override
+        public StitchingMetrics getMetrics() { return stitchingMetrics; }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public List<String> getChangesetPreambles() {
+            return Collections.emptyList();
         }
     }
 }

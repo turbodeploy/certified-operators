@@ -60,8 +60,14 @@ public class TestStitchingEntity implements StitchingEntity {
     }
 
     @Override
-    public void addConnectedTo(@Nonnull ConnectionType connectionType,
-                    @Nonnull Set<StitchingEntity> entities) {
+    public void addAllConnectedTo(@Nonnull ConnectionType connectionType,
+                    @Nonnull Collection<StitchingEntity> entities) {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    public void addAllConnectedFrom(@Nonnull ConnectionType connectionType,
+            @Nonnull Collection<StitchingEntity> entities) {
         throw new IllegalStateException();
     }
 
@@ -161,6 +167,16 @@ public class TestStitchingEntity implements StitchingEntity {
     @Override
     public boolean removeConnectedFrom(@Nonnull StitchingEntity connectedFrom,
             @Nonnull ConnectionType type) {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean swapConnectedTo(@Nonnull StitchingEntity oldConnectedTo, @Nonnull StitchingEntity newConnectedTo, @Nonnull ConnectionType type) {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean swapConnectedFrom(@Nonnull StitchingEntity oldConnectedFrom, @Nonnull StitchingEntity newConnectedFrom, @Nonnull ConnectionType type) {
         throw new IllegalStateException();
     }
 

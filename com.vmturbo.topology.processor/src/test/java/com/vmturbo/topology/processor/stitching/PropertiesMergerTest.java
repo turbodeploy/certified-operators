@@ -57,7 +57,8 @@ public class PropertiesMergerTest {
     public void testMergeKeepOnto() {
         final PropertiesMerger propertiesMerger = new PropertiesMerger(
                 MergePropertiesStrategy.KEEP_ONTO);
-        propertiesMerger.merge(from, onto);
+        final Set<String> ontoPropertySet = propertiesMerger.ontoPropertySet(onto);
+        propertiesMerger.merge(from, onto, ontoPropertySet);
 
         // Resulting entity should preserve properties from "onto" DTO
         Assert.assertEquals(1, onto.getEntityPropertiesCount());
@@ -74,7 +75,8 @@ public class PropertiesMergerTest {
     public void testMergeJoin() {
         final PropertiesMerger propertiesMerger = new PropertiesMerger(
                 MergePropertiesStrategy.JOIN);
-        propertiesMerger.merge(from, onto);
+        final Set<String> ontoPropertySet = propertiesMerger.ontoPropertySet(onto);
+        propertiesMerger.merge(from, onto, ontoPropertySet);
 
         // Resulting entity should contain properties from both "onto" and "from" DTOs
         final Set<String> resultingProperties = onto.getEntityPropertiesList().stream()
