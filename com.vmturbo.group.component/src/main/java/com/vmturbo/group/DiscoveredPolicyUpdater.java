@@ -20,6 +20,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Table;
 import com.google.protobuf.AbstractMessage;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -115,7 +116,8 @@ public abstract class DiscoveredPolicyUpdater<R, T extends AbstractMessage, D> {
     }
 
     private <T> void logDecisionsCounts(@Nonnull String prefix,
-            @Nonnull Collection<PolicyDecision<T>> decisions) {
+                                        @Nonnull Collection<PolicyDecision<T>> decisions,
+                                        @Nonnull Level logLevel) {
         int newPolicies = 0;
         int changed = 0;
         int unchanged = 0;
@@ -135,8 +137,8 @@ public abstract class DiscoveredPolicyUpdater<R, T extends AbstractMessage, D> {
                 }
             }
         }
-        getLogger().info("{} {} new policies, {} changed, {} unchanged, {} removed",
-                prefix, newPolicies, changed, unchanged, deleted);
+        getLogger().log(logLevel, "{} {} new policies, {} changed, {} unchanged, {} removed",
+                        prefix, newPolicies, changed, unchanged, deleted);
     }
 
     @Nonnull
@@ -164,7 +166,7 @@ public abstract class DiscoveredPolicyUpdater<R, T extends AbstractMessage, D> {
         final Collection<R> policiesToAdd = decisions.stream().map(
                 PolicyDecision::getRecordToCreate).filter(Objects::nonNull).collect(
                 Collectors.toList());
-        logDecisionsCounts("Overall ", decisions);
+        logDecisionsCounts("Overall ", decisions, Level.INFO);
         return new CollectionsUpdate<>(policiesToAdd, objectsToDelete);
     }
 
@@ -195,7 +197,7 @@ public abstract class DiscoveredPolicyUpdater<R, T extends AbstractMessage, D> {
         decisions.addAll(policiesToDelete.stream()
                 .map(oid -> new PolicyDecision<R>(oid, true, null))
                 .collect(Collectors.toList()));
-        logDecisionsCounts("For target " + targetId, decisions);
+        logDecisionsCounts("For target " + targetId, decisions, Level.DEBUG);
         return decisions;
     }
 
