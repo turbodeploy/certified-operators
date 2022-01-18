@@ -468,6 +468,7 @@
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.flexera.component</module>
                 <module>../com.vmturbo.mediation.gcp.sa.component</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
@@ -1365,6 +1366,7 @@
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
+                <module>../com.vmturbo.mediation.flexera.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
