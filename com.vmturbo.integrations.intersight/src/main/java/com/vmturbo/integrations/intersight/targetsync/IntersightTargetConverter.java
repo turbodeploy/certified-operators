@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.cisco.intersight.client.model.AssetScopedTargetConnection;
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetTarget.TargetTypeEnum;
 
@@ -36,7 +37,28 @@ public class IntersightTargetConverter {
     protected static final String INTERSIGHT_CLIENTID = "clientId";
     protected static final String INTERSIGHT_CLIENTSECRET = "clientSecret";
 
+    /**
+     * The name of the account input field corresponding to the target scope.
+     */
+    protected static final String TARGET_SCOPE_FIELD_NAME = "targetEntities";
+
     private IntersightTargetConverter() {}
+
+    /**
+     * Return the scope id extracted from any {@link AssetScopedTargetConnection} in the input
+     * {@link AssetTarget}.
+     *
+     * @param assetTarget the target in Intersight {@link AssetTarget} data structure
+     * @return the scope id if any in the form of {@link Optional}
+     */
+    protected static Optional<String> getScopeId(@Nonnull AssetTarget assetTarget) {
+        return Optional.ofNullable(assetTarget.getConnections())
+                .orElse(Collections.emptyList()).stream()
+                .filter(AssetScopedTargetConnection.class::isInstance)
+                .map(AssetScopedTargetConnection.class::cast)
+                .map(AssetScopedTargetConnection::getScope)
+                .findAny();
+    }
 
     /**
      * Construct a {@link TargetInputFields} corresponding to an Intersight {@link AssetTarget} for
@@ -67,6 +89,8 @@ public class IntersightTargetConverter {
                         if (value == null) {
                             return null;
                         }
+                    } else if (TARGET_SCOPE_FIELD_NAME.equals(name)) {
+                        value = getScopeId(assetTarget).orElse("");
                     } else if (accountDefEntry.getDefaultValue() != null) {
                         value = accountDefEntry.getDefaultValue();
                     } else if (accountDefEntry.getAllowedValues() != null
@@ -202,6 +226,8 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.KUBERNETES);
             case NEWRELIC:
                 return Collections.singleton(SDKProbeType.NEWRELIC);
+            case MYSQLSERVER:
+                return Collections.singleton(SDKProbeType.MYSQL);
             case VMWAREHORIZON:
                 return Collections.singleton(SDKProbeType.VMWARE_HORIZON_VIEW);
             case MICROSOFTSYSTEMCENTERVIRTUALMACHINEMANAGER:

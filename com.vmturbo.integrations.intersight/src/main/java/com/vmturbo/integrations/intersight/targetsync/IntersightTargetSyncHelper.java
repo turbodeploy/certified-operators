@@ -2,6 +2,7 @@ package com.vmturbo.integrations.intersight.targetsync;
 
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_ADDRESS;
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_PORT;
+import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.TARGET_SCOPE_FIELD_NAME;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -235,12 +236,13 @@ public class IntersightTargetSyncHelper {
         // three are used to support multiple assists and Kubernetes targets.
         // We are getting CreateTime and ModTime too to carve out appropriate actions
         // correspondingly to achieve better user experience.
-        // We are also getting "Services" and "Status" because:
+        // We are also getting "Connections", "Services" and "Status" because:
+        // "Connections": for scoped targets, the scope is in the connections field
         // "Services": updating status requires passing back the entire Services portion;
         //             get it and retain the other parts unchanged
         // "Status": this is a top-level status field and is an enum and read-only;
         //           To ensure accepted by the server, this has to be passed back unchanged.
-        final String select = "$select=Moid,TargetType,Services,Status,CreateTime,ModTime,Assist,Parent,TargetId";
+        final String select = "$select=Moid,TargetType,Name,Connections,Services,Status,CreateTime,ModTime,Assist,Parent,TargetId";
         final List<AssetTarget> assetTargets =
                 new IntersightAssetTargetQuery(select).getAllQueryInstancesOrElseThrow(intersightConnection);
         final Map<String, Optional<String>> assistToDeviceMap = getAssistToDeviceMap(assetTargets);
@@ -277,7 +279,7 @@ public class IntersightTargetSyncHelper {
                         }
                     } else {
                         staleTargets.remove(targetInfo);
-                        updateAssistIdIfNeeded(assetTarget, targetInfo, probeInfo, assistId);
+                        updateTargetIfNeeded(assetTarget, targetInfo, probeInfo, assistId);
                     }
                     if (probeInfo.getCreationMode() != CreationMode.DERIVED) {
                         // skip derived targets as it should be the same as the original target;
@@ -400,8 +402,8 @@ public class IntersightTargetSyncHelper {
     }
 
     /**
-     * Call topology processor to update the target with the new assist id if changed from
-     * Intersight.
+     * Call topology processor to update the target with a new assist id or a new scope id in case
+     * of a scoped target, if either is changed from Intersight.
      *
      * @param assetTarget the target in Intersight {@link AssetTarget} data structure
      * @param targetInfo the target info in topology processor API data structure
@@ -411,7 +413,7 @@ public class IntersightTargetSyncHelper {
      * @throws CommunicationException when having problems communicating with the topology processor
      * @throws TopologyProcessorException when topology processor sends back an exception
      */
-    private void updateAssistIdIfNeeded(@Nonnull final AssetTarget assetTarget,
+    private void updateTargetIfNeeded(@Nonnull final AssetTarget assetTarget,
             @Nonnull final TargetInfo targetInfo, @Nonnull final ProbeInfo probeInfo,
             @Nonnull Optional<String> assistId)
             throws CommunicationException, TopologyProcessorException {
@@ -420,16 +422,22 @@ public class IntersightTargetSyncHelper {
         Objects.requireNonNull(probeInfo);
         Objects.requireNonNull(assistId);
 
+        final Optional<String> scopeId = IntersightTargetConverter.getScopeId(assetTarget);
+        final Optional<String> storedScopeId = targetInfo.getAccountData().stream()
+                .filter(av -> TARGET_SCOPE_FIELD_NAME.equals(av.getName()))
+                .map(AccountValue::getStringValue).findAny();
         final Optional<String> channel = targetInfo.getCommunicationBindingChannel();
-        if (!Objects.equals(assistId, channel)) {
+        if (!Objects.equals(assistId, channel) || !Objects.equals(scopeId, storedScopeId)) {
             // Update associated assist id in the target since it's been changed;
             // convert Optional.empty() to Optional.of("") which is the way to wipe it out
             final TargetInputFields targetInputFields = IntersightTargetConverter.inputFields(
                     assetTarget, Optional.of(assistId.orElse("")), probeInfo);
             if (targetInputFields != null) {
                 topologyProcessor.modifyTarget(targetInfo.getId(), targetInputFields);
-                logger.info("Updated {} target {} with {}", probeInfo.getType(), assetTarget.getMoid(),
-                        assistId.map(id -> "new assist " + id).orElse("no assist"));
+                logger.info("Updated {} target {} moid {} with{}{}", probeInfo.getType(),
+                        assetTarget.getName(), assetTarget.getMoid(),
+                        Objects.equals(assistId, channel) ? "" : assistId.map(id -> " new assist " + id).orElse(" no assist"),
+                        Objects.equals(scopeId, storedScopeId) ? "" : scopeId.map(id -> " new scope " + id).orElse(" no scope"));
             }
         }
     }

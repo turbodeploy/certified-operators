@@ -4,6 +4,7 @@ import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetCon
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_CLIENTID;
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_CLIENTSECRET;
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_PORT;
+import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.TARGET_SCOPE_FIELD_NAME;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -55,7 +56,8 @@ public class MockProbeInfo {
                 createAccountDef("field2", AccountFieldValueType.NUMERIC),
                 createAccountDef("field3", AccountFieldValueType.STRING),
                 createAccountDef("field4", AccountFieldValueType.LIST),
-                createAccountDef("field5", AccountFieldValueType.GROUP_SCOPE)
+                createAccountDef("field5", AccountFieldValueType.GROUP_SCOPE),
+                createAccountDef(TARGET_SCOPE_FIELD_NAME, AccountFieldValueType.STRING)
         );
     }
 
