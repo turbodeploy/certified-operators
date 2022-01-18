@@ -17,7 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
-import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 
 /**
  * An in-memory implementation of {@link EntityUptimeStore}.

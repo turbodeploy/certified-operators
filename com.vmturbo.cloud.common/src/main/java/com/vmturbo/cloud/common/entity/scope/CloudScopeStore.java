@@ -4,7 +4,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 
 /**
  * A store for {@link EntityCloudScope} records. The store is used to consolidate scoping information

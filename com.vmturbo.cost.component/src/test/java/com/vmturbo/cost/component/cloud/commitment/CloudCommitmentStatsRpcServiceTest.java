@@ -18,10 +18,13 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.stubbing.OngoingStubbing;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentUtilization;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentUtilizationVector;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ScopedCommitmentUtilization;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse.CloudCommitmentUtilizationRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
@@ -43,7 +46,10 @@ public class CloudCommitmentStatsRpcServiceTest {
     private final CloudCommitmentStatsRpcService service = new CloudCommitmentStatsRpcService(
             Mockito.mock(CloudCommitmentCoverageStore.class),
             Mockito.mock(CloudCommitmentUtilizationStore.class),
-            Mockito.mock(SourceProjectedFieldsDataStore.class), utilizationStore, 3);
+            Mockito.mock(SourceProjectedFieldsDataStore.class),
+            utilizationStore,
+            new CloudCommitmentStatsConverter(),
+            3);
 
     /**
      * GRPC test server.
@@ -82,10 +88,17 @@ public class CloudCommitmentStatsRpcServiceTest {
         // ARRANGE
         final Set<Long> commitments = LongStream.range(1, 10).boxed().collect(Collectors.toSet());
         storeMethodStubber.get().thenReturn(Optional.of(UtilizationInfo.builder()
-                .topologyInfo(TopologyInfo.newBuilder().setTopologyId(123).build())
-                .putAllCommitmentIdToUtilization(commitments.stream()
+                .topologyInfo(TopologyInfo.newBuilder().setCreationTime(123).build())
+                .putAllCommitmentUtilizationMap(commitments.stream()
                         .collect(Collectors.toMap(Function.identity(),
-                                key -> CloudCommitmentUtilization.getDefaultInstance())))
+                                commitmentOid -> ScopedCommitmentUtilization.newBuilder()
+                                        .setCloudCommitmentOid(commitmentOid)
+                                        .addUtilizationVector(
+                                                CloudCommitmentUtilizationVector.newBuilder()
+                                                        .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
+                                                        .setUsed(commitmentOid)
+                                                        .setCapacity(10.0))
+                                        .build())))
                 .build()));
 
         // ACT
@@ -99,9 +112,26 @@ public class CloudCommitmentStatsRpcServiceTest {
         Assert.assertEquals(3, responses.size());
 
         Assert.assertEquals(commitments.stream()
-                .map(oid -> CloudCommitmentUtilizationRecord.newBuilder()
-                        .setCommitmentOid(oid)
-                        .setUtilization(CloudCommitmentUtilization.getDefaultInstance())
+                .map(oid -> CloudCommitmentStatRecord.newBuilder()
+                        .setSnapshotDate(123)
+                        .setCommitmentId(oid)
+                        .setRegionId(0)
+                        .setAccountId(0)
+                        .setServiceProviderId(0)
+                        .setCoverageTypeInfo(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO)
+                        .setSampleCount(1)
+                        .setValues(StatValue.newBuilder()
+                                .setAvg(oid)
+                                .setTotal(oid)
+                                .setMin(oid)
+                                .setMax(oid)
+                                .build())
+                        .setCapacity(StatValue.newBuilder()
+                                .setAvg(10.0)
+                                .setTotal(10.0)
+                                .setMin(10.0)
+                                .setMax(10.0)
+                                .build())
                         .build())
                 .collect(Collectors.toSet()), responses.stream()
                 .flatMap(r -> r.getCommitmentUtilizationRecordChunkList().stream())
