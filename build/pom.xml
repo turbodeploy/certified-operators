@@ -89,7 +89,7 @@
         <httpclient.version>4.5.13</httpclient.version>
         <httpclient.async.version>4.1.3</httpclient.async.version>
         <jackson.version>2.11.4</jackson.version>
-        <commons-lang3.version>3.8.1</commons-lang3.version>
+        <commons-lang3.version>3.12.0</commons-lang3.version>
         <commons-lang.version>2.6</commons-lang.version>
         <jersey-client.version>2.17</jersey-client.version>
         <jersey-media-jaxb.version>2.17</jersey-media-jaxb.version>
