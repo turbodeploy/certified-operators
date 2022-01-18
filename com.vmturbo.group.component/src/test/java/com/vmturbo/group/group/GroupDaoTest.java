@@ -1816,6 +1816,11 @@ public class GroupDaoTest extends MultiDbTestBase {
 
         // THEN
         Assert.assertEquals(2, response.getGroupsCount());
+        //In Postgres we do not support case insensitive search, so no results should be returned
+        if (dsl.dialect().equals(SQLDialect.POSTGRES)) {
+            Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+            return;
+        }
         Assert.assertEquals("2", response.getPaginationResponse().getNextCursor());
         Assert.assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
         Assert.assertEquals(group4DisplayName,
