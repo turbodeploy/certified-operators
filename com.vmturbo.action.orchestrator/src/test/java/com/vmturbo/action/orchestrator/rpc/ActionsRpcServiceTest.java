@@ -51,6 +51,7 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
+import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionCombiner;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
@@ -114,6 +115,7 @@ public class ActionsRpcServiceTest {
     private AuditedActionsManager auditedActionsManager;
     private ActionExecutionStore actionExecutionStore;
     private ActionCombiner actionCombiner;
+    private ActionAutomationManager actionAutomationManager;
 
     @Captor
     private ArgumentCaptor<Collection<? extends ActionView>> actionsCaptor;
@@ -136,6 +138,7 @@ public class ActionsRpcServiceTest {
         actionStore = mock(ActionStore.class);
         actionAuditSender = Mockito.mock(ActionAuditSender.class);
         auditedActionsManager = Mockito.mock(AuditedActionsManager.class);
+        actionAutomationManager = Mockito.mock(ActionAutomationManager.class);
         actionExecutionStore = new ActionExecutionStore();
         actionCombiner = mock(ActionCombiner.class);
         actionsRpcService = new ActionsRpcService(
@@ -153,6 +156,7 @@ public class ActionsRpcServiceTest {
                 actionAuditSender,
                 actionExecutionStore,
                 actionCombiner,
+                actionAutomationManager,
                 10,
                 777777L);
         actionsByImpactOidRpcService = new ActionsRpcService(
@@ -170,6 +174,7 @@ public class ActionsRpcServiceTest {
                 actionAuditSender,
                 actionExecutionStore,
                 actionCombiner,
+                actionAutomationManager,
                 10,
                 777777L);
         when(actionStorehouse.getStore(CONTEXT_ID)).thenReturn(Optional.of(actionStore));

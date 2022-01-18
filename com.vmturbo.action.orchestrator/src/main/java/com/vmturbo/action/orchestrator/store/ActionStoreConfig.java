@@ -10,9 +10,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.action.orchestrator.DbAccessConfig;
-import com.vmturbo.action.orchestrator.execution.affected.entities.EntitiesInCoolDownPeriodCache;
-
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +18,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.action.orchestrator.DbAccessConfig;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -38,6 +36,8 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
 import com.vmturbo.action.orchestrator.execution.affected.entities.AffectedEntitiesManager;
+import com.vmturbo.action.orchestrator.execution.affected.entities.EntitiesInCoolDownPeriodCache;
+import com.vmturbo.action.orchestrator.execution.notifications.ActionStateUpdater;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
@@ -60,6 +60,7 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**
  * Configuration for the ActionStore package.
@@ -266,7 +267,28 @@ public class ActionStoreConfig {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 automatedActionSubmitter(), workflowConfig.workflowStore(),
                 actionExecutionConfig.actionTargetSelector(), entitySettingsCache(),
-                actionTranslationConfig.actionTranslator(), actionCombiner());
+                actionTranslationConfig.actionTranslator(), actionCombiner(),
+                actionExecutionListener());
+    }
+
+    /**
+     * Bean for {@link ActionExecutionListener}.
+     *
+     * @return The {@link ActionExecutionListener}.
+     */
+    @Bean
+    public ActionExecutionListener actionExecutionListener() {
+        final ActionExecutionListener executionListener = new ActionStateUpdater(actionStorehouse(),
+                actionOrchestratorApiConfig.actionOrchestratorNotificationSender(), actionHistory(),
+                acceptedActionsStore(), actionExecutionConfig.actionExecutor(),
+                actionExecutionConfig.actionExecutionStore(), workflowConfig.workflowStore(),
+                tpConfig.realtimeTopologyContextId(),
+                actionExecutionConfig.failedCloudVMGroupProcessor(),
+                auditCommunicationConfig.actionAuditSender(),
+                approvalCommunicationConfig.actionStateUpdatesSender(),
+                actionTranslationConfig.actionTranslator());
+        tpConfig.topologyProcessor().addActionListener(executionListener);
+        return executionListener;
     }
 
     /**
@@ -429,7 +451,7 @@ public class ActionStoreConfig {
      */
     @Bean
     public ActionStorehouse actionStorehouse() {
-        return new ActionStorehouse(actionStoreFactory(), actionStoreLoader(), automationManager());
+        return new ActionStorehouse(actionStoreFactory(), actionStoreLoader());
     }
 
     /**

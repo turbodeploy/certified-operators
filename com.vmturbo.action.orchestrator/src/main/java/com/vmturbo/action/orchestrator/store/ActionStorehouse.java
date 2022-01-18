@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -14,12 +13,10 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Houses a collection of {@link ActionStore}s indexed by their context ID.
@@ -33,15 +30,6 @@ public class ActionStorehouse {
 
     private final IActionStoreFactory actionStoreFactory;
     private final Map<Long, ActionStore> storehouse;
-    private final ActionAutomationManager automationManager;
-
-    private static final DataMetricSummary STORE_POPULATION_SUMMARY = DataMetricSummary.builder()
-        .withName("ao_populate_store_duration_seconds")
-        .withHelp("The amount of time it takes to populate an action store with a new action plan.")
-        .withLabelNames("store_type")
-        .build()
-        .register();
-
     private static final DataMetricSummary ACTION_PLAN_COUNTS_SUMMARY = DataMetricSummary.builder()
         .withName("ao_action_plan_action_counts")
         .withHelp("Number of actions in received action plan. May be either plan or live.")
@@ -53,15 +41,13 @@ public class ActionStorehouse {
      * Create a new action storehouse.
      *
      * @param actionStoreFactory The factory to use when creating new store instances.
-     * @param storeLoader The loader to use at startup when loading previously saved action stores.
-     * @param automationManager Manages execution of automated actions.
+     * @param storeLoader The loader to use at startup when loading previously saved action
+     *         stores.
      **/
     public ActionStorehouse(@Nonnull final IActionStoreFactory actionStoreFactory,
-                            @Nonnull final IActionStoreLoader storeLoader,
-                            @Nonnull final ActionAutomationManager automationManager) {
+            @Nonnull final IActionStoreLoader storeLoader) {
         this.actionStoreFactory = actionStoreFactory;
         this.storehouse = new ConcurrentHashMap<>();
-        this.automationManager = Objects.requireNonNull(automationManager);
         storeLoader.loadActionStores().forEach(store -> storehouse.put(store.getTopologyContextId(), store));
         logger.info("ActionStorehouse initialized with data for {} action stores", size());
     }
@@ -114,9 +100,7 @@ public class ActionStorehouse {
      */
     public Optional<EntitySeverityCache> getSeverityCache(final long topologyContextId) {
         final ActionStore store = storehouse.get(topologyContextId);
-        return store == null ?
-            Optional.empty() :
-            store.getEntitySeverityCache();
+        return store == null ? Optional.empty() : store.getEntitySeverityCache();
     }
 
     /**
@@ -147,11 +131,10 @@ public class ActionStorehouse {
             return Optional.empty();
         }
 
-        final Optional<StoreDeletionException> deletionException = actionStore
-            .map(ActionStore::clear)
-            .flatMap(wasCleared -> wasCleared ?
-                Optional.empty() :
-                Optional.of(new StoreDeletionException("Failed to delete actions for store " + topologyContextId)));
+        final Optional<StoreDeletionException> deletionException = actionStore.map(
+                ActionStore::clear).flatMap(wasCleared -> wasCleared ? Optional.empty()
+                : Optional.of(new StoreDeletionException(
+                        "Failed to delete actions for store " + topologyContextId)));
 
         if (deletionException.isPresent()) {
             throw deletionException.get();
@@ -168,7 +151,8 @@ public class ActionStorehouse {
     }
 
     /**
-     * Get a collection of all {@link ActionStore}s in the {@link ActionStorehouse}
+     * Get a collection of all {@link ActionStore}s in the {@link ActionStorehouse}.
+     *
      * @return The collection of all {@link ActionStore}s in the {@link ActionStorehouse}
      */
     public Map<Long, ActionStore> getAllStores() {
@@ -191,15 +175,6 @@ public class ActionStorehouse {
      */
     public IActionStoreFactory getActionStoreFactory() {
         return actionStoreFactory;
-    }
-
-    /**
-     * Cancel actions which are waiting in the queue to be executed.
-     *
-     * @return The number of actions which were cancelled and removed from the queue.
-     */
-    public int cancelQueuedActions() {
-        return automationManager.cancelQueuedActions();
     }
 
     /**
@@ -231,6 +206,6 @@ public class ActionStorehouse {
             contextId, actionCounts);
         actionCounts.forEach((actionType, count) -> ACTION_PLAN_COUNTS_SUMMARY
             .labels(actionStoreFactory.getContextTypeName(contextId), actionType.name())
-            .observe((double) count));
+            .observe((double)count));
     }
 }

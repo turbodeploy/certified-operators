@@ -82,7 +82,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]ActionFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]ActionStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]ActionStoreConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]ActionStorehouse.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]EntitiesAndSettingsSnapshotFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]EntitySeverityCache.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]ExecutionStepConverter.java" />

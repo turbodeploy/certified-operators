@@ -16,7 +16,6 @@ import com.vmturbo.action.orchestrator.approval.ExternalActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConfig;
 import com.vmturbo.action.orchestrator.market.MarketConfig;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
@@ -43,8 +42,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
     ActionStatsConfig.class,
     UserSessionConfig.class,
     TopologyProcessorClientConfig.class,
-    TopologyProcessorConfig.class,
-    NotificationsConfig.class})
+    TopologyProcessorConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -76,9 +74,6 @@ public class RpcConfig {
 
     @Autowired
     private TopologyProcessorConfig topologyProcessorConfig;
-
-    @Autowired
-    private NotificationsConfig notificationsConfig;
 
     @Autowired
     private AuditCommunicationConfig auditCommunicationConfig;
@@ -123,6 +118,7 @@ public class RpcConfig {
             auditCommunicationConfig.actionAuditSender(),
             actionExecutionConfig.actionExecutionStore(),
             actionStoreConfig.actionCombiner(),
+            actionStoreConfig.automationManager(),
             actionPaginationMaxLimit,
             topologyProcessorConfig.realtimeTopologyContextId());
     }
@@ -148,7 +144,7 @@ public class RpcConfig {
                 actionExecutionConfig.actionTargetSelector(),
                 actionStoreConfig.entitySettingsCache(), actionTranslator,
                 workflowConfig.workflowStore(), actionStoreConfig.acceptedActionsStore(),
-            notificationsConfig.actionExecutionListener());
+            actionStoreConfig.actionExecutionListener());
     }
 
     /**
