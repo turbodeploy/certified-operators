@@ -4,6 +4,7 @@ import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetCon
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_CLIENTID;
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_CLIENTSECRET;
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_PORT;
+import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.TARGET_SCOPE_FIELD_NAME;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,36 @@ public class IntersightTargetConverterTest {
         final List<String> targetIdFieldValues = getFieldValues(accountValues, targetIdField);
         Assert.assertTrue(targetIdFieldValues.size() > 0);
         Assert.assertTrue(targetIdFieldValues.stream().allMatch(targetMoid::equals));
+    }
+
+    /**
+     * Test the InputFields method for scoped targets.
+     */
+    @Test
+    public void testScopedAssetTargetInputFields() {
+        final String targetMoid = "foo";
+        final String scopeId = "panda";
+        final AssetTarget assetTarget = MockAssetTarget.mssql(targetMoid, scopeId);
+        final String targetIdField = "what";
+        final ProbeInfo probeInfo = MockProbeInfo.withSingleTargetIdField(targetIdField);
+
+        // with assist
+        final String assistId = "bar";
+        final TargetInputFields inputFieldsWithAssist =
+                IntersightTargetConverter.inputFields(assetTarget, Optional.of(assistId), probeInfo);
+        Assert.assertEquals(Optional.of(assistId), inputFieldsWithAssist.getCommunicationBindingChannel());
+
+        // check account values
+        final Set<AccountValue> accountValues = inputFieldsWithAssist.getAccountData();
+        Assert.assertNotNull(accountValues);
+        // Assert all target id fields are populated with the asset target MOID
+        final List<String> targetIdFieldValues = getFieldValues(accountValues, targetIdField);
+        Assert.assertTrue(targetIdFieldValues.size() > 0);
+        Assert.assertTrue(targetIdFieldValues.stream().allMatch(targetMoid::equals));
+        // scope field
+        final List<String> scopeFieldValues = getFieldValues(accountValues, TARGET_SCOPE_FIELD_NAME);
+        Assert.assertTrue(scopeFieldValues.size() > 0);
+        Assert.assertTrue(scopeFieldValues.stream().allMatch(scopeId::equals));
     }
 
     /**

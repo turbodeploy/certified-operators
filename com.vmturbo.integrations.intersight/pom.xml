@@ -99,5 +99,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.licensing</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.cisco.intersight</groupId>
+            <artifactId>intersight-openapi-java-client</artifactId>
+            <version>0.0.1.37531</version>
+        </dependency>
     </dependencies>
 </project>
