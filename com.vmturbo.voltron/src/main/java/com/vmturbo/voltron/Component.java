@@ -106,7 +106,7 @@ public enum Component {
      */
     HISTORY("history", "com.vmturbo.history", HistoryComponent.class,
             Optional.of(Vmtdb.VMTDB),
-            ImmutableMap.of("migrationLocation", Voltron.migrationLocation("com.vmturbo.history.schema"))),
+            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.history.schema/src/main/resources/db/migration"))),
 
     /**
      * The plan orchestrator.
@@ -120,7 +120,9 @@ public enum Component {
      * The cost component.
      */
     COST("cost", "com.vmturbo.cost.component", CostComponent.class,
-            Optional.of(Cost.COST)),
+            Optional.of(Cost.COST),
+        ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
+            "com.vmturbo.cost.component/src/main/resources/db/migration"))),
 
     /**
      * The group component.
