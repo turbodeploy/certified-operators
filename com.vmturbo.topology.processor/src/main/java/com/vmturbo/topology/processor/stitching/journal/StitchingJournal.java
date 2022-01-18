@@ -225,7 +225,7 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
 
     @Override
     public void recordChangeset(@Nonnull String changesetPreamble,
-                                @Nonnull Consumer<JournalChangeset<T>> journalChangesetConsumer) {
+                                @Nonnull Consumer<IJournalChangeset<T>> journalChangesetConsumer) {
         try {
             // Capture a record of all semantic differences captured to the changeset by the consumer.
             final JournalChangeset<T> changeset = new JournalChangeset<>(changesetPreamble,

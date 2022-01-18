@@ -51,8 +51,6 @@ public class EmptyStitchingJournal<T extends JournalableEntity<T>> implements IS
         }
     };
 
-    private int nextChangesetIndex = 0;
-
     private final StitchingMetrics stitchingMetrics = new StitchingMetrics();
 
     @Override
@@ -108,11 +106,8 @@ public class EmptyStitchingJournal<T extends JournalableEntity<T>> implements IS
 
     @Override
     public void recordChangeset(@Nonnull String changesetPreamble,
-                                @Nonnull Consumer<JournalChangeset<T>> journalChangesetConsumer) {
-        final JournalChangeset<T> changeset = new JournalChangeset<>(changesetPreamble,
-            filter, stitchingMetrics, nextChangesetIndex);
-        nextChangesetIndex++;
-
+                                @Nonnull Consumer<IJournalChangeset<T>> journalChangesetConsumer) {
+        final MetricsOnlyChangeset<T> changeset = new MetricsOnlyChangeset<>(stitchingMetrics);
         journalChangesetConsumer.accept(changeset);
     }
 

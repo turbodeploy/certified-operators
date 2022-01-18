@@ -91,7 +91,7 @@ public class FabricPMStitchingOperationTest {
         checkFabricPmStitching(fabricDcSe, hypervisorDcSe,
                         chassis,
                         Collections.singleton(CommodityType.DATACENTER), true);
-        Mockito.verify(chassis, Mockito.times(1)).addConnectedTo(ConnectionType.NORMAL_CONNECTION,
+        Mockito.verify(chassis, Mockito.times(1)).addAllConnectedTo(ConnectionType.NORMAL_CONNECTION,
                         Collections.singleton(hypervisorDcSe));
     }
 

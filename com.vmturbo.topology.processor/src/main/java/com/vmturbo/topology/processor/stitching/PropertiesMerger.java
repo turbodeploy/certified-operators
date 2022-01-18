@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,21 +32,40 @@ public class PropertiesMerger {
      *
      * @param from Source entity DTO builder.
      * @param onto Destination entity DTO builder.
+     * @param ontoPropertySet The set of properties associated with the onto properties. Passed in as a parameter
+     *                        and updated so that we do not have to recreate potentially large sets from the
+     *                        onto entity's properties when performing repeated merges onto the same entity.
      */
     public void merge(
             @Nonnull final EntityDTO.Builder from,
-            @Nonnull final EntityDTO.Builder onto) {
+            @Nonnull final EntityDTO.Builder onto,
+            @Nonnull final Set<String> ontoPropertySet) {
         if (strategy == MergePropertiesStrategy.JOIN) {
-            final Set<String> existingProperties = onto.getEntityPropertiesList()
-                    .stream()
-                    .map(PropertiesMerger::createKey)
-                    .collect(Collectors.toSet());
             from.getEntityPropertiesList()
-                    .stream()
                     // If property with this name already exists in the destination DTO then skip
-                    .filter(property -> !existingProperties.contains(createKey(property)))
-                    .forEach(property -> onto.addEntityProperties(property.toBuilder()));
+                    .forEach(property -> {
+                        final String propertyKey = createKey(property);
+                        if (!ontoPropertySet.contains(propertyKey)) {
+                            ontoPropertySet.add(propertyKey);
+                            onto.addEntityProperties(property);
+                        }
+                    });
         }
+    }
+
+    /**
+     * Construct the set of properties for the {@code onto} entity builder.
+     *
+     * @param onto The builder for the {@code onto} stitching entity.
+     * @return The set of unique properties from the entity.
+     */
+    public Set<String> ontoPropertySet(@Nonnull final EntityDTO.Builder onto) {
+        return strategy == MergePropertiesStrategy.KEEP_ONTO
+                ? Collections.emptySet()
+                : onto.getEntityPropertiesList()
+                        .stream()
+                        .map(PropertiesMerger::createKey)
+                        .collect(Collectors.toSet());
     }
 
     private static String createKey(@Nonnull final EntityProperty property) {

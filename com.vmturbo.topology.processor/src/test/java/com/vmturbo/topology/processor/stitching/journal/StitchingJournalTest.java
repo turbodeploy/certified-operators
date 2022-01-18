@@ -37,6 +37,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
+import com.vmturbo.stitching.journal.IStitchingJournal.IJournalChangeset;
 import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
 import com.vmturbo.stitching.journal.JournalFilter;
 import com.vmturbo.stitching.journal.JournalFilter.FilterByEntity;
@@ -426,11 +427,11 @@ public class StitchingJournalTest {
         assertThat(stringRecorder.toString(), not(CoreMatchers.containsString(Long.toString(otherEntity.getOid()))));
     }
 
-    private void makeChange(@Nonnull final JournalChangeset<TopologyEntity> changeset) {
+    private void makeChange(@Nonnull final IJournalChangeset<TopologyEntity> changeset) {
         makeChange(changeset, entity, "changed-name");
     }
 
-    private void makeChange(@Nonnull final JournalChangeset<TopologyEntity> changeset,
+    private void makeChange(@Nonnull final IJournalChangeset<TopologyEntity> changeset,
                             @Nonnull final TopologyEntity entity,
                             @Nonnull final String newName) {
         changeset.beforeChange(entity);

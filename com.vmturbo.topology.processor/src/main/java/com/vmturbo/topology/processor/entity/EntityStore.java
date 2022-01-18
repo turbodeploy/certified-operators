@@ -66,6 +66,8 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.logmessagegrouper.LogMessageGrouper;
@@ -422,7 +424,7 @@ public class EntityStore {
         TargetStitchingDataMap stitchingDataMap;
 
         synchronized (topologyUpdateLock) {
-            // only set staleness for on-prem entities 
+            // only set staleness for on-prem entities
             // TODO this probe type-dependent logic should be temporary until a finer line for staleness is drawn
             final Set<Long> stalenessApplicableTargetIds = targetStore.getAll().stream()
                 .map(Target::getId)
@@ -437,42 +439,47 @@ public class EntityStore {
             final Long2ObjectOpenHashMap<TargetCacheEntry> cache = new Long2ObjectOpenHashMap<>();
             // This will populate the stitching data map.
             Map<Long, List<Pair<Long, EntityDTO.Builder>>> deserializedEntityMap = desirializeEntities(this.entityMap);
-            for (Entry<Long, List<Pair<Long, EntityDTO.Builder>>> entry : deserializedEntityMap.entrySet()) {
-                final long entityOid = entry.getKey();
-                entry.getValue().stream().map(targetInfoEntry -> {
-                    final long targetId = targetInfoEntry.first;
-                    final EntityDTO.Builder entityBuilder = targetInfoEntry.second;
-                    final TargetCacheEntry cacheEntry = cache.computeIfAbsent(targetId,
+            try (TracingScope scope = Tracing.trace("populateStitchingDataMap")) {
+                for (Entry<Long, List<Pair<Long, EntityDTO.Builder>>> entry : deserializedEntityMap.entrySet()) {
+                    final long entityOid = entry.getKey();
+                    entry.getValue().stream().map(targetInfoEntry -> {
+                        final long targetId = targetInfoEntry.first;
+                        final EntityDTO.Builder entityBuilder = targetInfoEntry.second;
+                        final TargetCacheEntry cacheEntry = cache.computeIfAbsent(targetId,
                             id -> new TargetCacheEntry(targetId));
-                    // apply changes of cached entities from incremental discovery
-                    final EntityDTO.Builder entityDTO = cacheEntry.incrementalEntities.map(
-                            incrementalEntities -> applyIncrementalChanges(
+                        // apply changes of cached entities from incremental discovery
+                        final EntityDTO.Builder entityDTO = cacheEntry.incrementalEntities.map(
+                                incrementalEntities -> applyIncrementalChanges(
                                     entityBuilder, entityOid, targetId,
                                     incrementalEntities))
                             .orElse(entityBuilder);
-                    return StitchingEntityData.newBuilder(entityDTO)
+                        return StitchingEntityData.newBuilder(entityDTO)
                             .oid(entityOid)
                             .targetId(targetId)
                             .lastUpdatedTime(cacheEntry.lastUpdatedTime)
                             .supportsConnectedTo(cacheEntry.supportsConnectedTo)
                             .setStale(isDiscoveredEntityStale(stalenessProvider, targetId, entityDTO, stalenessApplicableTargetIds))
                             .build();
-                }).forEach(stitchingDataMap::put);
+                    }).forEach(stitchingDataMap::put);
+                }
             }
         }
-        stitchingDataMap.allStitchingData()
-            .forEach(stitchingEntityData -> {
-                try {
-                    builder.addEntity(
-                        stitchingEntityData,
-                        stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId()));
-                } catch (IllegalArgumentException | NullPointerException e) {
-                    // We want to make sure we don't block the whole broadcast if one entity
-                    // encounters an error.
-                    logger.error("Failed to add entity " +
-                        stitchingEntityData + " to stitching context due to error.", e);
-                }
-            });
+
+        try (TracingScope scope = Tracing.trace("addEntitiesToContext")) {
+            stitchingDataMap.allStitchingData()
+                .forEach(stitchingEntityData -> {
+                    try {
+                        builder.addEntity(
+                            stitchingEntityData,
+                            stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId()));
+                    } catch (IllegalArgumentException | NullPointerException e) {
+                        // We want to make sure we don't block the whole broadcast if one entity
+                        // encounters an error.
+                        logger.error("Failed to add entity " +
+                            stitchingEntityData + " to stitching context due to error.", e);
+                    }
+                });
+        }
 
         final LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
         final List<String> logMessages = msgGrouper.getMessages(TopologyStitchingGraph.LOGMESSAGEGROUPER_SESSION_ID);
@@ -560,26 +567,28 @@ public class EntityStore {
 
     private Map<Long, List<Pair<Long, EntityDTO.Builder>>> desirializeEntities(Map<Long, Entity> entityMap) {
         final Stopwatch stopwatch = Stopwatch.createStarted();
-        Map<Long, List<Pair<Long, EntityDTO.Builder>>> deserializedEntityMap = new ConcurrentHashMap<>();
-        entityMap.values().parallelStream().forEach(entity -> {
-            entity.getTargets().forEach(target -> {
-                if (entity.getEntityInfo(target).isPresent()) {
-                    try {
-                        List<Pair<Long, EntityDTO.Builder>> entities = deserializedEntityMap.computeIfAbsent(entity.getId(), k -> new ArrayList<>());
-                        //We need to protect against concurrent insertions to the inner List datastructures
-                        // in the  deserializedEntityMap otherwise we may in rare circumstances wind up
-                        // with a ConcurrentModificationException.
-                        synchronized (entities) {
-                            entities.add(new Pair<>(target, entity.getEntityInfo(target).get().getEntityInfoBuilder()));
+        try (TracingScope scope = Tracing.trace("desirializeEntities")) {
+            Map<Long, List<Pair<Long, EntityDTO.Builder>>> deserializedEntityMap = new ConcurrentHashMap<>();
+            entityMap.values().parallelStream().forEach(entity -> {
+                entity.getTargets().forEach(target -> {
+                    if (entity.getEntityInfo(target).isPresent()) {
+                        try {
+                            List<Pair<Long, EntityDTO.Builder>> entities = deserializedEntityMap.computeIfAbsent(entity.getId(), k -> new ArrayList<>());
+                            //We need to protect against concurrent insertions to the inner List datastructures
+                            // in the  deserializedEntityMap otherwise we may in rare circumstances wind up
+                            // with a ConcurrentModificationException.
+                            synchronized (entities) {
+                                entities.add(new Pair<>(target, entity.getEntityInfo(target).get().getEntityInfoBuilder()));
+                            }
+                        } catch (InvalidProtocolBufferException e) {
+                            logger.error(entity.getConversionError());
                         }
-                    } catch (InvalidProtocolBufferException e) {
-                        logger.error(entity.getConversionError());
                     }
-                }
+                });
             });
-        });
-        logger.info("Decompressed {} entities in {} ", deserializedEntityMap.size(), stopwatch);
-        return deserializedEntityMap;
+            logger.info("Decompressed {} entities in {} ", deserializedEntityMap.size(), stopwatch);
+            return deserializedEntityMap;
+        }
     }
 
     /**

@@ -16,6 +16,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -572,7 +573,7 @@ public class TopologyStitchingChangesTest {
 
         // Make sure that property merger was invoked
         Mockito.verify(propertiesMerger, Mockito.times(1))
-                .merge(entity1.getEntityBuilder(), entity2.getEntityBuilder());
+                .merge(eq(entity1.getEntityBuilder()), eq(entity2.getEntityBuilder()), anySet());
     }
 
     /**

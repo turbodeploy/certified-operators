@@ -71,7 +71,7 @@ restore_diag() {
     fullPath=${pathToFile}/${fileName}
 
     echo "Restoring from: ${fullPath}"
-    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/$2/internal-state
+    curl -X POST --header 'Content-Type: application/zip' -T ${fullPath} http://localhost:${HTTP_PORT}/$2/internal-state
   fi
 }
 

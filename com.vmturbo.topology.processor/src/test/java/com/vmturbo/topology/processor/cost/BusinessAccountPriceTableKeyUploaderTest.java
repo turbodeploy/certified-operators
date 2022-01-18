@@ -126,7 +126,7 @@ public class BusinessAccountPriceTableKeyUploaderTest {
         ImmutableMap<ConnectionType, Set<StitchingEntity>> connectedEntityTypeMap = ImmutableMap.of(ConnectionType.AGGREGATED_BY_CONNECTION,
                 Sets.newSet(serviceProvider));
         for (TopologyStitchingEntity entity: businessAccounts) {
-            entity.addConnectedTo(ConnectionType.AGGREGATED_BY_CONNECTION, Sets.newSet(serviceProvider));
+            entity.addAllConnectedTo(ConnectionType.AGGREGATED_BY_CONNECTION, Sets.newSet(serviceProvider));
         }
         Mockito.when(mockEntity.getConnectedToByType()).thenReturn(connectedEntityTypeMap);
     }

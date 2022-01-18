@@ -314,6 +314,24 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
         public StitchingMetrics getMetrics() {
             return stitchingMetrics;
         }
+
+        @Override
+        public boolean beforeChange(@Nonnull T entry) {
+            // nothing to do
+            return false;
+        }
+
+        @Override
+        public boolean observeRemoval(@Nonnull T entry) {
+            // nothing to do
+            return false;
+        }
+
+        @Override
+        public boolean observeAddition(@Nonnull T entry) {
+            // nothing to do
+            return false;
+        }
     }
 
     @VisibleForTesting

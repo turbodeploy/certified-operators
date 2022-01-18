@@ -7,10 +7,8 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -19,9 +17,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.lang.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
@@ -379,89 +375,99 @@ public class TopologyStitchingGraph {
         final TopologyStitchingEntity entity,
         final Builder entityDtoBuilder,
         final Map<StitchingErrorCode, MutableInt> errorsByCategory) {
+
         // translate layeredOver relations to aggregations
         if (!entityDtoBuilder.getLayeredOverList().isEmpty()) {
-            final Set<String> distinctLayeredOver =
-                Sets.newHashSet(entityDtoBuilder.getLayeredOverList());
-            final Map<String, TopologyStitchingEntity> validLayeredOverById =
-                distinctLayeredOver.stream()
-                    .map(layeredOverId -> getLayeredOverData(layeredOverId, entityData, entityMap, entity, errorsByCategory))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toMap(TopologyStitchingEntity::getLocalId, Function.identity()));
 
-            // check and report on validity of layeredOver relations and
-            // update the entityDTOBuilder accordingly
-            if (validLayeredOverById.size() < distinctLayeredOver.size()) {
-                logger.error("Entity {} (local id: {}) layered over invalid entities: {}",
-                    entity::getOid,
-                    entity::getLocalId,
-                    () -> Collections2.filter(distinctLayeredOver,
-                        e -> !validLayeredOverById.containsKey(e)));
-                entityDtoBuilder.clearLayeredOver();
-                entityDtoBuilder.addAllLayeredOver(validLayeredOverById.keySet());
-            } else if (distinctLayeredOver.size() < entityDtoBuilder.getLayeredOverCount()) {
-                // Remove duplicates, so downstream uses of entityDtoBuilder don't have to
-                // deal with this error.
-                logger.info("Entity {} (local id: {}) Removing {} duplicate entries from layer over list.",
-                    entity.getOid(),
-                    entity.getLocalId(),
-                    entityDtoBuilder.getLayeredOverCount() - distinctLayeredOver.size());
-                entityDtoBuilder.clearLayeredOver();
-                entityDtoBuilder.addAllLayeredOver(distinctLayeredOver);
+            final List<String> invalidLayeredOver = new ArrayList<>();
+            final List<String> validLayeredOver = new ArrayList<>(entityDtoBuilder.getLayeredOverCount());
+            int duplicateLayeredOverCount = 0;
+
+            for (final String layeredOverId : entityDtoBuilder.getLayeredOverList()) {
+                final TopologyStitchingEntity layeredOverEntity = getLayeredOverData(
+                    layeredOverId, entityData, entityMap, entity, errorsByCategory);
+                if (layeredOverEntity == null) {
+                    // We were unable to retrieve a valid entity for the layeredOverId. Report the error.
+                    invalidLayeredOver.add(layeredOverId);
+                } else {
+                    // translate layeredOver relations to aggregation/normal connections.
+                    if (translateLayeredOver(entity, layeredOverEntity)) {
+                        validLayeredOver.add(layeredOverId);
+                    } else {
+                        // The same layeredOverId is repeated more than once. Report the duplicates
+                        // as an error.
+                        duplicateLayeredOverCount++;
+                    }
+                }
+
+                // check and report on validity of layeredOver relations and
+                // update the entityDTOBuilder accordingly
+                if (invalidLayeredOver.size() > 0) {
+                    logger.error("Entity {} (local id: {}) layered over invalid entities: {}", entity::getOid, entity::getLocalId, () -> invalidLayeredOver);
+                    entityDtoBuilder.clearLayeredOver();
+                    entityDtoBuilder.addAllLayeredOver(validLayeredOver);
+                } else if (duplicateLayeredOverCount > 0) {
+                    // Remove duplicates, so downstream uses of entityDtoBuilder don't have to
+                    // deal with this error.
+                    logger.info("Entity {} (local id: {}) Removing {} duplicate entries from layer over list.", entity.getOid(), entity.getLocalId(), duplicateLayeredOverCount);
+                    entityDtoBuilder.clearLayeredOver();
+                    entityDtoBuilder.addAllLayeredOver(validLayeredOver);
+                }
             }
-
-            // translate layeredOver relations to aggregation
-            validLayeredOverById.values()
-                .forEach(layeredOverEntity -> translateLayeredOver(entity, layeredOverEntity));
         }
 
         // translate consistsOf relations to ownerships
         if (!entityDtoBuilder.getConsistsOfList().isEmpty()) {
-            final Set<String> distinctConsistsOfIds = Sets.newHashSet(entityDtoBuilder.getConsistsOfList());
-            final Map<String, TopologyStitchingEntity> validConsistsOfById =
-                distinctConsistsOfIds.stream()
-                    .map(consistsOfId ->
-                            getConsistsOfData(entityData, entityMap, entity, errorsByCategory, consistsOfId))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toMap(TopologyStitchingEntity::getLocalId, Function.identity()));
+            final List<String> invalidConsistsOf = new ArrayList<>();
+            final List<String> validConsistsOf = new ArrayList<>(entityDtoBuilder.getConsistsOfCount());
+            int duplicateConsistsOfCount = 0;
 
-            // check and report on validity of consistsOf relations and
-            // update the entityDTOBuilder accordingly
-            if (validConsistsOfById.size() < distinctConsistsOfIds.size()) {
-                logger.error("Entity {} (local id: {}) consists of invalid entities: {}",
-                    entity::getOid,
-                    entity::getLocalId,
-                    () -> Collections2.filter(distinctConsistsOfIds,
-                        e -> !validConsistsOfById.containsKey(e)));
-                entityDtoBuilder.clearConsistsOf();
-                entityDtoBuilder.addAllConsistsOf(validConsistsOfById.keySet());
-            } else if (distinctConsistsOfIds.size() < entityDtoBuilder.getConsistsOfCount()) {
-                // Remove duplicates, so downstream uses of entityDtoBuilder don't have to
-                // deal with this error.
-                logger.info("Entity {} (local id: {}) Removing {} duplicate entries from consists of list.",
-                    entity.getOid(),
-                    entity.getLocalId(),
-                    entityDtoBuilder.getConsistsOfCount() - distinctConsistsOfIds.size());
-                entityDtoBuilder.clearConsistsOf();
-                entityDtoBuilder.addAllConsistsOf(distinctConsistsOfIds);
+            for (String consistsOfId : entityDtoBuilder.getConsistsOfList()) {
+                final TopologyStitchingEntity consistsOfEntity = getConsistsOfData(
+                    entityData, entityMap, entity, errorsByCategory, consistsOfId);
+
+                if (consistsOfEntity == null) {
+                    // We were unable to retrieve a valid entity for the consistsOfId. Report the error.
+                    invalidConsistsOf.add(consistsOfId);
+                } else {
+                    // translate consistsOf relations to owns connections.
+                    final boolean added = entity.addConnectedTo(ConnectionType.OWNS_CONNECTION, consistsOfEntity)
+                        && consistsOfEntity.addConnectedFrom(ConnectionType.OWNS_CONNECTION, entity);
+
+                    if (added) {
+                        validConsistsOf.add(consistsOfId);
+                    } else {
+                        // The same consistsOf is repeated more than once. Report the duplicates as an error.
+                        duplicateConsistsOfCount++;
+                    }
+                }
+
+                // check and report on validity of consistsOf relations and
+                // update the entityDTOBuilder accordingly
+                if (invalidConsistsOf.size() > 0) {
+                    logger.error("Entity {} (local id: {}) consists of invalid entities: {}", entity::getOid, entity::getLocalId, () -> invalidConsistsOf);
+                    entityDtoBuilder.clearConsistsOf();
+                    entityDtoBuilder.addAllConsistsOf(validConsistsOf);
+                } else if (duplicateConsistsOfCount > 0) {
+                    // Remove duplicates, so downstream uses of entityDtoBuilder don't have to
+                    // deal with this error.
+                    logger.info("Entity {} (local id: {}) Removing {} duplicate entries from consists of list.", entity.getOid(), entity.getLocalId(), duplicateConsistsOfCount);
+                    entityDtoBuilder.clearConsistsOf();
+                    entityDtoBuilder.addAllConsistsOf(validConsistsOf);
+                }
             }
-
-            validConsistsOfById.values().forEach(consistsOfEntity -> {
-                entity.addConnectedTo(ConnectionType.OWNS_CONNECTION, consistsOfEntity);
-                consistsOfEntity.addConnectedFrom(ConnectionType.OWNS_CONNECTION, entity);
-            });
         }
     }
 
-    private void translateLayeredOver(@Nonnull TopologyStitchingEntity entity,
+    private boolean translateLayeredOver(@Nonnull TopologyStitchingEntity entity,
                                       @Nonnull TopologyStitchingEntity layeredOverEntity) {
         // in general, layeredOver should be translated as aggregation, but there are special cases
         if (mustBeNormalConnection(entity.getEntityType(), layeredOverEntity.getEntityType())) {
-            entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, layeredOverEntity);
-            layeredOverEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
+            return entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, layeredOverEntity) &&
+                    layeredOverEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
         } else {
-            layeredOverEntity.addConnectedFrom(ConnectionType.AGGREGATED_BY_CONNECTION, entity);
-            entity.addConnectedTo(ConnectionType.AGGREGATED_BY_CONNECTION, layeredOverEntity);
+            return  layeredOverEntity.addConnectedFrom(ConnectionType.AGGREGATED_BY_CONNECTION, entity) &&
+                    entity.addConnectedTo(ConnectionType.AGGREGATED_BY_CONNECTION, layeredOverEntity);
         }
     }
 
@@ -598,6 +604,7 @@ public class TopologyStitchingGraph {
         return consistsOfEntity;
     }
 
+    @Nullable
     private TopologyStitchingEntity getLayeredOverData(
             final @Nonnull String layeredOverId,
             final @Nonnull StitchingEntityData entityData,

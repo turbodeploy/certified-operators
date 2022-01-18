@@ -552,7 +552,7 @@ public class StitchingManager {
      *         be applied to mutate the {@link StitchingContext} and its associated
      *         {@link TopologyStitchingGraph}.
      */
-    private TopologicalChangelog applyStitchAloneOperation(
+    private TopologicalChangelog<StitchingEntity> applyStitchAloneOperation(
         @Nonnull final StitchingOperation<?, ?> operation,
         @Nonnull final StitchingOperationScopeFactory scopeFactory,
         final long targetId) {

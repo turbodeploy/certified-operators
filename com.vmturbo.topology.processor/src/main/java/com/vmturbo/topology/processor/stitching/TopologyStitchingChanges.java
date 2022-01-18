@@ -27,7 +27,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.journal.IStitchingJournal;
-import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
+import com.vmturbo.stitching.journal.IStitchingJournal.IJournalChangeset;
 import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.CopyCommodities;
@@ -57,7 +57,7 @@ public class TopologyStitchingChanges {
         protected abstract String getPreamble();
 
         protected abstract void applyChangeInternal(
-            @Nonnull final JournalChangeset<ENTITY> changeset);
+            @Nonnull final IJournalChangeset<ENTITY> changeset);
     }
 
     /**
@@ -80,7 +80,7 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
+        protected void applyChangeInternal(@Nonnull final IJournalChangeset<StitchingEntity> changeset) {
             Preconditions.checkArgument(entityToRemove instanceof TopologyStitchingEntity);
             final TopologyStitchingEntity removed = (TopologyStitchingEntity)entityToRemove;
             changeset.observeRemoval(removed);
@@ -108,7 +108,7 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
+        protected void applyChangeInternal(@Nonnull final IJournalChangeset<StitchingEntity> changeset) {
             // track the changes for consumer, for example: connected relationship
             entities.forEach(entity -> changeset.beforeChange(entity.getConsumer()));
             // add new entities to graph
@@ -191,23 +191,28 @@ public class TopologyStitchingChanges {
                 + mergeOntoEntity.getJournalableSignature();
         }
 
+        protected String getEntityType() {
+            return mergeOntoEntity.getEntityType().name();
+        }
+
         @Override
-        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
+        protected void applyChangeInternal(@Nonnull final IJournalChangeset<StitchingEntity> changeset) {
             Preconditions.checkArgument(mergeOntoEntity instanceof TopologyStitchingEntity);
             Preconditions.checkArgument(stitchingContext.hasEntity(mergeOntoEntity));
 
             final TopologyStitchingEntity onto = (TopologyStitchingEntity)mergeOntoEntity;
             // create once for use by all mergeFrom entities below
             final Map<ConnectionType, Set<Long>> ontoEntityConnectedToIdsByType =
-                    onto.getConnectedToByType().entrySet().stream()
-                            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().stream()
-                                    .map(StitchingEntity::getOid)
-                                    .collect(Collectors.toSet())));
+                onto.getConnectedToByType().entrySet().stream()
+                    .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().stream()
+                        .map(StitchingEntity::getOid)
+                        .collect(Collectors.toSet())));
             final Map<ConnectionType, Set<Long>> ontoEntityConnectedFromIdsByType =
-                    onto.getConnectedFromByType().entrySet().stream()
-                            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().stream()
-                                    .map(StitchingEntity::getOid)
-                                    .collect(Collectors.toSet())));
+                onto.getConnectedFromByType().entrySet().stream()
+                    .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().stream()
+                        .map(StitchingEntity::getOid)
+                        .collect(Collectors.toSet())));
+            final Set<String> ontoPropertySet = propertiesMerger.ontoPropertySet(onto.getEntityBuilder());
 
             mergeFromEntities.forEach(mergeFromEntity -> {
                 Preconditions.checkArgument(mergeFromEntity instanceof TopologyStitchingEntity);
@@ -223,24 +228,25 @@ public class TopologyStitchingChanges {
                 }
                 final TopologyStitchingEntity from = (TopologyStitchingEntity)mergeFromEntity;
                 mergeEntity(from, onto, ontoEntityConnectedToIdsByType,
-                        ontoEntityConnectedFromIdsByType, changeset);
+                    ontoEntityConnectedFromIdsByType, ontoPropertySet, changeset);
             });
         }
 
         /**
          * Merge the 'from' entity to the 'onto' entity.
-         *
          * @param from the entity to merge from
          * @param onto the entity to merge onto
          * @param ontoEntityConnectedTo connected to relationship data
          * @param ontoEntityConnectedFrom connected from relationship data
+         * @param ontoPropertySet The set of properties for the onto entity.
          * @param changeset The changeset to record the semantic differences before and after merge
          */
         private void mergeEntity(@Nonnull final TopologyStitchingEntity from,
                                  @Nonnull final TopologyStitchingEntity onto,
                                  @Nonnull final Map<ConnectionType, Set<Long>> ontoEntityConnectedTo,
                                  @Nonnull final Map<ConnectionType, Set<Long>> ontoEntityConnectedFrom,
-                                 @Nonnull final JournalChangeset<StitchingEntity> changeset) {
+                                 @Nonnull final Set<String> ontoPropertySet,
+                                 @Nonnull final IJournalChangeset<StitchingEntity> changeset) {
             changeset.beforeChange(from);
             changeset.beforeChange(onto);
             changeset.getMetrics().incrementMergedCount(from.getJournalableEntityType());
@@ -251,9 +257,7 @@ public class TopologyStitchingChanges {
             if (mergeCommodities) {
                 // Set up commodities sold on the merged (onto) entity.
                 onto.setCommoditiesSold(commoditySoldMerger.mergeCommoditiesSold(
-                        from.getTopologyCommoditiesSold(),
-                        onto.getTopologyCommoditiesSold()
-                ));
+                    from.getTopologyCommoditiesSold(), onto.getTopologyCommoditiesSold()));
             }
 
             // Everything that used to buy from replaced should now buy from replacement.
@@ -265,33 +269,39 @@ public class TopologyStitchingChanges {
             // merge "connectedTo" from "from" entity to "onto" entity
             from.getConnectedToByType().forEach((connectionType, connectedEntities) -> {
                 final Set<Long> ontoEntityConnectedIds = ontoEntityConnectedTo.get(connectionType);
+                final List<StitchingEntity> toAdditions = new ArrayList<>(connectedEntities.size());
                 connectedEntities.forEach(entity -> {
                     // only merge if the connections doesn't already contain an entity with same oid
                     if (ontoEntityConnectedIds == null || !ontoEntityConnectedIds.contains(entity.getOid())) {
-                        onto.addConnectedTo(connectionType, entity);
                         changeset.beforeChange(entity);
-                        ((TopologyStitchingEntity)entity).addConnectedFrom(connectionType, onto);
+                        entity.swapConnectedFrom(from, onto, connectionType);
+                        toAdditions.add(entity);
                     }
                 });
+                onto.addAllConnectedTo(connectionType, toAdditions);
             });
+            from.clearConnectedTo(); // Clear connections to avoid re-iterating when we remove the from entity
 
             // merge "connectedFrom" from "from" entity to "onto" entity.  In this case, we need to
             // make sure the other end of connectedFrom has connectedTo moved from the "from" entity
             // to the "onto" entity.
             from.getConnectedFromByType().forEach((connectionType, connectedEntities) -> {
                 final Set<Long> ontoEntityConnectedIds = ontoEntityConnectedFrom.get(connectionType);
+                final List<StitchingEntity> fromAdditions = new ArrayList<>(connectedEntities.size());
                 connectedEntities.forEach(entity -> {
                     // only merge if the connections doesn't already contain an entity with same oid
                     if (ontoEntityConnectedIds == null || !ontoEntityConnectedIds.contains(entity.getOid())) {
-                        onto.addConnectedFrom(connectionType, entity);
                         changeset.beforeChange(entity);
-                        ((TopologyStitchingEntity)entity).addConnectedTo(connectionType, onto);
+                        entity.swapConnectedTo(from, onto, connectionType);
+                        fromAdditions.add(entity);
                     }
                 });
+                onto.addAllConnectedFrom(connectionType, fromAdditions);
             });
+            from.clearConnectedFrom(); // Clear connections to avoid re-iterating when we remove the from entity
 
             // Merge entity properties
-            propertiesMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder());
+            propertiesMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder(), ontoPropertySet);
 
             // Merge entity details
             if (stitchingContext.getEntityDetailsEnabled()) {
@@ -404,7 +414,7 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
+        protected void applyChangeInternal(@Nonnull final IJournalChangeset<StitchingEntity> changeset) {
             Preconditions.checkArgument(entityToUpdate instanceof TopologyStitchingEntity);
             changeset.beforeChange(entityToUpdate);
             changeset.getMetrics().incrementMiscellaneousChangeCount();
@@ -479,7 +489,7 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        protected void applyChangeInternal(@Nonnull final JournalChangeset<ENTITY> changeset) {
+        protected void applyChangeInternal(@Nonnull final IJournalChangeset<ENTITY> changeset) {
             changeset.beforeChange(entityToUpdate);
             updateMethod.accept(entityToUpdate);
             changeset.getMetrics().incrementMiscellaneousChangeCount();

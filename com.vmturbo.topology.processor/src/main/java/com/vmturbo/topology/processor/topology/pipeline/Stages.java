@@ -52,6 +52,8 @@ import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
@@ -105,6 +107,7 @@ import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.BaseTopologicalChange;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -311,9 +314,11 @@ public class Stages {
         @Nonnull
         @Override
         public StageResult<StitchingContext> executeStage(@NotNull @Nonnull final EntityStore entityStore) {
-            final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
-            final StitchingContext stitchingContext = entityStore.constructStitchingContext(stalenessProvider);
-            preparationTimer.observe();
+            final StitchingContext stitchingContext;
+            try (DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
+                 TracingScope scope = Tracing.trace("constructStitchingContext")) {
+                stitchingContext = entityStore.constructStitchingContext(stalenessProvider);
+            }
 
             final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
             journal.recordTopologySizes(stitchingContext.entityTypeCounts());
