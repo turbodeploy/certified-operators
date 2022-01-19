@@ -171,6 +171,10 @@ public class ActionStoreConfig {
     @Value("${enableCloudScaleEnhancement:true}")
     private boolean enableCloudScaleEnhancement;
 
+    @Value("${actionHistory.recordFetchBatchSize:1000}")
+    private int recordFetchBatchSize;
+
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator(),
@@ -469,7 +473,7 @@ public class ActionStoreConfig {
     public ActionHistoryDao actionHistory() {
         try {
             return new ActionHistoryDaoImpl(dbAccessConfig.dsl(), actionModeCalculator(),
-                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
+                    actionOrchestratorGlobalConfig.actionOrchestratorClock(), recordFetchBatchSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

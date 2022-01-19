@@ -52,8 +52,9 @@ public class ActionOrchestratorTest {
                     .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID + 1))))
         .build();
 
-    private final LocalDateTime startTime = LocalDateTime.MIN;
-    private final LocalDateTime endTime = LocalDateTime.MIN;
+    // Earliest timestamp supported by PostgreSQL is 0001-01-01T00:00.
+    private final LocalDateTime startTime = LocalDateTime.of(1, 1, 1, 0, 0);
+    private final LocalDateTime endTime = LocalDateTime.of(1, 1, 1, 0, 0);
 
     /**
      * setup.

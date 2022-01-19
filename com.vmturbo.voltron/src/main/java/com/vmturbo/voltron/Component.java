@@ -99,7 +99,9 @@ public enum Component {
      */
     ACTION_ORCHESTRATOR("action-orchestrator",
             "com.vmturbo.action.orchestrator", ActionOrchestratorComponent.class,
-            Optional.of(Action.ACTION)),
+            Optional.of(Action.ACTION),
+            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
+                    "com.vmturbo.action.orchestrator/src/main/resources/db/migration"))),
 
     /**
      * The history component.

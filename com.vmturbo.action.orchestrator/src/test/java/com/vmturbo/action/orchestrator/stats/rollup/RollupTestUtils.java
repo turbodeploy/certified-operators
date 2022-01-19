@@ -40,19 +40,21 @@ public class RollupTestUtils {
 
     public void insertHourlySnapshotOnly(@Nonnull final LocalDateTime snapshotTime) {
         final ActionSnapshotHourRecord record = new ActionSnapshotHourRecord();
-        record.setHourRollupTime(LocalDateTime.MIN);
-        record.setHourTime(snapshotTime.truncatedTo(ChronoUnit.HOURS));
-        dsl.insertInto(Tables.ACTION_SNAPSHOT_HOUR)
-                .set(record)
-                .onDuplicateKeyIgnore()
-                .execute();
+        // Earliest timestamp supported by PostgreSQL is 0001-01-01T00:00.
+        dsl.insertInto(Tables.ACTION_SNAPSHOT_HOUR, Tables.ACTION_SNAPSHOT_HOUR.HOUR_TIME,
+                   Tables.ACTION_SNAPSHOT_HOUR.NUM_ACTION_SNAPSHOTS,
+                   Tables.ACTION_SNAPSHOT_HOUR.HOUR_ROLLUP_TIME)
+           .values(snapshotTime.truncatedTo(ChronoUnit.HOURS), 2, LocalDateTime.of(1, 1, 1, 0, 0))
+           .onDuplicateKeyIgnore()
+           .execute();
     }
 
     public void insertLatestSnapshotOnly(@Nonnull final LocalDateTime snapshotTime) {
         final ActionSnapshotLatestRecord record = new ActionSnapshotLatestRecord();
         record.setTopologyId(1L);
         record.setActionsCount(1);
-        record.setSnapshotRecordingTime(LocalDateTime.MIN);
+        // Earliest timestamp supported by PostgreSQL is 0001-01-01T00:00.
+        record.setSnapshotRecordingTime(LocalDateTime.of(1, 1, 1, 0, 0));
         record.setActionSnapshotTime(snapshotTime);
         dsl.insertInto(Tables.ACTION_SNAPSHOT_LATEST)
                 .set(record)

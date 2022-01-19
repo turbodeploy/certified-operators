@@ -55,19 +55,22 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
     private final DSLContext dsl;
     private final ActionModeCalculator actionModeCalculator;
     private final Clock clock;
+    private final int recordFetchBatchSize;
 
     /**
      * Constructs action history DAO.
-     *
      * @param dsl database access context
      * @param actionModeCalculator calculates action mode
      * @param clock clock to track the time
+     * @param recordFetchBatchSize batch size for record fetch
      */
     public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl,
-            @Nonnull ActionModeCalculator actionModeCalculator, @Nonnull Clock clock) {
+            @Nonnull ActionModeCalculator actionModeCalculator, @Nonnull Clock clock,
+            int recordFetchBatchSize) {
         this.dsl = Objects.requireNonNull(dsl);
         this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
         this.clock = Objects.requireNonNull(clock);
+        this.recordFetchBatchSize = recordFetchBatchSize;
     }
 
     /**
@@ -136,14 +139,21 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                 .getResourceGroupOidList()).isEmpty()) {
             conditions.add(ACTION_HISTORY.ASSOCIATED_RESOURCE_GROUP_ID.in(rgOids));
         }
-        try (Stream<ActionHistoryRecord> stream =  dsl
-                .selectFrom(ACTION_HISTORY)
-                .where(conditions)
-                .fetchSize(Integer.MIN_VALUE) // use streaming fetch
-                .stream()) {
-            return stream.map(actionHistory -> mapDbActionHistoryToAction(actionHistory))
-                    .collect(Collectors.toList());
-        }
+
+        List<ActionView> actionList = new ArrayList<>();
+        dsl.connection(conn -> {
+            conn.setAutoCommit(false);
+            try (Stream<ActionHistoryRecord> stream = dsl
+                    .selectFrom(ACTION_HISTORY)
+                    .where(conditions)
+                    .fetchSize(recordFetchBatchSize)
+                    .stream()) {
+                actionList.addAll(stream
+                        .map(actionHistory -> mapDbActionHistoryToAction(actionHistory))
+                        .collect(Collectors.toList()));
+            }
+        });
+        return actionList;
     }
 
     private ActionView mapDbActionHistoryToAction(final ActionHistoryRecord actionHistory) {

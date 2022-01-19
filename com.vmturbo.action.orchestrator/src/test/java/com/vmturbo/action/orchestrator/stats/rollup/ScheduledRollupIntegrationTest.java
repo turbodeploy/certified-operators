@@ -62,7 +62,7 @@ public class ScheduledRollupIntegrationTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
@@ -78,7 +78,7 @@ public class ScheduledRollupIntegrationTest extends MultiDbTestBase {
      */
     public ScheduledRollupIntegrationTest(boolean configurableDbDialect, SQLDialect dialect)
             throws SQLException, UnsupportedDialectException, InterruptedException {
-        super(Action.ACTION, configurableDbDialect, dialect, "action",
+        super(Action.ACTION, configurableDbDialect, dialect, "action-orchestrator",
                 TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
         this.dsl = super.getDslContext();
     }
@@ -414,17 +414,17 @@ public class ScheduledRollupIntegrationTest extends MultiDbTestBase {
         {
             // Insert record for the first snapshot within the hour. This snapshot aggregated
             // two "latest" snapshots.
-            final ActionSnapshotHourRecord firstSnapshotRecord = dsl.newRecord(Tables.ACTION_SNAPSHOT_HOUR);
-            firstSnapshotRecord.setHourTime(firstTime);
-            firstSnapshotRecord.setNumActionSnapshots(2);
-            firstSnapshotRecord.store();
+            dsl.insertInto(Tables.ACTION_SNAPSHOT_HOUR, Tables.ACTION_SNAPSHOT_HOUR.HOUR_TIME,
+                    Tables.ACTION_SNAPSHOT_HOUR.NUM_ACTION_SNAPSHOTS)
+                    .values(firstTime, 2)
+                    .execute();
 
             // Insert record for the second snapshot within the hour. This snapshot also aggregated
             // two "latest" snapshots.
-            final ActionSnapshotHourRecord secondSnapshotRecord = firstSnapshotRecord.copy();
-            secondSnapshotRecord.setHourTime(secondTime);
-            firstSnapshotRecord.setNumActionSnapshots(2);
-            secondSnapshotRecord.store();
+            dsl.insertInto(Tables.ACTION_SNAPSHOT_HOUR, Tables.ACTION_SNAPSHOT_HOUR.HOUR_TIME,
+                       Tables.ACTION_SNAPSHOT_HOUR.NUM_ACTION_SNAPSHOTS)
+               .values(secondTime, 2)
+               .execute();
 
             final ActionStatsByHourRecord m1A1FirstRecord = dsl.newRecord(Tables.ACTION_STATS_BY_HOUR);
             m1A1FirstRecord.setHourTime(firstTime);
@@ -695,18 +695,18 @@ public class ScheduledRollupIntegrationTest extends MultiDbTestBase {
             // Insert record for the first snapshot within the hour. This snapshot aggregates over
             // two "latest" action snapshots. That's not realistic for the "day" case, but it makes
             // the testing easier.
-            final ActionSnapshotDayRecord firstSnapshotRecord = dsl.newRecord(Tables.ACTION_SNAPSHOT_DAY);
-            firstSnapshotRecord.setDayTime(firstTime);
-            firstSnapshotRecord.setNumActionSnapshots(2);
-            firstSnapshotRecord.store();
+            dsl.insertInto(Tables.ACTION_SNAPSHOT_DAY, Tables.ACTION_SNAPSHOT_DAY.DAY_TIME,
+                    Tables.ACTION_SNAPSHOT_DAY.NUM_ACTION_SNAPSHOTS)
+                    .values(firstTime, 2)
+                    .execute();
 
             // Insert record for the second snapshot within the hour. This snapshot aggregates over
             // two "latest" action snapshots. That's not realistic for the "day" case, but it makes
             // the testing easier.
-            final ActionSnapshotDayRecord secondSnapshotRecord = firstSnapshotRecord.copy();
-            secondSnapshotRecord.setDayTime(secondTime);
-            secondSnapshotRecord.setNumActionSnapshots(2);
-            secondSnapshotRecord.store();
+            dsl.insertInto(Tables.ACTION_SNAPSHOT_DAY, Tables.ACTION_SNAPSHOT_DAY.DAY_TIME,
+                       Tables.ACTION_SNAPSHOT_DAY.NUM_ACTION_SNAPSHOTS)
+               .values(secondTime, 2)
+               .execute();
 
             final ActionStatsByDayRecord m1A1FirstRecord = dsl.newRecord(Tables.ACTION_STATS_BY_DAY);
             m1A1FirstRecord.setDayTime(firstTime);

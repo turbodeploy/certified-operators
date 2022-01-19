@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator;
 
-import org.jooq.SQLDialect;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -29,17 +28,13 @@ public class ActionOrchestratorDbEndpointConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint actionOrchestratorEndpoint() {
-        return fixEndpointForMultiDb(
-                dbEndpoint("dbs.action-orchestrator", SQLDialect.MARIADB)
-                        .withShouldProvision(true)
-                        .withRootAccessEnabled(true)
-                        .withAccess(DbEndpointAccess.ALL)
-                        // workaround since the Environment doesn't contain aoDbUsername
-                        // fixEndpointForMultiDb can't find this property from spring environment
-                        .withUserName(aoDbUsername)
-                        // TODO this is needed because we have not created the new migration structure yet
-                        //  remove once the integration with postgres is done
-                        .withMigrationLocations("db.migration"))
+        return fixEndpointForMultiDb(dbEndpoint("dbs.action-orchestrator", sqlDialect)
+                .withShouldProvision(true)
+                .withRootAccessEnabled(true)
+                .withAccess(DbEndpointAccess.ALL)
+                // workaround since the Environment doesn't contain aoDbUsername
+                // fixEndpointForMultiDb can't find this property from spring environment
+                .withUserName(aoDbUsername))
                 .build();
     }
 }
