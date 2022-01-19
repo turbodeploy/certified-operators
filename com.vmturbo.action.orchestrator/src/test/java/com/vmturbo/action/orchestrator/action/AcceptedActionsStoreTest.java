@@ -44,7 +44,7 @@ public class AcceptedActionsStoreTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
@@ -60,7 +60,7 @@ public class AcceptedActionsStoreTest extends MultiDbTestBase {
      */
     public AcceptedActionsStoreTest(boolean configurableDbDialect, SQLDialect dialect)
             throws SQLException, UnsupportedDialectException, InterruptedException {
-        super(Action.ACTION, configurableDbDialect, dialect, "action",
+        super(Action.ACTION, configurableDbDialect, dialect, "action-orchestrator",
                 TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
         this.dsl = super.getDslContext();
     }

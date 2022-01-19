@@ -68,7 +68,7 @@ public class HourActionStatRollupTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
@@ -84,7 +84,7 @@ public class HourActionStatRollupTest extends MultiDbTestBase {
      */
     public HourActionStatRollupTest(boolean configurableDbDialect, SQLDialect dialect)
             throws SQLException, UnsupportedDialectException, InterruptedException {
-        super(Action.ACTION, configurableDbDialect, dialect, "action",
+        super(Action.ACTION, configurableDbDialect, dialect, "action-orchestrator",
                 TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
         this.dsl = super.getDslContext();
     }
@@ -98,7 +98,7 @@ public class HourActionStatRollupTest extends MultiDbTestBase {
     private RollupExporter rollupExporter = mock(RollupExporter.class);
 
     // We use a real one instead of mocking for simplicity.
-    private RolledUpStatCalculator statCalculator;
+    private RolledUpStatCalculator statCalculator = mock(RolledUpStatCalculator.class);
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
@@ -115,9 +115,11 @@ public class HourActionStatRollupTest extends MultiDbTestBase {
 
     private final LocalDateTime t2 = LocalDateTime.of(2018, Month.SEPTEMBER, 30, 1, 20);
 
-    private ActionStatsLatestRecord msu1ag1t1;
 
-    private ActionStatsLatestRecord msu1ag1t2;
+
+    private final ActionStatsLatestRecord msu1ag1t1 = new ActionStatsLatestRecord(t1, msu1, ag1, 5, 2, 3, BigDecimal.valueOf(4), BigDecimal.valueOf(5));
+
+    private final ActionStatsLatestRecord msu1ag1t2 = new ActionStatsLatestRecord(t2, msu1, ag1, 7, 2, 5, BigDecimal.valueOf(6), BigDecimal.valueOf(7));
 
     private final RolledUpActionGroupStat groupStat = ImmutableRolledUpActionGroupStat.builder()
             .avgActionCount(1)
@@ -162,12 +164,7 @@ public class HourActionStatRollupTest extends MultiDbTestBase {
     @Before
     public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
         MockitoAnnotations.initMocks(this);
-
         rollupTestUtils = new RollupTestUtils(dsl);
-        statCalculator = mock(RolledUpStatCalculator.class);
-
-        msu1ag1t1 = new ActionStatsLatestRecord(t1, msu1, ag1, 5, 2, 3, BigDecimal.valueOf(4), BigDecimal.valueOf(5));
-        msu1ag1t2 = new ActionStatsLatestRecord(t2, msu1, ag1, 7, 2, 5, BigDecimal.valueOf(6), BigDecimal.valueOf(7));
     }
 
     /**

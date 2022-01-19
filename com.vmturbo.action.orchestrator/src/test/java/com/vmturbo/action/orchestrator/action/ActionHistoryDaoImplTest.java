@@ -93,7 +93,7 @@ public class ActionHistoryDaoImplTest {
         DSLContext dslContext = DSL.using(connection, SQLDialect.MARIADB);
 
         ActionHistoryDaoImpl dao =
-                                 new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
+                                 new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK, 1000);
         List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
                                                               .build());
 
@@ -113,7 +113,7 @@ public class ActionHistoryDaoImplTest {
         // Pass the mock connection to a jOOQ DSLContext:
         DSLContext dslContext = DSL.using(connection, SQLDialect.DEFAULT);
 
-        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
+        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK, 1000);
         List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
                                                       .setAccountFilter(AccountFilter.newBuilder()
                                                         .addAllAccountId(ASSOCIATED_ACCOUNT_IDS)
@@ -137,7 +137,7 @@ public class ActionHistoryDaoImplTest {
         // Pass the mock connection to a jOOQ DSLContext:
         DSLContext dslContext = DSL.using(connection, SQLDialect.DEFAULT);
 
-        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
+        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK, 1000);
         List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
                         .setAccountFilter(AccountFilter.newBuilder()
                                 .addAllAccountId(ASSOCIATED_ACCOUNT_IDS))
@@ -161,7 +161,7 @@ public class ActionHistoryDaoImplTest {
         // Pass the mock connection to a jOOQ DSLContext:
         DSLContext dslContext = DSL.using(connection, SQLDialect.DEFAULT);
 
-        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
+        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK, 1000);
         List<ActionView> actuals = dao.getActionHistoryByFilter(setActionQueryFilterDates()
                         .setAccountFilter(AccountFilter.newBuilder()
                                 .addAllAccountId(ASSOCIATED_ACCOUNT_IDS))
@@ -174,7 +174,7 @@ public class ActionHistoryDaoImplTest {
         Assert.assertEquals(UNSTABLE_ACTION_ID, actuals.get(0).getRecommendationOid());
     }
 
-   /**
+    /**
      * Mock provider uses for mock data returned by jooq.
      */
     private static class TestCaseJooqProvider implements MockDataProvider {

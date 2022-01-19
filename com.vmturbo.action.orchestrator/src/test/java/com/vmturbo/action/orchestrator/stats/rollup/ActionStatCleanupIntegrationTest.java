@@ -59,7 +59,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
@@ -75,7 +75,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
      */
     public ActionStatCleanupIntegrationTest(boolean configurableDbDialect, SQLDialect dialect)
             throws SQLException, UnsupportedDialectException, InterruptedException {
-        super(Action.ACTION, configurableDbDialect, dialect, "action",
+        super(Action.ACTION, configurableDbDialect, dialect, "action-orchestrator",
                 TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
         this.dsl = super.getDslContext();
     }
@@ -202,17 +202,18 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
 
 
         // Make one record + snapshot we want to keep, and one to trim.
-        final ActionSnapshotHourRecord trimmedSnapshotRecord = dsl.newRecord(Tables.ACTION_SNAPSHOT_HOUR);
-        trimmedSnapshotRecord.setHourTime(trimTime.minusHours(1));
-        trimmedSnapshotRecord.setNumActionSnapshots(2);
-        trimmedSnapshotRecord.store();
+        dsl.insertInto(Tables.ACTION_SNAPSHOT_HOUR, Tables.ACTION_SNAPSHOT_HOUR.HOUR_TIME,
+                   Tables.ACTION_SNAPSHOT_HOUR.NUM_ACTION_SNAPSHOTS)
+           .values(trimTime.minusHours(1), 2)
+           .execute();
 
-        final ActionSnapshotHourRecord keptSnapshotRecord = trimmedSnapshotRecord.copy();
-        keptSnapshotRecord.setHourTime(trimTime);
-        keptSnapshotRecord.store();
+        dsl.insertInto(Tables.ACTION_SNAPSHOT_HOUR, Tables.ACTION_SNAPSHOT_HOUR.HOUR_TIME,
+                   Tables.ACTION_SNAPSHOT_HOUR.NUM_ACTION_SNAPSHOTS)
+           .values(trimTime, 2)
+           .execute();
 
         final ActionStatsByHourRecord trimmedRecord = dsl.newRecord(Tables.ACTION_STATS_BY_HOUR);
-        trimmedRecord.setHourTime(trimmedSnapshotRecord.getHourTime());
+        trimmedRecord.setHourTime(trimTime.minusHours(1));
         trimmedRecord.setActionGroupId(ACTION_GROUP_ID);
         trimmedRecord.setMgmtUnitSubgroupId(MGMT_SUBGROUP_ID);
         trimmedRecord.setMinActionCount(1);
@@ -230,7 +231,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
         trimmedRecord.store();
 
         final ActionStatsByHourRecord keptRecord = trimmedRecord.copy();
-        keptRecord.setHourTime(keptSnapshotRecord.getHourTime());
+        keptRecord.setHourTime(trimTime);
         keptRecord.setActionGroupId(ACTION_GROUP_ID);
         keptRecord.setMgmtUnitSubgroupId(MGMT_SUBGROUP_ID);
         keptRecord.store();
@@ -251,7 +252,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
             dsl.selectFrom(Tables.ACTION_SNAPSHOT_HOUR).fetch();
         assertThat(snapshotRecords.size(), is(1));
 
-        assertThat(snapshotRecords.get(0).key(), is(keptSnapshotRecord.key()));
+        assertThat(snapshotRecords.get(0).key().value1(), is(trimTime));
 
         // Make sure there is just one stat record left - the one we're supposed to keep.
         final List<ActionStatsByHourRecord> statRecords =
@@ -277,17 +278,18 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
 
 
         // Make one record + snapshot we want to keep, and one to trim.
-        final ActionSnapshotDayRecord trimmedSnapshotRecord = dsl.newRecord(Tables.ACTION_SNAPSHOT_DAY);
-        trimmedSnapshotRecord.setDayTime(trimTime.minusDays(1));
-        trimmedSnapshotRecord.setNumActionSnapshots(2);
-        trimmedSnapshotRecord.store();
+        dsl.insertInto(Tables.ACTION_SNAPSHOT_DAY, Tables.ACTION_SNAPSHOT_DAY.DAY_TIME,
+                Tables.ACTION_SNAPSHOT_DAY.NUM_ACTION_SNAPSHOTS)
+           .values(trimTime.minusDays(1), 2)
+           .execute();
 
-        final ActionSnapshotDayRecord keptSnapshotRecord = trimmedSnapshotRecord.copy();
-        keptSnapshotRecord.setDayTime(trimTime);
-        keptSnapshotRecord.store();
+        dsl.insertInto(Tables.ACTION_SNAPSHOT_DAY, Tables.ACTION_SNAPSHOT_DAY.DAY_TIME,
+                   Tables.ACTION_SNAPSHOT_DAY.NUM_ACTION_SNAPSHOTS)
+           .values(trimTime, 2)
+           .execute();
 
         final ActionStatsByDayRecord trimmedRecord = dsl.newRecord(Tables.ACTION_STATS_BY_DAY);
-        trimmedRecord.setDayTime(trimmedSnapshotRecord.getDayTime());
+        trimmedRecord.setDayTime(trimTime.minusDays(1));
         trimmedRecord.setActionGroupId(ACTION_GROUP_ID);
         trimmedRecord.setMgmtUnitSubgroupId(MGMT_SUBGROUP_ID);
         trimmedRecord.setMinActionCount(1);
@@ -305,7 +307,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
         trimmedRecord.store();
 
         final ActionStatsByDayRecord keptRecord = trimmedRecord.copy();
-        keptRecord.setDayTime(keptSnapshotRecord.getDayTime());
+        keptRecord.setDayTime(trimTime);
         keptRecord.setActionGroupId(ACTION_GROUP_ID);
         keptRecord.setMgmtUnitSubgroupId(MGMT_SUBGROUP_ID);
         keptRecord.store();
@@ -325,8 +327,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
         final List<ActionSnapshotDayRecord> snapshotRecords =
             dsl.selectFrom(Tables.ACTION_SNAPSHOT_DAY).fetch();
         assertThat(snapshotRecords.size(), is(1));
-
-        assertThat(snapshotRecords.get(0).key(), is(keptSnapshotRecord.key()));
+        assertThat(snapshotRecords.get(0).key().value1(), is(trimTime));
 
         // Make sure there is just one stat record left - the one we're supposed to keep.
         final List<ActionStatsByDayRecord> statRecords =
@@ -350,17 +351,18 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
 
 
         // Make one record + snapshot we want to keep, and one to trim.
-        final ActionSnapshotMonthRecord trimmedSnapshotRecord = dsl.newRecord(Tables.ACTION_SNAPSHOT_MONTH);
-        trimmedSnapshotRecord.setMonthTime(trimTime.minusMonths(1));
-        trimmedSnapshotRecord.setNumActionSnapshots(2);
-        trimmedSnapshotRecord.store();
+        dsl.insertInto(Tables.ACTION_SNAPSHOT_MONTH, Tables.ACTION_SNAPSHOT_MONTH.MONTH_TIME,
+                   Tables.ACTION_SNAPSHOT_MONTH.NUM_ACTION_SNAPSHOTS)
+           .values(trimTime.minusMonths(1), 2)
+           .execute();
 
-        final ActionSnapshotMonthRecord keptSnapshotRecord = trimmedSnapshotRecord.copy();
-        keptSnapshotRecord.setMonthTime(trimTime);
-        keptSnapshotRecord.store();
+        dsl.insertInto(Tables.ACTION_SNAPSHOT_MONTH, Tables.ACTION_SNAPSHOT_MONTH.MONTH_TIME,
+                   Tables.ACTION_SNAPSHOT_MONTH.NUM_ACTION_SNAPSHOTS)
+           .values(trimTime, 2)
+           .execute();
 
         final ActionStatsByMonthRecord trimmedRecord = dsl.newRecord(Tables.ACTION_STATS_BY_MONTH);
-        trimmedRecord.setMonthTime(trimmedSnapshotRecord.getMonthTime());
+        trimmedRecord.setMonthTime(trimTime.minusMonths(1));
         trimmedRecord.setActionGroupId(ACTION_GROUP_ID);
         trimmedRecord.setMgmtUnitSubgroupId(MGMT_SUBGROUP_ID);
         trimmedRecord.setMinActionCount(1);
@@ -378,7 +380,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
         trimmedRecord.store();
 
         final ActionStatsByMonthRecord keptRecord = trimmedRecord.copy();
-        keptRecord.setMonthTime(keptSnapshotRecord.getMonthTime());
+        keptRecord.setMonthTime(trimTime);
         keptRecord.setActionGroupId(ACTION_GROUP_ID);
         keptRecord.setMgmtUnitSubgroupId(MGMT_SUBGROUP_ID);
         keptRecord.store();
@@ -398,8 +400,7 @@ public class ActionStatCleanupIntegrationTest extends MultiDbTestBase {
         final List<ActionSnapshotMonthRecord> snapshotRecords =
             dsl.selectFrom(Tables.ACTION_SNAPSHOT_MONTH).fetch();
         assertThat(snapshotRecords.size(), is(1));
-
-        assertThat(snapshotRecords.get(0).key(), is(keptSnapshotRecord.key()));
+        assertThat(snapshotRecords.get(0).key().value1(), is(trimTime));
 
         // Make sure there is just one stat record left - the one we're supposed to keep.
         final List<ActionStatsByMonthRecord> statRecords =
