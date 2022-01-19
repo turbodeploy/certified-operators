@@ -63,6 +63,7 @@ import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
+import com.vmturbo.topology.processor.topology.PostScopingTopologyEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -220,6 +221,7 @@ public class TopologyPipelineFactoryTest {
             mock(EntitySettingsApplicator.class),
             mock(EnvironmentTypeInjector.class),
             mock(TopologyEditor.class),
+            mock(PostScopingTopologyEditor.class),
             mock(RepositoryClient.class),
             mock(SearchResolver.class),
             groupServiceBlockingStub,
