@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutorService;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -41,6 +42,7 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for the {@link HistoricalPendingCountReceiver}.
@@ -79,6 +81,12 @@ public class HistoricalPendingCountReceiverTest {
      * A capture of the records that would be written to the database.
      */
     private List<Record> pendingActionStatsRecordsCapture;
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Set up the mocks.

@@ -87,6 +87,7 @@ import org.javatuples.Quintet;
 import org.javatuples.Triplet;
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -135,6 +136,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -166,6 +168,12 @@ public class EntityMetricWriterTest {
     private HashedDataManager fileTableManager;
     private final ThinTargetInfo target1 = buildTarget(1000L, ProbeCategory.CLOUD_MANAGEMENT.getCategory(),
             ProbeCategory.PUBLIC_CLOUD.getCategory(), SDKProbeType.AWS.getProbeType(), "AWS Target");
+
+    /**
+     * Rule to manage enablements via a mutable store.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Set up for tests.
