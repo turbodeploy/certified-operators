@@ -1,4 +1,4 @@
-FROM quay.io/operator-framework/helm-operator:v1.15
+FROM quay.io/operator-framework/helm-operator:v1.16
 MAINTAINER Endre Sara <endre.sara@turbonomic.com>
 
 # Required OpenShift Labels
