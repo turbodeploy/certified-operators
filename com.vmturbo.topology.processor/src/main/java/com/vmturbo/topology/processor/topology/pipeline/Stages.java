@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -18,6 +19,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.AbstractMessage;
 
 import org.apache.commons.io.FileUtils;
@@ -59,6 +61,7 @@ import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -129,6 +132,8 @@ import com.vmturbo.topology.processor.topology.EphemeralEntityEditor.EditSummary
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
+import com.vmturbo.topology.processor.topology.PostScopingTopologyEditor;
+import com.vmturbo.topology.processor.topology.PostScopingTopologyEditor.PostScopingTopologyEditResult;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
@@ -910,7 +915,7 @@ public class Stages {
             // TODO:  Check with API if its possible to pass the scope type instead.
             String scopeClassName = planScopeEntries.get(0).getClassName();
             int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
-                    ? CommonDTO.EntityDTO.EntityType.UNKNOWN_VALUE
+                    ? EntityType.UNKNOWN_VALUE
                     : ApiEntityType.fromString(scopeClassName).typeNumber();
             // now add the new seed entities to the list, and the scope type for OCP plans.
             getContext().editTopologyInfo(topologyInfoBuilder -> {
@@ -1810,10 +1815,31 @@ public class Stages {
                                                 + result.size() + " from topology of size " + graph.size()));
             }
         }
-
     }
 
     /**
+     * Topology edits after plan scoping.
+     */
+    public static class PostScopingEditStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+
+        private PostScopingTopologyEditor postScopingTopologyEditor;
+        private List<ScenarioChange> scenarioChanges;
+
+        public PostScopingEditStage(@Nonnull PostScopingTopologyEditor postScopingTopologyEditor,
+                                    @Nonnull final List<ScenarioChange> scenarioChanges) {
+            this.postScopingTopologyEditor = postScopingTopologyEditor;
+            this.scenarioChanges = scenarioChanges;
+        }
+
+        @NotNull
+        @Override
+        public Status passthrough(TopologyGraph<TopologyEntity> input) {
+            List<PostScopingTopologyEditResult> results =  postScopingTopologyEditor.editTopology(input, scenarioChanges);
+            return Status.success(results.stream().map(PostScopingTopologyEditResult::toString).collect(Collectors.joining("\n")));
+        }
+    }
+
+        /**
      * Stage to apply changes to commodities values like used,peak etc.
      */
     public static class HistoricalUtilizationStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {

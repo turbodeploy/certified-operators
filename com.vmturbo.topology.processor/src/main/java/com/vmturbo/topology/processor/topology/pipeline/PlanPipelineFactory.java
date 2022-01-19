@@ -49,6 +49,7 @@ import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
+import com.vmturbo.topology.processor.topology.PostScopingTopologyEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -73,6 +74,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.InitializeTopolog
 import com.vmturbo.topology.processor.topology.pipeline.Stages.OverrideWorkLoadDemandStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.PostScopingEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.RequestAndLimitCommodityThresholdsStage;
@@ -113,6 +115,8 @@ public class PlanPipelineFactory {
     private final EnvironmentTypeInjector environmentTypeInjector;
 
     private final TopologyEditor topologyEditor;
+
+    private final PostScopingTopologyEditor postScopingTopologyEditor;
 
     private final RepositoryClient repositoryClient;
 
@@ -169,6 +173,7 @@ public class PlanPipelineFactory {
                                @Nonnull final EntitySettingsApplicator settingsApplicator,
                                @Nonnull final EnvironmentTypeInjector environmentTypeInjector,
                                @Nonnull final TopologyEditor topologyEditor,
+                               @Nonnull final PostScopingTopologyEditor postScopingTopologyEditor,
                                @Nonnull final RepositoryClient repositoryClient,
                                @Nonnull final SearchResolver<TopologyEntity> searchResolver,
                                @Nonnull final GroupServiceBlockingStub groupServiceClient,
@@ -198,6 +203,7 @@ public class PlanPipelineFactory {
         this.entitySettingsResolver = entitySettingsResolver;
         this.environmentTypeInjector = Objects.requireNonNull(environmentTypeInjector);
         this.topologyEditor = Objects.requireNonNull(topologyEditor);
+        this.postScopingTopologyEditor = Objects.requireNonNull(postScopingTopologyEditor);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.searchResolver = Objects.requireNonNull(searchResolver);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
@@ -289,6 +295,7 @@ public class PlanPipelineFactory {
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
+                .addStage(new PostScopingEditStage(postScopingTopologyEditor, changes))
                 .finalStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
                 .asStage("ScopingSegment"))
             .addStage(SegmentDefinition

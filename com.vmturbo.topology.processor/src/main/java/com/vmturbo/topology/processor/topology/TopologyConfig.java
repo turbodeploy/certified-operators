@@ -210,6 +210,11 @@ public class TopologyConfig {
     }
 
     @Bean
+    public PostScopingTopologyEditor postScopingTopologyEditor() {
+        return new PostScopingTopologyEditor();
+    }
+
+    @Bean
     public PlanTopologyScopeEditor planTopologyScopeEditor() {
         return new PlanTopologyScopeEditor(groupConfig.groupServiceBlockingStub());
     }
@@ -307,6 +312,7 @@ public class TopologyConfig {
                 groupConfig.entitySettingsApplicator(),
                 environmentTypeInjector(),
                 topologyEditor(),
+                postScopingTopologyEditor(),
                 repositoryConfig.repository(),
                 groupConfig.searchResolver(),
                 groupConfig.groupServiceBlockingStub(),
