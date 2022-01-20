@@ -3,6 +3,7 @@ package com.vmturbo.common.protobuf.action;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -200,19 +201,28 @@ public class RiskUtil {
      * Gets the id of policies that caused this action.
      *
      * @param action the action for get the list of policies for.
-     * @return the list of policies.
+     * @return the list of policies or settings policy based on action type.
      */
     @Nonnull
     public static Set<Long> extractPolicyIds(@Nonnull final ActionDTO.Action action) {
-        return ActionDTOUtil.getReasonCommodities(action)
-                .filter(c -> RiskUtil.POLICY_COMMODITY_TYPES.contains(c.getCommodityType().getType()))
-                .map(ReasonCommodity::getCommodityType)
-                .filter(c -> c.hasKey())
-                .map(c -> c.getKey())
-                .map(key -> extractPolicyIdFromKey(key, action.getId()))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
+       if (ActionDTOUtil.getReasonCommodities(action).count() > 0) {
+            return ActionDTOUtil.getReasonCommodities(action)
+                    .filter(c -> RiskUtil.POLICY_COMMODITY_TYPES.contains(c.getCommodityType().getType()))
+                    .map(ReasonCommodity::getCommodityType)
+                    .filter(c -> c.hasKey())
+                    .map(c -> c.getKey())
+                    .map(key -> extractPolicyIdFromKey(key, action.getId()))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+        } else if (action.getExplanation().hasReconfigure()) {
+            return action.getExplanation().getReconfigure().getReasonSettingsList().stream()
+                    .map(key -> Optional.of(key))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+        }
+        return Collections.emptySet();
     }
 
     @Nonnull
