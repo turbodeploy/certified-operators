@@ -62,6 +62,7 @@ import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
+import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.DiscoveredEntityApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -125,6 +126,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
@@ -154,6 +156,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -2144,7 +2147,18 @@ public class ActionSpecMapper {
                 detailsDto.setHistoricalDemandData(demandList);
                 response.put(actionIdString, detailsDto);
                 continue;
+            } else if (entity.getEnvironmentType() == EnvironmentType.ON_PREM && actionType.equals(ActionDTO.ActionType.RESIZE)) {
+                //For on-prem vcpu resize, we need to populate action details to show it in UX.
+                ActionInfo resizeInfo = recommendation.getInfo();
+                if (resizeInfo != null && resizeInfo.hasResize()) {
+                    Resize resize = resizeInfo.getResize();
+                    if (resize.getCommodityType().getType() == CommodityType.VCPU_VALUE) {
+                        response.put(actionIdString, createOnPremResizeActionDetails(resize));
+                    }
+                }
+                continue;
             }
+
             // Skip if the entity is not a cloud entity
             if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
                 continue;
@@ -2237,6 +2251,28 @@ public class ActionSpecMapper {
                 response.put(actionId, cloudSuspendActionDetailMap.get(vmId)));
 
         return response;
+    }
+
+    /**
+     * Create OnPremResizeActionDetailsApiDTO from Resize information.
+     * @param resize Resize info
+     * @return created OnPremResizeActionDetails API object
+     */
+    private OnPremResizeActionDetailsApiDTO createOnPremResizeActionDetails(Resize resize) {
+        OnPremResizeActionDetailsApiDTO detailsApiDTO = new OnPremResizeActionDetailsApiDTO();
+        int vcpuBefore = (int)resize.getOldCapacity();
+        int vcpuAfter = (int)resize.getNewCapacity();
+        int cpsrBefore = resize.getOldCpsr();
+        int cpsrAfter = resize.getNewCpsr();
+        int socketsBefore = vcpuBefore / cpsrBefore;
+        int socketsAfter = vcpuAfter / cpsrAfter;
+        detailsApiDTO.setVcpuBefore(vcpuBefore);
+        detailsApiDTO.setVcpuAfter(vcpuAfter);
+        detailsApiDTO.setCoresPerSocketBefore(cpsrBefore);
+        detailsApiDTO.setCoresPerSocketAfter(cpsrAfter);
+        detailsApiDTO.setSocketsBefore(socketsBefore);
+        detailsApiDTO.setSocketsAfter(socketsAfter);
+        return detailsApiDTO;
     }
 
     /**
