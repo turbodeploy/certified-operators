@@ -16,14 +16,17 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.bulk.RollupKey.RollupTimestamps;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory.RollupKeyTransfomer;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.RelationTypeConverter;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.PropertySubType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test the record transformer that adds rollup keys to entity stats records.
@@ -36,6 +39,13 @@ public class RollupKeyTest {
     private Instant snapshot_time;
     private String rollupAttrs;
     private RollupKeyTransfomer<VmStatsLatestRecord> transformer;
+
+    /**
+     * Rule to manage feature flags.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
+            .testAllCombos(FeatureFlags.POSTGRES_PRIMARY_DB);
 
     /**
      * Set up for tests.
@@ -63,10 +73,18 @@ public class RollupKeyTest {
      */
     @Test
     public void testHourKey() {
-        String expected = DigestUtils.md5Hex(rollupAttrs);
+        String timePart = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                          ? ""
+                          : formatTime(snapshot_time.truncatedTo(ChronoUnit.HOURS));
+        String expected = DigestUtils.md5Hex(timePart + rollupAttrs);
         final VmStatsLatestRecord transformed
                 = transformer.transform(record, VM_STATS_LATEST, VM_STATS_LATEST).get();
         assertEquals(expected, record.getHourKey());
+    }
+
+    private String formatTime(Instant time) {
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(UTC)
+                .format(time);
     }
 
     private static final ZoneId UTC = ZoneId.of("Z");
