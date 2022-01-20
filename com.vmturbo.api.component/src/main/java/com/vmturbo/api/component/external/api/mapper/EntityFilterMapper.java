@@ -128,6 +128,8 @@ public class EntityFilterMapper {
     public static final String LESS_THAN = "LT";
     public static final String GREATER_THAN_OR_EQUAL = "GTE";
     public static final String LESS_THAN_OR_EQUAL = "LTE";
+    public static final String MULTIPLE_OF = "MO";
+    public static final String NOT_MULTIPLE_OF = "NMO";
     public static final String REGEX_MATCH = "RXEQ";
     public static final String REGEX_NO_MATCH = "RXNEQ";
 
@@ -161,6 +163,8 @@ public class EntityFilterMapper {
                     .put(LESS_THAN, ComparisonOperator.LT)
                     .put(GREATER_THAN_OR_EQUAL, ComparisonOperator.GTE)
                     .put(LESS_THAN_OR_EQUAL, ComparisonOperator.LTE)
+                    .put(MULTIPLE_OF, ComparisonOperator.MO)
+                    .put(NOT_MULTIPLE_OF, ComparisonOperator.NMO)
                     .build();
 
     private static final Map<String, ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException>>
@@ -214,6 +218,8 @@ public class EntityFilterMapper {
         symbolToOperator.put("=", ComparisonOperator.EQ);
         symbolToOperator.put(">", ComparisonOperator.GT);
         symbolToOperator.put("<", ComparisonOperator.LT);
+        symbolToOperator.put("%", ComparisonOperator.MO);
+        symbolToOperator.put("!%", ComparisonOperator.NMO);
         return Collections.unmodifiableMap(symbolToOperator);
     }
 

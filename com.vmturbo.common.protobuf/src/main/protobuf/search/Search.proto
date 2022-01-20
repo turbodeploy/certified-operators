@@ -318,6 +318,12 @@ enum ComparisonOperator {
 
     // Less or equal than
     LTE = 5;
+
+    // Multiple of
+    MO = 6;
+
+    // Not multiple of
+    NMO = 7;
 }
 
 // The request to search entity oids based on a list of search parameters. Note that, search entity
