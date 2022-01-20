@@ -16,6 +16,7 @@ import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -27,6 +28,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperation;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
@@ -63,6 +65,12 @@ public class SharedEntityDefaultPreStitchingOperationTest {
     private EntityDTO.Builder desktopPoolDTO2;
     private EntityDTO.Builder virtualMachineDTO1;
     private EntityDTO.Builder virtualMachineDTO2;
+
+    /**
+     * Rule to manage feature flags.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Setup.
