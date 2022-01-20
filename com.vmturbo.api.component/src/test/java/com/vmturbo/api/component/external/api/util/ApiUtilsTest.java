@@ -99,6 +99,16 @@ public class ApiUtilsTest {
         assertEquals("IP address should be available", _10_0_0_1, ipAddress.get());
     }
 
+    public static ActionEntity createActionEntityForCloud(long id) {
+        // set some fake type for now
+        final int defaultEntityType = 1;
+        return ActionEntity.newBuilder()
+                .setId(id)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setType(defaultEntityType)
+                .build();
+    }
+
     public static ActionEntity createActionEntity(long id) {
         // set some fake type for now
         final int defaultEntityType = 1;
