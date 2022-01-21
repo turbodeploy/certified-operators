@@ -289,6 +289,11 @@ public enum Component {
     MEDIATION_DYNATRACE("dynatrace", "com.vmturbo.mediation.dynatrace.component"),
 
     /**
+     * Flexera.
+     */
+    MEDIATION_FLEXERA("flexera", "com.vmturbo.mediation.flexera.component"),
+
+    /**
      * GCP Service Account.
      */
     MEDIATION_GCP_SA("gcp-sa", "com.vmturbo.mediation.gcp.sa.component"),
