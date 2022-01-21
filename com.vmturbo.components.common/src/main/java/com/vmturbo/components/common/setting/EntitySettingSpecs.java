@@ -396,6 +396,15 @@ public enum EntitySettingSpecs {
 
 
     /**
+     * Min observation period for DB.
+     */
+    MinObservationPeriodDatabase("minObservationPeriodDatabase",
+            "Min Observation Period",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE),
+            numeric(0.0f, 7.0f, 0.0f), true),
+
+    /**
      * Min observation period for DB Server.
      */
     MinObservationPeriodDatabaseServer("minObservationPeriodDatabaseServer",
@@ -516,7 +525,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
@@ -525,7 +534,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
@@ -536,7 +545,7 @@ public enum EntitySettingSpecs {
             "Scaling Target IOPS/Throughput Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE),
             numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
