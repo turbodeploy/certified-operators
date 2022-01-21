@@ -284,8 +284,9 @@ public class ActionApprovalManager {
                     throw new ExecutionInitiationException(errorMsg, Status.Code.INTERNAL);
                 }
             }
-            actionExecutor.execute(targetId, actionWithWorkflowList);
-            actionList.forEach(actionTranslator::translateToSpec);
+            if (!actionWithWorkflowList.isEmpty()) {
+                actionExecutor.execute(targetId, actionWithWorkflowList);
+            }
         } catch (ExecutionStartException | WorkflowStoreException e) {
             final String actionIdsString = actionList.stream()
                     .map(Action::getId)
