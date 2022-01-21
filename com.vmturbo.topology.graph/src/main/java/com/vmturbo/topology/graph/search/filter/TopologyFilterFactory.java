@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.ProtocolStringList;
 
 import org.apache.commons.lang3.StringUtils;
@@ -60,6 +61,8 @@ import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToPrope
  */
 @ThreadSafe
 public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
+    public static final Collection<ComparisonOperator> OPERATORS_REQUIRING_DIVISION =
+            ImmutableSet.of(ComparisonOperator.MO, ComparisonOperator.NMO);
 
     public TopologyFilterFactory() {
         // Nothing to do
@@ -155,7 +158,8 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
 
     @Nonnull
     private PropertyFilter<E> numericFilter(@Nonnull final String propertyName,
-                                        @Nonnull final Search.PropertyFilter.NumericFilter numericCriteria) {
+                                        @Nonnull final Search.PropertyFilter.NumericFilter numericCriteria)
+            throws InvalidSearchFilterException {
         switch (propertyName) {
             case SearchableProperties.OID:
                 return new PropertyFilter<>(longPredicate(
@@ -183,7 +187,8 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
 
     @Nonnull
     private PropertyFilter<E> stringFilter(@Nonnull final String propertyName,
-                                        @Nonnull final Search.PropertyFilter.StringFilter stringCriteria) {
+                                        @Nonnull final Search.PropertyFilter.StringFilter stringCriteria)
+            throws InvalidSearchFilterException {
         Predicate<String> stringPredicate = stringPredicate(stringCriteria);
         switch (propertyName) {
             case SearchableProperties.DISPLAY_NAME:
@@ -571,7 +576,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
 
     @Nonnull
     private PropertyFilter<E> objectFilter(@Nonnull final String propertyName,
-            @Nonnull final Search.PropertyFilter.ObjectFilter objectCriteria) {
+            @Nonnull final Search.PropertyFilter.ObjectFilter objectCriteria) throws InvalidSearchFilterException {
         switch (propertyName) {
             case SearchableProperties.VM_INFO_REPO_DTO_PROPERTY_NAME:
                 List<Search.PropertyFilter> filters = objectCriteria.getFiltersList();
@@ -744,8 +749,14 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                             filter.getPropertyName() + ", but got " + filter);
         }
         return PropertyFilter.typeSpecificFilter(
-                        vmProps -> intPredicate(filter.getNumericFilter()).test(
-                                        propertyValueGetter.apply(vmProps)), VmProps.class);
+                        vmProps -> {
+                            try {
+                                return intPredicate(filter.getNumericFilter()).test(
+                                                propertyValueGetter.apply(vmProps));
+                            } catch (InvalidSearchFilterException e) {
+                                throw new IllegalArgumentException(e.getMessage());
+                            }
+                        }, VmProps.class);
     }
 
     /**
@@ -760,18 +771,23 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
     @Nonnull
     private static <S extends TopologyGraphSearchableEntity<S>> Predicate<S> intPredicate(
                     final int comparisonValue, @Nonnull final ComparisonOperator operator,
-                    @Nonnull final ToIntFunction<S> propertyLookup) {
+                    @Nonnull final ToIntFunction<S> propertyLookup) throws InvalidSearchFilterException {
         Objects.requireNonNull(propertyLookup);
         IntPredicate intPredicate = intPredicate(comparisonValue, operator);
         return entity -> intPredicate.test(propertyLookup.applyAsInt(entity));
     }
 
-    private static IntPredicate intPredicate(NumericFilter numericFilter) {
+    private static IntPredicate intPredicate(NumericFilter numericFilter) throws InvalidSearchFilterException {
         return intPredicate((int)numericFilter.getValue(), numericFilter.getComparisonOperator());
     }
 
     private static IntPredicate intPredicate(final int comparisonValue,
-                    @Nonnull final ComparisonOperator comparisonOperator) {
+                    @Nonnull final ComparisonOperator comparisonOperator) throws InvalidSearchFilterException {
+        if (OPERATORS_REQUIRING_DIVISION.contains(comparisonOperator) && comparisonValue == 0) {
+            throw new InvalidSearchFilterException(
+                    String.format("Comparison operator %s require division operation, but comparison value is '%s'",
+                            comparisonOperator, comparisonValue));
+        }
         return value -> {
             switch (comparisonOperator) {
                 case EQ:
@@ -786,6 +802,10 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                     return value < comparisonValue;
                 case LTE:
                     return value <= comparisonValue;
+                case MO:
+                    return value % comparisonValue == 0;
+                case NMO:
+                    return value % comparisonValue != 0;
                 default:
                     throw new IllegalArgumentException("Unknown operator type: " + comparisonOperator);
             }

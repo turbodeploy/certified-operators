@@ -666,6 +666,39 @@ public class TopologyFilterFactoryTest {
     }
 
     /**
+     * Checks in case comparison value in numeric filter is 0 and comparison operator is multiple of then exception
+     * will be thrown.
+     */
+    @Test
+    public void testIncorrectValueForMultipleOfOperator() {
+        checkExceptionForOperatorRequiringDivision(ComparisonOperator.MO);
+    }
+
+    /**
+     * Checks in case comparison value in numeric filter is 0 and comparison operator is not multiple of then exception
+     * will be thrown.
+     */
+    @Test
+    public void testIncorrectValueForNotMultipleOfOperator() {
+        checkExceptionForOperatorRequiringDivision(ComparisonOperator.NMO);
+    }
+
+    private void checkExceptionForOperatorRequiringDivision(ComparisonOperator operator) {
+        final TestGraphEntity entity = createVmWithProperty(1L, VirtualMachineInfo.Builder::setCoresPerSocketRatio, 1);
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage(
+                String.format("Comparison operator %s require division operation, but comparison value is '0'",
+                        operator));
+        final SearchFilter searchFilter =
+                createSearchFilterForVmIntegerProperty(SearchableProperties.VM_INFO_CORES_PER_SOCKET,
+                        operator, 0);
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter =
+                (PropertyFilter<TestGraphEntity>) filter;
+        propertyFilter.test(entity, graph);
+    }
+
+    /**
      * Checks that cores per socket ratio value for VM correctly filtered.
      */
     @Test
@@ -744,9 +777,15 @@ public class TopologyFilterFactoryTest {
         dataBuilder.put(ComparisonOperator.GT, vm1, false);
         dataBuilder.put(ComparisonOperator.GT, vm2, false);
         dataBuilder.put(ComparisonOperator.GT, vm3, true);
+        dataBuilder.put(ComparisonOperator.MO, vm1, false);
+        dataBuilder.put(ComparisonOperator.MO, vm2, true);
+        dataBuilder.put(ComparisonOperator.MO, vm3, false);
+        dataBuilder.put(ComparisonOperator.NMO, vm1, true);
+        dataBuilder.put(ComparisonOperator.NMO, vm2, false);
+        dataBuilder.put(ComparisonOperator.NMO, vm3, true);
         final Table<ComparisonOperator, TestGraphEntity, Boolean> data = dataBuilder.build();
         data.rowMap().forEach((operator, entityToFilterResult) -> {
-            final SearchFilter searchFilter = createSearchFilterForVmIntegerProperty(property, operator);
+            final SearchFilter searchFilter = createSearchFilterForVmIntegerProperty(property, operator, 2);
             final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
             assertTrue(filter instanceof PropertyFilter);
             final PropertyFilter<TestGraphEntity> propertyFilter =
@@ -757,11 +796,11 @@ public class TopologyFilterFactoryTest {
     }
 
     private static SearchFilter createSearchFilterForVmIntegerProperty(String property,
-                    ComparisonOperator operator) {
+            ComparisonOperator operator, int comparisonValue) {
         final Search.PropertyFilter numericPropertyFilter =
                         Search.PropertyFilter.newBuilder().setPropertyName(property)
                                         .setNumericFilter(NumericFilter.newBuilder()
-                                                        .setComparisonOperator(operator).setValue(2)
+                                                        .setComparisonOperator(operator).setValue(comparisonValue)
                                                         .build()).build();
         return SearchFilter.newBuilder().setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName(SearchableProperties.VM_INFO_REPO_DTO_PROPERTY_NAME)
