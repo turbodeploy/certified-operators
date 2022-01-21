@@ -682,6 +682,11 @@ public class VoltronConfiguration {
         MEDIATION_DYNATRACE(Component.MEDIATION_DYNATRACE),
 
         /**
+         * Flexera.
+         */
+        MEDIATION_FLEXERA(Component.MEDIATION_FLEXERA),
+
+        /**
          * GCP Service Account.
          */
         MEDIATION_GCP_SA(Component.MEDIATION_GCP_SA),
