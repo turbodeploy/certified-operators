@@ -17,6 +17,7 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
@@ -188,6 +189,12 @@ public class TopologyConfig {
     @Value("${startupDiscovery.maxDiscoveryWaitMins:360}")
     private long startupDiscoveryMaxDiscoveryWaitMinutes;
 
+    /**
+     * The hours to wait before restarting the component when broadcast keeps failing.
+     */
+    @Value("${pipelineFailureHours:6}")
+    private int pipelineFailureHours;
+
     @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
@@ -354,7 +361,8 @@ public class TopologyConfig {
             targetConfig.targetStore(),
             clockConfig.clock(),
             startupDiscoveryMaxDiscoveryWaitMinutes,
-            TimeUnit.MINUTES);
+            TimeUnit.MINUTES,
+            new ComponentRestartHelper(pipelineFailureHours));
     }
 
     /**

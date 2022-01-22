@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
+import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -84,6 +85,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      * @param clock The system clock.
      * @param maxBroadcastWait The maximum block time for broadcasts at startup.
      * @param timeUnit The time unit for the broadcast wait time.
+     * @param componentRestartHelper helping decide whether we need to restart component
      */
     public TopologyPipelineExecutorService(final int concurrentPlansAllowed,
             final int maxQueuedPlansAllowed,
@@ -94,7 +96,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final TargetStore targetStore,
             @Nonnull final Clock clock,
             final long maxBroadcastWait,
-            @Nonnull final TimeUnit timeUnit) {
+            @Nonnull final TimeUnit timeUnit,
+            @Nonnull final ComponentRestartHelper componentRestartHelper) {
         this(concurrentPlansAllowed, createPlanExecutorService(concurrentPlansAllowed), createRealtimeExecutorService(),
             new PlanPipelineQueue(clock, maxQueuedPlansAllowed),
             // We only expect one queued live pipeline, because we collapse all the other ones.
@@ -105,7 +108,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             notificationSender,
             targetStore,
             maxBroadcastWait,
-            timeUnit);
+            timeUnit,
+            componentRestartHelper);
     }
 
     @VisibleForTesting
@@ -120,7 +124,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final TopologyProcessorNotificationSender notificationSender,
             @Nonnull final TargetStore targetStore,
             final long maxBroadcastWait,
-            @Nonnull final TimeUnit timeUnit) {
+            @Nonnull final TimeUnit timeUnit,
+            @Nonnull final ComponentRestartHelper componentRestartHelper) {
         this.planExecutorService = planExecutorService;
         this.realtimeExecutorService = realtimeExecutorService;
         this.livePipelineFactory = topologyPipelineFactory;
@@ -130,9 +135,11 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         this.planPipelineQueue = planPipelineQueue;
         this.targetStore = targetStore;
         for (int i = 0; i < concurrentPipelinesAllowed; ++i) {
-            planExecutorService.submit(new TopologyPipelineWorker(planPipelineQueue, notificationSender));
+            planExecutorService.submit(new TopologyPipelineWorker(planPipelineQueue,
+                    notificationSender, componentRestartHelper));
         }
-        realtimeExecutorService.submit(new TopologyPipelineWorker(realtimePipelineQueue, notificationSender));
+        realtimeExecutorService.submit(new TopologyPipelineWorker(realtimePipelineQueue,
+                notificationSender, componentRestartHelper));
 
         // Block live broadcasts. At initialization time we will schedule a thread that will unblock
         // them when appropriate.
@@ -569,12 +576,15 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         private final TopologyPipelineQueue queuedRequests;
 
         private final TopologyProcessorNotificationSender notificationSender;
+        private final ComponentRestartHelper componentRestartHelper;
 
         @VisibleForTesting
         TopologyPipelineWorker(@Nonnull final TopologyPipelineQueue queuedRequests,
-                               @Nonnull final TopologyProcessorNotificationSender notificationSender) {
+                @Nonnull final TopologyProcessorNotificationSender notificationSender,
+                @Nonnull final ComponentRestartHelper componentRestartHelper) {
             this.queuedRequests = queuedRequests;
             this.notificationSender = notificationSender;
+            this.componentRestartHelper = componentRestartHelper;
         }
 
         @VisibleForTesting
@@ -590,14 +600,17 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
                     .setSuccess(TopologyBroadcastSuccess.getDefaultInstance())
                     .build());
                 pipelineRequest.future.complete(successfulBroadcast);
+                componentRestartHelper.updateResult(true);
             } catch (PipelineException e) {
                 // If the pipeline fails with an internal error, we send a notification
                 // over Kafka.
                 sendFailureNotification(pipelineRequest.getTopologyInfo(), e.getCause());
                 pipelineRequest.future.completeExceptionally(e);
+                componentRestartHelper.updateResult(false);
             } catch (InterruptedException e) {
                 sendFailureNotification(pipelineRequest.getTopologyInfo(), e);
                 pipelineRequest.future.completeExceptionally(e);
+                componentRestartHelper.updateResult(false);
                 throw e;
             }
         }
@@ -628,6 +641,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
                     return;
                 } catch (Exception e) {
                     logger.error("Pipeline worker hit unexpected exception. Continuing.", e);
+                    componentRestartHelper.updateResult(false);
                 } catch (OutOfMemoryError oome) {
                     // we aren't looking to handle this error, just log it.
                     logger.error("Pipeline worker {} received OutOfMemoryError. This pipeline runner task will terminate.",

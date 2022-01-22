@@ -29,6 +29,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
@@ -152,7 +153,8 @@ public class MarketRunnerTest {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
         runner = new MarketRunner(threadPool, serverApi,
-                analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementFinder, 10000);
+                analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementFinder, 10000,
+                new ComponentRestartHelper(6));
 
         topologyContextId += 100;
 

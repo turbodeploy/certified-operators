@@ -42,6 +42,7 @@ import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
+import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -93,6 +94,8 @@ public class TopologyPipelineExecutorServiceTest {
 
     private static final int CONCURRENT_PLANS_ALLOWED = 2;
 
+    private static final ComponentRestartHelper componentRestartHelper = new ComponentRestartHelper(6);
+
     private TopologyPipelineExecutorService pipelineExecutorService =
         new TopologyPipelineExecutorService(CONCURRENT_PLANS_ALLOWED,
             mockPlanExecutorService,
@@ -104,7 +107,9 @@ public class TopologyPipelineExecutorServiceTest {
             mockEntityStore,
             mockNotificationSender,
             targetStore,
-            MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
+            MAX_BLOCK_TIME,
+            TimeUnit.MILLISECONDS,
+            componentRestartHelper);
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
         .setTopologyContextId(77)
@@ -474,7 +479,8 @@ public class TopologyPipelineExecutorServiceTest {
         final TopologyPipelineRequest pipelineRequest =
             new TopologyPipelineRequest(pipelineRunnable, () -> topologyInfo);
 
-        TopologyPipelineWorker worker = new TopologyPipelineWorker(mockRealtimeQueue, mockNotificationSender);
+        TopologyPipelineWorker worker = new TopologyPipelineWorker(mockRealtimeQueue,
+                mockNotificationSender, componentRestartHelper);
         worker.runPipeline(pipelineRequest);
 
         try {
@@ -528,7 +534,8 @@ public class TopologyPipelineExecutorServiceTest {
     public void testPipelineWorkerRunSendSummary() throws Exception {
         final TopologyBroadcastInfo expectedBroadcastInfo = mock(TopologyBroadcastInfo.class);
         final TopologyPipelineWorker worker =
-            new TopologyPipelineWorker(mockRealtimeQueue, mockNotificationSender);
+            new TopologyPipelineWorker(mockRealtimeQueue, mockNotificationSender,
+                    componentRestartHelper);
         TopologyPipelineRequest request =
             new TopologyPipelineRequest(() -> expectedBroadcastInfo, () -> topologyInfo);
 
@@ -562,7 +569,8 @@ public class TopologyPipelineExecutorServiceTest {
 
 
         // Run the erroneous pipeline!
-        new TopologyPipelineWorker(mockRealtimeQueue, mockNotificationSender).runPipeline(request);
+        new TopologyPipelineWorker(mockRealtimeQueue, mockNotificationSender,
+                componentRestartHelper).runPipeline(request);
 
         try {
             // Wait for results - should return immediately.
@@ -598,7 +606,8 @@ public class TopologyPipelineExecutorServiceTest {
         // Run the erroneous pipeline!
         when(mockRealtimeQueue.take()).thenReturn(request);
         // This should terminate because of the interrupted exception.
-        new TopologyPipelineWorker(mockRealtimeQueue, mockNotificationSender).run();
+        new TopologyPipelineWorker(mockRealtimeQueue, mockNotificationSender,
+                componentRestartHelper).run();
 
         // Run
         try {

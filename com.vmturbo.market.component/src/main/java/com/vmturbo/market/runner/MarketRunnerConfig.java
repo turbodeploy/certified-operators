@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.cost.api.impl.CostSubscription.Topic;
@@ -174,6 +175,12 @@ public class MarketRunnerConfig {
     @Value("${rtAnalysisTimeoutSecs:3600}")
     private long rtAnalysisTimeoutSecs;
 
+    /**
+     * The hours to wait before restarting the component when analysis keeps failing.
+     */
+    @Value("${pipelineFailureHours:6}")
+    private int pipelineFailureHours;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -208,7 +215,8 @@ public class MarketRunnerConfig {
             marketRpcConfig.marketDebugRpcService(),
             analysisGate(),
             marketRpcConfig.getInitialPlacementFinder(),
-            rtAnalysisTimeoutSecs);
+            rtAnalysisTimeoutSecs,
+            new ComponentRestartHelper(pipelineFailureHours));
     }
 
     @Bean
