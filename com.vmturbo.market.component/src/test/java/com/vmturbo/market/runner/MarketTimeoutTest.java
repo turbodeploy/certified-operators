@@ -45,6 +45,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
@@ -145,7 +146,7 @@ public class MarketTimeoutTest {
         // initialize market runner with a low timeout of 1secs
         runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty(),
                 new SingleTopologyProcessingGate(10, TimeUnit.MINUTES),
-                                initialPlacementFinder, 1);
+                                initialPlacementFinder, 1, new ComponentRestartHelper(6));
 
         AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,

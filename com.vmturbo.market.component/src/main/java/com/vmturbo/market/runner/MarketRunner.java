@@ -44,9 +44,9 @@ import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
-import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.topology.conversions.CommodityConverter;
@@ -81,6 +81,8 @@ public class MarketRunner {
 
     private final long rtAnalysisTimeoutSecs;
 
+    private final ComponentRestartHelper componentRestartHelper;
+
     private static final DataMetricHistogram INPUT_TOPOLOGY = DataMetricHistogram.builder()
             .withName("mkt_input_topology")
             .withHelp("Size of the topology to analyze.")
@@ -96,7 +98,8 @@ public class MarketRunner {
                         @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
                         final TopologyProcessingGate topologyProcessingGate,
                         @Nonnull final InitialPlacementFinder initialPlacementFinder,
-                        final long rtAnalysisTimeoutSecs) {
+                        final long rtAnalysisTimeoutSecs,
+                        @Nonnull final ComponentRestartHelper componentRestartHelper) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
         this.serverApi = Objects.requireNonNull(serverApi);
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
@@ -104,6 +107,7 @@ public class MarketRunner {
         this.topologyProcessingGate = Objects.requireNonNull(topologyProcessingGate);
         this.initialPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
         this.rtAnalysisTimeoutSecs = rtAnalysisTimeoutSecs;
+        this.componentRestartHelper = componentRestartHelper;
     }
 
     /**
@@ -322,6 +326,7 @@ public class MarketRunner {
             TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
         }
         try {
+            componentRestartHelper.updateResult(analysis.isDone());
             if (analysis.isDone()) {
                 marketDebugRpcService.ifPresent(debugService -> {
                     debugService.recordCompletedAnalysis(analysis);
