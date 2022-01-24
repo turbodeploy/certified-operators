@@ -117,6 +117,10 @@ public class TopologyEditorTest {
         .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
     private static final CommodityType VMPM = CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).build();
+    private static final CommodityType VMPM_KEYED = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE)
+            .setKey("MyKey")
+            .build();
     private TopologyPipelineContext context;
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
@@ -240,6 +244,8 @@ public class TopologyEditorTest {
                     .setUsed(USED).build())
                 .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU)
                     .setUsed(USED).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMPM_KEYED)
+                    .build())
                 .build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                 .setCommodityType(VCPU)
@@ -1274,6 +1280,17 @@ public class TopologyEditorTest {
             .noneMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getSuspendable());
         assertTrue("Cloned containers must not be controllable", noneControllable);
         assertTrue("Cloned containers must not be suspendable", noneSuspendable);
+
+        // Verify that the cloned pods do not buy any keyed commodities
+        final boolean noneKeyedCommoditiesBought = clonedContainerPods.stream()
+                .map(TopologyEntity.Builder::getEntityBuilder)
+                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersList)
+                .flatMap(List::stream)
+                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .flatMap(List::stream)
+                .map(CommodityBoughtDTO::getCommodityType)
+                .noneMatch(CommodityType::hasKey);
+        assertTrue("Cloned pods do not buy any keyed commodities", noneKeyedCommoditiesBought);
     }
 
     /**

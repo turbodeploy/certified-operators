@@ -7,10 +7,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -31,7 +33,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
@@ -45,8 +46,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -60,6 +59,8 @@ import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
+import com.vmturbo.topology.processor.topology.clone.DefaultEntityCloneEditor;
+import com.vmturbo.topology.processor.topology.clone.EntityCloneEditorFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
@@ -72,13 +73,11 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 public class TopologyEditor {
     private final Logger logger = LogManager.getLogger();
 
-    private final IdentityProvider identityProvider;
-
     private final TemplateConverterFactory templateConverterFactory;
 
     private final GroupServiceBlockingStub groupServiceClient;
 
-    private final TopologyEntityCloneFactory topologyEntityCloneFactory;
+    private final EntityCloneEditorFactory entityCloneEditorFactory;
 
     private static final Set<Integer> UTILIZATION_LEVEL_TYPES = ImmutableSet
             .of(CommodityType.CPU_VALUE, CommodityType.MEM_VALUE);
@@ -86,10 +85,10 @@ public class TopologyEditor {
     TopologyEditor(@Nonnull final IdentityProvider identityProvider,
                    @Nonnull final TemplateConverterFactory templateConverterFactory,
                    @Nonnull final GroupServiceBlockingStub groupServiceClient) {
-        this.identityProvider = Objects.requireNonNull(identityProvider);
+        Objects.requireNonNull(identityProvider);
         this.templateConverterFactory = Objects.requireNonNull(templateConverterFactory);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
-        topologyEntityCloneFactory = new TopologyEntityCloneFactory();
+        entityCloneEditorFactory = new EntityCloneEditorFactory(identityProvider);
     }
 
     /**
@@ -291,42 +290,15 @@ public class TopologyEditor {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
             }
         }
+        // Clone the added entities and add the cloned entities into the topology
+        entityAdditions.forEach((oid, addCount) -> Optional.ofNullable(topology.get(oid))
+                .ifPresent(entity -> {
+                    final DefaultEntityCloneEditor cloneFunction = entityCloneEditorFactory
+                            .createEntityCloneFunction(entity, topologyInfo);
+                    LongStream.range(0, addCount).forEach(i -> cloneFunction
+                            .clone(entity.getEntityBuilder(), i, topology));
+        }));
 
-        entityAdditions.forEach((oid, addCount) -> {
-            TopologyEntity.Builder entity = topology.get(oid);
-            if (entity != null) {
-                for (int i = 0; i < addCount; ++i) {
-                    // Create the new entity being added, but set the plan origin so these added
-                    // entities aren't counted in plan "current" stats
-
-                    // entities added in this stage will have a plan origin pointed to the context id of this topology
-                    final Origin entityOrigin = Origin.newBuilder().setPlanScenarioOrigin(
-                            PlanScenarioOrigin.newBuilder()
-                                    .setPlanId(topologyInfo.getTopologyContextId())
-                                    .setOriginalEntityId(entity.getOid())).build();
-                    TopologyEntityDTO.Builder clone = topologyEntityCloneFactory.clone(
-                            entity.getEntityBuilder(), identityProvider, i, topology).setOrigin(
-                            entityOrigin);
-                    final TopologyEntity.Builder clonedEntityBuilder = TopologyEntity.newBuilder(clone)
-                            .setClonedFromEntity(entity.getEntityBuilder());
-                    // Set shop together true for added VMs
-                    if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                        if (topologyInfo.hasPlanInfo() && PlanProjectType.CLOUD_MIGRATION.name().equals(topologyInfo.getPlanInfo().getPlanType())) {
-                            // a temporary fix for MPC to work.
-                            clone.getAnalysisSettingsBuilder().setShopTogether(false);
-                        } else {
-                            clone.getAnalysisSettingsBuilder().setShopTogether(true);
-                        }
-                    } else if (clone.getEntityType() == EntityType.CONTAINER_POD_VALUE) {
-                        // Clone container consumers so that we'll be able to correctly update
-                        // projected ContainerPlatformCluster resources.
-                        topologyEntityCloneFactory.cloneConsumersFromClonedProvider(clonedEntityBuilder,
-                            topology, identityProvider, entityOrigin, oid, i);
-                    }
-                    topology.put(clone.getOid(), clonedEntityBuilder);
-                }
-            }
-        });
         // Prepare any entities that are getting removed as part of the plan, for removal from the
         // analysis topology. This process will unplace any current buyers of these entities
         // commodities, then mark the entities as "removed", so they can be removed from the Analysis
