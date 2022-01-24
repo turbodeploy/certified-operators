@@ -19,7 +19,7 @@ import com.google.common.collect.Iterables;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -75,7 +75,7 @@ public class DefaultCoverageEntityMatcherTest {
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
                 .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                .addLocations(CloudCommitmentLocation.REGION)
+                .addLocations(CloudCommitmentLocationType.REGION)
                 .addTierMatchers(TierMatcher.FAMILY)
                 .includePlatform(true)
                 .includeTenancy(true)
@@ -111,7 +111,7 @@ public class DefaultCoverageEntityMatcherTest {
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
                 .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
-                .addLocations(CloudCommitmentLocation.REGION)
+                .addLocations(CloudCommitmentLocationType.REGION)
                 .addTierMatchers(TierMatcher.FAMILY)
                 .includePlatform(true)
                 .includeTenancy(true)
@@ -137,7 +137,7 @@ public class DefaultCoverageEntityMatcherTest {
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
                 .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                .addLocations(CloudCommitmentLocation.REGION)
+                .addLocations(CloudCommitmentLocationType.REGION)
                 .addTierMatchers(TierMatcher.TIER)
                 .includePlatform(true)
                 .includeTenancy(true)
@@ -165,7 +165,7 @@ public class DefaultCoverageEntityMatcherTest {
         // setup the EntityMatcherConfig
         final EntityMatcherConfig matcherConfig = VirtualMachineMatcherConfig.builder()
                 .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                .addLocations(CloudCommitmentLocation.REGION)
+                .addLocations(CloudCommitmentLocationType.REGION)
                 .addTierMatchers(TierMatcher.TIER)
                 .includePlatform(false)
                 .includeTenancy(true)

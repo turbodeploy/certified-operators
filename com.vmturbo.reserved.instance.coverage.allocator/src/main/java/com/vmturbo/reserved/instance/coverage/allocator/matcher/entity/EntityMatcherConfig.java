@@ -5,6 +5,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 
 /**
@@ -18,7 +19,7 @@ public interface EntityMatcherConfig {
      * @return The set of {@link CloudCommitmentLocation} instances.
      */
     @Nonnull
-    Set<CloudCommitmentLocation> locations();
+    Set<CloudCommitmentLocationType> locations();
 
     /**
      * The set of {@link CloudCommitmentScope} instances, representing how an entity's scope should

@@ -28,12 +28,11 @@ import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
+import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
-import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
-import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -106,11 +105,11 @@ public class SupplementalCoverageAnalysisTest {
         final BillingFamilyRetrieverFactory billingFamilyRetrieverFactory = mock(BillingFamilyRetrieverFactory.class);
         when(billingFamilyRetrieverFactory.newInstance()).thenReturn(billingFamilyRetriever);
 
-        cloudCommitmentAggregatorFactory = new DefaultCloudCommitmentAggregatorFactory(
-                identityProvider,
-                new ComputeTierFamilyResolverFactory(),
-                billingFamilyRetrieverFactory);
 
+        final CloudCommitmentAggregator cloudCommitmentAggregator = mock(CloudCommitmentAggregator.class);
+        when(cloudCommitmentAggregator.getAggregates()).thenReturn(Collections.emptySet());
+        cloudCommitmentAggregatorFactory = mock(CloudCommitmentAggregatorFactory.class);
+        when(cloudCommitmentAggregatorFactory.newIdentityAggregator(any())).thenReturn(cloudCommitmentAggregator);
     }
 
     @Test

@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 
@@ -43,7 +43,7 @@ public interface CloudCommitmentFilter {
          * check cloud commitment locations.
          */
         @Nonnull
-        Set<CloudCommitmentLocation> locations();
+        Set<CloudCommitmentLocationType> locations();
 
         /**
          * The scopes allowed to pass the filter.

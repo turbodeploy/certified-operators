@@ -22,7 +22,7 @@ public interface ReservedInstanceAggregate extends CloudCommitmentAggregate {
      * {@inheritDoc}.
      */
     @Override
-    ReservedInstanceAggregateInfo aggregateInfo();
+    ReservedInstanceAggregationInfo aggregationInfo();
 
     /**
      * {@inheritDoc}.

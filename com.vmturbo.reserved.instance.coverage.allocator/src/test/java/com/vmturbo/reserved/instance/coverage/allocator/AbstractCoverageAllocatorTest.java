@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.ArrayUtils;
 
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
+import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology.TopologyEntityCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
@@ -80,7 +81,8 @@ public class AbstractCoverageAllocatorTest {
             new DefaultCloudCommitmentAggregatorFactory(
                     identityProvider,
                     computeTierFamilyResolverFactory,
-                    billingFamilyRetrieverFactory);
+                    billingFamilyRetrieverFactory,
+                    new TopologyEntityCommitmentTopologyFactory());
 
     protected CoverageTopology generateCoverageTopology(
             @Nonnull TopologyEntityDTO serviceProvider,

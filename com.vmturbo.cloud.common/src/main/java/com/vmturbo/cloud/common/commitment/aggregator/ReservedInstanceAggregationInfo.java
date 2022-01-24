@@ -2,7 +2,6 @@ package com.vmturbo.cloud.common.commitment.aggregator;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -17,6 +16,7 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentStatus;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -25,8 +25,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * Aggregation info specific to reserved instances.
  */
 @HiddenImmutableImplementation
-@Immutable(lazyhash = true)
-public interface ReservedInstanceAggregateInfo extends AggregateInfo {
+@Immutable(prehash = true)
+public interface ReservedInstanceAggregationInfo extends AggregationInfo {
 
     /**
      * The platform info of the aggregate.
@@ -41,19 +41,6 @@ public interface ReservedInstanceAggregateInfo extends AggregateInfo {
      */
     @Nonnull
     TierInfo tierInfo();
-
-    /**
-     * The region OID of the aggregate.
-     * @return The region OID of the aggregate.
-     */
-    long regionOid();
-
-    /**
-     * The zone OID of the aggregate.
-     * @return The zone OID of the aggregate, if one is set.
-     */
-    @Nonnull
-    OptionalLong zoneOid();
 
     /**
      * The tenancy of the aggregate. If none is set, defaults to {@link Tenancy#DEFAULT}.
@@ -76,6 +63,16 @@ public interface ReservedInstanceAggregateInfo extends AggregateInfo {
     }
 
     /**
+     * The status of the RI. Currently, only active RIs are discovered.
+     * @return The status of the RI.
+     */
+    @Derived
+    @Override
+    default CloudCommitmentStatus status() {
+        return CloudCommitmentStatus.CLOUD_COMMITMENT_STATUS_ACTIVE;
+    }
+
+    /**
      * Constructs and return a new {@link Builder} instance.
      * @return The newly constructed {@link Builder} instance.
      */
@@ -87,7 +84,7 @@ public interface ReservedInstanceAggregateInfo extends AggregateInfo {
     /**
      * A builder class for {@link ReservedInstanceAggregateInfo}.
      */
-    class Builder extends ImmutableReservedInstanceAggregateInfo.Builder {}
+    class Builder extends ImmutableReservedInstanceAggregationInfo.Builder {}
 
     /**
      * A data class for platform (OS) info of an RI aggregate.

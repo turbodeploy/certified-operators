@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
+import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology.TopologyEntityCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.commitment.filter.CloudCommitmentFilterFactory;
@@ -133,7 +134,8 @@ public class SupplementalCoverageAnalysisConfig {
         return new DefaultCloudCommitmentAggregatorFactory(
                 identityProvider,
                 computeTierFamilyResolverFactory,
-                billingFamilyRetrieverFactory);
+                billingFamilyRetrieverFactory,
+                new TopologyEntityCommitmentTopologyFactory());
     }
 
     /**

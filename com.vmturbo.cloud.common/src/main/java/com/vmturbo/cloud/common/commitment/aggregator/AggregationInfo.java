@@ -6,12 +6,14 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentStatus;
 
 /**
  * Represents the base information required for the aggregation of cloud commitments .
  */
-public interface AggregateInfo {
+public interface AggregationInfo {
 
     /**
      * The service provider OID.
@@ -48,4 +50,18 @@ public interface AggregateInfo {
      */
     @Nonnull
     CloudCommitmentEntityScope entityScope();
+
+    /**
+     * The location (global, regional, zonal) of the cloud commitment.
+     * @return The cloud commitment location.
+     */
+    @Nonnull
+    CloudCommitmentLocation location();
+
+    /**
+     * The cloud commitment status.
+     * @return The cloud commitment status.
+     */
+    @Nonnull
+    CloudCommitmentStatus status();
 }

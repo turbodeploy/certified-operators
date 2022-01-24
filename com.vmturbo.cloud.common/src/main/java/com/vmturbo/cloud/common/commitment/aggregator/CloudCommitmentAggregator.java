@@ -67,5 +67,9 @@ public interface CloudCommitmentAggregator {
         public AggregationFailureException(@Nonnull final Throwable cause) {
             super(cause);
         }
+
+        public AggregationFailureException(@Nonnull String message) {
+            super(message);
+        }
     }
 }

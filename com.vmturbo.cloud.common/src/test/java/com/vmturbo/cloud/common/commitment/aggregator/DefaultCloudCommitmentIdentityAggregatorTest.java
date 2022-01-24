@@ -13,6 +13,8 @@ import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology.CloudCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
 import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
@@ -40,6 +42,10 @@ public class DefaultCloudCommitmentIdentityAggregatorTest {
 
     private final CloudTopology<TopologyEntityDTO> cloudTierTopology = mock(CloudTopology.class);
 
+    private final CloudCommitmentTopologyFactory<TopologyEntityDTO> commitmentTopologyFactory = mock(CloudCommitmentTopologyFactory.class);
+
+    private final CloudCommitmentTopology cloudCommitmentTopology = mock(CloudCommitmentTopology.class);
+
     private DefaultCloudCommitmentAggregatorFactory aggregatorFactory;
 
     @Before
@@ -55,13 +61,16 @@ public class DefaultCloudCommitmentIdentityAggregatorTest {
         aggregatorFactory = new DefaultCloudCommitmentAggregatorFactory(
                 identityProvider,
                 computeTierFamilyResolverFactory,
-                billingFamilyRetrieverFactory);
+                billingFamilyRetrieverFactory,
+                commitmentTopologyFactory);
 
         when(cloudTierTopology.getServiceProvider(anyLong())).thenReturn(Optional.of(
                 TopologyEntityDTO.newBuilder()
                         .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
                         .setOid(123L)
                         .build()));
+
+        when(commitmentTopologyFactory.createTopology(any())).thenReturn(cloudCommitmentTopology);
     }
 
     @Test

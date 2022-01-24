@@ -10,10 +10,10 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 
@@ -40,7 +40,7 @@ public class ReservedInstanceFilter implements CloudCommitmentFilter {
     public boolean filter(final CloudCommitmentAggregate commitmentAggregate) {
         if (commitmentAggregate.isReservedInstance()) {
             final ReservedInstanceAggregate riAggregate = commitmentAggregate.asReservedInstanceAggregate();
-            final ReservedInstanceAggregateInfo aggregateInfo = riAggregate.aggregateInfo();
+            final ReservedInstanceAggregationInfo aggregateInfo = riAggregate.aggregationInfo();
 
             return filterScope(aggregateInfo)
                     && filterLocation(aggregateInfo)
@@ -51,31 +51,29 @@ public class ReservedInstanceFilter implements CloudCommitmentFilter {
         }
     }
 
-    private boolean filterScope(@Nonnull ReservedInstanceAggregateInfo aggregateInfo) {
+    private boolean filterScope(@Nonnull ReservedInstanceAggregationInfo aggregateInfo) {
 
         final CloudCommitmentScope riScope = aggregateInfo.entityScope().getScopeType();
         return filterConfig.scopes().isEmpty() || filterConfig.scopes().contains(riScope);
 
     }
 
-    private boolean filterPlatformFlexibility(@Nonnull ReservedInstanceAggregateInfo aggregateInfo) {
+    private boolean filterPlatformFlexibility(@Nonnull ReservedInstanceAggregationInfo aggregateInfo) {
         return filterConfig.isPlatformFlexible()
                 .map(platformFlexible ->
                         platformFlexible == aggregateInfo.platformInfo().isPlatformFlexible())
                 .orElse(true);
     }
 
-    private boolean filterSizeFlexibility(@Nonnull ReservedInstanceAggregateInfo aggregateInfo) {
+    private boolean filterSizeFlexibility(@Nonnull ReservedInstanceAggregationInfo aggregateInfo) {
         return filterConfig.isSizeFlexible()
                 .map(sizeFlexible -> sizeFlexible == aggregateInfo.tierInfo().isSizeFlexible())
                 .orElse(true);
     }
 
-    private boolean filterLocation(@Nonnull ReservedInstanceAggregateInfo aggregateInfo) {
+    private boolean filterLocation(@Nonnull ReservedInstanceAggregationInfo aggregateInfo) {
 
-        final CloudCommitmentLocation riLocation = aggregateInfo.zoneOid().isPresent()
-                ? CloudCommitmentLocation.AVAILABILITY_ZONE
-                : CloudCommitmentLocation.REGION;
+        final CloudCommitmentLocationType riLocation = aggregateInfo.location().getLocationType();
 
         return filterConfig.locations().isEmpty() || filterConfig.locations().contains(riLocation);
     }
