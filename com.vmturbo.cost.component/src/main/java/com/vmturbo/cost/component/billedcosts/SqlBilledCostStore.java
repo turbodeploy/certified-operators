@@ -226,7 +226,8 @@ public class SqlBilledCostStore implements BilledCostStore {
                         BILLED_COST_MONTHLY.CURRENCY,
                         BILLED_COST_MONTHLY.COST)
                 .select(embeddedSelect)
-                .onDuplicateKeyUpdate()
+                .onConflict(Keys.KEY_BILLED_COST_MONTHLY_UNIQUE_CONSTRAINT_BILLING_ITEM.getFields())
+                .doUpdate()
                 .set(BILLED_COST_MONTHLY.USAGE_AMOUNT, RollupUtils.values(BILLED_COST_MONTHLY.USAGE_AMOUNT))
                 .set(BILLED_COST_MONTHLY.COST, RollupUtils.values(BILLED_COST_MONTHLY.COST))
                 .execute();
