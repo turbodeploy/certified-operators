@@ -45,6 +45,14 @@
         <!-- This must match protobuf from SDK because we are using dependency
              protobuf-java libraries from SDK framework -->
         <protobuf.version>3.17.3</protobuf.version>
+        <!-- Integration Testing -->
+        <pre-integration-test-phase>none</pre-integration-test-phase>
+        <integration-test-phase>none</integration-test-phase>
+        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.5</dockerRobotImage>
+        <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
+        <it.suite.name>${artifactId}</it.suite.name>
+        <it.test.directory>/usr/src/project/it</it.test.directory>
+        <it.tag></it.tag>
     </properties>
 
     <build>
@@ -86,6 +94,111 @@
             </plugins>
         </pluginManagement>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-libs</id>
+                        <phase>${pre-integration-test-phase}</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <!-- outputDirectory>${was.dir.path}</outputDirectory -->
+                            <includeScope>compile</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                      <id>copy-it-directory</id>
+                      <phase>${pre-integration-test-phase}</phase>
+                      <goals>
+                        <goal>copy-resources</goal>
+                      </goals>
+                      <configuration>
+                        <outputDirectory>${project.build.directory}/it</outputDirectory>
+                        <resources>
+                          <resource>
+                            <directory>src/it</directory>
+                          </resource>
+                        </resources>
+                      </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>integration-test</id>
+                        <phase>${integration-test-phase}</phase>
+                        <goals>
+                            <goal>start</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skipITs}</skip>
+                            <dockerHost>${dockerHost}</dockerHost>
+                            <showLogs>true</showLogs>
+                            <images>
+                                <image>
+                                    <name>${dockerRobotImage}</name>
+                                    <run>
+                                        <!--
+                                        pattern needs to start with "maven-" so jenkins builds
+                                        will properly clean up leaked containers
+                                        -->
+                                        <containerNamePattern>maven-group-%i
+                                        </containerNamePattern>
+                                        <volumes>
+                                            <bind>
+                                                <volume>${project.build.directory}:/usr/src/project</volume>
+                                                <!-- Docker automatically handles this path on Windows. -->
+                                                <volume>/var/run/docker.sock:/var/run/docker.sock</volume>
+                                            </bind>
+                                        </volumes>
+                                        <env>
+                                            <S6_KILL_FINISH_MAXTIME>${it.s6.kill.finish.maxtime}</S6_KILL_FINISH_MAXTIME>
+                                            <PROJECT_NAME>${it.suite.name}</PROJECT_NAME>
+                                            <PROJECT_HOME>/usr/src/project</PROJECT_HOME>
+                                            <PROJECT_VERSION>${project.version}</PROJECT_VERSION>
+                                            <TEST_DIRECTORY>${it.test.directory}</TEST_DIRECTORY>
+                                            <ROBOT_TAG>${it.tag}</ROBOT_TAG>
+                                        </env>
+                                        <wait>
+                                            <log>${it.suite.name}[ ]+\| PASS \|</log>
+                                            <kill>30000</kill>
+                                            <time>300000</time>
+                                        </wait>
+                                    </run>
+                                </image>
+                            </images>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>stop-IT</id>
+                        <phase>${integration-test-phase}</phase>
+                        <goals>
+                            <goal>stop</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skipITs}</skip>
+                            <dockerHost>${dockerHost}</dockerHost>
+                            <images>
+                                <image>
+                                    <name>${dockerRobotImage}</name>
+                                </image>
+                            </images>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
