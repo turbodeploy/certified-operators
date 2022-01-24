@@ -2,6 +2,7 @@ package com.vmturbo.voltron;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -24,6 +25,19 @@ public class RefreshController {
     private Map<Component, AnnotationConfigWebApplicationContext> components;
 
     /**
+     * Returns the list of contents that can be operated on by the other methods.
+     *
+     * @return the list of contents that can be operated on by the other methods.
+     */
+    @RequestMapping(value = "/contexts",
+            method = RequestMethod.GET,
+            produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+    @ApiOperation(value = "Refresh a particular sub-context.")
+    public Set<Component> refreshComponentContext() {
+        return components.keySet();
+    }
+
+    /**
      * Refresh a sub-context. This can be useful during development if you changed something
      * (small) in the Spring configuration and want to see the change reflected in Voltron.
      * This can also be used to simulate a component restart.
@@ -36,8 +50,9 @@ public class RefreshController {
         produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     @ApiOperation(value = "Refresh a particular sub-context.")
     public String refreshComponentContext(@PathVariable("contextName") String contextName) {
+        Component componentEnum = Component.valueOf(contextName);
         return Optional.ofNullable(components)
-                .flatMap(c -> Optional.ofNullable(c.get(contextName)))
+                .flatMap(c -> Optional.ofNullable(c.get(componentEnum)))
                 .map(context -> {
                     context.refresh();
                     return "Successfully refreshed context " + context.getNamespace() + "\n";
@@ -56,8 +71,9 @@ public class RefreshController {
         produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     @ApiOperation(value = "Stop a particular sub-context. Simulates shutting down a component.")
     public String stopComponentContext(@PathVariable("contextName") String contextName) {
+        Component componentEnum = Component.valueOf(contextName);
         return Optional.ofNullable(components)
-                .flatMap(c -> Optional.ofNullable(c.get(contextName)))
+                .flatMap(c -> Optional.ofNullable(c.get(componentEnum)))
                 .map(context -> {
                     context.stop();
                     return "Successfully closed context " + context.getNamespace() + "\n";
@@ -77,8 +93,9 @@ public class RefreshController {
             produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     @ApiOperation(value = "Start a particular sub-context. Simulates starting up a component shut down with the /stop.")
     public String startComponentContext(@PathVariable("contextName") String contextName) {
+        Component componentEnum = Component.valueOf(contextName);
         return Optional.ofNullable(components)
-                .flatMap(c -> Optional.ofNullable(c.get(contextName)))
+                .flatMap(c -> Optional.ofNullable(c.get(componentEnum)))
                 .map(context -> {
                     context.start();
                     return "Successfully started context " + context.getNamespace() + "\n";
