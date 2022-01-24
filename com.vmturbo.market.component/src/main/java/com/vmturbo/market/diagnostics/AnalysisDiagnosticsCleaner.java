@@ -98,9 +98,11 @@ public class AnalysisDiagnosticsCleaner implements IDiagnosticsCleaner {
     }
 
     private boolean areDiagsNeeded(Economy economy, TopologyInfo topologyInfo) {
-        // Diags are needed if debug is enabled OR its real time with exceptions
+        // Diags are needed if debug is enabled OR
+        // its real time AND there are exceptions OR a timeout (the economy is force stopped)
         return AnalysisDiagnosticsCollector.isEnabled()
-                || !TopologyDTOUtil.isPlan(topologyInfo) && !economy.getExceptionTraders().isEmpty();
+                || (!TopologyDTOUtil.isPlan(topologyInfo)
+                      && (!economy.getExceptionTraders().isEmpty() || economy.getForceStop()));
     }
 
     private void waitForSaveToFinish() {
