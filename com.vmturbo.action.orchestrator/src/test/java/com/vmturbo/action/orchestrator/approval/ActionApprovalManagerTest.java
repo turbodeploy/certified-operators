@@ -50,9 +50,7 @@ public class ActionApprovalManagerTest {
 
     private static long ids = 1;
     private static final long ACTION_ID = ids++;
-    private static final long ANOTHER_ACTION_ID = ids++;
     private static final long ACTION_RECOMMENDATION_OID = ids++;
-    private static final long ANOTHER_ACTION_RECOMMENDATION_OID = ids++;
     private static final long TARGET_ID = ids++;
     private static final long ACTION_PLAN_ID = ids++;
     private static final String EXTERNAL_USER_ID = "ExternalUserId";
@@ -190,6 +188,7 @@ public class ActionApprovalManagerTest {
 
         actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         Mockito.verify(action, Mockito.never()).receive(Mockito.eq(new QueuedEvent()));
+        Mockito.verifyNoMoreInteractions(actionExecutor);
         Assert.assertEquals(ActionState.ACCEPTED, action.getState());
     }
 
