@@ -69,37 +69,10 @@ public class AnalysisDiagnosticsCleanerTest {
     }
 
     /**
-     * For real time with timeout, diags should not be deleted.
+     * For real time with exceptions, diags should not be deleted.
      */
     @Test
-    public void testDiagsNotDeletedForRTWithTimeOut() {
-        when(mockFileSystem.listFiles(any())).thenReturn(Stream.of(Paths.get(rtExpectedFullPath)));
-        IDiagnosticsCleaner cleaner = new AnalysisDiagnosticsCleaner(10, 3, mockFileSystem);
-        cleaner.setSaveAnalysisDiagsFuture(CompletableFuture.completedFuture(null));
-        economy.setForceStop(true);
-        cleaner.cleanup(economy, rtTopoInfo);
-        verify(mockFileSystem, times(0)).deleteIfExists(Paths.get(rtExpectedFullPath));
-    }
-
-    /**
-     * For real time with timeout and exception, diags should not be deleted.
-     */
-    @Test
-    public void testDiagsNotDeletedForRTWithTimeoutAndException() {
-        when(mockFileSystem.listFiles(any())).thenReturn(Stream.of(Paths.get(rtExpectedFullPath)));
-        IDiagnosticsCleaner cleaner = new AnalysisDiagnosticsCleaner(10, 3, mockFileSystem);
-        cleaner.setSaveAnalysisDiagsFuture(CompletableFuture.completedFuture(null));
-        economy.setForceStop(true);
-        economy.getExceptionTraders().add(1L);
-        cleaner.cleanup(economy, rtTopoInfo);
-        verify(mockFileSystem, times(0)).deleteIfExists(Paths.get(rtExpectedFullPath));
-    }
-
-    /**
-     * For real time without exceptions and timeout, diags should be deleted.
-     */
-    @Test
-    public void testDiagsDeletedForRTWithoutExceptionsOrTimeouts() {
+    public void testDiagsDeletedForRTWithoutExceptions() {
         when(mockFileSystem.listFiles(any())).thenReturn(Stream.empty());
         IDiagnosticsCleaner cleaner = new AnalysisDiagnosticsCleaner(10, 3, mockFileSystem);
         cleaner.setSaveAnalysisDiagsFuture(CompletableFuture.completedFuture(null));

@@ -105,6 +105,10 @@ services:
       KAFKA_MAX_MESSAGE_BYTES: ${KAFKA_MAX_MESSAGE_BYTES}
     volumes:
       - kafka1-log:/home/kafka/data
+    ports:
+      # the external port mapping will have to be revisited for clustering, where external ports
+      # would need to be unique per-host.
+      - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}"
     depends_on:
       - rsyslog
       - zoo1
