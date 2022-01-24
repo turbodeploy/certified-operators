@@ -1,8 +1,10 @@
 package com.vmturbo.cloud.common.commitment.aggregator;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -11,14 +13,20 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology.CloudCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
+import com.vmturbo.cloud.common.commitment.TopologyCommitmentData;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
 import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
@@ -27,6 +35,9 @@ import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
@@ -34,9 +45,14 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudCommitmentInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentStatus;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.FamilyRestricted;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class DefaultCloudCommitmentAggregatorTest {
@@ -49,6 +65,10 @@ public class DefaultCloudCommitmentAggregatorTest {
     private final BillingFamilyRetriever billingFamilyRetriever = mock(BillingFamilyRetriever.class);
 
     private final CloudTopology<TopologyEntityDTO> cloudTierTopology = mock(CloudTopology.class);
+
+    private final CloudCommitmentTopologyFactory<TopologyEntityDTO> commitmentTopologyFactory = mock(CloudCommitmentTopologyFactory.class);
+
+    private final CloudCommitmentTopology cloudCommitmentTopology = mock(CloudCommitmentTopology.class);
 
     private DefaultCloudCommitmentAggregatorFactory aggregatorFactory;
 
@@ -71,7 +91,8 @@ public class DefaultCloudCommitmentAggregatorTest {
         aggregatorFactory = new DefaultCloudCommitmentAggregatorFactory(
                 identityProvider,
                 computeTierFamilyResolverFactory,
-                billingFamilyRetrieverFactory);
+                billingFamilyRetrieverFactory,
+                commitmentTopologyFactory);
 
         when(computeTierFamilyResolver.getCoverageFamily(anyLong())).thenReturn(Optional.empty());
         when(billingFamilyRetriever.getBillingFamilyForAccount(anyLong())).thenReturn(Optional.empty());
@@ -81,13 +102,15 @@ public class DefaultCloudCommitmentAggregatorTest {
                         .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
                         .setOid(123L)
                         .build()));
+
+        when(commitmentTopologyFactory.createTopology(any())).thenReturn(cloudCommitmentTopology);
     }
 
     /**
      * Verifies two identical RIs are correctly aggregated together when both are shared scope.
      */
     @Test
-    public void testSharedBillingFamily() throws AggregationFailureException {
+    public void testSharedBillingFamilyRI() throws AggregationFailureException {
 
         // Setup the input data
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
@@ -137,7 +160,7 @@ public class DefaultCloudCommitmentAggregatorTest {
     }
 
     @Test
-    public void testSingleScopedAggregation() throws AggregationFailureException {
+    public void testSingleScopedRIAggregation() throws AggregationFailureException {
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setId(1)
                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
@@ -199,7 +222,7 @@ public class DefaultCloudCommitmentAggregatorTest {
 
 
     @Test
-    public void testSizeFlexibility() throws AggregationFailureException {
+    public void testSizeFlexibleRI() throws AggregationFailureException {
 
         final ReservedInstanceSpec riSpecA = ReservedInstanceSpec.newBuilder()
                 .setId(1)
@@ -258,5 +281,90 @@ public class DefaultCloudCommitmentAggregatorTest {
         final CloudCommitmentAggregate commitmentAggregate = Iterables.getOnlyElement(aggregateResult);
         assertThat(commitmentAggregate.commitments(), hasSize(2));
         assertThat(commitmentAggregate.commitments(), containsInAnyOrder(riDataA, riDataB));
+    }
+
+    /**
+     * Test a topology cloud commitment with a regional connection, coupon capacity, and account scope.
+     * @throws AggregationFailureException Unexpected exception during aggregation.
+     */
+    @Test
+    public void testRegionalAccountCouponTopologyCommitment() throws AggregationFailureException {
+
+        // set up region + accounts
+        final TopologyEntityDTO region = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.REGION_VALUE)
+                .setOid(1)
+                .build();
+
+        final TopologyEntityDTO purchasingAccount = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOid(2)
+                .build();
+
+        final TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
+                .setOid(6)
+                .build();
+
+        final long scopedAccountOid = 3;
+
+        final long scopedCloudServiceOid = 4;
+
+        // set up cloud commitment
+        final String instanceFamily = "instanceFamilyTest";
+        final TopologyEntityDTO commitment = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CLOUD_COMMITMENT_VALUE)
+                .setOid(5)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setCloudCommitmentData(CloudCommitmentInfo.newBuilder()
+                                .setCommitmentScope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
+                                .setCommitmentStatus(CloudCommitmentStatus.CLOUD_COMMITMENT_STATUS_EXPIRED)
+                                .setNumberCoupons(5)
+                                .setFamilyRestricted(FamilyRestricted.newBuilder()
+                                        .setInstanceFamily(instanceFamily)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        final CloudCommitmentData commitmentData = TopologyCommitmentData.builder()
+                .commitment(commitment)
+                .build();
+
+        // set up cloud topology
+        when(cloudTierTopology.getOwner(anyLong())).thenReturn(Optional.of(purchasingAccount));
+        when(cloudTierTopology.getConnectedAvailabilityZone(anyLong())).thenReturn(Optional.empty());
+        when(cloudTierTopology.getConnectedRegion(anyLong())).thenReturn(Optional.of(region));
+        when(cloudTierTopology.getServiceProvider(anyLong())).thenReturn(Optional.of(serviceProvider));
+
+        // set up coverage topology
+        when(cloudCommitmentTopology.getCoveredAccounts(anyLong())).thenReturn(ImmutableSet.of(scopedAccountOid));
+        when(cloudCommitmentTopology.getCoveredCloudServices(anyLong())).thenReturn(ImmutableSet.of(scopedCloudServiceOid));
+
+        // invoke the aggregator
+        final CloudCommitmentAggregator commitmentAggregator = aggregatorFactory.newAggregator(cloudTierTopology);
+        commitmentAggregator.collectCommitment(commitmentData);
+
+        final CloudCommitmentAggregate actualAggregate = Iterables.getOnlyElement(commitmentAggregator.getAggregates());
+        final AggregationInfo aggregationInfo = actualAggregate.aggregationInfo();
+
+
+        // ASSERTIONS
+
+        assertThat(aggregationInfo.commitmentType(), equalTo(CloudCommitmentType.TOPOLOGY_COMMITMENT));
+        assertThat(aggregationInfo.serviceProviderOid(), equalTo(serviceProvider.getOid()));
+        assertThat(aggregationInfo.purchasingAccountOid(), equalTo(OptionalLong.of(purchasingAccount.getOid())));
+        assertThat(aggregationInfo.coverageType(), equalTo(CloudCommitmentCoverageType.COUPONS));
+
+        // Check entity scope
+        assertThat(aggregationInfo.entityScope().getScopeType(), equalTo(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT));
+        assertTrue(aggregationInfo.entityScope().hasEntityScope());
+        assertThat(aggregationInfo.entityScope().getEntityScope().getEntityOidList(), containsInAnyOrder(scopedAccountOid));
+
+        // Check location scope
+        assertThat(aggregationInfo.location().getLocationType(), equalTo(CloudCommitmentLocationType.REGION));
+        assertThat(aggregationInfo.location().getLocationOid(), equalTo(region.getOid()));
+
+        assertThat(aggregationInfo.status(), equalTo(CloudCommitmentStatus.CLOUD_COMMITMENT_STATUS_EXPIRED));
+
     }
 }

@@ -32,9 +32,9 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Aggre
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.PlatformInfo;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.TierInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.PlatformInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.TierInfo;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
@@ -44,6 +44,8 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmoun
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope.GroupScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -73,11 +75,14 @@ public class AnalysisCoverageTopologyTest {
             identityProvider, computeTierFamilyResolverFactory);
 
 
-    private final ReservedInstanceAggregateInfo riAggregateInfoA = ReservedInstanceAggregateInfo.builder()
+    private final ReservedInstanceAggregationInfo riAggregateInfoA = ReservedInstanceAggregationInfo.builder()
             .coverageType(CloudCommitmentCoverageType.COUPONS)
             .serviceProviderOid(8L)
             .purchasingAccountOid(2L)
-            .regionOid(3L)
+            .location(CloudCommitmentLocation.newBuilder()
+                    .setLocationType(CloudCommitmentLocationType.REGION)
+                    .setLocationOid(3L)
+                    .build())
             .tierInfo(TierInfo.builder()
                     .tierFamily("A")
                     .tierType(EntityType.COMPUTE_TIER)
@@ -94,17 +99,20 @@ public class AnalysisCoverageTopologyTest {
                             .build())
                     .build())
             .build();
-    private final ReservedInstanceAggregateInfo riAggregateInfoB = ReservedInstanceAggregateInfo.builder()
+    private final ReservedInstanceAggregationInfo riAggregateInfoB = ReservedInstanceAggregationInfo.builder()
             .from(riAggregateInfoA)
-            .regionOid(7L)
+            .location(CloudCommitmentLocation.newBuilder()
+                    .setLocationType(CloudCommitmentLocationType.REGION)
+                    .setLocationOid(7L)
+                    .build())
             .build();
     private final ReservedInstanceAggregate riAggregateA = ReservedInstanceAggregate.builder()
             .aggregateId(5L)
-            .aggregateInfo(riAggregateInfoA)
+            .aggregationInfo(riAggregateInfoA)
             .build();
     private final ReservedInstanceAggregate riAggregateB = ReservedInstanceAggregate.builder()
             .aggregateId(6L)
-            .aggregateInfo(riAggregateInfoB)
+            .aggregationInfo(riAggregateInfoB)
             .build();
 
     // Setup the aggregated cloud tier demand

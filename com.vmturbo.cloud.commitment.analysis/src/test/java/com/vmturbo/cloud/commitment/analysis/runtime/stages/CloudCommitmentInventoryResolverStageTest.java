@@ -123,8 +123,8 @@ public class CloudCommitmentInventoryResolverStageTest {
         StageResult<AnalysisTopology> output = cloudCommitmentInventoryResolverStage.execute(aggregateAnalysisDemand);
         Map<Long, CloudCommitmentData> cloudCommitmentDataMap = output.output().cloudCommitmentsByOid();
 
-        assert (cloudCommitmentDataMap.get(10L).spec().equals(spec1));
-        assert (cloudCommitmentDataMap.get(20L).spec().equals(spec2));
+        assert (((ReservedInstanceData)cloudCommitmentDataMap.get(10L)).spec().equals(spec1));
+        assert (((ReservedInstanceData)cloudCommitmentDataMap.get(20L)).spec().equals(spec2));
 
         ReservedInstanceData riData1 = cloudCommitmentDataMap.get(10L).asReservedInstance();
         assert (riData1.commitment().getReservedInstanceBoughtInfo().getNumBought() == 4);

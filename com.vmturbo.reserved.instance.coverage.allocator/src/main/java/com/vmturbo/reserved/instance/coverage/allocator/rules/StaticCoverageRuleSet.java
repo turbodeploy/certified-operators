@@ -6,7 +6,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.SetMultimap;
 
 import com.vmturbo.cloud.common.commitment.filter.ReservedInstanceFilter.ReservedInstanceFilterConfig;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatcherConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.EntityMatcherConfig;
@@ -31,7 +31,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.AVAILABILITY_ZONE)
+                                            .addLocations(CloudCommitmentLocationType.AVAILABILITY_ZONE)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .isPlatformFlexible(false)
                                             .isSizeFlexible(false)
@@ -43,7 +43,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.AVAILABILITY_ZONE)
+                                            .addLocations(CloudCommitmentLocationType.AVAILABILITY_ZONE)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .isPlatformFlexible(false)
                                             .isSizeFlexible(false)
@@ -55,7 +55,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.REGION)
+                                            .addLocations(CloudCommitmentLocationType.REGION)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .isPlatformFlexible(false)
                                             .build())
@@ -66,7 +66,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.REGION)
+                                            .addLocations(CloudCommitmentLocationType.REGION)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .isPlatformFlexible(false)
                                             .build())
@@ -80,7 +80,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.REGION)
+                                            .addLocations(CloudCommitmentLocationType.REGION)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
                                             .isPlatformFlexible(true)
                                             .isSizeFlexible(false)
@@ -92,7 +92,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.REGION)
+                                            .addLocations(CloudCommitmentLocationType.REGION)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
                                             .isPlatformFlexible(true)
                                             .isSizeFlexible(true)
@@ -104,7 +104,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.REGION)
+                                            .addLocations(CloudCommitmentLocationType.REGION)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .isPlatformFlexible(true)
                                             .isSizeFlexible(true)
@@ -116,7 +116,7 @@ public interface StaticCoverageRuleSet {
                                             .scope(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .build())
                                     .commitmentSelectionConfig(ReservedInstanceFilterConfig.builder()
-                                            .addLocations(CloudCommitmentLocation.REGION)
+                                            .addLocations(CloudCommitmentLocationType.REGION)
                                             .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
                                             .isPlatformFlexible(true)
                                             .isSizeFlexible(true)
@@ -138,7 +138,7 @@ public interface StaticCoverageRuleSet {
                             // Zonal match (match to tier only)
                             VirtualMachineMatcherConfig.builder()
                                     .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT, CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                                    .addLocations(CloudCommitmentLocation.AVAILABILITY_ZONE)
+                                    .addLocations(CloudCommitmentLocationType.AVAILABILITY_ZONE)
                                     .addTierMatchers(TierMatcher.TIER)
                                     .includePlatform(true)
                                     .includeTenancy(true)
@@ -146,7 +146,7 @@ public interface StaticCoverageRuleSet {
                             // Regional match
                             VirtualMachineMatcherConfig.builder()
                                     .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT, CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                                    .addLocations(CloudCommitmentLocation.REGION)
+                                    .addLocations(CloudCommitmentLocationType.REGION)
                                     .addTierMatchers(TierMatcher.TIER, TierMatcher.FAMILY)
                                     .includePlatform(true)
                                     .includeTenancy(true)
@@ -155,7 +155,7 @@ public interface StaticCoverageRuleSet {
                             // Match (Account,Tier), (Account, Family)
                             VirtualMachineMatcherConfig.builder()
                                     .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
-                                    .addLocations(CloudCommitmentLocation.REGION)
+                                    .addLocations(CloudCommitmentLocationType.REGION)
                                     .addTierMatchers(TierMatcher.TIER, TierMatcher.FAMILY)
                                     .includePlatform(false)
                                     .includeTenancy(true)
@@ -163,7 +163,7 @@ public interface StaticCoverageRuleSet {
                             // Azure can only match to billing family if RI is size-flexible
                             VirtualMachineMatcherConfig.builder()
                                     .addScopes(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
-                                    .addLocations(CloudCommitmentLocation.REGION)
+                                    .addLocations(CloudCommitmentLocationType.REGION)
                                     .addTierMatchers(TierMatcher.FAMILY)
                                     .includePlatform(false)
                                     .includeTenancy(true)

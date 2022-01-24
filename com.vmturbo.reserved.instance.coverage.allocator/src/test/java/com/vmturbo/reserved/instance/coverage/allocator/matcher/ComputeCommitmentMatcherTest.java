@@ -14,12 +14,14 @@ import com.google.common.collect.Iterables;
 import org.junit.Test;
 
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.PlatformInfo;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.TierInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.PlatformInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.TierInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope.GroupScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCommitmentMatcher.ComputeCommitmentMatcherFactory;
@@ -33,11 +35,14 @@ public class ComputeCommitmentMatcherTest {
     public void testBaseReservedInstanceMatching() {
 
         // Setup the RI aggregate
-        final ReservedInstanceAggregateInfo riAggregateInfo = ReservedInstanceAggregateInfo.builder()
+        final ReservedInstanceAggregationInfo riAggregateInfo = ReservedInstanceAggregationInfo.builder()
                 .coverageType(CloudCommitmentCoverageType.COUPONS)
                 .serviceProviderOid(7L)
                 .purchasingAccountOid(2L)
-                .regionOid(3L)
+                .location(CloudCommitmentLocation.newBuilder()
+                        .setLocationType(CloudCommitmentLocationType.REGION)
+                        .setLocationOid(3L)
+                        .build())
                 .tierInfo(TierInfo.builder()
                         .tierFamily("A")
                         .tierType(EntityType.COMPUTE_TIER)
@@ -56,7 +61,7 @@ public class ComputeCommitmentMatcherTest {
                 .build();
         final ReservedInstanceAggregate riAggregate = ReservedInstanceAggregate.builder()
                 .aggregateId(5L)
-                .aggregateInfo(riAggregateInfo)
+                .aggregationInfo(riAggregateInfo)
                 .build();
 
         // setup the matcher config
@@ -74,7 +79,7 @@ public class ComputeCommitmentMatcherTest {
 
         assertThat(coverageKey.billingFamilyId(), equalTo(OptionalLong.of(1L)));
         assertFalse(coverageKey.accountOid().isPresent());
-        assertThat(coverageKey.regionOid(), equalTo(OptionalLong.of(riAggregateInfo.regionOid())));
+        assertThat(coverageKey.regionOid(), equalTo(OptionalLong.of(riAggregateInfo.location().getLocationOid())));
 
         assertThat(coverageKey, instanceOf(ComputeCoverageKey.class));
         final ComputeCoverageKey computeKey = (ComputeCoverageKey)coverageKey;
@@ -86,11 +91,14 @@ public class ComputeCommitmentMatcherTest {
     public void testSizeInflexbileRI() {
 
         // Setup the RI aggregate
-        final ReservedInstanceAggregateInfo riAggregateInfo = ReservedInstanceAggregateInfo.builder()
+        final ReservedInstanceAggregationInfo riAggregateInfo = ReservedInstanceAggregationInfo.builder()
                 .coverageType(CloudCommitmentCoverageType.COUPONS)
                 .serviceProviderOid(7L)
                 .purchasingAccountOid(2L)
-                .regionOid(3L)
+                .location(CloudCommitmentLocation.newBuilder()
+                        .setLocationType(CloudCommitmentLocationType.REGION)
+                        .setLocationOid(3L)
+                        .build())
                 .tierInfo(TierInfo.builder()
                         .tierFamily("A")
                         .tierType(EntityType.COMPUTE_TIER)
@@ -109,7 +117,7 @@ public class ComputeCommitmentMatcherTest {
                 .build();
         final ReservedInstanceAggregate riAggregate = ReservedInstanceAggregate.builder()
                 .aggregateId(5L)
-                .aggregateInfo(riAggregateInfo)
+                .aggregationInfo(riAggregateInfo)
                 .build();
 
         // setup the matcher config

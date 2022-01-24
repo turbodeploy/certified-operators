@@ -342,6 +342,9 @@ public class CloudCommitmentAnalysisContextTest {
                 .setTopologyType(TopologyType.SOURCE)
                 .addEntityType(EntityType.COMPUTE_TIER_VALUE)
                 .addEntityType(EntityType.REGION_VALUE)
+                .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .addEntityType(EntityType.CLOUD_COMMITMENT_VALUE)
+                .addEntityType(EntityType.CLOUD_SERVICE_VALUE)
                 .addEntityType(EntityType.SERVICE_PROVIDER_VALUE)
                 .build();
 

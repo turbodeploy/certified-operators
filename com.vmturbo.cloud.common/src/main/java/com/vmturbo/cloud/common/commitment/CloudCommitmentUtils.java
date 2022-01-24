@@ -2,9 +2,13 @@ package com.vmturbo.cloud.common.commitment;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudCommitmentInfo;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
@@ -48,6 +52,36 @@ public class CloudCommitmentUtils {
             default:
                 throw new UnsupportedOperationException(
                         String.format("Cloud commitment coverage type %s is not supported", coverageType));
+        }
+    }
+
+    /**
+     * Constructs a {@link CloudCommitmentAmount}, representing the capacity of the {@code commitmentEntity}.
+     * @param commitmentEntity The cloud commitment represented as a {@link TopologyEntityDTO}.
+     * @return The capacity of the cloud commitment.
+     */
+    @Nonnull
+    public static CloudCommitmentAmount createCapacityAmount(@Nonnull TopologyEntityDTO commitmentEntity) {
+
+        Preconditions.checkArgument(commitmentEntity.getTypeSpecificInfo().hasCloudCommitmentData());
+
+        final CloudCommitmentInfo commitmentInfo = commitmentEntity.getTypeSpecificInfo().getCloudCommitmentData();
+        switch (commitmentInfo.getCommitmentCase()) {
+
+            case NUMBER_COUPONS:
+                return CloudCommitmentAmount.newBuilder()
+                        .setCoupons(commitmentInfo.getNumberCoupons())
+                        .build();
+            case SPEND:
+                return CloudCommitmentAmount.newBuilder()
+                        .setAmount(commitmentInfo.getSpend())
+                        .build();
+            case COMMODITIES_BOUGHT:
+                return CloudCommitmentAmount.newBuilder()
+                        .setCommoditiesBought(commitmentInfo.getCommoditiesBought())
+                        .build();
+            default:
+                return CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT;
         }
     }
 }

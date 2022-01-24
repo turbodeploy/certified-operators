@@ -1,5 +1,8 @@
 package com.vmturbo.cloud.common.commitment;
 
+import javax.annotation.Nonnull;
+
+import org.immutables.value.Value.Auxiliary;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 
@@ -14,7 +17,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
  */
 @HiddenImmutableImplementation
 @Immutable
-public interface ReservedInstanceData extends CloudCommitmentData<ReservedInstanceBought, ReservedInstanceSpec> {
+public interface ReservedInstanceData extends CloudCommitmentData<ReservedInstanceBought> {
 
     /**
      * {@inheritDoc}.
@@ -25,11 +28,20 @@ public interface ReservedInstanceData extends CloudCommitmentData<ReservedInstan
         return commitment().getId();
     }
 
+
     /**
-     * {@inheritDoc}.
+     * The RI specification.
+     * @return The RI specification.
+     */
+    @Auxiliary
+    @Nonnull
+    ReservedInstanceSpec spec();
+
+    /**
+     * The {@link #spec()} ID.
+     * @return The {@link #spec()} ID.
      */
     @Derived
-    @Override
     default long specId() {
         return spec().getId();
     }
@@ -43,6 +55,9 @@ public interface ReservedInstanceData extends CloudCommitmentData<ReservedInstan
         return CloudCommitmentType.RESERVED_INSTANCE;
     }
 
+    /**
+     * {@inheritDoc}.
+     */
     @Derived
     @Override
     default CloudCommitmentAmount capacity() {
@@ -58,6 +73,7 @@ public interface ReservedInstanceData extends CloudCommitmentData<ReservedInstan
      * Constructs and returns a new {@link Builder} instance.
      * @return The newly constructed builder instance.
      */
+    @Nonnull
     static Builder builder() {
         return new Builder();
     }

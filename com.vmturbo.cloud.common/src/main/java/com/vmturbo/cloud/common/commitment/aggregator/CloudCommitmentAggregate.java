@@ -36,7 +36,7 @@ public interface CloudCommitmentAggregate {
      * The info used to aggregate the commitments.
      * @return The info used to aggregate the commitments.
      */
-    AggregateInfo aggregateInfo();
+    AggregationInfo aggregationInfo();
 
     /**
      * The set of commitments contained within this aggregate. In the case of identity aggregation,
@@ -44,7 +44,7 @@ public interface CloudCommitmentAggregate {
      * @return The set of commitments contained within this aggregate.
      */
     @Auxiliary
-    Set<? extends CloudCommitmentData> commitments();
+    Set<? extends CloudCommitmentData<?>> commitments();
 
     /**
      * The commitment capacity of this aggregate.
@@ -97,7 +97,7 @@ public interface CloudCommitmentAggregate {
      */
     @Derived
     default CloudCommitmentType commitmentType() {
-        return aggregateInfo().commitmentType();
+        return aggregationInfo().commitmentType();
     }
 
     /**
@@ -114,8 +114,6 @@ public interface CloudCommitmentAggregate {
      * Converts this aggregate to a {@link ReservedInstanceAggregate}.
      * @return This aggregate, as a {@link ReservedInstanceAggregate} instance.
      */
-    @Auxiliary
-    @Derived
     default ReservedInstanceAggregate asReservedInstanceAggregate() {
         return (ReservedInstanceAggregate)this;
     }

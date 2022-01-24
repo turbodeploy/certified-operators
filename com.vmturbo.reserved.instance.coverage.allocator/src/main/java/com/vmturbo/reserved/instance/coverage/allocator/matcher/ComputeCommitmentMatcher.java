@@ -11,10 +11,13 @@ import com.google.common.base.Preconditions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.aggregator.AggregationInfo;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 
 /**
@@ -40,50 +43,59 @@ public class ComputeCommitmentMatcher implements CommitmentMatcher {
         Preconditions.checkNotNull(commitmentAggregate);
 
         final Set<CoverageKey> keySet = new HashSet<>();
+
+        final ComputeCoverageKey.Builder keyBuilder = ComputeCoverageKey.builder();
+
+        final CloudCommitmentLocation commitmentLocation = commitmentAggregate.aggregationInfo().location();
+        if (commitmentLocation.getLocationType() == CloudCommitmentLocationType.REGION) {
+            keyBuilder.regionOid(commitmentLocation.getLocationOid());
+        } else if (commitmentLocation.getLocationType() == CloudCommitmentLocationType.AVAILABILITY_ZONE) {
+            keyBuilder.zoneOid(commitmentLocation.getLocationOid());
+        }
+
         if (commitmentAggregate.isReservedInstance()) {
             final ReservedInstanceAggregate riAggregate = commitmentAggregate.asReservedInstanceAggregate();
-            final ReservedInstanceAggregateInfo aggregateInfo = riAggregate.aggregateInfo();
+            final ReservedInstanceAggregationInfo riAggregateInfo = riAggregate.aggregationInfo();
 
-            final ComputeCoverageKey.Builder keyBuilder = ComputeCoverageKey.builder()
-                    .tenancy(aggregateInfo.tenancy())
-                    .regionOid(aggregateInfo.regionOid())
-                    .zoneOid(aggregateInfo.zoneOid());
+            // set the tenancy
+            keyBuilder.tenancy(riAggregateInfo.tenancy());
 
             // add tier info
-            aggregateInfo.tierInfo().tierFamily().ifPresent(keyBuilder::tierFamily);
-            if (!aggregateInfo.tierInfo().isSizeFlexible()) {
-                keyBuilder.tierOid(aggregateInfo.tierInfo().tierOid());
+            riAggregateInfo.tierInfo().tierFamily().ifPresent(keyBuilder::tierFamily);
+            if (!riAggregateInfo.tierInfo().isSizeFlexible()) {
+                keyBuilder.tierOid(riAggregateInfo.tierInfo().tierOid());
             }
 
             // add platform info
-            if (!aggregateInfo.platformInfo().isPlatformFlexible()) {
-                keyBuilder.platform(aggregateInfo.platformInfo().platform());
+            if (!riAggregateInfo.platformInfo().isPlatformFlexible()) {
+                keyBuilder.platform(riAggregateInfo.platformInfo().platform());
             }
+        }
 
-            // Add account scope, if required
-            final CloudCommitmentEntityScope commitmentScope = aggregateInfo.entityScope();
-            if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP
-                    && commitmentScope.getScopeType() != CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP ) {
-                logger.error("Mismatch in scope configuration. Scope is configured to match against "
-                                + "billing family, but commitment is not shared (Commitment Aggregate ID={})",
-                        commitmentAggregate.aggregateId());
-            } else {
-                if (commitmentScope.getScopeType() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
+        final AggregationInfo aggregateInfo = commitmentAggregate.aggregationInfo();
+        // Add account scope, if required
+        final CloudCommitmentEntityScope commitmentScope = aggregateInfo.entityScope();
+        if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP
+                && commitmentScope.getScopeType() != CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP ) {
+            logger.error("Mismatch in scope configuration. Scope is configured to match against "
+                            + "billing family, but commitment is not shared (Commitment Aggregate ID={})",
+                    commitmentAggregate.aggregateId());
+        } else {
+            if (commitmentScope.getScopeType() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
 
-                    if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
-                        // Add the billing family ID
-                        keyBuilder.billingFamilyId(commitmentScope.getGroupScope().getGroupId(0));
-                    } else {
-                        keyBuilder.accountOid(aggregateInfo.purchasingAccountOid());
-                    }
-
-                    keySet.add(keyBuilder.build());
-                } else { // must be account scoped RI for account matching
-                    commitmentScope.getEntityScope().getEntityOidList().forEach(scopedAccountOid -> {
-                        keyBuilder.accountOid(scopedAccountOid);
-                        keySet.add(keyBuilder.build());
-                    });
+                if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
+                    // Add the billing family ID
+                    keyBuilder.billingFamilyId(commitmentScope.getGroupScope().getGroupId(0));
+                } else {
+                    keyBuilder.accountOid(aggregateInfo.purchasingAccountOid());
                 }
+
+                keySet.add(keyBuilder.build());
+            } else { // must be account scoped RI for account matching
+                commitmentScope.getEntityScope().getEntityOidList().forEach(scopedAccountOid -> {
+                    keyBuilder.accountOid(scopedAccountOid);
+                    keySet.add(keyBuilder.build());
+                });
             }
         }
 

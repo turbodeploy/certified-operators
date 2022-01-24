@@ -17,7 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCoverageKey;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCoverageKey.Builder;
@@ -102,13 +102,10 @@ public class DefaultCoverageEntityMatcher implements CoverageEntityMatcher {
             }
 
             // Add location scoping info
-            if (config.location() == CloudCommitmentLocation.REGION) {
+            if (config.location() == CloudCommitmentLocationType.REGION) {
                 keyBuilder.regionOid(aggregationInfo.regionOid());
-            } else if (config.location() == CloudCommitmentLocation.AVAILABILITY_ZONE) {
-                keyBuilder.regionOid(aggregationInfo.regionOid());
-                // If the zone isn't available, we'll just fall back to matching the entity
-                // to only regional commitments
-                keyBuilder.zoneOid(aggregationInfo.zoneOid());
+            } else if (config.location() == CloudCommitmentLocationType.AVAILABILITY_ZONE) {
+                keyBuilder.zoneOid(aggregationInfo.zoneOid().orElse(-1));
             }
 
             // Add compute tier info
@@ -219,7 +216,7 @@ public class DefaultCoverageEntityMatcher implements CoverageEntityMatcher {
          * @return The location matcher.
          */
         @Nonnull
-        CloudCommitmentLocation location();
+        CloudCommitmentLocationType location();
 
         /**
          * How to match the scope (billing family, account, etc) to a cloud commitment.

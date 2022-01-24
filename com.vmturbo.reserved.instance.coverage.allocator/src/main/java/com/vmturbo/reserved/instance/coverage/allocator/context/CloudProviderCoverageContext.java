@@ -107,7 +107,7 @@ public class CloudProviderCoverageContext {
             // For RIs, the CSP is determined through the associated tier, given the
             // RIs may not be aggregated by purchasing account (if they are scoped to accounts
             // outside of their purchasing account)
-            final long serviceProviderOid = commitmentAggregate.aggregateInfo().serviceProviderOid();
+            final long serviceProviderOid = commitmentAggregate.aggregationInfo().serviceProviderOid();
             coverageTopology.getServiceProviderInfo(serviceProviderOid).ifPresent(serviceProviderInfo ->
                     contextBuildersByProvider.computeIfAbsent(serviceProviderInfo, (csp) ->
                             CloudProviderCoverageContext.newBuilder()

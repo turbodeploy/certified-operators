@@ -10,9 +10,8 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 /**
  * A wrapper class for pairing a commitment with its specification.
  * @param <CommitmentTypeT> The contained cloud commitment type.
- * @param <SpecificationTypeT> The contained commitment specification type.
  */
-public interface CloudCommitmentData<CommitmentTypeT, SpecificationTypeT> {
+public interface CloudCommitmentData<CommitmentTypeT> {
 
     /**
      * The cloud commitment.
@@ -27,20 +26,6 @@ public interface CloudCommitmentData<CommitmentTypeT, SpecificationTypeT> {
      * @return The commitment ID.
      */
     long commitmentId();
-
-    /**
-     * The commitment specification.
-     * @return The commitment specification.
-     */
-    @Auxiliary
-    @Nonnull
-    SpecificationTypeT spec();
-
-    /**
-     * The commitment specification ID.
-     * @return The commitment specification ID.
-     */
-    long specId();
 
     /**
      * The commitment capacity.
@@ -64,5 +49,15 @@ public interface CloudCommitmentData<CommitmentTypeT, SpecificationTypeT> {
     @Nonnull
     default ReservedInstanceData asReservedInstance() {
         return (ReservedInstanceData)this;
+    }
+
+    /**
+     * Converts this {@link CloudCommitmentData} to {@link TopologyCommitmentData}. A {@link ClassCastException}
+     * should be expected, if {@link #type()} is not {@link CloudCommitmentType#TOPOLOGY_COMMITMENT}.
+     * @return This instance, as a {@link TopologyCommitmentData}.
+     */
+    @Nonnull
+    default TopologyCommitmentData asTopologyCommitment() {
+        return (TopologyCommitmentData)this;
     }
 }

@@ -9,12 +9,16 @@ import "CommonDTO.proto";
 
 enum CloudCommitmentType {
     RESERVED_INSTANCE = 1;
+    TOPOLOGY_COMMITMENT = 2;
 }
 
-enum CloudCommitmentLocation {
+enum CloudCommitmentLocationType {
     AVAILABILITY_ZONE = 1;
     REGION = 2;
     GLOBAL = 3;
+
+
+    CLOUD_COMMITMENT_LOCATION_UNKNOWN = 2047;
 }
 
 enum CloudCommitmentCoverageType {
@@ -49,6 +53,7 @@ message CloudCommitmentAmount {
         common_dto.EntityDTO.CloudCommitmentData.CommittedCommoditiesBought commodities_bought = 3;
     }
 }
+
 
 enum CloudCommitmentCoverageGroupBy {
     COMMITMENT_COVERAGE_GROUP_BY_ACCOUNT = 1;
@@ -176,4 +181,11 @@ message CloudCommitmentEntityScope {
     message GroupScope {
         repeated int64 group_id = 1;
     }
+}
+
+message CloudCommitmentLocation {
+
+    optional CloudCommitmentLocationType location_type = 1 [default = CLOUD_COMMITMENT_LOCATION_UNKNOWN];
+
+    optional int64 location_oid = 2;
 }

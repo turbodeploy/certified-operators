@@ -275,7 +275,15 @@ public class CloudCommitmentAnalysisContext {
 
         final Set<Integer> entityTypes = ImmutableSet.of(
                 EntityType.COMPUTE_TIER_VALUE,
+                // Required for commitment location scope
                 EntityType.REGION_VALUE,
+                // Required for entity scope of account-scoped commitments, as well
+                // as resolving purchasing accounts
+                EntityType.BUSINESS_ACCOUNT_VALUE,
+                // Required for cloud commitment aggregator
+                EntityType.CLOUD_COMMITMENT_VALUE,
+                // Required for entity scope resolution of cloud services
+                EntityType.CLOUD_SERVICE_VALUE,
                 EntityType.SERVICE_PROVIDER_VALUE);
 
         final Stream<TopologyEntityDTO> entities =
