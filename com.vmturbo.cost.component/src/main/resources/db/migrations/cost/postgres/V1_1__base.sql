@@ -1,4 +1,4 @@
-
+-- This base migration contains all the DDL changes from all the mariadb migration until V1_75
 -- The account_expenses table contains the latest record for each expense_date, associated_entity_id,
 -- and associated_account_id. We assume that given two records that represent the spent
 -- on the same cloud service/compute tier in a specific account on the same date, the recent record
@@ -418,13 +418,13 @@ CREATE TABLE IF NOT EXISTS entity_cost (
     account_id bigint DEFAULT '0',
     region_id bigint DEFAULT '0',
     availability_zone_id bigint DEFAULT '0',
-    PRIMARY KEY (associated_entity_id, created_time, cost_type, cost_source)
+    PRIMARY KEY (created_time, associated_entity_id, cost_type, cost_source)
 );
 
-CREATE INDEX IF NOT EXISTS ec_ct ON entity_cost(created_time);
 CREATE INDEX IF NOT EXISTS entity_cost_account_id_index ON entity_cost(account_id);
 CREATE INDEX IF NOT EXISTS entity_cost_region_id_index ON entity_cost(region_id);
 CREATE INDEX IF NOT EXISTS entity_cost_availability_zone_id_index ON entity_cost(availability_zone_id);
+CREATE INDEX IF NOT EXISTS idx_entity_cost_associated_entity_id on entity_cost(associated_entity_id);
 
 CREATE TABLE IF NOT EXISTS entity_cost_by_day (
     associated_entity_id bigint NOT NULL,
@@ -849,9 +849,9 @@ CREATE TABLE IF NOT EXISTS reserved_instance_utilization_latest (
     hour_key                           VARCHAR(32),
     day_key                            VARCHAR(32),
     month_key                          VARCHAR(32),
-    PRIMARY KEY (id, snapshot_time)
+    PRIMARY KEY (snapshot_time, id)
 );
-CREATE INDEX IF NOT EXISTS riul_st ON reserved_instance_utilization_latest(snapshot_time);
+CREATE INDEX IF NOT EXISTS idx_reserved_instance_utilization_latest_id on reserved_instance_utilization_latest(id);
 
 CREATE TABLE IF NOT EXISTS reserved_instance_utilization_by_hour (
     -- The time of last update.
@@ -979,9 +979,9 @@ CREATE TABLE IF NOT EXISTS reserved_instance_coverage_latest (
     hour_key                           VARCHAR(32)     NOT NULL,
     day_key                            VARCHAR(32)     NOT NULL,
     month_key                          VARCHAR(32)     NOT NULL,
-    PRIMARY KEY (entity_id, snapshot_time)
+    PRIMARY KEY (snapshot_time, entity_id)
 );
-CREATE INDEX IF NOT EXISTS ricl_st ON reserved_instance_coverage_latest(snapshot_time);
+CREATE INDEX IF NOT EXISTS idx_reserved_instance_coverage_latest_entity_id on reserved_instance_coverage_latest(entity_id);
 
 CREATE TABLE IF NOT EXISTS reserved_instance_coverage_by_hour (
     snapshot_time                      TIMESTAMP       NOT NULL DEFAULT '0001-01-01 00:00:00',
