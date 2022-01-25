@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupAndLicencePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MustRunTogetherPolicy;
@@ -118,6 +119,12 @@ public class DiscoveredPoliciesMapper {
                     // for now we are assuming that every buyer_buyer anti-affinity is on hosts
                     .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .build()).build());
+            case ConstraintType.LICENSE_VALUE:
+                return Optional.of(builder.setBindToGroupAndLicense(BindToGroupAndLicencePolicy
+                        .newBuilder()
+                        .setConsumerGroupId(buyersId)
+                        .setProviderGroupId(sellersId)
+                        .build()).build());
             default: {
                 logger.warn("Constraint type " + spec.getConstraintType() + " is not supported");
                 return Optional.empty();

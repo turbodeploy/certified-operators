@@ -12,6 +12,7 @@ import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupCons
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STORAGE_INTERPRETED_CLUSTER;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TOPOLOGY;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -63,6 +64,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
@@ -550,5 +552,81 @@ public class DiscoveredGroupUploaderTest {
         when(targetStore.getAll()).thenReturn(targetsList2);
 
         assertTrue(recorderSpy.isFabricTargetPresent());
+    }
+
+
+    /**
+     * Test the conversion of groups with license placement policy to discovered policy.
+     */
+    @Test
+    public void testConvertLicenseToPolicy() {
+        // ACT
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID,
+                Arrays.asList(DiscoveredGroupConstants.LICENSE_CONSUMER_DTO,
+                        DiscoveredGroupConstants.LICENSE_PROVIDER_DTO));
+
+        // ASSERT
+        final List<DiscoveredPolicyInfo> policyInfos = getPoliciesOfTarget(TARGET_ID);
+        final List<DiscoveredSettingPolicyInfo> settingPolicyInfos =
+                getSettingPoliciesOfTarget(TARGET_ID);
+
+        assertThat(policyInfos.size(), is(1));
+        final DiscoveredPolicyInfo discoveredPolicyInfo = policyInfos.get(0);
+        assertThat(discoveredPolicyInfo.getSellersGroupStringId(), is("0-SG-const-111"));
+        assertThat(discoveredPolicyInfo.getBuyersGroupStringId(), is("0-BG-const-111"));
+        assertThat(discoveredPolicyInfo.getConstraintType(),
+                is(GroupDTO.ConstraintType.LICENSE_VALUE));
+        assertThat(discoveredPolicyInfo.getPolicyDisplayName(),
+                is(DiscoveredGroupConstants.DISPLAY_NAME));
+
+        assertTrue(settingPolicyInfos.isEmpty());
+    }
+
+
+    /**
+     * Test the conversion of groups with a setting policy associated with it that specifies
+     * vcpu resize min/max thresholds.
+     */
+    @Test
+    public void testConvertVcpuResizeThresholdSettingPolicy() {
+        // ACT
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID,
+                Arrays.asList(DiscoveredGroupConstants.VCPU_RESIZE_THRESHOLD_DTO));
+
+        // ASSERT
+        final List<DiscoveredPolicyInfo> policyInfos = getPoliciesOfTarget(TARGET_ID);
+        final List<DiscoveredSettingPolicyInfo> settingPolicyInfos =
+                getSettingPoliciesOfTarget(TARGET_ID);
+
+        assertThat(settingPolicyInfos.size(), is(1));
+        final DiscoveredSettingPolicyInfo policySettingInfo = settingPolicyInfos.get(0);
+        assertThat(policySettingInfo.getName(), is("SET:group:1"));
+        assertThat(policySettingInfo.getEntityType(), is(EntityType.VIRTUAL_MACHINE_VALUE));
+        assertThat(policySettingInfo.getDiscoveredGroupNamesCount(), is(1));
+        assertThat(policySettingInfo.getDiscoveredGroupNames(0), is("0-group"));
+        assertThat(policySettingInfo.getDisplayName(),
+                is("Freedom is slavery. - Setting policy (target 1)"));
+        assertThat(policySettingInfo.getSettingsCount(), is(2));
+        final Optional<SettingProto.Setting> minSetting = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs
+                        .ResizeVcpuMinThreshold
+                        .getSettingName()))
+                .findAny();
+        assertTrue(minSetting.isPresent());
+        assertThat((double)minSetting.get().getNumericSettingValue().getValue(),
+                closeTo(4.0, 0.001));
+
+        final Optional<SettingProto.Setting> maxSetting = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs
+                        .ResizeVcpuMaxThreshold
+                        .getSettingName()))
+                .findAny();
+        assertTrue(maxSetting.isPresent());
+        assertThat((double)maxSetting.get().getNumericSettingValue().getValue(),
+                closeTo(16.0, 0.001));
+
+        assertTrue(policyInfos.isEmpty());
     }
 }

@@ -69,6 +69,7 @@ public class GroupProtoUtil {
         ConstraintType.BUYER_BUYER_ANTI_AFFINITY,
         ConstraintType.BUYER_SELLER_AFFINITY,
         ConstraintType.BUYER_SELLER_ANTI_AFFINITY,
+        ConstraintType.LICENSE,
         ConstraintType.CLUSTER
     );
 
@@ -169,10 +170,12 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Given a {@link CommonDTO.GroupDTO}, extract its id properly. "group_name" is preferred if
-     * if it is available. If not, then it falls back to "constraint_id". For some special
+     * Given a {@link CommonDTO.GroupDTO}, extract its id properly. "group_name" is used if
+     * is is provided group info field. If not, then it will "constraint_id" if group info
+     * is set with {@link ConstraintInfo}. For some special
      * placement constraint types, there may be two groups (buyer group and seller group) with
-     * same constraint_id. So a prefix is appended in this case.
+     * same constraint_id. So a prefix is appended in this case. If the group info is setting policy
+     * then the group name in that message is used.
      *
      * This function is used when creating discovered groups and populating group members. The id
      * included in the parent group's members list is the "constraint_id" (not constraint_name)
@@ -185,25 +188,32 @@ public class GroupProtoUtil {
      */
     @Nonnull
     public static String extractId(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
-        if (sdkDTO.hasGroupName()) {
-            return sdkDTO.getGroupName();
-        } else if (sdkDTO.hasConstraintInfo()) {
-            final ConstraintInfo constraintInfo = sdkDTO.getConstraintInfo();
-            if (constraintInfo.hasConstraintId()) {
-                // add prefix for placement constraint groups, since buyer group and seller group
-                // have same constraint id
-                if (PLACEMENT_CONSTRAINT_TYPES.contains(constraintInfo.getConstraintType())) {
-                    final String prefix = constraintInfo.getIsBuyer()
-                        ? BUYERS_GROUP_ID_PREFIX : SELLERS_GROUP_ID_PREFIX;
-                    return prefix + constraintInfo.getConstraintId();
+        switch (sdkDTO.getInfoCase()) {
+            case GROUP_NAME:
+                return sdkDTO.getGroupName();
+            case CONSTRAINT_INFO:
+                final ConstraintInfo constraintInfo = sdkDTO.getConstraintInfo();
+                if (constraintInfo.hasConstraintId()) {
+                    // add prefix for placement constraint groups, since buyer group and seller group
+                    // have same constraint id
+                    if (PLACEMENT_CONSTRAINT_TYPES.contains(constraintInfo.getConstraintType())) {
+                        final String prefix = constraintInfo.getIsBuyer()
+                                ? BUYERS_GROUP_ID_PREFIX : SELLERS_GROUP_ID_PREFIX;
+                        return prefix + constraintInfo.getConstraintId();
+                    } else {
+                        // use constraint id for other types, since it will be unique in the probe
+                        return constraintInfo.getConstraintId();
+                    }
                 } else {
-                    // use constraint id for other types, since it will be unique in the probe
-                    return constraintInfo.getConstraintId();
+                    throw new IllegalArgumentException("The constraint ID is not defined for group \""
+                            + sdkDTO.getDisplayName() +"\"");
                 }
-            }
+            case SETTING_POLICY:
+                return sdkDTO.getSettingPolicy().getName();
+            default:
+                throw new IllegalArgumentException("Unknown group info type \""
+                    + sdkDTO.getInfoCase() + "\" for group \"" + sdkDTO.getDisplayName() + "\"");
         }
-
-        throw new IllegalArgumentException("GroupName or ConstraintId must be present in groupDTO");
     }
 
     /**
