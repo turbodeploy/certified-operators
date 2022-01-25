@@ -246,6 +246,10 @@ public class EntitySettingsApplicatorTest {
                     createEnumSetting(EntitySettingSpecs.VcpuScalingUnits,
                                     VCPUScalingUnitsEnum.CORES);
 
+    private static final Setting CORE_SOCKET_RATIO_MODE_VCPUS =
+                    createEnumSetting(EntitySettingSpecs.VcpuScalingUnits,
+                                    VCPUScalingUnitsEnum.VCPUS);
+
     private static final Setting VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_PRESERVE =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
                                     VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE);
@@ -260,6 +264,10 @@ public class EntitySettingsApplicatorTest {
     private static final Setting CORE_SOCKET_RATIO_USER_SPECIFIED_VALUE =
                     createNumericSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketValue,
                                     3);
+
+    private static final Setting CORE_SOCKET_RATIO_VCPUS_VALUE =
+            createNumericSetting(EntitySettingSpecs.VcpuScaling_Vcpus_VcpusIncrementValue,
+                    2);
 
     private static final Setting CORE_SOCKET_RATIO_PRESERVE =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
@@ -2027,6 +2035,32 @@ public class EntitySettingsApplicatorTest {
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
                         VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_USER_SPECIFIED, CORE_SOCKET_RATIO_USER_SPECIFIED_VALUE);
+    }
+
+    /**
+     * Tests for VCPU scaling mode VCPU. Sets cpsr to 1 and increments via user specified sockets.
+     * Test where no num cpus is provided, goes with default mhz scaling.
+     */
+    @Test
+    public void testVcpuVmScalingApplicatorVCPUsModeNoNumCpus() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
+                CpuScalingPolicy.newBuilder().setCoresPerSocket(1).build(),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_VCPUS,
+                CORE_SOCKET_RATIO_VCPUS_VALUE);
+    }
+
+    /**
+     * Tests for VCPU scaling mode VCPU. Sets cpsr to 1 and increments via user specified sockets.
+     * Test where num cpus is provided, goes with proper sockets scaling
+     */
+    @Test
+    public void testVcpuVmScalingApplicatorVCPUsMode() {
+        testVCPUIncrementApplicator(5200, 10400, 5200, createVmTypeSpecificInfo(4, 2), EntityType.VIRTUAL_MACHINE,
+                CpuScalingPolicy.newBuilder().setCoresPerSocket(1).build(),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_VCPUS,
+                CORE_SOCKET_RATIO_VCPUS_VALUE);
     }
 
     @Test
