@@ -18,4 +18,9 @@ public enum VCPUScalingUnitsEnum {
      * Prefer cores or sockets in scaling.
      */
     CORES,
+
+    /**
+     * Force csr to 1 and scale in sockets. specified by VcpuScaling_Vcpus_VcpusIncrementValue.
+     */
+    VCPUS
 }

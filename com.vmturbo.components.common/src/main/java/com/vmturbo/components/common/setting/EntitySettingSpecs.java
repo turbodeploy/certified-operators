@@ -645,7 +645,13 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(1.0f, 1000.f, 1.0f), true),
 
-
+    /**
+     * VCPUs value specified by user when VCPUs mode is default increment_size.
+     */
+    VcpuScaling_Vcpus_VcpusIncrementValue("vcpuScaling_Vcpus_VcpusIncrementValue", "VCPUs value",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1.0f, 1000.f, 1.0f), true),
 
     /**
      * Virtual Memory Increment for virtual machines.
