@@ -159,6 +159,22 @@ public class ConsistentScalingHelperTest {
     }
 
     @Test
+    public void testControlledEntityWithPolicyOverlapping() {
+        // Create the consistent scaling group with controller: 50L and ControlledEntity: 51L
+        createEntity(50L);
+        createEntityWithController(51L, 50L);
+        // Create the consistent scaling group with Policy containing 51L and 52L, with Group Name Group-1
+        long[][] membership = {
+                {1L, 51L, 52L},  // Group-1: VM oid 51, 52
+        };
+        ConsistentScalingHelper csh = createConsistentScalingHelper(membership);
+        // Only 1 consistent scaling group should be created after merge the overlapped entities
+        Assert.assertEquals(1, csh.getGroups().size());
+        // The consistent group should contain 51L and 52L after merging
+        Assert.assertEquals(new HashSet<>(Arrays.asList(51L, 52L)), csh.getGroupMembers("Group-1"));
+    }
+
+    @Test
     public void testGetScalingGroup() {
         // Create test groups: Group-1: VM-1, VM-2, Group-2, VM-3
         long[][] membership = {
