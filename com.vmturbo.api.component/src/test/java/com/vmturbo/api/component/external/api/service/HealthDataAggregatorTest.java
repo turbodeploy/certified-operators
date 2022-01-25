@@ -5,16 +5,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
@@ -104,32 +99,18 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         Assert.assertEquals(checkCategory, responseDTO.getHealthCategory());
         Assert.assertEquals(HealthState.CRITICAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
-        Assert.assertEquals(4, responseItems.size());
-        AggregatedHealthResponseDTO rItem = getResponse(responseItems, TargetStatusSubcategory.DISCOVERY, HealthState.CRITICAL);
-        Assert.assertNotNull(rItem);
-        Assert.assertEquals(3, rItem.getNumberOfItems());
-        Assert.assertEquals(2, rItem.getRecommendations().size());
-        rItem = getResponse(responseItems, TargetStatusSubcategory.DISCOVERY, HealthState.NORMAL);
-        Assert.assertNotNull(rItem);
-        Assert.assertEquals(1, rItem.getNumberOfItems());
-        Assert.assertEquals(0, rItem.getRecommendations().size());
-        rItem = getResponse(responseItems, TargetStatusSubcategory.VALIDATION, HealthState.MINOR);
-        Assert.assertNotNull(rItem);
-        Assert.assertEquals(1, rItem.getNumberOfItems());
-        Assert.assertEquals(0, rItem.getRecommendations().size());
-        rItem = getResponse(responseItems, TargetStatusSubcategory.VALIDATION, HealthState.NORMAL);
-        Assert.assertNotNull(rItem);
-        Assert.assertEquals(1, rItem.getNumberOfItems());
-        Assert.assertEquals(0, rItem.getRecommendations().size());
-    }
-
-    @Nullable
-    private static AggregatedHealthResponseDTO
-            getResponse(@Nonnull List<AggregatedHealthResponseDTO> responseItems,
-                        @Nonnull TargetStatusSubcategory subCategory, @Nonnull HealthState state) {
-        return responseItems.stream()
-                        .filter(item -> subCategory.toString().equals(item.getSubcategory()))
-                        .filter(item -> state == item.getHealthState()).findFirst().orElse(null);
+        Assert.assertEquals(2, responseItems.size());
+        for (AggregatedHealthResponseDTO rItem : responseItems) {
+            if (TargetStatusSubcategory.DISCOVERY.toString().equals(rItem.getSubcategory())) {
+                Assert.assertEquals(HealthState.CRITICAL, rItem.getHealthState());
+                Assert.assertEquals(3, rItem.getNumberOfItems());
+                Assert.assertEquals(2, rItem.getRecommendations().size());
+            } else {
+                Assert.assertEquals(HealthState.MINOR, rItem.getHealthState());
+                Assert.assertEquals(1, rItem.getNumberOfItems());
+                Assert.assertEquals(0, rItem.getRecommendations().size());
+            }
+        }
     }
 
     /**
@@ -152,10 +133,7 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthState.NORMAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
-        Assert.assertEquals(1, responseItems.size());
-        AggregatedHealthResponseDTO response = responseItems.get(0);
-        Assert.assertEquals(HealthState.NORMAL, response.getHealthState());
-        Assert.assertEquals(1, response.getNumberOfItems());
+        Assert.assertEquals(0, responseItems.size());
     }
 
     /**
@@ -340,22 +318,13 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         Assert.assertEquals(HealthCategory.TARGET, responseDTO.getHealthCategory());
         Assert.assertEquals(HealthState.MINOR, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
-        Assert.assertEquals(3, responseItems.size());
+        Assert.assertEquals(1, responseItems.size());
 
-        final Map<TargetHealthSubCategory, Set<HealthState>> categoryToStates = responseItems
-                        .stream().collect(Collectors
-                                        .groupingBy(response -> TargetHealthSubCategory
-                                                        .valueOf(response.getSubcategory()),
-                                                    Collectors.mapping(AggregatedHealthResponseDTO::getHealthState,
-                                                                       Collectors.toSet())));
-        Assert.assertEquals(EnumSet.of(HealthState.MINOR, HealthState.NORMAL),
-                            categoryToStates.get(TargetHealthSubCategory.VALIDATION));
-        Assert.assertEquals(EnumSet.of(HealthState.NORMAL),
-                            categoryToStates.get(TargetHealthSubCategory.DISCOVERY));
-        for (AggregatedHealthResponseDTO subcategoryResponse : responseItems) {
-            Assert.assertEquals(1, subcategoryResponse.getNumberOfItems());
-            Assert.assertEquals(0, subcategoryResponse.getRecommendations().size());
-        }
+        AggregatedHealthResponseDTO subcategoryResponse = responseItems.get(0);
+        Assert.assertEquals(TargetStatusSubcategory.VALIDATION.toString(), subcategoryResponse.getSubcategory());
+        Assert.assertEquals(HealthState.MINOR, subcategoryResponse.getHealthState());
+        Assert.assertEquals(1, subcategoryResponse.getNumberOfItems());
+        Assert.assertEquals(0, subcategoryResponse.getRecommendations().size());
     }
 
     /**
@@ -374,9 +343,6 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
                         HealthCategory.TARGET).get(0);
         Assert.assertEquals(HealthState.NORMAL, responseDTO.getCategoryHealthState());
         List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
-        Assert.assertEquals(1, responseItems.size());
-        AggregatedHealthResponseDTO response = responseItems.get(0);
-        Assert.assertEquals(HealthState.NORMAL, response.getHealthState());
-        Assert.assertEquals(2, response.getNumberOfItems());
+        Assert.assertEquals(0, responseItems.size());
     }
 }

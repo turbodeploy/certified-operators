@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
@@ -218,64 +219,68 @@ public class HealthDataMapper {
      */
     public static @Nonnull List<AggregatedHealthResponseDTO> aggregateTargetHealthInfoToDTO(
             @Nonnull Map<Long, TargetDetails> targetsDetails) {
-        final List<AggregatedHealthResponseDTO> result = new ArrayList<>();
-        for (Map.Entry<TargetHealthSubCategory, Map<HealthCheck.HealthState, HealthAggregator>> healthByCategory : getHealthByCategory(targetsDetails)
-                        .entrySet()) {
-            final TargetHealthSubCategory subcategory = healthByCategory.getKey();
-            for (Map.Entry<HealthCheck.HealthState, HealthAggregator> entry : healthByCategory
-                            .getValue().entrySet()) {
-                final HealthCheck.HealthState state = entry.getKey();
-                final HealthAggregator health = entry.getValue();
-                final AggregatedHealthResponseDTO response = new AggregatedHealthResponseDTO(
-                                        TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(subcategory).toString(),
-                                        HEALTH_STATE_CONVERTER.get(state),
-                                        health.getCount());
-                response.addRecommendations(health.getRecommendations());
-                result.add(response);
+        Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> subcategoryStatesCounters =
+                        new EnumMap<>(TargetHealthSubCategory.class);
+        Map<TargetHealthSubCategory, Map<ErrorTypeInfoCase, Boolean>> subcategoryErrorSets =
+                        new EnumMap<>(TargetHealthSubCategory.class);
+
+        for (TargetDetails targetDetail : targetsDetails.values()) {
+            if (!targetDetail.getHidden()) {
+                // Do category analysis in update states.
+                updateStates(subcategoryStatesCounters, subcategoryErrorSets, targetDetail, targetsDetails);
             }
         }
+
+        List<AggregatedHealthResponseDTO> result = new ArrayList<>(2);
+        for (Map.Entry<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> entry
+                        : subcategoryStatesCounters.entrySet()) {
+            AggregatedHealthResponseDTO responseItem = makeResponseItem(entry.getKey(),
+                            entry.getValue(), subcategoryErrorSets.get(entry.getKey()));
+            if (HealthState.NORMAL != responseItem.getHealthState()) {
+                result.add(responseItem);
+            }
+        }
+
         return result;
     }
 
-    @Nonnull
-    private static Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, HealthAggregator>>
-            getHealthByCategory(@Nonnull Map<Long, TargetDetails> targetDetailsMap) {
-        final Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, HealthAggregator>> result = new EnumMap<>(TargetHealthSubCategory.class);
-        for (TargetDetails targetDetails : targetDetailsMap.values()) {
-            if (targetDetails.getHidden()) {
-                continue;
-            }
-            final List<TargetHealth> allMembers = new ArrayList<>();
-            final TargetHealth parentTargetHealth = targetDetails.getHealthDetails();
-            allMembers.add(parentTargetHealth);
-            allMembers.addAll(targetDetails.getDerivedList().stream()
-                            .map(targetDetailsMap::get)
-                            .filter(Objects::nonNull)
-                            .filter(TargetDetails::getHidden)
-                            .map(TargetDetails::getHealthDetails)
-                            .collect(Collectors.toList()));
-            final Pair<HealthCheck.HealthState, TargetHealthSubCategory> healthAndSubcategory =
-                            siftHealthStateAndSubcategory(parentTargetHealth, allMembers);
-            final Map<HealthCheck.HealthState, HealthAggregator> stateToHealth = result
-                            .computeIfAbsent(healthAndSubcategory.second,
-                                             k -> new EnumMap<>(HealthCheck.HealthState.class));
-            final HealthAggregator health = stateToHealth
-                            .computeIfAbsent(healthAndSubcategory.first,
-                                             k -> new HealthAggregator());
-            health.incCount();
-            for (TargetHealth member : allMembers) {
-                if (member.getHealthState() != HealthCheck.HealthState.NORMAL) {
-                    if (!member.getErrorTypeInfoList().isEmpty()) {
-                        // TODO : Roop we are only considering the first error type info at this point.
-                        final ErrorTypeInfoCase errorTypeInfoCase = member.getErrorTypeInfoList()
-                                        .get(0).getErrorTypeInfoCase();
-                        health.addErrorType(errorTypeInfoCase, member != parentTargetHealth);
-                    }
+    private static void updateStates(
+                    @Nonnull Map<TargetHealthSubCategory, Map<HealthCheck.HealthState, Integer>> subcategoryStatesCounters,
+                    @Nonnull Map<TargetHealthSubCategory, Map<ErrorTypeInfoCase, Boolean>> subcategoryErrorSets,
+                    @Nonnull TargetDetails targetDetails,
+                    @Nonnull Map<Long, TargetDetails> targetDetailsMap) {
+        TargetHealth parentTargetHealth = targetDetails.getHealthDetails();
+        List<TargetHealth> allMembers = Lists.newArrayList(parentTargetHealth);
+        allMembers.addAll(targetDetails.getDerivedList().stream()
+                        .map(targetDetailsMap::get)
+                        .filter(Objects::nonNull)
+                        .filter(TargetDetails::getHidden)
+                        .map(TargetDetails::getHealthDetails)
+                        .collect(Collectors.toList()));
+
+        Pair<HealthCheck.HealthState, TargetHealthSubCategory> healthAndSubcategory =
+                        siftHealthStateAndSubcategory(parentTargetHealth, allMembers);
+
+        Map<HealthCheck.HealthState, Integer> statesCounter = subcategoryStatesCounters.computeIfAbsent(
+                healthAndSubcategory.second, k -> new EnumMap<>(HealthCheck.HealthState.class));
+        Map<ErrorTypeInfoCase, Boolean> errorsSet = subcategoryErrorSets.computeIfAbsent(
+                healthAndSubcategory.second, k -> new EnumMap<>(ErrorTypeInfoCase.class));
+        for (TargetHealth member : allMembers) {
+            if (member.getHealthState() != HealthCheck.HealthState.NORMAL) {
+                if (!member.getErrorTypeInfoList().isEmpty()) {
+                    // TODO : Roop we are only considering the first error type info at this point.
+                    ErrorTypeInfoCase errorTypeInfoCase = member.getErrorTypeInfoList().get(0).getErrorTypeInfoCase();
+                    errorsSet.putIfAbsent(errorTypeInfoCase, member != parentTargetHealth);
+                } else if (member.getMessageText().contains("Validation pending")) {
+                    errorsSet.putIfAbsent(ErrorTypeInfoCase.INTERNAL_PROBE_ERROR_TYPE,
+                            member != parentTargetHealth);
                 }
             }
         }
-        return result;
+        int counter = statesCounter.getOrDefault(healthAndSubcategory.first, 0) + 1;
+        statesCounter.put(healthAndSubcategory.first, counter);
     }
+
 
     private static @Nonnull Pair<HealthCheck.HealthState, TargetHealthSubCategory> siftHealthStateAndSubcategory(
             @Nonnull TargetHealth parentHealth, @Nonnull List<TargetHealth> allMembers) {
@@ -305,45 +310,36 @@ public class HealthDataMapper {
         return new Pair<>(worstHealthState, worstCategory);
     }
 
+    private static AggregatedHealthResponseDTO makeResponseItem(TargetHealthSubCategory subcategory,
+                    Map<HealthCheck.HealthState, Integer> statesCounter,
+                    Map<ErrorTypeInfoCase, Boolean> errorsSet) {
+        HealthCheck.HealthState state = HealthCheck.HealthState.NORMAL;
+        if (statesCounter.containsKey(HealthCheck.HealthState.CRITICAL)) {
+            state = HealthCheck.HealthState.CRITICAL;
+        } else if (statesCounter.containsKey(HealthCheck.HealthState.MAJOR)) {
+            state = HealthCheck.HealthState.MAJOR;
+        } else if (statesCounter.containsKey(HealthCheck.HealthState.MINOR)) {
+            state = HealthCheck.HealthState.MINOR;
+        }
+        int numberOfTargets = statesCounter.getOrDefault(state, 0);
+
+        AggregatedHealthResponseDTO response = new AggregatedHealthResponseDTO(
+                        TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(subcategory).toString(),
+                        HEALTH_STATE_CONVERTER.get(state),
+                        numberOfTargets);
+        for (Map.Entry<ErrorTypeInfoCase, Boolean> entry : errorsSet.entrySet()) {
+            TargetErrorType errorType = getErrorTypeInfoConverter().get(entry.getKey());
+            boolean reportForHidden = entry.getValue();
+            String recommendationText = TARGET_ERROR_TYPE_RECOMMENDATIONS.get(errorType)
+                            + (reportForHidden ? HIDDEN_TARGET_MESSAGE_SUFFIX : "");
+            Recommendation recommendation = new Recommendation(errorType.toString(),
+                            recommendationText);
+            response.addRecommendation(recommendation);
+        }
+        return response;
+    }
+
     private static Map<ErrorTypeInfoCase, TargetErrorType> getErrorTypeInfoConverter() {
         return Collections.unmodifiableMap(ERROR_TYPE_INFO_CONVERTER);
     }
-
-    /**
-     * Health aggregator. Used to calculate health state count. Collects error type info.
-     */
-    private static class HealthAggregator {
-        private int count = 0;
-        private Map<ErrorTypeInfoCase, Boolean> errors = new EnumMap<>(ErrorTypeInfoCase.class);
-
-        public int getCount() {
-            return count;
-        }
-
-        public void incCount() {
-            count++;
-        }
-
-        public void addErrorType(ErrorTypeInfoCase errorType, boolean isForHidden) {
-            errors.putIfAbsent(errorType, isForHidden);
-        }
-
-        public List<Recommendation> getRecommendations() {
-            if (errors.isEmpty()) {
-                return Collections.emptyList();
-            }
-            List<Recommendation> result = new ArrayList<>(errors.size());
-            for (Map.Entry<ErrorTypeInfoCase, Boolean> entry : errors.entrySet()) {
-                TargetErrorType errorType = getErrorTypeInfoConverter().get(entry.getKey());
-                boolean reportForHidden = entry.getValue();
-                String recommendationText = TARGET_ERROR_TYPE_RECOMMENDATIONS.get(errorType)
-                                            + (reportForHidden ? HIDDEN_TARGET_MESSAGE_SUFFIX : "");
-                Recommendation recommendation = new Recommendation(errorType.toString(),
-                                                                   recommendationText);
-                result.add(recommendation);
-            }
-            return result;
-        }
-    }
-
 }
