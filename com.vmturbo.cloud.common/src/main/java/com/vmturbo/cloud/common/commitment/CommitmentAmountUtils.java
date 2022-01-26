@@ -2,7 +2,6 @@ package com.vmturbo.cloud.common.commitment;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 
@@ -26,13 +25,6 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
  * Utility class for working with {@link CloudCommitmentAmount}.
  */
 public class CommitmentAmountUtils {
-
-    /**
-     * Comparator for {@link CloudCommitmentAmount}. All compared amounts within a single stream must be either
-     * unset and/or of the same {@link CloudCommitmentCoverageType}. Unset amounts will be ordered first
-     * in the comparison.
-     */
-    public static final Comparator<CloudCommitmentAmount> COMMITMENT_AMOUNT_COMPARATOR = CommitmentAmountUtils::compareAmounts;
 
     /**
      * An empty {@link CloudCommitmentAmount}.

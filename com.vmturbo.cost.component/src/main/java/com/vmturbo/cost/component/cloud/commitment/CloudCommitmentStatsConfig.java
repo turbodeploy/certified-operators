@@ -20,19 +20,27 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommit
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore;
+import com.vmturbo.cost.component.cloud.commitment.coverage.CommitmentCoverageAggregator;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CoverageInfo;
 import com.vmturbo.cost.component.cloud.commitment.coverage.GsonAdaptersCoverageInfo;
 import com.vmturbo.cost.component.cloud.commitment.coverage.SQLCloudCommitmentCoverageStore;
+import com.vmturbo.cost.component.cloud.commitment.coverage.TopologyCoverageFilterApplicator;
+import com.vmturbo.cost.component.cloud.commitment.coverage.TopologyEntityCoverageFilter;
+import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilter;
+import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilterApplicator;
 import com.vmturbo.cost.component.cloud.commitment.mapping.GsonAdaptersMappingInfo;
 import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore;
+import com.vmturbo.cost.component.cloud.commitment.utilization.CommitmentUtilizationAggregator;
 import com.vmturbo.cost.component.cloud.commitment.utilization.GsonAdaptersUtilizationInfo;
 import com.vmturbo.cost.component.cloud.commitment.utilization.SQLCloudCommitmentUtilizationStore;
+import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyCommitmentUtilizationFilter;
+import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyUtilizationFilterApplicator;
 import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
-import com.vmturbo.cost.component.stores.DiagnosableSingleFieldDataStore;
+import com.vmturbo.cost.component.stores.DiagnosableDataStoreCollector;
 import com.vmturbo.cost.component.stores.InMemorySingleFieldDataStore;
 import com.vmturbo.cost.component.stores.InMemorySourceProjectedFieldsDataStore;
-import com.vmturbo.cost.component.stores.JsonDiagnosableSingleFieldDataStore;
+import com.vmturbo.cost.component.stores.JsonDiagnosableDataStoreCollector;
 import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 import com.vmturbo.cost.component.stores.SourceProjectedFieldsDataStore;
 
@@ -101,32 +109,59 @@ public class CloudCommitmentStatsConfig {
     }
 
     /**
+     * The source topology commitment utilization store.
+     * @return The source topology commitment utilization store.
+     */
+    @Nonnull
+    @Bean
+    public SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> sourceTopologyCommitmentUtilizationStore() {
+        return new InMemorySingleFieldDataStore<>(new TopologyUtilizationFilterApplicator());
+    }
+
+    /**
      * A bean for source topology commitment utilization store.
+     * @param sourceTopologyCommitmentUtilizationStore The source topology commitment utilization store.
      * @param topologyCommitmentStoreGson The topology commitment store GSON.
      * @return A bean for source topology commitment utilization store.
      */
     @Nonnull
     @Bean
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public DiagnosableSingleFieldDataStore<UtilizationInfo> sourceTopologyCommitmentUtilizationStore(
+    public DiagnosableDataStoreCollector sourceTopologyCommitmentUtilizationStoreDiagnosable(
+            @Nonnull SingleFieldDataStore<UtilizationInfo, ?> sourceTopologyCommitmentUtilizationStore,
             @Nonnull final Gson topologyCommitmentStoreGson) {
-        return new JsonDiagnosableSingleFieldDataStore<>(new InMemorySingleFieldDataStore<>(),
-                "in_memory_source_topology_commitment_utilization", topologyCommitmentStoreGson,
+        return new JsonDiagnosableDataStoreCollector<>(
+                sourceTopologyCommitmentUtilizationStore,
+                "in_memory_source_topology_commitment_utilization",
+                topologyCommitmentStoreGson,
                 UtilizationInfo.class);
     }
 
     /**
+     * The projected topology commitment utilization store.
+     * @return The projected topology commitment utilization store.
+     */
+    @Nonnull
+    @Bean
+    public SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> protectedTopologyCommitmentUtilizationStore() {
+        return new InMemorySingleFieldDataStore<>(new TopologyUtilizationFilterApplicator());
+    }
+
+    /**
      * A bean for projected topology commitment utilization store.
+     * @param protectedTopologyCommitmentUtilizationStore The projected topology commitment utilization store.
      * @param topologyCommitmentStoreGson The topology commitment store GSON.
      * @return A bean for projected topology commitment utilization store.
      */
     @Nonnull
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public DiagnosableSingleFieldDataStore<UtilizationInfo> projectedTopologyCommitmentUtilizationStore(
+    public DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStoreDiagnosable(
+            @Nonnull SingleFieldDataStore<UtilizationInfo, ?> protectedTopologyCommitmentUtilizationStore,
             @Nonnull final Gson topologyCommitmentStoreGson) {
-        return new JsonDiagnosableSingleFieldDataStore<>(new InMemorySingleFieldDataStore<>(),
-                "in_memory_projected_topology_commitment_utilization", topologyCommitmentStoreGson,
+        return new JsonDiagnosableDataStoreCollector<>(
+                protectedTopologyCommitmentUtilizationStore,
+                "in_memory_projected_topology_commitment_utilization",
+                topologyCommitmentStoreGson,
                 UtilizationInfo.class);
     }
 
@@ -141,41 +176,68 @@ public class CloudCommitmentStatsConfig {
     @Nonnull
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public SourceProjectedFieldsDataStore<UtilizationInfo> topologyCommitmentUtilizationStore(
-            @Nonnull final SingleFieldDataStore<UtilizationInfo> sourceTopologyCommitmentUtilizationStore,
-            @Nonnull final SingleFieldDataStore<UtilizationInfo> projectedTopologyCommitmentUtilizationStore) {
+    public SourceProjectedFieldsDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> topologyCommitmentUtilizationStore(
+            @Nonnull final SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> sourceTopologyCommitmentUtilizationStore,
+            @Nonnull final SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> projectedTopologyCommitmentUtilizationStore) {
         return new InMemorySourceProjectedFieldsDataStore<>(
                 sourceTopologyCommitmentUtilizationStore,
                 projectedTopologyCommitmentUtilizationStore);
     }
 
     /**
+     * The source topology commitment coverage store.
+     * @return The source topology commitment coverage store.
+     */
+    @Nonnull
+    @Bean
+    public SingleFieldDataStore<CoverageInfo, TopologyEntityCoverageFilter> sourceTopologyCommitmentCoverageStore() {
+        return new InMemorySingleFieldDataStore<>(new TopologyCoverageFilterApplicator());
+    }
+
+    /**
      * A bean for source topology commitment coverage store.
+     * @param sourceTopologyCommitmentCoverageStore The source topology commitment coverage store.
      * @param topologyCommitmentStoreGson The topology commitment store GSON.
      * @return A bean for source topology commitment coverage store.
      */
     @Nonnull
     @Bean
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public DiagnosableSingleFieldDataStore<CoverageInfo> sourceTopologyCommitmentCoverageStore(
+    public DiagnosableDataStoreCollector sourceTopologyCommitmentCoverageStoreDiagnosable(
+            @Nonnull SingleFieldDataStore<CoverageInfo, ?> sourceTopologyCommitmentCoverageStore,
             @Nonnull final Gson topologyCommitmentStoreGson) {
-        return new JsonDiagnosableSingleFieldDataStore<>(new InMemorySingleFieldDataStore<>(),
-                "in_memory_source_topology_commitment_coverage", topologyCommitmentStoreGson,
+        return new JsonDiagnosableDataStoreCollector<>(
+                sourceTopologyCommitmentCoverageStore,
+                "in_memory_source_topology_commitment_coverage",
+                topologyCommitmentStoreGson,
                 CoverageInfo.class);
     }
 
     /**
+     * The projected topology commitment coverage store.
+     * @return The projected topology commitment coverage store.
+     */
+    @Nonnull
+    @Bean
+    public SingleFieldDataStore<CoverageInfo, TopologyEntityCoverageFilter> projectedTopologyCommitmentCoverageStore() {
+        return new InMemorySingleFieldDataStore<>(new TopologyCoverageFilterApplicator());
+    }
+
+    /**
      * A bean for projected topology commitment coverage store.
+     * @param projectedTopologyCommitmentCoverageStore The projected topology commitment coverage store.
      * @param topologyCommitmentStoreGson The topology commitment store GSON.
      * @return A bean for projected topology commitment coverage store.
      */
     @Nonnull
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public DiagnosableSingleFieldDataStore<CoverageInfo> projectedTopologyCommitmentCoverageStore(
+    public DiagnosableDataStoreCollector projectedTopologyCommitmentCoverageStoreDiagnosable(
+            @Nonnull SingleFieldDataStore<CoverageInfo, ?> projectedTopologyCommitmentCoverageStore,
             @Nonnull final Gson topologyCommitmentStoreGson) {
-        return new JsonDiagnosableSingleFieldDataStore<>(new InMemorySingleFieldDataStore<>(),
-                "in_memory_projected_topology_commitment_coverage", topologyCommitmentStoreGson,
+        return new JsonDiagnosableDataStoreCollector<>(
+                projectedTopologyCommitmentCoverageStore,
+                "in_memory_projected_topology_commitment_coverage",
+                topologyCommitmentStoreGson,
                 CoverageInfo.class);
     }
 
@@ -190,40 +252,69 @@ public class CloudCommitmentStatsConfig {
     @Nonnull
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public SourceProjectedFieldsDataStore<CoverageInfo> topologyCommitmentCoverageStore(
-            @Nonnull final SingleFieldDataStore<CoverageInfo> sourceTopologyCommitmentCoverageStore,
-            @Nonnull final SingleFieldDataStore<CoverageInfo> projectedTopologyCommitmentCoverageStore) {
-        return new InMemorySourceProjectedFieldsDataStore<>(sourceTopologyCommitmentCoverageStore,
+    public SourceProjectedFieldsDataStore<CoverageInfo, TopologyEntityCoverageFilter> topologyCommitmentCoverageStore(
+            @Nonnull final SingleFieldDataStore<CoverageInfo, TopologyEntityCoverageFilter> sourceTopologyCommitmentCoverageStore,
+            @Nonnull final SingleFieldDataStore<CoverageInfo, TopologyEntityCoverageFilter> projectedTopologyCommitmentCoverageStore) {
+        return new InMemorySourceProjectedFieldsDataStore<>(
+                sourceTopologyCommitmentCoverageStore,
                 projectedTopologyCommitmentCoverageStore);
     }
 
     /**
+     * The source topology commitment mapping store.
+     * @return The source topology commitment mapping store.
+     */
+    @Nonnull
+    @Bean
+    public SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> sourceTopologyCommitmentMappingStore() {
+        return new InMemorySingleFieldDataStore<>(new CommitmentMappingFilterApplicator());
+    }
+
+    /**
      * A bean for source topology commitment mapping store.
+     * @param sourceTopologyCommitmentMappingStore The source topology commitment mapping store.
      * @param topologyCommitmentStoreGson The topology commitment store GSON.
      * @return A bean for source topology commitment mapping store.
      */
     @Nonnull
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public DiagnosableSingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore(
+    public DiagnosableDataStoreCollector sourceTopologyCommitmentMappingStoreDiagnosable(
+            @Nonnull SingleFieldDataStore<MappingInfo, ?> sourceTopologyCommitmentMappingStore,
             @Nonnull final Gson topologyCommitmentStoreGson) {
-        return new JsonDiagnosableSingleFieldDataStore<>(new InMemorySingleFieldDataStore<>(),
-                "in_memory_source_topology_commitment_mapping", topologyCommitmentStoreGson,
+        return new JsonDiagnosableDataStoreCollector<>(
+                sourceTopologyCommitmentMappingStore,
+                "in_memory_source_topology_commitment_mapping",
+                topologyCommitmentStoreGson,
                 MappingInfo.class);
     }
 
     /**
+     * The projected topology commitment mapping store.
+     * @return The projected topology commitment mapping store.
+     */
+    @Nonnull
+    @Bean
+    public SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> projectedTopologyCommitmentMappingStore() {
+        return new InMemorySingleFieldDataStore<>(new CommitmentMappingFilterApplicator());
+    }
+
+    /**
      * A bean for projected topology commitment mapping store.
+     * @param projectedTopologyCommitmentMappingStore The projected topology commitment mapping store.
      * @param topologyCommitmentStoreGson The topology commitment store GSON.
      * @return A bean for projected topology commitment mapping store.
      */
     @Nonnull
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public DiagnosableSingleFieldDataStore<MappingInfo> projectedTopologyCommitmentMappingStore(
+    public DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStoreDiagnosable(
+            @Nonnull SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> projectedTopologyCommitmentMappingStore,
             @Nonnull final Gson topologyCommitmentStoreGson) {
-        return new JsonDiagnosableSingleFieldDataStore<>(new InMemorySingleFieldDataStore<>(),
-                "in_memory_projected_topology_commitment_mapping", topologyCommitmentStoreGson,
+        return new JsonDiagnosableDataStoreCollector<>(
+                projectedTopologyCommitmentMappingStore,
+                "in_memory_projected_topology_commitment_mapping",
+                topologyCommitmentStoreGson,
                 MappingInfo.class);
     }
 
@@ -238,10 +329,11 @@ public class CloudCommitmentStatsConfig {
     @Nonnull
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public SourceProjectedFieldsDataStore<MappingInfo> topologyCommitmentMappingStore(
-            @Nonnull final SingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore,
-            @Nonnull final SingleFieldDataStore<MappingInfo> projectedTopologyCommitmentMappingStore) {
-        return new InMemorySourceProjectedFieldsDataStore<>(sourceTopologyCommitmentMappingStore,
+    public SourceProjectedFieldsDataStore<MappingInfo, CommitmentMappingFilter> topologyCommitmentMappingStore(
+            @Nonnull final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> sourceTopologyCommitmentMappingStore,
+            @Nonnull final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> projectedTopologyCommitmentMappingStore) {
+        return new InMemorySourceProjectedFieldsDataStore<>(
+                sourceTopologyCommitmentMappingStore,
                 projectedTopologyCommitmentMappingStore);
     }
 
@@ -258,33 +350,37 @@ public class CloudCommitmentStatsConfig {
     }
 
     /**
-     * A bean for {@link CloudCommitmentStatsConverter}.
-     * @return A bean for {@link CloudCommitmentStatsConverter}.
-     */
-    @Bean
-    public CloudCommitmentStatsConverter cloudCommitmentStatsConverter() {
-        return new CloudCommitmentStatsConverter();
-    }
-
-    /**
      * A bean for {@link CloudCommitmentStatsRpcService}.
      * @param topologyCommitmentCoverageStore A bean for topology commitment coverage store.
-     * @param topologyCommitmentUtilizationStore A bean for topology commitment utilization
-     *         store.
-     * @param cloudCommitmentStatsConverter The stats converter.
+     * @param topologyCommitmentUtilizationStore A bean for topology commitment utilization store.
+     * @param statsConverter The commitment stats converter.
      * @return A bean for {@link CloudCommitmentStatsRpcService}.
      */
     @Nonnull
     @Bean
     public CloudCommitmentStatsRpcService cloudCommitmentStatsRpcService(
-            @Nonnull final SourceProjectedFieldsDataStore<CoverageInfo> topologyCommitmentCoverageStore,
-            @Nonnull final SourceProjectedFieldsDataStore<UtilizationInfo> topologyCommitmentUtilizationStore,
-            @Nonnull CloudCommitmentStatsConverter cloudCommitmentStatsConverter) {
-        return new CloudCommitmentStatsRpcService(cloudCommitmentCoverageStore(),
-                cloudCommitmentUtilizationStore(), topologyCommitmentCoverageStore,
+            @Nonnull final SourceProjectedFieldsDataStore<CoverageInfo, TopologyEntityCoverageFilter> topologyCommitmentCoverageStore,
+            @Nonnull final SourceProjectedFieldsDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> topologyCommitmentUtilizationStore,
+            @Nonnull CloudCommitmentStatsConverter statsConverter) {
+        return new CloudCommitmentStatsRpcService(
+                cloudCommitmentCoverageStore(),
+                cloudCommitmentUtilizationStore(),
+                topologyCommitmentCoverageStore,
                 topologyCommitmentUtilizationStore,
-                cloudCommitmentStatsConverter,
+                statsConverter,
                 maxStatRecordsPerChunk);
+    }
+
+    /**
+     * The cloud commitment stats converter.
+     * @return The cloud commitment stats converter.
+     */
+    @Nonnull
+    @Bean
+    public CloudCommitmentStatsConverter statsConverter() {
+        return new CloudCommitmentStatsConverter(
+                new CommitmentCoverageAggregator(),
+                new CommitmentUtilizationAggregator());
     }
 
     /**

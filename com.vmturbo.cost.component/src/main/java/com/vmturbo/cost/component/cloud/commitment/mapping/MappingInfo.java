@@ -32,6 +32,14 @@ public interface MappingInfo {
     List<CloudCommitmentMapping> cloudCommitmentMappings();
 
     /**
+     * Converts this {@link MappingInfo} instance to a {@link Builder}.
+     * @return The {@link Builder} instance.
+     */
+    default Builder toBuilder() {
+        return MappingInfo.builder().from(this);
+    }
+
+    /**
      * Constructs and returns a new {@link MappingInfo.Builder} instance.
      *
      * @return The newly constructed {@link MappingInfo.Builder} instance.

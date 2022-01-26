@@ -31,10 +31,7 @@ public class CommitmentAmountCalculator {
     public static CloudCommitmentAmount subtract(@Nonnull CloudCommitmentAmount minuendAmount,
                                                  @Nonnull CloudCommitmentAmount subtrahendAmount) {
 
-        final boolean valuesSet = minuendAmount.getValueCase() != ValueCase.VALUE_NOT_SET
-                && subtrahendAmount.getValueCase() != ValueCase.VALUE_NOT_SET;
-        Preconditions.checkArgument(!valuesSet || minuendAmount.getValueCase() == subtrahendAmount.getValueCase(),
-                "The minuend and subtrahend commitment amounts must have the same value case");
+        validateTypeCompatibility(minuendAmount, subtrahendAmount);
 
         switch (minuendAmount.getValueCase()) {
 
@@ -83,10 +80,7 @@ public class CommitmentAmountCalculator {
     public static CloudCommitmentAmount sum(@Nonnull CloudCommitmentAmount amountA,
                                             @Nonnull CloudCommitmentAmount amountB) {
 
-        final boolean valuesSet = amountA.getValueCase() != ValueCase.VALUE_NOT_SET
-                && amountB.getValueCase() != ValueCase.VALUE_NOT_SET;
-        Preconditions.checkArgument(!valuesSet || amountA.getValueCase() == amountB.getValueCase(),
-                "Commitment amounts must be of the same type");
+        validateTypeCompatibility(amountA, amountB);
 
         switch (amountA.getValueCase()) {
 
@@ -186,19 +180,28 @@ public class CommitmentAmountCalculator {
         return productAmount.build();
     }
 
+    private static void validateTypeCompatibility(@Nonnull CloudCommitmentAmount amountA,
+                                                  @Nonnull CloudCommitmentAmount amountB) {
+
+        final boolean valuesSet = amountA.getValueCase() != ValueCase.VALUE_NOT_SET
+                && amountB.getValueCase() != ValueCase.VALUE_NOT_SET;
+        Preconditions.checkArgument(!valuesSet || amountA.getValueCase() == amountB.getValueCase(),
+                "Commitment amounts must be of the same type");
+    }
+
     @Nonnull
-    private static CurrencyAmount opCurrencyAmount(@Nonnull CurrencyAmount minuendAmount,
-                                                   @Nonnull CurrencyAmount subtrahendAmount,
+    private static CurrencyAmount opCurrencyAmount(@Nonnull CurrencyAmount amountA,
+                                                   @Nonnull CurrencyAmount amountB,
                                                    BinaryOperator<Double> operator) {
 
         Preconditions.checkArgument(
-                minuendAmount.hasCurrency() == subtrahendAmount.hasCurrency()
-                        && (!minuendAmount.hasCurrency() || minuendAmount.getCurrency() == subtrahendAmount.getCurrency()),
+                amountA.hasCurrency() == amountB.hasCurrency()
+                        && (!amountA.hasCurrency() || amountA.getCurrency() == amountB.getCurrency()),
                 "Currencies must match");
 
 
-        return minuendAmount.toBuilder()
-                .setAmount(operator.apply(minuendAmount.getAmount(), subtrahendAmount.getAmount()))
+        return amountA.toBuilder()
+                .setAmount(operator.apply(amountA.getAmount(), amountB.getAmount()))
                 .build();
     }
 }

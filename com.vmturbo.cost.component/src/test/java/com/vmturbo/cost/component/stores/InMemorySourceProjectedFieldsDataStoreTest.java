@@ -13,11 +13,11 @@ public class InMemorySourceProjectedFieldsDataStoreTest {
 
     private static final String SOURCE_DATA = "sourceData";
     private static final String PROJECTED_DATA = "projectedData";
-    private final DiagnosableSingleFieldDataStore<String> sourceStore = Mockito.mock(
-            DiagnosableSingleFieldDataStore.class);
-    private final DiagnosableSingleFieldDataStore<String> projectedStore = Mockito.mock(
-            DiagnosableSingleFieldDataStore.class);
-    private final InMemorySourceProjectedFieldsDataStore<String, DiagnosableSingleFieldDataStore<String>>
+    private final SingleFieldDataStore<String, Object> sourceStore = Mockito.mock(
+            SingleFieldDataStore.class);
+    private final SingleFieldDataStore<String, Object> projectedStore = Mockito.mock(
+            SingleFieldDataStore.class);
+    private final InMemorySourceProjectedFieldsDataStore<String, Object, SingleFieldDataStore<String, Object>>
             store = new InMemorySourceProjectedFieldsDataStore<>(sourceStore, projectedStore);
 
     /**

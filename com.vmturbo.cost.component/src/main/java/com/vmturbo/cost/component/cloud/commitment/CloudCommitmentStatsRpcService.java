@@ -1,16 +1,13 @@
 package com.vmturbo.cost.component.cloud.commitment;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
@@ -29,13 +26,14 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyComm
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetTopologyCommitmentUtilizationStatsResponse;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceImplBase;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore.AccountCoverageStatsFilter;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CoverageInfo;
+import com.vmturbo.cost.component.cloud.commitment.coverage.TopologyEntityCoverageFilter;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore.CloudCommitmentUtilizationStatsFilter;
+import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyCommitmentUtilizationFilter;
 import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
 import com.vmturbo.cost.component.stores.SourceProjectedFieldsDataStore;
 
@@ -54,10 +52,9 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
 
     private final int maxStatRecordsPerChunk;
 
-    private final Map<TopologyType, Supplier<Optional<UtilizationInfo>>>
-            topologyTypeToUtilizationGetter;
+    private final SourceProjectedFieldsDataStore<CoverageInfo, TopologyEntityCoverageFilter> topologyCoverageStore;
 
-    private final Map<TopologyType, Supplier<Optional<CoverageInfo>>> topologyTypeToCoverageGetter;
+    private final SourceProjectedFieldsDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> topologyUtilizationStore;
 
     /**
      * Constructs a new {@link CloudCommitmentStatsRpcService} instance.
@@ -65,15 +62,15 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
      * @param utilizationStore The cloud commitment utilization store.
      * @param topologyCoverageStore The cloud commitment topology coverage store
      * @param topologyUtilizationStore The topology commitment utilization store.
-     * @param statsConverter The commitment stats converter.
+     * @param statsConverter The converter of commitment data to stats records.
      * @param maxStatRecordsPerChunk The max number of records to return per chunk in streaming
      *                               commitment stats.
      */
     public CloudCommitmentStatsRpcService(
             @Nonnull final CloudCommitmentCoverageStore cloudCommitmentCoverageStore,
             @Nonnull final CloudCommitmentUtilizationStore utilizationStore,
-            @Nonnull final SourceProjectedFieldsDataStore<CoverageInfo> topologyCoverageStore,
-            @Nonnull final SourceProjectedFieldsDataStore<UtilizationInfo> topologyUtilizationStore,
+            @Nonnull final SourceProjectedFieldsDataStore<CoverageInfo, TopologyEntityCoverageFilter> topologyCoverageStore,
+            @Nonnull final SourceProjectedFieldsDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> topologyUtilizationStore,
             @Nonnull CloudCommitmentStatsConverter statsConverter,
             final int maxStatRecordsPerChunk) {
 
@@ -82,16 +79,9 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
         this.coverageStore = Objects.requireNonNull(cloudCommitmentCoverageStore);
         this.utilizationStore = Objects.requireNonNull(utilizationStore);
         this.maxStatRecordsPerChunk = maxStatRecordsPerChunk;
-        this.topologyTypeToUtilizationGetter = createTopologyTypeToStoreMethod(
-                topologyUtilizationStore);
+        this.topologyCoverageStore = Objects.requireNonNull(topologyCoverageStore);
+        this.topologyUtilizationStore = Objects.requireNonNull(topologyUtilizationStore);
         this.statsConverter = Objects.requireNonNull(statsConverter);
-        this.topologyTypeToCoverageGetter = createTopologyTypeToStoreMethod(topologyCoverageStore);
-    }
-
-    private <T> Map<TopologyType, Supplier<Optional<T>>> createTopologyTypeToStoreMethod(
-            @Nonnull final SourceProjectedFieldsDataStore<T> store) {
-        return ImmutableMap.of(TopologyType.TOPOLOGY_TYPE_SOURCE, store::getSourceData,
-                TopologyType.TOPOLOGY_TYPE_PROJECTED, store::getProjectedData);
     }
 
     private int getRequestedChunkSize(final int chunkSize) {
@@ -198,16 +188,21 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
     public void getTopologyCommitmentCoverage(
             final GetTopologyCommitmentCoverageStatsRequest request,
             final StreamObserver<GetTopologyCommitmentCoverageStatsResponse> responseObserver) {
-        final Supplier<Optional<CoverageInfo>> coverageGetter = topologyTypeToCoverageGetter.get(
-                request.getTopologyType());
-        if (coverageGetter != null) {
-            coverageGetter.get().ifPresent(coverageInfo ->
-                    Iterables.partition(statsConverter.convertToCoverageStats(coverageInfo), getRequestedChunkSize(request.getChunkSize()))
-                            .forEach(chunk -> responseObserver.onNext(
-                                    GetTopologyCommitmentCoverageStatsResponse.newBuilder()
-                                            .addAllCommitmentCoverageStatChunk(chunk)
-                                            .build())));
-        }
+
+        final TopologyEntityCoverageFilter coverageFilter = TopologyEntityCoverageFilter.builder()
+                .entityFilter(request.getEntityFilter())
+                .accountFilter(request.getAccountFilter())
+                .regionFilter(request.getRegionFilter())
+                .serviceProviderFilter(request.getServiceProviderFilter())
+                .build();
+
+        topologyCoverageStore.filterData(request.getTopologyType(), coverageFilter)
+                .map(coverageInfo -> statsConverter.convertToCoverageStats(coverageInfo, request.getGroupByList()))
+                .ifPresent(coverageStats -> Iterables.partition(coverageStats, getRequestedChunkSize(request.getChunkSize()))
+                        .forEach(statsChunk -> responseObserver.onNext(
+                                GetTopologyCommitmentCoverageStatsResponse.newBuilder()
+                                        .addAllCommitmentCoverageStatChunk(statsChunk)
+                                        .build())));
         responseObserver.onCompleted();
     }
 
@@ -215,20 +210,23 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
     public void getTopologyCommitmentUtilization(
             @Nonnull final GetTopologyCommitmentUtilizationStatsRequest request,
             @Nonnull final StreamObserver<GetTopologyCommitmentUtilizationStatsResponse> responseObserver) {
-        final Supplier<Optional<UtilizationInfo>> utilizationGetter =
-                topologyTypeToUtilizationGetter.get(request.getTopologyType());
-        if (utilizationGetter != null) {
-            utilizationGetter.get().ifPresent(utilizationInfo ->
-                    Iterables.partition(statsConverter.convertToUtilizationStats(utilizationInfo), getRequestedChunkSize(request.getChunkSize()))
-                            .forEach(chunk -> {
-                                final GetTopologyCommitmentUtilizationStatsResponse nextResponse =
-                                        GetTopologyCommitmentUtilizationStatsResponse.newBuilder()
-                                                .addAllCommitmentUtilizationRecordChunk(chunk)
-                                                .build();
 
-                                responseObserver.onNext(nextResponse);
-            }));
-        }
+        final TopologyCommitmentUtilizationFilter utilizationFilter = TopologyCommitmentUtilizationFilter.builder()
+                .cloudCommitmentFilter(request.getCloudCommitmentFilter())
+                .accountFilter(request.getAccountFilter())
+                .regionFilter(request.getRegionFilter())
+                .build();
+
+        topologyUtilizationStore.filterData(request.getTopologyType(), utilizationFilter)
+                .map(utilizationInfo -> statsConverter.convertToUtilizationStats(utilizationInfo, request.getGroupByList()))
+                .ifPresent(utilizationStats -> Iterables.partition(utilizationStats, getRequestedChunkSize(request.getChunkSize()))
+                        .forEach(statsChunk -> {
+                            final GetTopologyCommitmentUtilizationStatsResponse.Builder nextResponse =
+                                    GetTopologyCommitmentUtilizationStatsResponse.newBuilder()
+                                            .addAllCommitmentUtilizationRecordChunk(statsChunk);
+                            responseObserver.onNext(nextResponse.build());
+
+                        }));
         responseObserver.onCompleted();
     }
 }

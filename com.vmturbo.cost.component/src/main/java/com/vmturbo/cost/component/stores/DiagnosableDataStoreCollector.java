@@ -5,8 +5,5 @@ import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 
 /**
  * Diagnosable single field data store.
- *
- * @param <T> type of data.
  */
-public interface DiagnosableSingleFieldDataStore<T>
-        extends SingleFieldDataStore<T>, BinaryDiagnosable, BinaryDiagsRestorable<Void> {}
+public interface DiagnosableDataStoreCollector extends BinaryDiagnosable, BinaryDiagsRestorable<Void> {}

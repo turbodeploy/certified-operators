@@ -22,15 +22,12 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDi
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
-import com.vmturbo.cost.component.cloud.commitment.coverage.CoverageInfo;
-import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
-import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
-import com.vmturbo.cost.component.stores.DiagnosableSingleFieldDataStore;
+import com.vmturbo.cost.component.stores.DiagnosableDataStoreCollector;
 
 /**
  * Class for handling cost diagnostics export and import.
@@ -61,24 +58,22 @@ public class CostDiagnosticsConfig {
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<CoverageInfo> sourceTopologyCommitmentCoverageStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentCoverageStore;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<CoverageInfo> projectedTopologyCommitmentCoverageStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentCoverageStore;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<UtilizationInfo>
-            sourceTopologyCommitmentUtilizationStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentUtilizationStore;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<UtilizationInfo>
-            projectedTopologyCommitmentUtilizationStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStore;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentMappingStore;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<MappingInfo> projectedTopologyCommitmentMappingStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStore;
 
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveAllocationDemandDiags;
