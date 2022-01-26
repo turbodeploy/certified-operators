@@ -301,7 +301,7 @@ public class MarketRunner {
         boolean isPlan = analysis.getTopologyInfo().hasPlanInfo();
         long startTime = 0;
         if (!isPlan) {
-            if (!FeatureFlags.DISABLE_ANALYSIS_TIMEOUT.isEnabled()) {
+            if (FeatureFlags.ENABLE_ANALYSIS_TIMEOUT.isEnabled()) {
                 ScheduledExecutorService timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
                 logger.info("Scheduling forcestop for analysis {}", analysis.getTopologyId());
                 timeoutScheduler.schedule(() -> {
