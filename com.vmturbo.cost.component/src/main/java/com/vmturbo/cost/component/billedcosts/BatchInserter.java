@@ -51,7 +51,7 @@ public class BatchInserter implements AutoCloseable {
     // we specify the unique constraint to use for conflicts.
     private static final Map<String, UniqueKey<?>> preferredUniqueKeys = Collections.singletonMap(
             BilledCostDaily.BILLED_COST_DAILY.getName(),
-            Keys.KEY_BILLED_COST_DAILY_UNIQUE_CONSTRAINT_BILLING_ITEM);
+            Keys.KEY_BILLED_COST_DAILY_UNIQUE_DAILY_BILLING_ITEM);
 
     private final int batchSize;
     private final ExecutorService executorService;
