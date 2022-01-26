@@ -327,13 +327,12 @@ public class TargetHealthRetriever {
 
     private TargetHealth verifyDiscovery(TargetHealth.Builder targetHealthBuilder,
                     Target target, Discovery lastDiscovery) {
-        TargetHealth targetHealth = reportWhenSuccessfulDiscovery(targetHealthBuilder,
-                        target, lastDiscovery);
+        TargetHealth targetHealth = reportTargetDuplication(targetHealthBuilder, lastDiscovery);
         if (targetHealth != null) {
             return targetHealth;
         }
 
-        targetHealth = reportTargetDuplication(targetHealthBuilder, lastDiscovery);
+        targetHealth = reportWhenSuccessfulDiscovery(targetHealthBuilder, target, lastDiscovery);
         if (targetHealth != null) {
             return targetHealth;
         }
