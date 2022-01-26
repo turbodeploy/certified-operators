@@ -7,7 +7,7 @@ public enum VcpuScalingSocketsCoresPerSocketModeEnum {
     /**
      * Discovered by probe.
      */
-    PRESERVE,
+    PRESERVE_CORES_PER_SOCKET,
 
     /**
      * Specified by user in VcpuScaling_Sockets_CoresPerSocketValue setting.
