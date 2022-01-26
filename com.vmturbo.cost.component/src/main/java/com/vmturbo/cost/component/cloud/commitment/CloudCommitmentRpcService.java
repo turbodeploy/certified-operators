@@ -16,7 +16,9 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetCloudCommitm
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse.CommitmentInfoBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse.CommitmentInfoBucket.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilter;
 import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
+import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyCommitmentUtilizationFilter;
 import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
 import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 
@@ -25,8 +27,8 @@ import com.vmturbo.cost.component.stores.SingleFieldDataStore;
  */
 public class CloudCommitmentRpcService extends CloudCommitmentServiceImplBase {
 
-    private final SingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore;
-    private final SingleFieldDataStore<UtilizationInfo> sourceTopologyCommitmentUtilizationStore;
+    private final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> sourceTopologyCommitmentMappingStore;
+    private final SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> sourceTopologyCommitmentUtilizationStore;
 
     /**
      * Constructor.
@@ -37,8 +39,8 @@ public class CloudCommitmentRpcService extends CloudCommitmentServiceImplBase {
      *         utilization store.
      */
     public CloudCommitmentRpcService(
-            @Nonnull final SingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore,
-            @Nonnull final SingleFieldDataStore<UtilizationInfo> sourceTopologyCommitmentUtilizationStore) {
+            @Nonnull final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> sourceTopologyCommitmentMappingStore,
+            @Nonnull final SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> sourceTopologyCommitmentUtilizationStore) {
         this.sourceTopologyCommitmentMappingStore = sourceTopologyCommitmentMappingStore;
         this.sourceTopologyCommitmentUtilizationStore = sourceTopologyCommitmentUtilizationStore;
     }
@@ -59,11 +61,11 @@ public class CloudCommitmentRpcService extends CloudCommitmentServiceImplBase {
                 utilizationInfo -> utilizationInfo.commitmentUtilizationMap()
                         .forEach((commitmentId, scopedUtilization) ->
                             getOrCreateCommitmentInfoBucket.apply(utilizationInfo.topologyInfo())
-                                    .putCloudCommitmentUtilization(
-                                            commitmentId,
-                                            CloudCommitmentUtilizationVectors.newBuilder()
-                                                    .addAllUtilizationVector(scopedUtilization.getUtilizationVectorList())
-                                                    .build())));
+                                        .putCloudCommitmentUtilization(
+                                                commitmentId,
+                                                CloudCommitmentUtilizationVectors.newBuilder()
+                                                        .addAllUtilizationVector(scopedUtilization.getUtilizationVectorList())
+                                                        .build())));
         final GetCloudCommitmentInfoForAnalysisResponse.Builder response =
                 GetCloudCommitmentInfoForAnalysisResponse.newBuilder();
         timestampToBucket.values().forEach(response::addCommitmentBucket);

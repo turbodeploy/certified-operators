@@ -23,9 +23,10 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetCloudCommitm
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse.CommitmentInfoBucket;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilter;
 import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
+import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyCommitmentUtilizationFilter;
 import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
-import com.vmturbo.cost.component.stores.DiagnosableSingleFieldDataStore;
 import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
@@ -34,11 +35,11 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
  */
 public class CloudCommitmentRpcServiceTest {
 
-    private final SingleFieldDataStore<UtilizationInfo> utilizationStore = Mockito.mock(
-            DiagnosableSingleFieldDataStore.class);
+    private final SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> utilizationStore = Mockito.mock(
+            SingleFieldDataStore.class);
 
-    private final SingleFieldDataStore<MappingInfo> mappingStore = Mockito.mock(
-            DiagnosableSingleFieldDataStore.class);
+    private final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> mappingStore = Mockito.mock(
+            SingleFieldDataStore.class);
 
     private final CloudCommitmentRpcService service = new CloudCommitmentRpcService(mappingStore,
             utilizationStore);
@@ -66,61 +67,61 @@ public class CloudCommitmentRpcServiceTest {
     @Test
     public void testGetCloudCommitmentInfoForAnalysis() {
         Stream.of(ImmutableTriple.of(UtilizationInfo.builder()
-                                        .topologyInfo(TopologyInfo.newBuilder().setCreationTime(1234).build())
-                                        .putCommitmentUtilizationMap(1, ScopedCommitmentUtilization.newBuilder()
-                                                .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
-                                                        .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
-                                                .build()).build(),
+                        .topologyInfo(TopologyInfo.newBuilder().setCreationTime(1234).build())
+                        .putCommitmentUtilizationMap(1, ScopedCommitmentUtilization.newBuilder()
+                                .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
+                                        .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
+                                .build()).build(),
                                 MappingInfo.builder()
-                                        .topologyInfo(TopologyInfo.newBuilder().setCreationTime(123).build())
-                                        .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
-                                                .setCloudCommitmentOid(1)
-                                                .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
-                                                        .setAmount(CurrencyAmount.newBuilder().setCurrency(123)))
-                                                .build())
-                                        .build(),
-                                GetCloudCommitmentInfoForAnalysisResponse.newBuilder()
-                                        .addCommitmentBucket(CommitmentInfoBucket.newBuilder()
-                                                .setTimestampMillis(1234)
-                                                .putCloudCommitmentUtilization(1, CloudCommitmentUtilizationVectors.newBuilder()
-                                                        .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
-                                                                .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
-                                                        .build()))
-                                        .addCommitmentBucket(CommitmentInfoBucket.newBuilder()
-                                                .setTimestampMillis(123)
-                                                .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
-                                                        .setCloudCommitmentOid(1)
-                                                        .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
-                                                                .setAmount(CurrencyAmount.newBuilder()
-                                                                        .setCurrency(123)))
-                                                        .build()))
-                                        .build()), ImmutableTriple.of(UtilizationInfo.builder()
-                                        .topologyInfo(TopologyInfo.newBuilder().build())
-                                        .putCommitmentUtilizationMap(1, ScopedCommitmentUtilization.newBuilder()
-                                                .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
-                                                        .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
-                                                .build()).build(),
+                        .topologyInfo(TopologyInfo.newBuilder().setCreationTime(123).build())
+                        .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
+                                .setCloudCommitmentOid(1)
+                                .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
+                                        .setAmount(CurrencyAmount.newBuilder().setCurrency(123)))
+                                .build())
+                        .build(),
+                GetCloudCommitmentInfoForAnalysisResponse.newBuilder()
+                        .addCommitmentBucket(CommitmentInfoBucket.newBuilder()
+                                .setTimestampMillis(1234)
+                                .putCloudCommitmentUtilization(1, CloudCommitmentUtilizationVectors.newBuilder()
+                                        .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
+                                                .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
+                                        .build()))
+                        .addCommitmentBucket(CommitmentInfoBucket.newBuilder()
+                                .setTimestampMillis(123)
+                                .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
+                                        .setCloudCommitmentOid(1)
+                                        .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
+                                                .setAmount(CurrencyAmount.newBuilder()
+                                                        .setCurrency(123)))
+                                        .build()))
+                        .build()), ImmutableTriple.of(UtilizationInfo.builder()
+                        .topologyInfo(TopologyInfo.newBuilder().build())
+                        .putCommitmentUtilizationMap(1, ScopedCommitmentUtilization.newBuilder()
+                                .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
+                                        .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
+                                .build()).build(),
                                 MappingInfo.builder()
-                                        .topologyInfo(TopologyInfo.newBuilder().build())
-                                        .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
-                                                .setCloudCommitmentOid(1)
-                                                .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
-                                                        .setAmount(CurrencyAmount.newBuilder().setCurrency(123)))
-                                                .build())
-                                        .build(), GetCloudCommitmentInfoForAnalysisResponse.newBuilder()
-                                        .addCommitmentBucket(CommitmentInfoBucket.newBuilder()
-                                                .putCloudCommitmentUtilization(1, CloudCommitmentUtilizationVectors.newBuilder()
-                                                        .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
-                                                                .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
-                                                        .build())
-                                                .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
-                                                        .setCloudCommitmentOid(1)
-                                                        .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
-                                                                .setAmount(CurrencyAmount.newBuilder().setCurrency(123)))
-                                                        .build()))
-                                        .build()),
-                        ImmutableTriple.<UtilizationInfo, MappingInfo, GetCloudCommitmentInfoForAnalysisResponse>of(
-                                null, null, GetCloudCommitmentInfoForAnalysisResponse.getDefaultInstance()))
+                        .topologyInfo(TopologyInfo.newBuilder().build())
+                        .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
+                                .setCloudCommitmentOid(1)
+                                .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
+                                        .setAmount(CurrencyAmount.newBuilder().setCurrency(123)))
+                                .build())
+                        .build(), GetCloudCommitmentInfoForAnalysisResponse.newBuilder()
+                        .addCommitmentBucket(CommitmentInfoBucket.newBuilder()
+                                .putCloudCommitmentUtilization(1, CloudCommitmentUtilizationVectors.newBuilder()
+                                        .addUtilizationVector(CloudCommitmentUtilizationVector.newBuilder()
+                                                .setVectorType(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO))
+                                        .build())
+                                .addCloudCommitmentMapping(CloudCommitmentMapping.newBuilder()
+                                        .setCloudCommitmentOid(1)
+                                        .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
+                                                .setAmount(CurrencyAmount.newBuilder().setCurrency(123)))
+                                        .build()))
+                        .build()),
+                ImmutableTriple.<UtilizationInfo, MappingInfo, GetCloudCommitmentInfoForAnalysisResponse>of(
+                        null, null, GetCloudCommitmentInfoForAnalysisResponse.getDefaultInstance()))
                 .forEach(testCase -> {
                     Mockito.when(utilizationStore.getData()).thenReturn(
                             Optional.ofNullable((UtilizationInfo)testCase.getLeft()));

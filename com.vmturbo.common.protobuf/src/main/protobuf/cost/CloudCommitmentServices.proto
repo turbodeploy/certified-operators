@@ -69,7 +69,9 @@ message GetHistoricalCloudCommitmentUtilizationRequest {
     optional cloud_common.CloudCommitmentFilter cloud_commitment_filter = 6;
     optional cloud_common.ServiceProviderFilter service_provider_filter = 7;
 
-    // returned stats will always be grouped by the timestamp
+    // returned stats will always be grouped by the timestamp and coverage vector
+    // If this list is empty, all records with same (timestamp, coverage vector) will be
+    // grouped together.
     repeated cloud_commitment_dto.CloudCommitmentUtilizationGroupBy group_by = 8;
 
     // The number of stat records to return per chunk. The max value is 100.
@@ -98,7 +100,9 @@ message GetHistoricalCommitmentCoverageStatsRequest {
     optional cloud_common.AccountFilter account_filter = 6;
     optional cloud_common.ServiceProviderFilter service_provider_filter = 7;
 
-    // returned stats will always be grouped by the timestamp
+    // returned stats will always be grouped by the timestamp and coverage vector. If this
+    // list is empty, all records with the same (timestamp, coverage vector) will be grouped
+    // together.
     repeated cloud_commitment_dto.CloudCommitmentCoverageGroupBy group_by = 8;
 
     // The number of stat records to return per chunk. The max value is 100.
@@ -157,6 +161,16 @@ message GetTopologyCommitmentCoverageStatsRequest {
 
     // The topology type field is required; if not specified, the response will be empty.
     optional TopologyType topology_type = 2 [default = TOPOLOGY_TYPE_UNKNOWN];
+
+    optional cloud_common.EntityFilter entity_filter = 100;
+    optional cloud_common.RegionFilter region_filter = 101;
+    optional cloud_common.AccountFilter account_filter = 102;
+    optional cloud_common.ServiceProviderFilter service_provider_filter = 103;
+
+    // returned stats will always be grouped by the timestamp and coverage vector. If this
+    // list is empty, all records with the same (timestamp, coverage vector) will be grouped
+    // together.
+    repeated cloud_commitment_dto.CloudCommitmentCoverageGroupBy group_by = 200;
 }
 
 message GetTopologyCommitmentCoverageStatsResponse {
@@ -170,6 +184,16 @@ message GetTopologyCommitmentUtilizationStatsRequest {
 
     // The topology type field is required; if not specified, the response will be empty.
     optional TopologyType topology_type = 2 [default = TOPOLOGY_TYPE_UNKNOWN];
+
+    optional cloud_common.RegionFilter region_filter = 100;
+    optional cloud_common.AccountFilter account_filter = 101;
+    optional cloud_common.CloudCommitmentFilter cloud_commitment_filter = 102;
+    optional cloud_common.ServiceProviderFilter service_provider_filter = 103;
+
+    // returned stats will always be grouped by the timestamp and coverage vector. If this
+    // list is empty, all records with the same (timestamp, coverage vector) will be grouped
+    // together.
+    repeated cloud_commitment_dto.CloudCommitmentUtilizationGroupBy group_by = 200;
 }
 
 message GetTopologyCommitmentUtilizationStatsResponse {

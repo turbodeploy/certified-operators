@@ -9,7 +9,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Scope;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommitmentServiceController;
+import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilter;
 import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
+import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyCommitmentUtilizationFilter;
 import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
 import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 
@@ -32,8 +34,8 @@ public class CloudCommitmentConfig {
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     public CloudCommitmentRpcService cloudCommitmentRpcService(
-            @Nonnull final SingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore,
-            @Nonnull final SingleFieldDataStore<UtilizationInfo> sourceTopologyCommitmentUtilizationStore) {
+            @Nonnull final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> sourceTopologyCommitmentMappingStore,
+            @Nonnull final SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> sourceTopologyCommitmentUtilizationStore) {
         return new CloudCommitmentRpcService(sourceTopologyCommitmentMappingStore,
                 sourceTopologyCommitmentUtilizationStore);
     }

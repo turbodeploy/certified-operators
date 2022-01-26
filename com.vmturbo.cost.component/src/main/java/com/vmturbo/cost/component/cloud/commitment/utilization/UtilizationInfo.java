@@ -32,6 +32,14 @@ public interface UtilizationInfo {
     Map<Long, ScopedCommitmentUtilization> commitmentUtilizationMap();
 
     /**
+     * Converts this {@link UtilizationInfo} instance to a {@link Builder}.
+     * @return The new {@link Builder} instance.
+     */
+    default Builder toBuilder() {
+        return UtilizationInfo.builder().from(this);
+    }
+
+    /**
      * Constructs and returns a new {@link Builder} instance.
      *
      * @return The newly constructed {@link Builder} instance.

@@ -36,10 +36,19 @@ public interface CoverageInfo {
     Map<Long, ScopedCommitmentCoverage> entityCoverageMap();
 
     /**
+     * Converts this {@link CoverageInfo} to a {@link Builder} instance.
+     * @return The {@link Builder} instance.
+     */
+    default Builder toBuilder() {
+        return CoverageInfo.builder().from(this);
+    }
+
+    /**
      * Constructs and returns a new {@link CoverageInfo.Builder} instance.
      *
      * @return The newly constructed {@link CoverageInfo.Builder} instance.
      */
+    @Nonnull
     static CoverageInfo.Builder builder() {
         return new CoverageInfo.Builder();
     }
