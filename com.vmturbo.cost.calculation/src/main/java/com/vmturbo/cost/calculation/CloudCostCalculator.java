@@ -28,6 +28,7 @@ import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -92,7 +93,13 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private static final TraxNumber FULL = traxConstant(1.0, "100%");
 
-    private static final String AZURE_HYPERSCALE_DB_FAMILY_NAME = "hyperscale";
+    private static final String AZURE_DB_FAMILY_NAME_GENERAL_PURPOSE = "generalpurpose";
+    private static final String AZURE_DB_FAMILY_NAME_BUSINESS_CRITICAL = "businesscritical";
+    private static final String AZURE_DB_FAMILY_NAME_HYPERSCALE = "hyperscale";
+    private static final Set<String> AZURE_DB_FAMILIES_WITH_LOG_STORAGE_COST = ImmutableSet.of(
+            AZURE_DB_FAMILY_NAME_GENERAL_PURPOSE,
+            AZURE_DB_FAMILY_NAME_BUSINESS_CRITICAL);
+    public static final double LOG_STORAGE_COST_FACTOR = 1.3;
 
     public static final Set<Integer> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
                                         EntityType.VIRTUAL_MACHINE_VALUE,
@@ -843,8 +850,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
         final TraxNumber totalOnDemandComputeCost;
         final Optional<DatabaseTierConfig> databaseTierConfig = entityInfoExtractor.getDatabaseTierConfig(databaseTier);
+        String family = databaseTierConfig.get().family();
         if (databaseTierConfig.isPresent()) {
-            String family = databaseTierConfig.get().family();
             final TraxNumber replicaCount = getDBReplicaCount(databaseConfig, family);
             totalOnDemandComputeCost = computeBillableAmount.plus(replicaCount).compute();
         } else {
@@ -862,7 +869,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         if (!dbPriceList.getDependentPricesList().isEmpty()) {
             //add storage price
             journal.recordOnDemandCost(CostCategory.STORAGE, databaseTier,
-                    calculateRDBStorageCost(storagePrices, entity, CommodityType.STORAGE_AMOUNT),
+                    calculateRDBStorageCost(storagePrices, entity, CommodityType.STORAGE_AMOUNT, family),
                     FULL, Optional.empty());
         }
     }
@@ -870,7 +877,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     @Nonnull
     private TraxNumber getDBReplicaCount(final DatabaseConfig databaseConfig, final String family) {
         // add replica cost.
-        return trax(family.equalsIgnoreCase(AZURE_HYPERSCALE_DB_FAMILY_NAME) && databaseConfig.getHaReplicaCount() != null
+        return trax(family.equalsIgnoreCase(AZURE_DB_FAMILY_NAME_HYPERSCALE) && databaseConfig.getHaReplicaCount() != null
                         ? databaseConfig.getHaReplicaCount()
                         : 0.0,
                 "Number of Hyperscale replicas.");
@@ -917,8 +924,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 }
                 for (Entry<CommodityType, Collection<Price>> entry : storagePrices.asMap().entrySet()){
                     journal.recordOnDemandCost(CostCategory.STORAGE, dbsTier,
-                            calculateRDBStorageCost(entry.getValue(), entity,
-                                    entry.getKey()), FULL, Optional.empty());
+                            calculateRDBStorageCost(entry.getValue(), entity, entry.getKey(), Strings.EMPTY),
+                            FULL, Optional.empty());
                 }
                 Double hourlyBilledOpsValue = databaseConfig.getHourlyBilledOps();
                 if (!ioRequestsPrice.isEmpty() && Objects.nonNull(hourlyBilledOpsValue)) {
@@ -936,11 +943,13 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      *
      * @param dependentPricesList List of {@link Price} for various storage amounts.
      * @param entity          current DB entity.
+     * @param commodityType   the storage-related {@link CommodityType} being processed.
+     * @param family          the {@link DatabaseTierConfig#family} of the instance processed- only relevant for DBs.
      * @return {@link Price} final price for storage.
      */
     @Nonnull
     private Price calculateRDBStorageCost(@Nonnull final Collection<Price> dependentPricesList,
-            @Nonnull final ENTITY_CLASS entity, CommodityType commodityType) {
+            @Nonnull final ENTITY_CLASS entity, CommodityType commodityType, String family) {
         final int entityType = entityInfoExtractor.getEntityType(entity);
         final String entityTypeName = EntityType.forNumber(entityType).name();
 
@@ -995,9 +1004,16 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             logger.error("The storage tier was unable to satisfy {}: {}, {} storage requirement."
                     + "This will lead to incorrect cost calculation.", entityTypeName, entityInfoExtractor.getName(entity), commodityType);
         }
-        // final calculated storage price.
-        return Price.newBuilder().setPriceAmount(CurrencyAmount
-                .newBuilder().setAmount(totalCost.getValue()).build())
+        // Final calculated storage price. In cases when "family" is GeneralPurpose/BusinessCritical, 30% additional
+        // log storage space is added to the storage provisioned by the user. If storage capacity is 100Gb,
+        // users pay for 130Gb.
+        double totalCostValue = totalCost.getValue();
+        if (AZURE_DB_FAMILIES_WITH_LOG_STORAGE_COST.contains(family.toLowerCase())) {
+            totalCostValue *= LOG_STORAGE_COST_FACTOR;
+        }
+        return Price.newBuilder()
+                .setPriceAmount(CurrencyAmount.newBuilder()
+                        .setAmount(totalCostValue).build())
                 .setEndRangeInUnits((long)currentSize)
                 .setUnit(storageUnit).build();
     }
