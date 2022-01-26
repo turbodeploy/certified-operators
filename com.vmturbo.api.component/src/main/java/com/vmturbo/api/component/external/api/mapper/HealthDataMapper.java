@@ -30,7 +30,6 @@ import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
-import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ErrorTypeInfoCase;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ThirdPartyApiFailureErrorType;
 
@@ -151,10 +150,6 @@ public class HealthDataMapper {
         if (healthInfo.hasMessageText() && !healthInfo.getMessageText().isEmpty()) {
             result.setErrorText(healthInfo.getMessageText());
         }
-        // TODO 09/23/21: Roop remove usage of errorType here.
-        if (healthInfo.hasErrorType()) {
-            result.setErrorType(ERROR_TYPE_CONVERTER.get(healthInfo.getErrorType()));
-        }
         if (healthInfo.hasTimeOfFirstFailure()) {
             result.setTimeOfFirstFailure(DateTimeUtil.toString(healthInfo.getTimeOfFirstFailure()));
         }
@@ -162,35 +157,15 @@ public class HealthDataMapper {
             result.setTimeOfLastSuccessfulDiscovery(DateTimeUtil.toString(
                             healthInfo.getLastSuccessfulDiscoveryCompletionTime()));
         }
-        result.setTargetErrorDetails(
-                addTargetErrorDetails(healthInfo.getErrorTypeInfoList()));
-        if (TargetHealthSubCategory.DISCOVERY.equals(healthInfo.getSubcategory())) {
-            DiscoveryInfoApiDTO additionalDiscoveryInfo = new DiscoveryInfoApiDTO();
-            additionalDiscoveryInfo.setNumberOfConsecutiveFailures(healthInfo.getConsecutiveFailureCount());
-            result.setDiscoveryInfoApiDTO(additionalDiscoveryInfo);
-        } else if (TargetHealthSubCategory.DELAYED_DATA.equals(healthInfo.getSubcategory())) {
-            DelayedDataInfoApiDTO additionalDelayedDataInfo = new DelayedDataInfoApiDTO();
-            additionalDelayedDataInfo.setTimeOfCheck(DateTimeUtil.toString(healthInfo.getTimeOfCheck()));
-            additionalDelayedDataInfo.setTimeOfLastSuccessfulDiscoveryStart(
-                    DateTimeUtil.toString(healthInfo.getLastSuccessfulDiscoveryStartTime()));
-            if (healthInfo.hasLastSuccessfulIncrementalDiscoveryStartTime()) {
-                additionalDelayedDataInfo.setTimeOfLastSuccessfulIncrementalDiscoveryStart(
-                        DateTimeUtil.toString(healthInfo.getLastSuccessfulIncrementalDiscoveryStartTime()));
-            }
-            if (healthInfo.hasLastSuccessfulIncrementalDiscoveryCompletionTime()) {
-                additionalDelayedDataInfo.setTimeOfLastSuccessfulIncrementalDiscoveryFinish(
-                        DateTimeUtil.toString(healthInfo.getLastSuccessfulIncrementalDiscoveryCompletionTime()));
-            }
-            result.setDelayedDataInfoApiDTO(additionalDelayedDataInfo);
-        }
+        result.setTargetErrorDetails(addTargetErrorDetails(healthInfo));
 
         return result;
     }
 
     private static Collection<TargetErrorDetailsApiDTO> addTargetErrorDetails(
-                    @Nonnull final List<ErrorTypeInfo> healthInfoErrorDetailList) {
+                    @Nonnull final TargetHealth healthInfo) {
         final Collection<TargetErrorDetailsApiDTO> targetErrorDetailsApiDTOS = new ArrayList<>();
-        healthInfoErrorDetailList.forEach(errorTypeInfo -> {
+        healthInfo.getErrorTypeInfoList().forEach(errorTypeInfo -> {
             final TargetErrorDetailsApiDTO targetErrorDetailsApiDTO;
             final TargetErrorType targetErrorType = getErrorTypeInfoConverter().get(
                     errorTypeInfo.getErrorTypeInfoCase());
@@ -203,8 +178,31 @@ public class HealthDataMapper {
                                     thirdPartyError.getEndPoint());
 
                     break;
+                case DELAYED_DATA_ERROR_TYPE:
+                    targetErrorDetailsApiDTO = new DelayedDataInfoApiDTO();
+                    ((DelayedDataInfoApiDTO)targetErrorDetailsApiDTO).setTimeOfCheck(
+                                    DateTimeUtil.toString(healthInfo.getTimeOfCheck()));
+                    ((DelayedDataInfoApiDTO)targetErrorDetailsApiDTO).setTimeOfLastSuccessfulDiscoveryStart(
+                            DateTimeUtil.toString(healthInfo.getLastSuccessfulDiscoveryStartTime()));
+                    if (healthInfo.hasLastSuccessfulIncrementalDiscoveryStartTime()) {
+                        ((DelayedDataInfoApiDTO)targetErrorDetailsApiDTO)
+                            .setTimeOfLastSuccessfulIncrementalDiscoveryStart(
+                                DateTimeUtil.toString(healthInfo.getLastSuccessfulIncrementalDiscoveryStartTime()));
+                    }
+                    if (healthInfo.hasLastSuccessfulIncrementalDiscoveryCompletionTime()) {
+                        ((DelayedDataInfoApiDTO)targetErrorDetailsApiDTO)
+                            .setTimeOfLastSuccessfulIncrementalDiscoveryFinish(
+                                DateTimeUtil.toString(healthInfo.getLastSuccessfulIncrementalDiscoveryCompletionTime()));
+                    }
+                    break;
                 default:
-                    targetErrorDetailsApiDTO = new BaseTargetErrorDetailsApiDTO(targetErrorType);
+                    if (TargetHealthSubCategory.DISCOVERY.equals(healthInfo.getSubcategory())) {
+                        targetErrorDetailsApiDTO = new DiscoveryInfoApiDTO(targetErrorType);
+                        ((DiscoveryInfoApiDTO)targetErrorDetailsApiDTO).setNumberOfConsecutiveFailures(
+                                        healthInfo.getConsecutiveFailureCount());
+                    } else {
+                        targetErrorDetailsApiDTO = new BaseTargetErrorDetailsApiDTO(targetErrorType);
+                    }
             }
             targetErrorDetailsApiDTOS.add(targetErrorDetailsApiDTO);
         });
