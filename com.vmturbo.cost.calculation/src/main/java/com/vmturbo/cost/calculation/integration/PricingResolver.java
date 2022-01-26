@@ -8,6 +8,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 
 /**
  *  * An interface used for resolving Business Account to AccountPricingData mapping.

@@ -1,7 +1,7 @@
 package com.vmturbo.cost.component.topology.cloud.listener;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.component.topology.LiveTopologyEntitiesListener;
 
 /**

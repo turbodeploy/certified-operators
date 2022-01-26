@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;

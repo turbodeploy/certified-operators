@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 
 /**
  * An aggregator of cloud commitments, based on how commitments may be assigned to coverage entities.

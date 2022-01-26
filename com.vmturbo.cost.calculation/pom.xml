@@ -42,6 +42,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>topology-processor-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>cloud-common</artifactId>
+        </dependency>
 
         <!-- START Dependencies for cost journal serialization to readable format -->
         <dependency>
