@@ -72,43 +72,28 @@ public class NamespaceQuotaAnalysisEngine {
         EntityType.WORKLOAD_CONTROLLER_VALUE);
 
     /**
-     * {@link TopologyInfo} which determines current topology is real time or plan.
-     */
-    private final TopologyInfo topologyInfo;
-    /**
-     * Log prefix for current NamespaceQuotaAnalysisEngine based on TopologyInfo.
-     */
-    private final String logPrefix;
-
-    /**
-     * Constructor of {@link NamespaceQuotaAnalysisEngine}.
-     *
-     * @param topologyInfo Given {@link TopologyInfo} which determines current topology is real time
-     *                     or plan.
-     */
-    public NamespaceQuotaAnalysisEngine(@Nonnull final TopologyInfo topologyInfo) {
-        this.topologyInfo = topologyInfo;
-        logPrefix = String.format("%s topology [ID=%d, context=%d]:",
-                topologyInfo.getTopologyType(), topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
-    }
-
-    /**
      * Execute namespace quota analysis engine.
      *
+     * @param topologyInfo      Given {@link TopologyInfo} which determines current topology is real
+     *                          time or plan.
      * @param originalEntities  Map of entity OID to original TopologyEntityDTO.
      * @param projectedEntities Map of entity OID to projectedTopologyEntityDTO.
      * @param actions           List of actions generated from previous analysis.
      * @return List of generated namespace resizing actions.
      */
     @Nonnull
-    public NamespaceQuotaAnalysisResult execute(@Nonnull final Map<Long, TopologyEntityDTO> originalEntities,
+    public NamespaceQuotaAnalysisResult execute(@Nonnull final TopologyInfo topologyInfo,
+                                                @Nonnull final Map<Long, TopologyEntityDTO> originalEntities,
                                                 @Nonnull final Map<Long, ProjectedTopologyEntity> projectedEntities,
                                                 @Nonnull final List<Action> actions) {
         final StopWatch stopWatch = StopWatch.createStarted();
+        final String logPrefix = String.format("%s topology [ID=%d, context=%d]:",
+            topologyInfo.getTopologyType(), topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
+
         final Map<Long, Map<Integer, Float>> nsToCommCapacityChangeMap =
-            getNSToCommCapacityChangeMap(actions, projectedEntities, topologyInfo.getTopologyType() == TopologyType.PLAN);
+            getNSToCommCapacityChangeMap(logPrefix, actions, projectedEntities, topologyInfo.getTopologyType() == TopologyType.PLAN);
         final NamespaceQuotaAnalysisResult namespaceQuotaAnalysisResult =
-            generateNamespaceResizeActions(nsToCommCapacityChangeMap, originalEntities, projectedEntities);
+            generateNamespaceResizeActions(logPrefix, nsToCommCapacityChangeMap, originalEntities, projectedEntities);
         stopWatch.stop();
         logger.info("{} Finished generating {} resource quota resizing actions on {} namespaces in {} ms.",
             logPrefix, namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions().size(),
@@ -120,12 +105,14 @@ public class NamespaceQuotaAnalysisEngine {
      * Get map of namespace to capacity changes of corresponding commodities based on container
      * resizing actions.
      *
+     * @param logPrefix         Given log prefix.
      * @param actions           List of actions generated from previous analysis.
      * @param projectedEntities Map of projected topology entities.
      * @param isPlan            True if current topology is plan.
      * @return Map of namespace OID to map of capacity changes of corresponding commodities.
      */
-    private Map<Long, Map<Integer, Float>> getNSToCommCapacityChangeMap(@Nonnull final List<Action> actions,
+    private Map<Long, Map<Integer, Float>> getNSToCommCapacityChangeMap(@Nonnull final String logPrefix,
+                                                                        @Nonnull final List<Action> actions,
                                                                         @Nonnull final Map<Long, ProjectedTopologyEntity> projectedEntities,
                                                                         final boolean isPlan) {
         final Map<Long, Map<Integer, Float>> nsToCommCapacityChangeMap = new HashMap<>();
@@ -204,12 +191,14 @@ public class NamespaceQuotaAnalysisEngine {
      * quota capacity, generated quota resizing up action and update projected commodity capacity on
      * this namespace.
      *
+     * @param logPrefix                 Given log prefix.
      * @param nsToCommCapacityChangeMap Map of namespace OID to map of capacity changes of corresponding commodities.
      * @param originalEntities          Map of entity OID to original topologyEntityDTO.
      * @param projectedEntities         Map of entity OID to projectedTopologyEntity.
      * @return {@link NamespaceQuotaAnalysisResult}.
      */
-    private NamespaceQuotaAnalysisResult generateNamespaceResizeActions(@Nonnull final Map<Long, Map<Integer, Float>> nsToCommCapacityChangeMap,
+    private NamespaceQuotaAnalysisResult generateNamespaceResizeActions(@Nonnull final String logPrefix,
+                                                                        @Nonnull final Map<Long, Map<Integer, Float>> nsToCommCapacityChangeMap,
                                                                         @Nonnull final Map<Long, TopologyEntityDTO> originalEntities,
                                                                         @Nonnull final Map<Long, ProjectedTopologyEntity> projectedEntities) {
         final NamespaceQuotaAnalysisResult namespaceQuotaAnalysisResult = new NamespaceQuotaAnalysisResult();
@@ -288,23 +277,5 @@ public class NamespaceQuotaAnalysisEngine {
 
         action.setInfo(infoBuilder);
         return action.build();
-    }
-
-    /**
-     * Factory for instances of {@link NamespaceQuotaAnalysisEngine}.
-     */
-    public static class NamespaceQuotaAnalysisFactory {
-
-        /**
-         * Create a new instance of {@link NamespaceQuotaAnalysisEngine}.
-         *
-         * @param topologyInfo Given {@link TopologyInfo}.
-         * @return A new instance of {@link NamespaceQuotaAnalysisEngine}.
-         */
-        @Nonnull
-        public NamespaceQuotaAnalysisEngine newNamespaceQuotaAnalysisEngine(
-                @Nonnull final TopologyInfo topologyInfo) {
-            return new NamespaceQuotaAnalysisEngine(topologyInfo);
-        }
     }
 }

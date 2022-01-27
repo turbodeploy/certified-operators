@@ -88,13 +88,13 @@ import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
@@ -267,13 +267,10 @@ public class AnalysisTest {
         when(wastedFilesAnalysis.getActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
         when(wastedFilesAnalysis.getMbReleasedOnProvider(anyLong())).thenReturn(OptionalLong.empty());
-        final NamespaceQuotaAnalysisFactory nsQuotaAnalysisFactory =
-            mock(NamespaceQuotaAnalysisFactory.class);
-        final NamespaceQuotaAnalysisEngine nsQuotaAnalysisEngine = mock(NamespaceQuotaAnalysisEngine.class);
-        when(nsQuotaAnalysisFactory.newNamespaceQuotaAnalysisEngine(any()))
-            .thenReturn(nsQuotaAnalysisEngine);
+        final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine =
+            mock(NamespaceQuotaAnalysisEngine.class);
         final NamespaceQuotaAnalysisResult nsQuotaAnalysisResult = mock(NamespaceQuotaAnalysisResult.class);
-        when(nsQuotaAnalysisEngine.execute(any(), any(), any()))
+        when(namespaceQuotaAnalysisEngine.execute(any(), any(), any(), any()))
             .thenReturn(nsQuotaAnalysisResult);
         when(nsQuotaAnalysisResult.getNamespaceQuotaResizeActions())
                 .thenReturn(Collections.singletonList(namespaceResizeAction));
@@ -288,7 +285,7 @@ public class AnalysisTest {
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, nsQuotaAnalysisFactory,
+            wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine,
             tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
             new CommodityIdUpdater(), actionSavingsCalculatorFactory,

@@ -71,7 +71,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -182,8 +182,8 @@ public class MarketRunnerTest {
                 mock(WastedFilesAnalysisEngine.class);
             final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                     mock(BuyRIImpactAnalysisFactory.class);
-            final NamespaceQuotaAnalysisFactory namespaceQuotaAnalysisFactory =
-                mock(NamespaceQuotaAnalysisFactory.class);
+            final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine =
+                mock(NamespaceQuotaAnalysisEngine.class);
             when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
             final GroupServiceBlockingStub groupServiceGrpc =
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -196,7 +196,7 @@ public class MarketRunnerTest {
             return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                    wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
+                    wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine,
                     tierExcluderFactory, mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,

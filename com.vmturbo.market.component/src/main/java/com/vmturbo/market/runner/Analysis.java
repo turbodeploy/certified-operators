@@ -15,7 +15,10 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -25,6 +28,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.StatusRuntimeException;
 
@@ -37,6 +41,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.MarketRelatedActionsList;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -92,9 +97,8 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerClusterPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerSpecPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedEntityPostProcessor;
@@ -358,7 +362,7 @@ public class Analysis {
                     @Nonnull final MarketPriceTableFactory priceTableFactory,
                     @Nonnull final WastedFilesAnalysisEngine wastedFilesAnalysisEngine,
                     @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
-                    @Nonnull final NamespaceQuotaAnalysisFactory namespaceQuotaAnalysisFactory,
+                    @Nonnull final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
@@ -386,7 +390,7 @@ public class Analysis {
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(
                 topologyDTOs.stream());
         this.wastedFilesAnalysisEngine = wastedFilesAnalysisEngine;
-        this.namespaceQuotaAnalysisEngine = namespaceQuotaAnalysisFactory.newNamespaceQuotaAnalysisEngine(topologyInfo);
+        this.namespaceQuotaAnalysisEngine = namespaceQuotaAnalysisEngine;
         this.buyRIImpactAnalysisFactory = buyRIImpactAnalysisFactory;
         this.topologyCostCalculatorFactory = cloudCostCalculatorFactory;
         this.marketPriceTableFactory = priceTableFactory;
@@ -885,7 +889,8 @@ public class Analysis {
                     if (FeatureFlags.NAMESPACE_QUOTA_RESIZING.isEnabled()) {
                         try (TracingScope ignored = Tracing.trace("namespace_quota_resizing_analysis")) {
                             namespaceQuotaAnalysisResult =
-                                    namespaceQuotaAnalysisEngine.execute(topologyDTOs, projectedEntities, actions);
+                                    namespaceQuotaAnalysisEngine.execute(topologyInfo, topologyDTOs,
+                                            projectedEntities, actions);
                             actionPlanBuilder.addAllAction(
                                     namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions());
                         }
