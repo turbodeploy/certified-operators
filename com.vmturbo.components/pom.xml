@@ -36,7 +36,7 @@
         <!-- Integration Test Phase properties -->
         <integration-test-phase></integration-test-phase>
         <pre-integration-test-phase></pre-integration-test-phase>
-        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.4</dockerRobotImage>
+        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.5</dockerRobotImage>
         <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
         <it.fabric8.kill>30000</it.fabric8.kill>
         <it.fabric8.wait>600000</it.fabric8.wait>
@@ -162,7 +162,7 @@
                             </goals>
                             <configuration>
                                 <skip>${skipITs}</skip>
-                                <dockerHost>${dockerHost}</dockerHost>
+                                <dockerHost>${fabricateDockerHost}</dockerHost>
                                 <showLogs>true</showLogs>
                                 <images>
                                     <image>
@@ -211,7 +211,7 @@
                             </goals>
                             <configuration>
                                 <skip>${skipITs}</skip>
-                                <dockerHost>${dockerHost}</dockerHost>
+                                <dockerHost>${fabricateDockerHost}</dockerHost>
                                 <images>
                                     <image>
                                         <name>${dockerRobotImage}</name>
