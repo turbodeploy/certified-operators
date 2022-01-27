@@ -2,9 +2,9 @@ package com.vmturbo.cloud.commitment.analysis.persistence;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 
 /**
  * An interface used for defining the cloud commitment demand writer.
