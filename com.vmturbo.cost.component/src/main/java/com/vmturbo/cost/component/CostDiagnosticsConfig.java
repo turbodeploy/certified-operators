@@ -58,22 +58,22 @@ public class CostDiagnosticsConfig {
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
-    private DiagnosableDataStoreCollector sourceTopologyCommitmentCoverageStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentCoverageStoreDiagnosable;
 
     @Autowired
-    private DiagnosableDataStoreCollector projectedTopologyCommitmentCoverageStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentCoverageStoreDiagnosable;
 
     @Autowired
-    private DiagnosableDataStoreCollector sourceTopologyCommitmentUtilizationStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentUtilizationStoreDiagnosable;
 
     @Autowired
-    private DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStoreDiagnosable;
 
     @Autowired
-    private DiagnosableDataStoreCollector sourceTopologyCommitmentMappingStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentMappingStoreDiagnosable;
 
     @Autowired
-    private DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStoreDiagnosable;
 
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveAllocationDemandDiags;
@@ -147,11 +147,12 @@ public class CostDiagnosticsConfig {
                 storesToSave.add(computeTierDemandStatsConfig.riDemandStatsStore());
             }
 
-            storesToSave.addAll(Arrays.asList(sourceTopologyCommitmentCoverageStore,
-                    projectedTopologyCommitmentCoverageStore,
-                    sourceTopologyCommitmentUtilizationStore,
-                    projectedTopologyCommitmentUtilizationStore,
-                    sourceTopologyCommitmentMappingStore, projectedTopologyCommitmentMappingStore));
+            storesToSave.addAll(Arrays.asList(sourceTopologyCommitmentCoverageStoreDiagnosable,
+                    projectedTopologyCommitmentCoverageStoreDiagnosable,
+                    sourceTopologyCommitmentUtilizationStoreDiagnosable,
+                    projectedTopologyCommitmentUtilizationStoreDiagnosable,
+                    sourceTopologyCommitmentMappingStoreDiagnosable,
+                    projectedTopologyCommitmentMappingStoreDiagnosable));
         }
         return storesToSave;
     }
