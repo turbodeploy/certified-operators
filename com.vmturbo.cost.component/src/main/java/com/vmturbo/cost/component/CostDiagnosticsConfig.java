@@ -58,22 +58,22 @@ public class CostDiagnosticsConfig {
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
-    private DiagnosableDataStoreCollector sourceTopologyCommitmentCoverageStoreDiagnosable;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentCoverageStore;
 
     @Autowired
-    private DiagnosableDataStoreCollector projectedTopologyCommitmentCoverageStoreDiagnosable;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentCoverageStore;
 
     @Autowired
-    private DiagnosableDataStoreCollector sourceTopologyCommitmentUtilizationStoreDiagnosable;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentUtilizationStore;
 
     @Autowired
-    private DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStoreDiagnosable;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStore;
 
     @Autowired
-    private DiagnosableDataStoreCollector sourceTopologyCommitmentMappingStoreDiagnosable;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentMappingStore;
 
     @Autowired
-    private DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStoreDiagnosable;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStore;
 
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveAllocationDemandDiags;
@@ -147,12 +147,11 @@ public class CostDiagnosticsConfig {
                 storesToSave.add(computeTierDemandStatsConfig.riDemandStatsStore());
             }
 
-            storesToSave.addAll(Arrays.asList(sourceTopologyCommitmentCoverageStoreDiagnosable,
-                    projectedTopologyCommitmentCoverageStoreDiagnosable,
-                    sourceTopologyCommitmentUtilizationStoreDiagnosable,
-                    projectedTopologyCommitmentUtilizationStoreDiagnosable,
-                    sourceTopologyCommitmentMappingStoreDiagnosable,
-                    projectedTopologyCommitmentMappingStoreDiagnosable));
+            storesToSave.addAll(Arrays.asList(sourceTopologyCommitmentCoverageStore,
+                    projectedTopologyCommitmentCoverageStore,
+                    sourceTopologyCommitmentUtilizationStore,
+                    projectedTopologyCommitmentUtilizationStore,
+                    sourceTopologyCommitmentMappingStore, projectedTopologyCommitmentMappingStore));
         }
         return storesToSave;
     }
