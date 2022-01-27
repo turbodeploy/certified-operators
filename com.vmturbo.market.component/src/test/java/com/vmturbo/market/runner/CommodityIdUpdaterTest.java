@@ -31,7 +31,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.CommodityTypeAllocator;
@@ -74,7 +74,7 @@ public class CommodityIdUpdaterTest {
             MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false).build(),
             mock(TopologyEntityCloudTopologyFactory.class), mock(TopologyCostCalculatorFactory.class),
             mock(MarketPriceTableFactory.class), mock(WastedFilesAnalysisEngine.class),
-            mock(BuyRIImpactAnalysisFactory.class), mock(NamespaceQuotaAnalysisEngine.class), mock(TierExcluderFactory.class),
+            mock(BuyRIImpactAnalysisFactory.class), mock(NamespaceQuotaAnalysisFactory.class), mock(TierExcluderFactory.class),
             mock(AnalysisRICoverageListener.class), mock(ConsistentScalingHelperFactory.class),
             mock(InitialPlacementFinder.class), mock(ReversibilitySettingFetcherFactory.class),
             mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
