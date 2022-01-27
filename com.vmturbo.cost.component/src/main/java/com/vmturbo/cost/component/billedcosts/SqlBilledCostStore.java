@@ -112,16 +112,6 @@ public class SqlBilledCostStore implements BilledCostStore {
                         // NOT NULL fields without DEFAULTS but currently not supported by BillingDataPoint
                         record.setUnit((short)0);
                         record.setServiceProviderId(0L);
-                        if (point.hasProviderOid()) {
-                            record.setProviderId(point.getProviderOid());
-                        } else {
-                            record.setProviderId(0L);
-                        }
-                        if (point.hasProviderType()) {
-                            record.setProviderType((short)point.getProviderType());
-                        } else {
-                            record.setProviderType((short)0);
-                        }
                         return record;
                     } else {
                         malformedPoints.add(point);
@@ -159,7 +149,7 @@ public class SqlBilledCostStore implements BilledCostStore {
     }
 
     private List<Object> getUniqueKeys(final BilledCostDailyRecord record) {
-        return Keys.KEY_BILLED_COST_DAILY_UNIQUE_DAILY_BILLING_ITEM.getFields().stream()
+        return Keys.KEY_BILLED_COST_DAILY_UNIQUE_CONSTRAINT_BILLING_ITEM.getFields().stream()
             .map(record::get)
             .collect(Collectors.toList());
     }
@@ -236,7 +226,7 @@ public class SqlBilledCostStore implements BilledCostStore {
                         BILLED_COST_MONTHLY.CURRENCY,
                         BILLED_COST_MONTHLY.COST)
                 .select(embeddedSelect)
-                .onConflict(Keys.KEY_BILLED_COST_MONTHLY_UNIQUE_MONTHLY_BILLING_ITEM.getFields())
+                .onConflict(Keys.KEY_BILLED_COST_MONTHLY_UNIQUE_CONSTRAINT_BILLING_ITEM.getFields())
                 .doUpdate()
                 .set(BILLED_COST_MONTHLY.USAGE_AMOUNT, RollupUtils.values(BILLED_COST_MONTHLY.USAGE_AMOUNT))
                 .set(BILLED_COST_MONTHLY.COST, RollupUtils.values(BILLED_COST_MONTHLY.COST))
