@@ -7,13 +7,14 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.protobuf.TextFormat;
 
 import org.apache.commons.io.IOUtils;
+import org.json.JSONException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -25,6 +26,7 @@ import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.TopologyDataDefinitionMapper;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.topologydefinition.TopoDataDefContextBasedApiDTO;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -55,7 +57,7 @@ public class TopologyDataDefinitionServiceTest {
     private static final String MANUAL_CONTEXT_BASED_PROTO = "/topologydefinition/TestManualContextBasedDefinition.proto";
 
     private TopologyDataDefinitionApiDTO manualApiDTO;
-    private TopologyDataDefinitionApiDTO manualContextBasedApiDTO;
+    private TopoDataDefContextBasedApiDTO manualContextBasedApiDTO;
     private TopologyDataDefinitionApiDTO automatedApiDTO;
 
     private TopologyDataDefinition manualProto;
@@ -107,7 +109,7 @@ public class TopologyDataDefinitionServiceTest {
         ObjectMapper objectMapper = new ObjectMapper();
         manualApiDTO = objectMapper.readValue(manualJsonText, TopologyDataDefinitionApiDTO.class);
         manualContextBasedApiDTO =
-                objectMapper.readValue(manualContextBasedJsonText, TopologyDataDefinitionApiDTO.class);
+                objectMapper.readValue(manualContextBasedJsonText, TopoDataDefContextBasedApiDTO.class);
         automatedApiDTO = objectMapper.readValue(automatedJsonText, TopologyDataDefinitionApiDTO.class);
         manualProto = TextFormat.parse(manualProtoText, TopologyDataDefinition.class);
         automatedProto = TextFormat.parse(automatedProtoText, TopologyDataDefinition.class);
@@ -270,7 +272,7 @@ public class TopologyDataDefinitionServiceTest {
         groupApiDTO.setUuid("123434550");
         Mockito.when(groupsService.getGroupByUuid("123434550", false)).thenReturn(groupApiDTO);
         List<TopologyDataDefinitionApiDTO> dtos = service.getAllTopologyDefinitions();
-        assertEquals(3, dtos.size());
+        assertEquals(2, dtos.size());
         ObjectMapper objectMapper = new ObjectMapper();
         manualApiDTO.setUuid("123");
         automatedApiDTO.setUuid("456");
@@ -289,13 +291,10 @@ public class TopologyDataDefinitionServiceTest {
         groupApiDTO.setUuid("123434550");
         Mockito.when(groupsService.getGroupByUuid("123434550", false))
                         .thenReturn(groupApiDTO);
-        List<TopologyDataDefinitionApiDTO> dtosDirectLink = serviceWithEnabledContextBasedATDs
-            .getAllTopologyDefinitions().stream()
-            .filter(d -> !d.getContextBased()).collect(Collectors.toList());
+        List<TopologyDataDefinitionApiDTO> dtosDirectLink
+                        = serviceWithEnabledContextBasedATDs.getAllTopologyDefinitions();
         assertEquals(2, dtosDirectLink.size());
-        List<TopologyDataDefinitionApiDTO> dtosContextBased = serviceWithEnabledContextBasedATDs
-            .getAllTopologyDefinitions().stream()
-            .filter(TopologyDataDefinitionApiDTO::getContextBased).collect(Collectors.toList());
+        List<TopoDataDefContextBasedApiDTO> dtosContextBased = serviceWithEnabledContextBasedATDs.getAllContextBasedTopologyDefinitions();
         assertEquals(1, dtosContextBased.size());
 
         ObjectMapper objectMapper = new ObjectMapper();
@@ -309,7 +308,9 @@ public class TopologyDataDefinitionServiceTest {
 
         TopologyDataDefinitionApiDTO contextBasedDataDefDTO = dtosContextBased.get(0);
 
-        TopologyDataDefinitionApiDTO contextBasedDto = new TopologyDataDefinitionApiDTO();
+        // Need to convert TopologyDataDefinitionApiDTO into TopoDataDefContextBasedApiDTO
+        // for comparison
+        TopoDataDefContextBasedApiDTO contextBasedDto = new TopoDataDefContextBasedApiDTO();
         contextBasedDto.setContextBased(true);
         contextBasedDto.setUuid("789");
         contextBasedDto.setEntityDefinitionData(contextBasedDataDefDTO.getEntityDefinitionData());
@@ -321,6 +322,23 @@ public class TopologyDataDefinitionServiceTest {
 
         manualApiDTO.setUuid(null);
         automatedApiDTO.setUuid(null);
+        manualContextBasedApiDTO.setUuid(null);
+    }
+
+    /**
+     * Get all context-based definitions test.
+     */
+    @Test
+    public void getAllContextBasedTopologyDefinitions() throws Exception {
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setUuid("123434550");
+        Mockito.when(groupsService.getGroupByUuid("123434550", false)).thenReturn(groupApiDTO);
+        List<TopoDataDefContextBasedApiDTO> dtos = service.getAllContextBasedTopologyDefinitions();
+        assertEquals(1, dtos.size());
+        ObjectMapper objectMapper = new ObjectMapper();
+        manualContextBasedApiDTO.setUuid("789");
+        JSONAssert.assertEquals(objectMapper.writeValueAsString(manualContextBasedApiDTO),
+                                    objectMapper.writeValueAsString(dtos.get(0)), false);
         manualContextBasedApiDTO.setUuid(null);
     }
 
@@ -341,6 +359,25 @@ public class TopologyDataDefinitionServiceTest {
         manualApiDTO.setUuid(null);
         expectedException.expect(UnknownObjectException.class);
         service.getTopologyDefinition("50");
+    }
+
+    /**
+     * Test getting context-based topology definitions by id.
+     *
+     * @throws Exception if cannot find definition by id
+     */
+    @Test
+    public void getContextBasedTopologyDefinition() throws Exception {
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setUuid("123434550");
+        Mockito.when(groupsService.getGroupByUuid("123434550", false)).thenReturn(groupApiDTO);
+        TopoDataDefContextBasedApiDTO dto = service.getContextBasedTopologyDefinition("789");
+        Gson g = new Gson();
+        manualContextBasedApiDTO.setUuid("789");
+        JSONAssert.assertEquals(g.toJson(manualContextBasedApiDTO), g.toJson(dto), false);
+        manualContextBasedApiDTO.setUuid(null);
+        expectedException.expect(UnknownObjectException.class);
+        service.getContextBasedTopologyDefinition("50");
     }
 
     /**
