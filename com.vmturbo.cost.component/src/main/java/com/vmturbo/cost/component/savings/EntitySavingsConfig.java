@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
@@ -41,6 +43,7 @@ import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -103,6 +106,13 @@ public class EntitySavingsConfig {
      */
     @Value("${enableEntitySavings:true}")
     private boolean enableEntitySavings;
+
+    /**
+     * How long to wait in hours for a missing entity before declaring it deleted.
+     * Default is 1/12 of a year.
+     */
+    @Value("${entityDeletionPeriodHours:730}")
+    private Long entityDeletionPeriodHours;
 
     /**
      * How long to retain events in audit events DB table - default 1/2 month max.
@@ -286,8 +296,13 @@ public class EntitySavingsConfig {
             int initialDelayMinutes = getInitialStartDelayMinutes();
             Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
                     entitySavingsProcessor::execute, initialDelayMinutes, 60, TimeUnit.MINUTES);
-            logger.info("EntitySavingsProcessor is enabled, will run at hour+{} min, after {} mins.",
-                    startMinuteMark, initialDelayMinutes);
+            String temConfigInfo = "disabled";
+            if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
+                temConfigInfo = String.format("enabled. entityDeletionPeriodHours = %d",
+                        entityDeletionPeriodHours);
+            }
+            logger.info("EntitySavingsProcessor is enabled, will run at hour+{} min, after {} mins. TEM is {}.",
+                    startMinuteMark, initialDelayMinutes, temConfigInfo);
         } else {
             logger.info("EntitySavingsProcessor is disabled.");
         }
@@ -442,5 +457,22 @@ public class EntitySavingsConfig {
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
         return new DefaultTopologyEntityCloudTopologyFactory(
                 groupClientConfig.groupMemberRetriever());
+    }
+
+    /**
+     * Creates the topology events monitor.
+     *
+     * @return topology events monitor.
+     */
+    @Bean
+    public TopologyEventsMonitor topologyEventsMonitor() {
+        return new TopologyEventsMonitor(ImmutableMap.of(
+                EntityType.VIRTUAL_MACHINE_VALUE, new TopologyEventsMonitor.Config(true,
+                        ImmutableSet.of()),
+                EntityType.VIRTUAL_VOLUME_VALUE, new TopologyEventsMonitor.Config(true,
+                        ImmutableSet.of(
+                                CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
+                                CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+                                CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE))));
     }
 }

@@ -2,6 +2,9 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -34,6 +37,8 @@ public class EntityStateTest {
         state.setMissedSavings(missedSavings);
         final Double missedInvestments = 30d;
         state.setMissedInvestments(missedInvestments);
+        final Map<Integer, Double> commodityUsage = ImmutableMap.of(1, 100d, 2, 200d);
+        state.setCommodityUsage(commodityUsage);
 
         // Serialize EntityState object to JSON.
         String json = state.toJson();
@@ -58,5 +63,6 @@ public class EntityStateTest {
         Assert.assertEquals(realizedInvestments, deserializedState.getRealizedInvestments());
         Assert.assertEquals(missedSavings, deserializedState.getMissedSavings());
         Assert.assertEquals(missedInvestments, deserializedState.getMissedInvestments());
+        Assert.assertEquals(commodityUsage, deserializedState.getCommodityUsage());
     }
 }

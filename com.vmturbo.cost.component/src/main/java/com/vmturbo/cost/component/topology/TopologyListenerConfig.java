@@ -2,7 +2,9 @@ package com.vmturbo.cost.component.topology;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -19,6 +21,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
@@ -47,8 +50,11 @@ import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.cost.component.savings.EntitySavingsConfig;
+import com.vmturbo.cost.component.savings.EntitySavingsTopologyMonitor;
 import com.vmturbo.cost.component.topology.cloud.listener.CCADemandCollector;
 import com.vmturbo.cost.component.topology.cloud.listener.EntityCostWriter;
+import com.vmturbo.cost.component.topology.cloud.listener.LiveCloudTopologyListener;
 import com.vmturbo.cost.component.topology.cloud.listener.RIBuyRunner;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -128,6 +134,9 @@ public class TopologyListenerConfig {
     @Autowired
     private EntityUptimeStore entityUptimeStore;
 
+    @Autowired
+    private EntitySavingsConfig entitySavingsConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -139,6 +148,11 @@ public class TopologyListenerConfig {
 
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
+        List<LiveCloudTopologyListener> cloudTopologyListenerList =
+                new ArrayList<>(Arrays.asList(entityCostWriter(), riBuyRunner(), ccaDemandCollector()));
+        if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
+                cloudTopologyListenerList.add(entitySavingsTopologyMonitor());
+        }
         final LiveTopologyEntitiesListener entitiesListener =
                 new LiveTopologyEntitiesListener(
                         cloudTopologyFactory(),
@@ -146,7 +160,7 @@ public class TopologyListenerConfig {
                         costConfig.businessAccountHelper(),
                         topologyProcessorListenerConfig.liveTopologyInfoTracker(),
                         ingestedTopologyStore(),
-                        Arrays.asList(entityCostWriter(), riBuyRunner(), ccaDemandCollector()));
+                        cloudTopologyListenerList);
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addLiveTopologyListener(entitiesListener);
@@ -331,5 +345,16 @@ public class TopologyListenerConfig {
     @Bean
     public CCADemandCollector ccaDemandCollector() {
         return new CCADemandCollector(cloudCommitmentAnalysisStoreConfig.cloudCommitmentDemandWriter());
+    }
+
+    /**
+     * Bean for the Entity savings topology monitor.
+     *
+     * @return An instance of the entity savings topology monitor.
+     */
+    @Bean
+    public EntitySavingsTopologyMonitor entitySavingsTopologyMonitor() {
+        return new EntitySavingsTopologyMonitor(entitySavingsConfig.topologyEventsMonitor(),
+                entitySavingsConfig.entityStateStore(), entitySavingsConfig.entityEventsJournal());
     }
 }

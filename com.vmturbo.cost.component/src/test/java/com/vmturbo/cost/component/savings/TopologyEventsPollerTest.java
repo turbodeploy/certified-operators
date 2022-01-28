@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,7 +23,12 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.common.data.TimeInterval;
@@ -32,19 +39,43 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.cca.CCATopologyEventProvider;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.event.library.TopologyEventProvider.TopologyEventFilter;
 import com.vmturbo.topology.event.library.TopologyEvents;
 import com.vmturbo.topology.event.library.TopologyEvents.TopologyEventLedger;
 
 /**
- * Tests for the topology events poller.
+ * Tests for the topology events poller.  Run the tests once with TEM disabled and once with
+ * TEM enabled.
  */
+@RunWith(Parameterized.class)
 public class TopologyEventsPollerTest {
+
+    /**
+     * Parameterized test data.
+     *
+     * @return whether to enable TEM.
+     */
+    @Parameters(name = "{index}: Test with enable TEM = {0}")
+    public static Collection<Object[]> data() {
+        Object[][] data = new Object[][] {{true}, {false}};
+        return Arrays.asList(data);
+    }
+
+    /**
+     * Test parameter.
+     */
+    @Parameter(0)
+    public boolean enableTEM;
+
     private EntityEventsJournal store;
     private TopologyEventsPoller tep;
 
@@ -61,6 +92,13 @@ public class TopologyEventsPollerTest {
     private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
 
     /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_SAVINGS_TEM);
+
+    /**
      * Pre-test setup.
      *
      * @throws IOException when something goes wrong.
@@ -69,6 +107,11 @@ public class TopologyEventsPollerTest {
     public void setup() throws IOException {
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store);
+        if (enableTEM) {
+            featureFlagTestRule.enable(FeatureFlags.ENABLE_SAVINGS_TEM);
+        } else {
+            featureFlagTestRule.disable(FeatureFlags.ENABLE_SAVINGS_TEM);
+        }
     }
 
     /**
@@ -93,12 +136,8 @@ public class TopologyEventsPollerTest {
                                 .setDestinationState(EntityState.POWERED_OFF)
                                 .build()))
                 .build();
-        final TopologyEvent creationEvent = TopologyEvent.newBuilder()
-                .setType(TopologyEventType.RESOURCE_CREATION)
-                .setEventTimestamp(creationTime.toEpochMilli())
-                .build();
         final TopologyEvent deletionEvent = TopologyEvent.newBuilder()
-                .setType(TopologyEventType.RESOURCE_CREATION)
+                .setType(TopologyEventType.RESOURCE_DELETION)
                 .setEventTimestamp(creationTime.plusSeconds(1).toEpochMilli())
                 .build();
 
@@ -106,7 +145,6 @@ public class TopologyEventsPollerTest {
                 .setEntityOid(1)
                 .addEvents(deletionEvent)
                 .addEvents(powerOffEvent)
-                .addEvents(creationEvent)
                 .build();
 
         final TopologyEvents topologyEvents = TopologyEvents.fromEntityEvents(Sets.newHashSet(entityEventsProto));
@@ -165,12 +203,33 @@ public class TopologyEventsPollerTest {
      * @return The SavingsEvent.
      */
     private static SavingsEvent
-            createSavingsEvent(final Long entityId, @Nonnull TopologyEvent topologyEvent) {
+    createSavingsEvent(final Long entityId, @Nonnull TopologyEvent topologyEvent) {
         final long eventTimestamp = topologyEvent.getEventTimestamp();
-        return new SavingsEvent.Builder()
-                        .topologyEvent(topologyEvent)
-                        .entityId(entityId)
+        // Convert the TEP event to a TEM event
+        TopologyEventInfo eventInfo = topologyEvent.getEventInfo();
+        com.vmturbo.cost.component.savings.TopologyEvent.Builder temEvent =
+                new com.vmturbo.cost.component.savings.TopologyEvent.Builder()
                         .timestamp(eventTimestamp)
-                        .build();
+                        .entityOid(entityId);
+        if (TopologyEventType.STATE_CHANGE.equals(topologyEvent.getType())) {
+            EntityState newState = eventInfo.getStateChange().getDestinationState();
+            temEvent.eventType(EventType.STATE_CHANGE.getValue()).poweredOn(EntityState.POWERED_ON.equals(newState));
+        } else if (TopologyEventType.PROVIDER_CHANGE.equals(topologyEvent.getType())) {
+            ProviderChangeDetails changeDetails = eventInfo.getProviderChange();
+            if (changeDetails.hasDestinationProviderOid()) {
+                // Note that we drop the event when the destination provider OID is unknown.
+                temEvent
+                        .eventType(EventType.PROVIDER_CHANGE.getValue())
+                        .providerOid(changeDetails.getDestinationProviderOid());
+            }
+        } else if (TopologyEventType.RESOURCE_DELETION.equals(topologyEvent.getType())) {
+            temEvent.eventType(EventType.ENTITY_REMOVED.getValue()).entityRemoved(true);
+        }
+
+        return new SavingsEvent.Builder()
+                .topologyEvent(temEvent.build())
+                .entityId(entityId)
+                .timestamp(eventTimestamp)
+                .build();
     }
 }
