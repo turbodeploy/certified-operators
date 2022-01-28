@@ -165,7 +165,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
     private static class CoresHandler extends MhzHandler {
         private static final Map<VcpuScalingCoresPerSocketSocketModeEnum, CoresModeHandler>
                         MODE_TO_HANDLER =
-                        ImmutableMap.of(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE,
+                        ImmutableMap.of(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS,
                                         new HandlePreserve(),
                                         VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST,
                                         new HandleMatchHost(),
@@ -189,7 +189,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             final VcpuScalingCoresPerSocketSocketModeEnum coresPerSocketModeType =
                             getSettingValue(entitySettings,
                                             EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
-                                            VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE);
+                                            VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS);
 
             final CoresModeHandler modeHandler = MODE_TO_HANDLER.get(coresPerSocketModeType);
             final int sockets;

@@ -252,7 +252,7 @@ public class EntitySettingsApplicatorTest {
 
     private static final Setting VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_PRESERVE =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
-                                    VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE);
+                                    VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE_CORES_PER_SOCKET);
     private static final Setting VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_USER_SPECIFIED =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
                                     VcpuScalingSocketsCoresPerSocketModeEnum.USER_SPECIFIED);
@@ -271,7 +271,7 @@ public class EntitySettingsApplicatorTest {
 
     private static final Setting CORE_SOCKET_RATIO_PRESERVE =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
-                                    VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE);
+                                    VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS);
 
     private static final Setting CORE_SOCKET_RATIO_MATCH_HOST =
                     createEnumSetting(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
