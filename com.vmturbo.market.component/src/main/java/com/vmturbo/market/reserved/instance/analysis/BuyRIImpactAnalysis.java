@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -31,7 +32,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;
