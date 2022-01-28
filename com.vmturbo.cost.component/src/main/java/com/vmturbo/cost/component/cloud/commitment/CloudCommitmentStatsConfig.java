@@ -142,13 +142,13 @@ public class CloudCommitmentStatsConfig {
      */
     @Nonnull
     @Bean
-    public SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> protectedTopologyCommitmentUtilizationStore() {
+    public SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> projectedTopologyCommitmentUtilizationStore() {
         return new InMemorySingleFieldDataStore<>(new TopologyUtilizationFilterApplicator());
     }
 
     /**
      * A bean for projected topology commitment utilization store.
-     * @param protectedTopologyCommitmentUtilizationStore The projected topology commitment utilization store.
+     * @param projectedTopologyCommitmentUtilizationStore The projected topology commitment utilization store.
      * @param topologyCommitmentStoreGson The topology commitment store GSON.
      * @return A bean for projected topology commitment utilization store.
      */
@@ -156,10 +156,10 @@ public class CloudCommitmentStatsConfig {
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     public DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStoreDiagnosable(
-            @Nonnull SingleFieldDataStore<UtilizationInfo, ?> protectedTopologyCommitmentUtilizationStore,
+            @Nonnull SingleFieldDataStore<UtilizationInfo, ?> projectedTopologyCommitmentUtilizationStore,
             @Nonnull final Gson topologyCommitmentStoreGson) {
         return new JsonDiagnosableDataStoreCollector<>(
-                protectedTopologyCommitmentUtilizationStore,
+                projectedTopologyCommitmentUtilizationStore,
                 "in_memory_projected_topology_commitment_utilization",
                 topologyCommitmentStoreGson,
                 UtilizationInfo.class);
