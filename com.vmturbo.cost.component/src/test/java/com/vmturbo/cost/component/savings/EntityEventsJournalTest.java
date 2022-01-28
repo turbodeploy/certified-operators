@@ -17,16 +17,11 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ResourceCreationDetails;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent.Builder;
+import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 
 /**
  * All tests related to events store.
@@ -50,16 +45,11 @@ public class EntityEventsJournalTest {
     @Nonnull
     private static SavingsEvent getPowerStateEvent(long vmId, long timestamp, boolean newStateOn) {
         return new SavingsEvent.Builder()
-                .topologyEvent(TopologyEvent.newBuilder()
-                        .setType(TopologyEventType.STATE_CHANGE)
-                        .setEventTimestamp(timestamp)
-                        .setEventInfo(TopologyEventInfo.newBuilder()
-                                .setStateChange(EntityStateChangeDetails.newBuilder()
-                                        .setSourceState(newStateOn ? EntityState.POWERED_OFF
-                                                : EntityState.POWERED_ON)
-                                        .setDestinationState(newStateOn ? EntityState.POWERED_ON
-                                                : EntityState.POWERED_OFF)
-                                        .build()))
+                .topologyEvent(new TopologyEvent.Builder()
+                        .entityOid(vmId)
+                        .eventType(EventType.STATE_CHANGE.getValue())
+                        .timestamp(timestamp)
+                        .poweredOn(newStateOn)
                         .build())
                 .entityId(vmId)
                 .timestamp(timestamp)
@@ -69,12 +59,10 @@ public class EntityEventsJournalTest {
     @Nonnull
     private static SavingsEvent getResourceDeletedEvent(long vmId, long timestamp) {
         return new Builder()
-                .topologyEvent(TopologyEvent.newBuilder()
-                        .setType(TopologyEventType.RESOURCE_DELETION)
-                        .setEventTimestamp(timestamp)
-                        .setEventInfo(TopologyEventInfo.newBuilder()
-                                .setResourceCreation(ResourceCreationDetails.newBuilder().build())
-                                .build())
+                .topologyEvent(new TopologyEvent.Builder()
+                        .entityOid(vmId)
+                        .timestamp(timestamp)
+                        .eventType(EventType.ENTITY_REMOVED.getValue())
                         .build())
                 .entityId(vmId)
                 .timestamp(timestamp)
@@ -191,13 +179,9 @@ public class EntityEventsJournalTest {
         assertTrue(event2.getTopologyEvent().isPresent());
         final TopologyEvent powerChange = event2.getTopologyEvent().get();
         assertNotNull(powerChange);
-        assertEquals(TopologyEventType.STATE_CHANGE, powerChange.getType());
-        assertTrue(powerChange.hasEventInfo());
-
-        final EntityStateChangeDetails stateDetails = powerChange.getEventInfo().getStateChange();
-        assertNotNull(stateDetails);
-        assertEquals(EntityState.POWERED_ON, stateDetails.getSourceState());
-        assertEquals(EntityState.POWERED_OFF, stateDetails.getDestinationState());
+        assertEquals(EventType.STATE_CHANGE.getValue(), (int)powerChange.getEventType());
+        assertTrue(powerChange.getPoweredOn().isPresent());
+        assertFalse(powerChange.getPoweredOn().get());
 
         // 3rd event - highest timestamp 600
         final SavingsEvent event3 = events400AndUp.get(events400AndUp.size() - 1);
@@ -210,7 +194,7 @@ public class EntityEventsJournalTest {
         assertNotNull(entityRemoved);
         assertEquals(vm2Id, event3.getEntityId());
         assertEquals(600, event3.getTimestamp());
-        assertEquals(TopologyEventType.RESOURCE_DELETION, entityRemoved.getType());
+        assertEquals(EventType.ENTITY_REMOVED.getValue(), (int)entityRemoved.getEventType());
 
         // Verify we got 3 same events in range query.
         assertEquals(events400To601, events400AndUp);
