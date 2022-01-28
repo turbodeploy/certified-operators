@@ -1557,6 +1557,8 @@ message UploadBilledCostRequest {
         optional double usage_amount = 9;
         optional common_dto.CurrencyAmount cost = 10;
         optional int64 cost_tag_group_id = 11;
+        optional int64 provider_oid = 12;
+        optional int32 provider_type = 13;
     }
 
     message CostTagGroupMap {

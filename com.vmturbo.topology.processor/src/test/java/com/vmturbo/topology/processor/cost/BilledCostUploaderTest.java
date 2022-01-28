@@ -79,6 +79,10 @@ public class BilledCostUploaderTest {
     private static final long ACCOUNT_OID = 456L;
     private static final String CLOUD_SERVICE_LOCAL_ID = "cloudServiceLocalId";
     private static final long CLOUD_SERVICE_OID = 789L;
+    private static final String COMPUTE_TIER_NAME = "azure::VM_PROFILE::Standard_B1ls";
+    private static final long COMPUTE_TIER_OID = 135L;
+    private static final String STORAGE_TIER_NAME = "azure::ST::MANAGED_STANDARD";
+    private static final long STORAGE_TIER_OID = 246L;
 
     private final TestBilledCostUploadService billedCostUploadServiceSpy = spy(new TestBilledCostUploadService());
     /**
@@ -117,6 +121,12 @@ public class BilledCostUploaderTest {
     private final StitchingEntityData cloudService = StitchingEntityData.newBuilder(EntityDTO.newBuilder()
             .setEntityType(EntityType.CLOUD_SERVICE)
             .setId(CLOUD_SERVICE_LOCAL_ID)).oid(CLOUD_SERVICE_OID).build();
+    private final StitchingEntityData computeTier = StitchingEntityData.newBuilder(EntityDTO.newBuilder()
+            .setEntityType(EntityType.COMPUTE_TIER)
+            .setId(COMPUTE_TIER_NAME)).oid(COMPUTE_TIER_OID).build();
+    private final StitchingEntityData storageTier = StitchingEntityData.newBuilder(EntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER)
+            .setId(STORAGE_TIER_NAME)).oid(STORAGE_TIER_OID).build();
 
     /**
      * set up.
@@ -157,6 +167,8 @@ public class BilledCostUploaderTest {
         assertEquals(CLOUD_SERVICE_OID, vmDataPoint.getCloudServiceOid());
         assertEquals(REGION_OID, vmDataPoint.getRegionOid());
         assertEquals(VM_OID, vmDataPoint.getEntityOid());
+        assertEquals(COMPUTE_TIER_OID, vmDataPoint.getProviderOid());
+        assertEquals(EntityType.COMPUTE_TIER_VALUE, vmDataPoint.getProviderType());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, vmDataPoint.getEntityType());
         final BillingDataPoint dbDataPoint = pair1.getValue().stream()
                 .filter(dp -> TIMESTAMP2 == dp.getTimestampUtcMillis())
@@ -171,6 +183,8 @@ public class BilledCostUploaderTest {
         assertEquals(1, pair2.getValue().size());
         final BillingDataPoint volumeDataPoint = pair2.getValue().get(0);
         assertEquals(VOLUME_OID, volumeDataPoint.getEntityOid());
+        assertEquals(STORAGE_TIER_OID, volumeDataPoint.getProviderOid());
+        assertEquals(EntityType.STORAGE_TIER_VALUE, volumeDataPoint.getProviderType());
     }
 
     /**
@@ -220,6 +234,8 @@ public class BilledCostUploaderTest {
                 .put(VOLUME_LOCAL_ID, volume)
                 .put(ACCOUNT_LOCAL_ID, account)
                 .put(REGION_LOCAL_ID, region)
+                .put(COMPUTE_TIER_NAME, computeTier)
+                .put(STORAGE_TIER_NAME, storageTier)
                 .put(CLOUD_SERVICE_LOCAL_ID, cloudService).build();
         final TargetStore targetStore = mock(TargetStore.class);
         when(targetStore.getAll()).thenReturn(Collections.emptyList());
@@ -232,6 +248,8 @@ public class BilledCostUploaderTest {
         stitchingContextBuilder.addEntity(account, localIdToEntityMap);
         stitchingContextBuilder.addEntity(region, localIdToEntityMap);
         stitchingContextBuilder.addEntity(cloudService, localIdToEntityMap);
+        stitchingContextBuilder.addEntity(computeTier, localIdToEntityMap);
+        stitchingContextBuilder.addEntity(storageTier, localIdToEntityMap);
         return stitchingContextBuilder.build();
     }
 
@@ -245,6 +263,8 @@ public class BilledCostUploaderTest {
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEntityId(VM_BILLING_ID)
                         .setCostTagGroupId(1)
+                        .setProviderId(COMPUTE_TIER_NAME)
+                        .setProviderType(EntityType.COMPUTE_TIER_VALUE)
                         .build())
                 .setGranularity(Granularity.DAILY)
                 .build();
@@ -262,6 +282,8 @@ public class BilledCostUploaderTest {
                 .setRegionId(REGION_LOCAL_ID)
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setEntityId(VOLUME_LOCAL_ID)
+                .setProviderId(STORAGE_TIER_NAME)
+                .setProviderType(EntityType.STORAGE_TIER_VALUE)
                 .setCostTagGroupId(2)
                 .build();
         final CloudBillingBucket cloudBillingBucket2 = CloudBillingBucket.newBuilder()
