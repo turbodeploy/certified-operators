@@ -29,14 +29,10 @@ import org.jooq.InsertReturningStep;
 import org.jooq.impl.DSL;
 import org.jooq.tools.StringUtils;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsAuditEventsRecord;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 
 /**
  * Writes audit event logs to DB for diagnostics later.
@@ -262,37 +258,24 @@ public class SqlAuditLogWriter implements AuditLogWriter {
          */
         private void serializeTopologyEvent(final Map<String, Object> jsonData,
                 @Nonnull final TopologyEvent topologyEvent) {
-            this.eventType = topologyEvent.getType().getNumber();
-            if (!topologyEvent.hasEventInfo()) {
-                return;
+            // Since a TEM event can hold multiple event types, we need to collapse all events
+            // into a single event code.
+            this.eventType = 0;
+            if (topologyEvent.getPoweredOn().isPresent()) {
+                this.eventType = EventType.STATE_CHANGE.getValue();
+                jsonData.put("ds", topologyEvent.getPoweredOn().get() ? 1 : 0);
             }
-            final TopologyEventInfo eventInfo = topologyEvent.getEventInfo();
-            if (eventInfo.hasVendorEventId()) {
-                // Vendor id may not be present in most cases.
-                this.eventId = eventInfo.getVendorEventId();
+            if (topologyEvent.getProviderOid().isPresent()) {
+                this.eventType += EventType.PROVIDER_CHANGE.getValue();
+                jsonData.put("do", topologyEvent.getProviderOid().get());
             }
-            if (eventInfo.hasStateChange()) {
-                EntityStateChangeDetails stateChange = eventInfo.getStateChange();
-                if (stateChange.hasSourceState() && stateChange.getSourceState()
-                        != TopologyDTO.EntityState.UNKNOWN) {
-                    jsonData.put("ss", stateChange.getSourceState()
-                            == TopologyDTO.EntityState.POWERED_ON ? 1 : 0);
-                }
-                if (stateChange.hasDestinationState() && stateChange.getDestinationState()
-                        != TopologyDTO.EntityState.UNKNOWN) {
-                    jsonData.put("ds", stateChange.getDestinationState()
-                            == TopologyDTO.EntityState.POWERED_ON ? 1 : 0);
-                }
-            } else if (eventInfo.hasProviderChange()) {
-                ProviderChangeDetails providerChange = eventInfo.getProviderChange();
-                if (providerChange.hasSourceProviderOid()
-                        && !providerChange.hasUnknownSourceProvider()) {
-                    jsonData.put("so", providerChange.getSourceProviderOid());
-                }
-                if (providerChange.hasDestinationProviderOid()
-                        && !providerChange.hasUnknownDestinationProvider()) {
-                    jsonData.put("do", providerChange.getDestinationProviderOid());
-                }
+            if (!topologyEvent.getCommodityUsage().isEmpty()) {
+                this.eventType += EventType.COMMODITY_USAGE.getValue();
+                StringBuilder sb = new StringBuilder();
+                topologyEvent.getCommodityUsage().forEach((commodity, amount) ->
+                        sb.append(String.format(" %d:%f", commodity, amount)));
+                sb.append("}");
+                jsonData.put("cu", sb.toString());
             }
         }
 

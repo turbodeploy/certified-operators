@@ -4,8 +4,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -33,6 +35,7 @@ public class Algorithm2 implements Algorithm {
     private final SavingsInvestments periodicMissed;
     private boolean deletePending;
     private Optional<ActionEntry> lastExecutedAction;
+    private Map<Integer, Double> commodityUsage;
 
     /**
      * Constructor for the algorithm state.  This implements Algorithm-2.
@@ -54,6 +57,7 @@ public class Algorithm2 implements Algorithm {
         this.periodicRealized = new SavingsInvestments();
         this.periodicMissed = new SavingsInvestments();
         this.lastExecutedAction = Optional.empty();
+        this.commodityUsage = new HashMap<>();
     }
 
     /**
@@ -314,6 +318,7 @@ public class Algorithm2 implements Algorithm {
         if (lastExecutedAction == null) {
             lastExecutedAction = Optional.empty();
         }
+        commodityUsage = entityState.getCommodityUsage();
     }
 
     /**
@@ -373,6 +378,18 @@ public class Algorithm2 implements Algorithm {
         Deque<Delta> oldActionList = clearActionState();  // clear the action list and other state
         oldActionList.pollLast();                         // remove the last action
         oldActionList.stream().forEach(this::addAction);  // readd all but the last action to recalculate
+    }
+
+    /**
+     * Map from commodity type to the commodity's usage.
+     *
+     * @return commodity usage map.  If there is no commodity information available, an empty
+     *         map will be returned.
+     */
+    @Nonnull
+    @Override
+    public Map<Integer, Double> getCommodityUsage() {
+        return commodityUsage;
     }
 
     /**
