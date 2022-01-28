@@ -1916,6 +1916,17 @@ public class ActionSpecMapper {
                 queryBuilder.setHasPrerequisites(inputDto.getHasPrerequisites());
             }
 
+            if (CollectionUtils.isNotEmpty(inputDto.getActionRelationTypeFilter())) {
+                inputDto.getActionRelationTypeFilter().forEach(apiRelatedAction -> {
+                    Optional<ActionDTO.ActionRelationType> xlRelatedActionType
+                            = RelatedActionMapper.mapApiActionRelationTypeEnumToXl(apiRelatedAction);
+                    if (xlRelatedActionType.isPresent()) {
+                        queryBuilder.addRelationTypes(xlRelatedActionType.get());
+                    } else {
+                        logger.warn("Unable to map RelatedActionType {} to XL RelatedActionType.", xlRelatedActionType);
+                    }
+                });
+            }
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
             OPERATIONAL_ACTION_STATES.forEach(queryBuilder::addStates);

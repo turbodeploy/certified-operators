@@ -69,6 +69,7 @@ public class ActionInputUtil {
         actionApiInputDTO.setSavingsAmountRange(inputDTO.getSavingsAmountRange());
         actionApiInputDTO.setHasSchedule(inputDTO.getHasSchedule());
         actionApiInputDTO.setHasPrerequisites(inputDTO.getHasPrerequisites());
+        actionApiInputDTO.setActionRelationTypeFilter(inputDTO.getActionRelationTypeFilter());
 
         // Restrict action buckets to provided actionTypes to reduce computational data set.
         final List<ActionType> actionTypeList = new ArrayList<>();

@@ -2,17 +2,21 @@ package com.vmturbo.action.orchestrator.store.query;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -236,6 +240,10 @@ public class QueryFilter {
             }
         }
 
+        if (filter.getRelationTypesCount() > 0) {
+            return testRelatedActionTypes(actionView, filter.getRelationTypesList());
+        }
+
         return true;
     }
 
@@ -307,5 +315,51 @@ public class QueryFilter {
         }
 
         return actionView.getRecommendation().getPrerequisiteList().isEmpty();
+    }
+
+    /**
+     * Tests if the given action is related to other actions via any of the given relation types.
+     * <ul>
+     * <li>If you have a filter with BLOCKING and CAUSED_BY, than this test will return true
+     * if this action is related by either of these relations to other actions.
+     * <li>If you have a filter with NONE, than this test will return true if this action has no related actions.
+     * </ul>
+     *
+     * @param actionView            {@link ActionView}  to filter
+     * @param xlRelationTypes       List of {ActionDTO.ActionRelationType}s to filter on
+     * @return  true if the action has relation of any given type to other actions, or else false.
+     */
+    private static boolean testRelatedActionTypes(@Nonnull final ActionView actionView,
+                                                  List<ActionDTO.ActionRelationType> xlRelationTypes) {
+
+        if (xlRelationTypes.contains(ActionDTO.ActionRelationType.RELATION_NONE)
+                && actionView.getRelatedActions().isEmpty()) {
+            return true;
+        }
+        Set<ActionDTO.RelatedAction.ActionRelationTypeCase> relationTypes = xlRelationTypes.stream()
+                .map(relationType -> mapXlActionRelationType(relationType))
+                .filter(Optional::isPresent)
+                .map(relationType -> relationType.get())
+                .collect(Collectors.toSet());
+
+        return actionView.getRelatedActions().stream()
+                .anyMatch(ra -> relationTypes.contains(ra.getActionRelationTypeCase()));
+    }
+
+    @Nonnull
+    public static Optional<ActionDTO.RelatedAction.ActionRelationTypeCase> mapXlActionRelationType(
+            @Nonnull final ActionDTO.ActionRelationType relatedAction) {
+        switch (relatedAction) {
+            case BLOCKING:
+                return Optional.of(ActionDTO.RelatedAction.ActionRelationTypeCase.BLOCKING_RELATION);
+            case BLOCKED_BY:
+                return Optional.of(ActionDTO.RelatedAction.ActionRelationTypeCase.BLOCKED_BY_RELATION);
+            case CAUSING:
+                return Optional.of(ActionDTO.RelatedAction.ActionRelationTypeCase.CAUSING_RELATION);
+            case CAUSED_BY:
+                return Optional.of(ActionDTO.RelatedAction.ActionRelationTypeCase.CAUSED_BY_RELATION);
+            default:
+                return Optional.empty();
+        }
     }
 }
