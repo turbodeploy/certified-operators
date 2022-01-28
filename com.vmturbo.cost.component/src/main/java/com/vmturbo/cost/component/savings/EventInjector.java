@@ -46,14 +46,21 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ResourceDeletionDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent.Builder;
-import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Support for injecting events into the event queue.  When enabled, this will run every 10 seconds
@@ -104,11 +111,9 @@ public class EventInjector implements Runnable {
         double destTier;
         double sourceTier;
         boolean purgeState;
-        Map<Integer, Double> commodityUsage;
 
         /**
          * Return string representation of event.
-         *
          * @return string representation of event
          */
         @Override
@@ -219,7 +224,7 @@ public class EventInjector implements Runnable {
                 addEvent(event, uuidMap, entityEventsJournal, purgePreviousTestState);
             }
         } catch (FileNotFoundException e) {
-             logger.error("Cannot inject events: {}", e.toString());
+            logger.error("Cannot inject events: {}", e.toString());
         } finally {
             // Remove the events available file.
             availableFile.delete();
@@ -376,10 +381,17 @@ public class EventInjector implements Runnable {
                     .eventType(ActionEventType.RECOMMENDATION_REMOVED)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(dummyPriceChange);
-         } else if ("POWER_STATE".equals(event.eventType)) {
-             result.topologyEvent(createTopologyEvent(EventType.STATE_CHANGE, event.timestamp)
-                     .poweredOn(event.state)
-                     .build());
+        } else if ("POWER_STATE".equals(event.eventType)) {
+            result.topologyEvent(createTopologyEvent(TopologyEventType.STATE_CHANGE,
+                    event.timestamp)
+              .setEventInfo(TopologyEventInfo.newBuilder()
+                      .setStateChange(EntityStateChangeDetails.newBuilder()
+                              .setSourceState(event.state ? EntityState.POWERED_OFF
+                                      : EntityState.POWERED_ON)
+                              .setDestinationState(event.state ? EntityState.POWERED_ON
+                                      : EntityState.POWERED_OFF)
+                              .build()))
+              .build());
         } else if ("RESIZE_EXECUTED".equals(event.eventType)) {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
@@ -405,17 +417,18 @@ public class EventInjector implements Runnable {
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("ENTITY_REMOVED".equals(event.eventType)) {
-            result.topologyEvent(createTopologyEvent(EventType.ENTITY_REMOVED, event.timestamp)
-                    .entityRemoved(true)
-                    .build());
+            result.topologyEvent(createTopologyEvent(TopologyEventType.RESOURCE_DELETION,
+                    event.timestamp)
+                .setEventInfo(TopologyEventInfo.newBuilder()
+                        .setResourceDeletion(ResourceDeletionDetails.newBuilder()))
+                .build());
         } else if ("PROVIDER_CHANGE".equals(event.eventType)) {
-            result.topologyEvent(createTopologyEvent(EventType.PROVIDER_CHANGE, event.timestamp)
-                    .providerOid((long)event.destTier)
-                    .build());
-        } else if ("COMMODITY_CHANGE".equals(event.eventType)) {
-            result.topologyEvent(createTopologyEvent(EventType.PROVIDER_CHANGE, event.timestamp)
-                    .commodityUsage(event.commodityUsage)
-                    .build());
+            result.topologyEvent(createTopologyEvent(TopologyEventType.PROVIDER_CHANGE,
+                    event.timestamp).setEventInfo(TopologyEventInfo.newBuilder()
+                    .setProviderChange(ProviderChangeDetails.newBuilder()
+                            .setDestinationProviderOid((long)event.destTier)
+                            .setProviderType(EntityType.VIRTUAL_MACHINE.getValue()))
+                    .build()).build());
         } else if ("STOP".equals(event.eventType)) {
             purgePreviousTestState.set(event.purgeState);
             return;
@@ -426,9 +439,10 @@ public class EventInjector implements Runnable {
         entityEventsJournal.addEvent(result.build());
     }
 
-    private static TopologyEvent.Builder createTopologyEvent(EventType eventType, long timestamp) {
-        return new TopologyEvent.Builder()
-                .eventType(eventType.getValue())
-                .timestamp(timestamp);
+    private static TopologyEvent.Builder createTopologyEvent(TopologyEventType eventType,
+            long timestamp) {
+        return TopologyEvent.newBuilder()
+                .setType(eventType)
+                .setEventTimestamp(timestamp);
     }
 }

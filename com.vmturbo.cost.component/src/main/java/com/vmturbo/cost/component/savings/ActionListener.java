@@ -65,7 +65,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
@@ -450,11 +449,8 @@ public class ActionListener implements ActionsListener {
         // Attempt recovering action events if this is the first time action listener is run after
         // the cost pod starts up and the entity savings stats tables are not empty (i.e. not the
         // first time the feature is enabled.
-        if (!FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
-            if (!actionsCaughtUp && periodStartTime != 0) {
-                recoverActions(newPendingActionsInfoToEntityId.values(), periodStartTime,
-                        currentTime);
-            }
+        if (!actionsCaughtUp && periodStartTime != 0) {
+            recoverActions(newPendingActionsInfoToEntityId.values(), periodStartTime, currentTime);
         }
 
         Map<Long, EntityActionInfo> newPendingEntityIdToActionsInfo =

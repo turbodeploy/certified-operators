@@ -17,7 +17,11 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
 import com.vmturbo.cost.component.savings.Algorithm.SavingsInvestments;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
@@ -88,7 +92,6 @@ class SavingsCalculator {
         entityState.setNextExpirationTime(algorithmState.getNextExpirationTime());
         entityState.setCurrentRecommendation(algorithmState.getCurrentRecommendation());
         entityState.setDeletePending(algorithmState.getDeletePending());
-        entityState.setCommodityUsage(algorithmState.getCommodityUsage());
         entityState.setUpdated(entitiesWithEvents.contains(entityOid));
         long periodLength = periodEndTime - periodStartTime;
         if (periodLength <= 0) {
@@ -155,7 +158,9 @@ class SavingsCalculator {
                     eventHeap.offer(expirationEvent);
                 }
             }
-            if (event.hasTopologyEvent()) {
+            if (event.hasTopologyEvent()
+                    && event.getTopologyEvent().isPresent()
+                    && event.getTopologyEvent().get().hasEventInfo()) {
                 handleTopologyEvent(states, timestamp, entityId, event);
             }
             entitiesWithEvents.add(entityId);
@@ -289,14 +294,17 @@ class SavingsCalculator {
     private void handleTopologyEvent(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, SavingsEvent topologyEvent) {
         TopologyEvent event = topologyEvent.getTopologyEvent().get();
-        if (event.getEntityRemoved().isPresent()) {
+        TopologyEventType eventType = event.getType();
+        if (TopologyEventType.RESOURCE_CREATION.equals(eventType)) {
+            handleResourceCreation(timestamp, entityId);
+        } else if (TopologyEventType.RESOURCE_DELETION.equals(eventType)) {
             handleResourceDeletion(states, timestamp, entityId);
-        }
-        if (event.getPoweredOn().isPresent()) {
-            handleStateChange(states, timestamp, entityId, event.getPoweredOn().get());
-        }
-        if (event.getProviderOid().isPresent() || !event.getCommodityUsage().isEmpty()) {
+        } else if (TopologyEventType.STATE_CHANGE.equals(eventType)) {
+            handleStateChange(states, timestamp, entityId, event.getEventInfo().getStateChange());
+        } else if (TopologyEventType.PROVIDER_CHANGE.equals(eventType)) {
             handleProviderChange(states, timestamp, entityId, event);
+        } else {
+            logger.warn("Dropping unhandled topology event type {}", eventType);
         }
     }
 
@@ -369,6 +377,17 @@ class SavingsCalculator {
     }
 
     /**
+     * Handle entity created event.  We currently do nothing with these.  We rely on a resize
+     * recommendation to start tracking an entity.
+     *
+     * @param timestamp time of the event
+     * @param entityId affected entity ID
+     */
+    private void handleResourceCreation(long timestamp, long entityId) {
+        logger.debug("Handle ResourceCreation for entity ID {} at {}", entityId, timestamp);
+    }
+
+    /**
      * Handle a resource deletion event.  We treat this as a poweroff event.  After the entity is
      * processed, its state will be removed.
      *
@@ -398,23 +417,24 @@ class SavingsCalculator {
      * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
-     * @param isPoweredOn new power state
+     * @param event topology entity state change details
      */
     private void handleStateChange(@Nonnull Map<Long, Algorithm> states,
-            long timestamp, long entityId, boolean isPoweredOn) {
+            long timestamp, long entityId, EntityStateChangeDetails event) {
         logger.debug("Handle StateChange for {} at {}", entityId, timestamp);
         // Locate existing state.  If we aren't tracking, then ignore the event
         Algorithm algorithmState = getAlgorithmState(states, entityId, 0L, false);
         if (algorithmState == null) {
             return;
         }
-        long newPowerFactor = isPoweredOn ? 1L : 0L;
+        TopologyDTO.EntityState newState = event.getDestinationState();
         if (logger.isDebugEnabled()) {
-            logger.debug("Handling power event for {}: {} -> {}", entityId,
-                    algorithmState.getPowerFactor(), newPowerFactor);
+            TopologyDTO.EntityState oldState = event.getSourceState();
+            logger.debug("Handling power event for {}: {} -> {}", entityId, oldState, newState);
         }
         algorithmState.endSegment(timestamp);
-        algorithmState.setPowerFactor(newPowerFactor);
+        algorithmState
+                .setPowerFactor(TopologyDTO.EntityState.POWERED_ON.equals(newState) ? 1L : 0L);
     }
 
     /**
@@ -424,17 +444,18 @@ class SavingsCalculator {
      * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
-     * @param event SavingsEvent containing details of the topology provider change.
+     * @param event SavingsEvent containing details of the topology provider change as well as the
+     *              price change information.
      * @return if non-null, the expiration event for this resize that must be processed this period.
      */
     @Nullable
     private SavingsEvent handleProviderChange(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, TopologyEvent event) {
-        if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
-            // Revert handling for TEM-based topology events is not supported yet.
+        logger.debug("Handle ProviderChange for {} at {}", entityId, timestamp);
+        if (!event.getEventInfo().hasProviderChange()) {
+            logger.warn("Dropping provider change for entity {} - missing event info", entityId);
             return null;
         }
-        logger.debug("Handle ProviderChange for {} at {}", entityId, timestamp);
         // Locate existing state.  If we aren't tracking, then ignore the event
         Algorithm algorithmState = getAlgorithmState(states, entityId, 0L, false);
         if (algorithmState == null) {
@@ -453,11 +474,7 @@ class SavingsCalculator {
         if (currentProvider == null) {
             return null;
         }
-        if (!event.getProviderOid().isPresent()) {  // BCTODO it's okay to not have a provider ID change.  Commodities might have changed.
-            logger.warn("Dropping provider ID change for {} at {} - ID missing in topology event",
-                    entityId, timestamp);
-        }
-        Long newProviderId = event.getProviderOid().get();
+        ProviderChangeDetails providerChange = event.getEventInfo().getProviderChange();
 
         /*
          * Provider change cases:
@@ -469,25 +486,28 @@ class SavingsCalculator {
          * it cannot be tested without unit tests. Note that we never need to reference the source
          * OID in the provider change event.
          */
-        logger.debug("Processing provider change for {}", entityId);
-        // If the provider change duplicates the last executed action, then no-op.  If the
-        // provider change reverses the last executed action, revert it.  If the provider change
-        // matches the recommendation, then it's a valid external resize that we need to take
-        // credit for.  This is not implemented at this time.
-        if (lastExecutedAction.get().duplicates(ActionEventType.SCALE_EXECUTION_SUCCESS, newProviderId)) {
-            logger.debug("Dropping provider change for {} - duplicate of last action execution",
-                    entityId);
-        } else if (lastExecutedAction.get().reverses(ActionEventType.SCALE_EXECUTION_SUCCESS, newProviderId)) {
-            // This is a revert.
-            logger.info("Reverting tracking scale action from {} -> {} (commodities {} -> {}) for entity {}",
-                    lastExecutedAction.get().getSourceOid(),
-                    lastExecutedAction.get().getDestinationOid(),
-                    lastExecutedAction.get().getCommodityUsage(),
-                    algorithmState.getCommodityUsage(),
-                    entityId);
-            algorithmState.endSegment(timestamp);
-            algorithmState.removeLastAction();
-            algorithmState.setLastExecutedAction(null);
+        logger.debug("Processing provider change to {} for {}",
+                providerChange.getDestinationProviderOid(), entityId);
+        if (providerChange.hasDestinationProviderOid()) {
+            // If the provider change duplicates the last executed action, then no-op.  If the
+            // provider change reverses the last executed action, revert it.  If the provider change
+            // matches the recommendation, then it's a valid external resize that we need to take
+            // credit for.  This is not implemented at this time.
+            if (lastExecutedAction.get().duplicates(ActionEventType.SCALE_EXECUTION_SUCCESS,
+                    providerChange.getDestinationProviderOid())) {
+                logger.debug("Dropping provider change for {} - duplicate of last action execution",
+                        entityId);
+            } else if (lastExecutedAction.get().reverses(ActionEventType.SCALE_EXECUTION_SUCCESS,
+                    providerChange.getDestinationProviderOid())) {
+                // This is a revert.
+                logger.info("Reverting tracking scale action from {} to {} for entity {}",
+                        lastExecutedAction.get().getSourceOid(),
+                        lastExecutedAction.get().getDestinationOid(),
+                        entityId);
+                algorithmState.endSegment(timestamp);
+                algorithmState.removeLastAction();
+                algorithmState.setLastExecutedAction(null);
+            }
         }
         return null;
     }

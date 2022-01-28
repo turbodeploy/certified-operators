@@ -1196,16 +1196,8 @@ public class HistorydbIO {
                 .set(MKT_SNAPSHOTS.SCENARIO_ID, topologyContextId)
                 .set(MKT_SNAPSHOTS.DISPLAY_NAME, "scenario: "
                         + topologyInfo.getCreationTime())
-                .set(MKT_SNAPSHOTS.RUN_TIME, snapshotTimestamp)
-                // note: this code used to use jOOQ's `onDuplicateKeyIgnore()`, which is not a
-                // feature of MariaDB, and jOOQ emulated it by using an `INSERT IGNORE` statement.
-                // That tolerates many more errors than intended, including NOT NULL violation on
-                // run_time when we erroneously set run_complete_time above. This code was
-                // succeeding but recording bad data for years.
-                // The use of `onDuplicateKeyUpdate` with a no-op update is a better emulation
-                // than INSERT IGNORE, and it works properly in MariaDB and Postgres.
-                .onDuplicateKeyUpdate()
-                .set(MKT_SNAPSHOTS.ID, MKT_SNAPSHOTS.ID)
+                .set(MKT_SNAPSHOTS.RUN_COMPLETE_TIME, snapshotTimestamp)
+                .onDuplicateKeyIgnore()
                 .execute();
     }
 

@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -38,10 +37,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameter;
-import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.stubbing.Answer;
@@ -85,7 +80,6 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
@@ -98,32 +92,11 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests for the action listener.
  */
-@RunWith(Parameterized.class)
 public class ActionListenerTest {
-
-    /**
-     * Parameterized test data.
-     *
-     * @return whether to enable TEM.
-     */
-    @Parameters(name = "{index}: Test with enable TEM = {0}")
-    public static Collection<Object[]> data() {
-        Object[][] data = new Object[][] {{true}, {false}};
-        return Arrays.asList(data);
-    }
-
-    /**
-     * Test parameter.
-     */
-    @Parameter(0)
-    public boolean enableTEM;
-
-
     private static final Long succeededActionId1 = 1234L;
     private static final Long succeededActionId2 = 4321L;
     private static final String succeededActionMsg = "Success";
@@ -199,24 +172,12 @@ public class ActionListenerTest {
             settingServiceRpc);
 
     /**
-     * Rule to manage feature flag enablement.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule(FeatureFlags.ENABLE_SAVINGS_TEM);
-
-    /**
      * Setup before each test.
      *
      * @throws IOException on error
      */
     @Before
     public void setup() throws IOException {
-        if (enableTEM) {
-            featureFlagTestRule.enable(FeatureFlags.ENABLE_SAVINGS_TEM);
-        } else {
-            featureFlagTestRule.disable(FeatureFlags.ENABLE_SAVINGS_TEM);
-        }
         MockitoAnnotations.initMocks(this);
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         actionsService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());

@@ -1,7 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.Map;
-
 import javax.annotation.Nonnull;
 
 import org.immutables.gson.Gson;
@@ -38,13 +36,6 @@ interface ActionEntry {
      * @return destination oid.
      */
     Long getDestinationOid();
-
-    /**
-     * Commodities affected by the action.
-     *
-     * @return Map from commodity type to usage for that commodity
-     */
-    Map<Integer, Double> getCommodityUsage();
 
     /**
      * Check whether the source and destination OIDs are the reverse of this one.

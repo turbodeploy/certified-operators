@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -193,15 +192,6 @@ public interface Algorithm {
         }
         return currentRecommendation.getSourceOid();
     }
-
-    /**
-     * Map from commodity type to the commodity's usage.
-     *
-     * @return commodity usage map.  If there is no commodity information available, an empty
-     * map will be returned.
-     */
-    @Nonnull
-    Map<Integer, Double> getCommodityUsage();
 
     /**
      * Group of savings and investments together.

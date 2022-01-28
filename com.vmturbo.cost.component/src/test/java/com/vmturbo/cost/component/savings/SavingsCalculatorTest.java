@@ -8,7 +8,6 @@ import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,51 +27,22 @@ import com.google.gson.stream.JsonReader;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameter;
-import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
-import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests to verify operation of the savings algorithm.
  */
-@RunWith(Parameterized.class)
 public class SavingsCalculatorTest {
-    /**
-     * Parameterized test data.
-     *
-     * @return whether to enable TEM.
-     */
-    @Parameters(name = "{index}: Test with enable TEM = {0}")
-    public static Collection<Object[]> data() {
-        Object[][] data = new Object[][] {{true}, {false}};
-        return Arrays.asList(data);
-    }
-
-    /**
-     * Test parameter.
-     */
-    @Parameter(0)
-    public boolean enableTEM;
-
     private long actionId;
-
-    /**
-     * Rule to manage feature flag enablement.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule =
-            new FeatureFlagTestRule(FeatureFlags.ENABLE_SAVINGS_TEM);
 
     /**
      * Test setup.
@@ -82,11 +52,6 @@ public class SavingsCalculatorTest {
     @Before
     public void setUp() throws Exception {
         actionId = 1000L;
-        if (enableTEM) {
-            featureFlagTestRule.enable(FeatureFlags.ENABLE_SAVINGS_TEM);
-        } else {
-            featureFlagTestRule.disable(FeatureFlags.ENABLE_SAVINGS_TEM);
-        }
     }
 
     /**
@@ -428,10 +393,6 @@ public class SavingsCalculatorTest {
      */
     @Test
     public void testExecABProviderChangeBA() {
-        if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
-            // External provider change is not supported when TEM is enabled
-            return;
-        }
         // Create events for scenario.
         List<SavingsEvent> savingsEvents = ImmutableList.of(
                 createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
@@ -456,10 +417,6 @@ public class SavingsCalculatorTest {
      */
     @Test
     public void testExecABUnrelatedRecommendationProviderChangeBA() {
-        if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
-            // External provider change is not supported when TEM is enabled
-            return;
-        }
         // Create events for scenario.
         List<SavingsEvent> savingsEvents = ImmutableList.of(
                 createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
@@ -583,9 +540,10 @@ public class SavingsCalculatorTest {
 
         // No provider change in topology event.
         SavingsEvent savingsEvent = createSavingsEvent(0L)
-                .topologyEvent(new TopologyEvent.Builder()
-                        .timestamp(0L)
-                        .eventType(EventType.PROVIDER_CHANGE.getValue())
+                .topologyEvent(TopologyEvent.newBuilder()
+                        .setType(TopologyEventType.PROVIDER_CHANGE)
+                        .setEventTimestamp(0L)
+                        .setEventInfo(TopologyEventInfo.newBuilder())
                         .build())
                 .build();
         entityStates = runProviderChangeScenario(ImmutableList.of(savingsEvent));
@@ -640,13 +598,20 @@ public class SavingsCalculatorTest {
     }
 
     private SavingsEvent createProviderChange(long timestamp, Double sourceCost, Double destCost) {
-        TopologyEvent.Builder event = new TopologyEvent.Builder()
-                .timestamp(timestamp)
-                .eventType(EventType.PROVIDER_CHANGE.getValue());
+        ProviderChangeDetails.Builder providerChange = ProviderChangeDetails.newBuilder()
+                .setProviderType(10)
+                .setSourceProviderOid(Objects.hash(sourceCost));
         if (destCost != null) {
-            event.providerOid(Objects.hash(destCost));
+            providerChange.setDestinationProviderOid(Objects.hash(destCost));
         }
-        return createSavingsEvent(timestamp).topologyEvent(event.build()).build();
+        return createSavingsEvent(timestamp)
+                .topologyEvent(TopologyEvent.newBuilder()
+                        .setType(TopologyEventType.PROVIDER_CHANGE)
+                        .setEventTimestamp(timestamp)
+                        .setEventInfo(TopologyEventInfo.newBuilder()
+                                .setProviderChange(providerChange))
+                        .build())
+                .build();
     }
 
     /**

@@ -18,7 +18,6 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.CloudSavingsAvailable;
 import com.vmturbo.commons.Units;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
@@ -101,26 +100,22 @@ class EntitySavingsProcessor {
                 return;
             }
 
-            if (!FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
-                // TEP requires the latest topology broadcast should not be done within the within start
-                // and end time. i.e. we need one topology broadcast that happen after the end time.
-                // If we don't have a topology broadcast after the end time, we move the end time backwards
-                // by 1 hour.
-                while (!topologyEventsPoller.isTopologyBroadcasted(endTime)) {
-                    endTime = endTime.minusHours(1);
-                    logger.info(
-                            "Checking topology broadcast status again for polling window {} to {}",
-                            startTime, endTime);
-                    if (startTime.isEqual(endTime) || startTime.isAfter(endTime)) {
-                        logger.info(
-                                "Not processing savings because there is no topology broadcasted.");
-                        return;
-                    }
-                }
-                logger.info("Suitable Latest topology found, polling window set to {} to {}",
+            // TEP requires the latest topology broadcast should not be done within the within start
+            // and end time. i.e. we need one topology broadcast that happen after the end time.
+            // If we don't have a topology broadcast after the end time, we move the end time backwards
+            // by 1 hour.
+            while (!topologyEventsPoller.isTopologyBroadcasted(endTime)) {
+                endTime = endTime.minusHours(1);
+                logger.info("Checking topology broadcast status again for polling window {} to {}",
                         startTime, endTime);
-                topologyEventsPoller.poll(startTime, endTime);
+                if (startTime.isEqual(endTime) || startTime.isAfter(endTime)) {
+                    logger.info("Not processing savings because there is no topology broadcasted.");
+                    return;
+                }
             }
+            logger.info("Suitable Latest topology found, polling window set to {} to {}", startTime,
+                    endTime);
+            topologyEventsPoller.poll(startTime, endTime);
 
             logger.info("Invoke EntitySavingsTracker to process events.");
             final List<Long> hourlyStatsTimes = entitySavingsTracker.processEvents(startTime,
