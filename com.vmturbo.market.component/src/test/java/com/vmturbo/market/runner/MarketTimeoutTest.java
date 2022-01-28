@@ -44,7 +44,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.tracing.Tracing;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
@@ -56,6 +55,8 @@ import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -87,8 +88,7 @@ public class MarketTimeoutTest {
       * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
       */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-            FeatureFlags.NAMESPACE_QUOTA_RESIZING, FeatureFlags.ENABLE_ANALYSIS_TIMEOUT);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private MarketRunner runner;
     private ExecutorService threadPool;
@@ -181,6 +181,11 @@ public class MarketTimeoutTest {
                     final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
                     doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
+                    final AnalysisDiagnosticsCollectorFactory defaultAnalysisDiagnosticsCollectorFactory =
+                            mock(DefaultAnalysisDiagnosticsCollectorFactory.class);
+                    when(defaultAnalysisDiagnosticsCollectorFactory.newDiagsCollector(any(), any()))
+                            .thenReturn(Optional.of(mock(AnalysisDiagnosticsCollector.class)));
+
                     final ExternalReconfigureActionEngine externalReconfigureActionEngine = mock(
                             ExternalReconfigureActionEngine.class);
                         Set<TopologyEntityDTO> entities = invocation.getArgumentAt(1, Set.class);
@@ -194,7 +199,7 @@ public class MarketTimeoutTest {
                                         new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                                         externalReconfigureActionEngine,
                                         mock(AnalysisDiagnosticsCleaner.class),
-                                        mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                                        defaultAnalysisDiagnosticsCollectorFactory);
                     }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
             }
 
@@ -212,7 +217,6 @@ public class MarketTimeoutTest {
       */
     @Test
     public void testMarketTimeout() throws InterruptedException {
-        featureFlagTestRule.enable(FeatureFlags.ENABLE_ANALYSIS_TIMEOUT);
         Analysis analysis = runner.scheduleAnalysis(rtTopologyInfo, dtos(true),
                     Tracing.trace("test").spanContext(), true,
                     maxPlacementsOverride, useQuoteCacheDuringSnm, replayProvisionsForRt,
