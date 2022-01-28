@@ -9,8 +9,9 @@ import javax.annotation.Nullable;
  * Single field data store.
  *
  * @param <T> param of data.
+ * @param <FilterTypeT> The type of a filter on {@link T}.
  */
-public interface SingleFieldDataStore<T> {
+public interface SingleFieldDataStore<T, FilterTypeT> {
 
     /**
      * Sets the {@link T}.
@@ -26,4 +27,12 @@ public interface SingleFieldDataStore<T> {
      */
     @Nonnull
     Optional<T> getData();
+
+    /**
+     * Applies {@code filter} to {@link #getData()}.
+     * @param filter The filter.
+     * @return The filtered data.
+     */
+    @Nonnull
+    Optional<T> filterData(FilterTypeT filter);
 }

@@ -92,8 +92,9 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerClusterPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerSpecPostProcessor;
 import com.vmturbo.market.runner.postprocessor.ProjectedEntityPostProcessor;
@@ -357,7 +358,7 @@ public class Analysis {
                     @Nonnull final MarketPriceTableFactory priceTableFactory,
                     @Nonnull final WastedFilesAnalysisEngine wastedFilesAnalysisEngine,
                     @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
-                    @Nonnull final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine,
+                    @Nonnull final NamespaceQuotaAnalysisFactory namespaceQuotaAnalysisFactory,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
@@ -385,7 +386,7 @@ public class Analysis {
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(
                 topologyDTOs.stream());
         this.wastedFilesAnalysisEngine = wastedFilesAnalysisEngine;
-        this.namespaceQuotaAnalysisEngine = namespaceQuotaAnalysisEngine;
+        this.namespaceQuotaAnalysisEngine = namespaceQuotaAnalysisFactory.newNamespaceQuotaAnalysisEngine(topologyInfo);
         this.buyRIImpactAnalysisFactory = buyRIImpactAnalysisFactory;
         this.topologyCostCalculatorFactory = cloudCostCalculatorFactory;
         this.marketPriceTableFactory = priceTableFactory;
@@ -884,8 +885,7 @@ public class Analysis {
                     if (FeatureFlags.NAMESPACE_QUOTA_RESIZING.isEnabled()) {
                         try (TracingScope ignored = Tracing.trace("namespace_quota_resizing_analysis")) {
                             namespaceQuotaAnalysisResult =
-                                    namespaceQuotaAnalysisEngine.execute(topologyInfo, topologyDTOs,
-                                            projectedEntities, actions);
+                                    namespaceQuotaAnalysisEngine.execute(topologyDTOs, projectedEntities, actions);
                             actionPlanBuilder.addAllAction(
                                     namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions());
                         }

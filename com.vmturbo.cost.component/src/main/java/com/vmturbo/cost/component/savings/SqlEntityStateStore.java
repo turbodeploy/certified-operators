@@ -142,6 +142,40 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     }
 
     /**
+     * Update a single existing entity states. This is used by the TEM to updated existing state,
+     * and does not affect the cloud topology table.
+     *
+     * @param entityState entity state to write
+     * @throws EntitySavingsException error during operation
+     */
+    @Override
+    public void updateEntityState(@Nonnull final EntityState entityState)
+            throws EntitySavingsException {
+        EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
+        record.setEntityOid(entityState.getEntityId());
+        record.setUpdated(entityState.isUpdated() ? (byte)1 : (byte)0);
+        record.setNextExpirationTime(Timestamp.from(Instant.ofEpochMilli(entityState
+                .getNextExpirationTime())).toLocalDateTime());
+        record.setEntityState(entityState.toJson());
+        List<EntitySavingsStateRecord> records = new ArrayList<>();
+        records.add(record);
+
+        try {
+            dsl.loadInto(ENTITY_SAVINGS_STATE)
+                    .batchAfter(chunkSize)
+                    .onDuplicateKeyUpdate()
+                    .loadRecords(records)
+                    .fields(ENTITY_SAVINGS_STATE.ENTITY_OID,
+                            ENTITY_SAVINGS_STATE.UPDATED,
+                            ENTITY_SAVINGS_STATE.ENTITY_STATE,
+                            ENTITY_SAVINGS_STATE.NEXT_EXPIRATION_TIME)
+                    .execute();
+        } catch (IOException e) {
+            throw new EntitySavingsException("Error occurred when updating entity states.", e);
+        }
+    }
+
+    /**
      * Update entity states. If the state of the entity is not already in the store, create it.
      *
      * @param entityStateMap entity ID mapped to entity state

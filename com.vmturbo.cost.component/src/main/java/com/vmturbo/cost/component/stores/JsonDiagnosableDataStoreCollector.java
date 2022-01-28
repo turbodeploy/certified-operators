@@ -9,7 +9,6 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -25,9 +24,9 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
  *
  * @param <T> type of data.
  */
-public class JsonDiagnosableSingleFieldDataStore<T> implements DiagnosableSingleFieldDataStore<T> {
+public class JsonDiagnosableDataStoreCollector<T> implements DiagnosableDataStoreCollector {
 
-    private final SingleFieldDataStore<T> singleFieldDataStore;
+    private final SingleFieldDataStore<T, ?> singleFieldDataStore;
     private final String diagnosticFileName;
     private final Gson gson;
     private final Class<T> typeOfT;
@@ -42,8 +41,8 @@ public class JsonDiagnosableSingleFieldDataStore<T> implements DiagnosableSingle
      * @param typeOfT the class of generic type parameter.
      * @param charset the {@link Charset} of diagnostic.
      */
-    public JsonDiagnosableSingleFieldDataStore(
-            @Nonnull final SingleFieldDataStore<T> singleFieldDataStore,
+    public JsonDiagnosableDataStoreCollector(
+            @Nonnull final SingleFieldDataStore<T, ?> singleFieldDataStore,
             @Nonnull final String diagnosticFileName, @Nonnull final Gson gson,
             @Nonnull final Class<T> typeOfT, @Nonnull final Charset charset) {
         this.singleFieldDataStore = singleFieldDataStore;
@@ -61,8 +60,8 @@ public class JsonDiagnosableSingleFieldDataStore<T> implements DiagnosableSingle
      * @param gson the {@link Gson}.
      * @param typeOfT the class of generic type parameter.
      */
-    public JsonDiagnosableSingleFieldDataStore(
-            @Nonnull final SingleFieldDataStore<T> singleFieldDataStore,
+    public JsonDiagnosableDataStoreCollector(
+            @Nonnull final SingleFieldDataStore<T, ?> singleFieldDataStore,
             @Nonnull final String diagnosticFileName, @Nonnull final Gson gson,
             @Nonnull final Class<T> typeOfT) {
         this(singleFieldDataStore, diagnosticFileName, gson, typeOfT, StandardCharsets.UTF_8);
@@ -78,7 +77,7 @@ public class JsonDiagnosableSingleFieldDataStore<T> implements DiagnosableSingle
     public void collectDiags(@Nonnull final OutputStream appender) throws IOException {
         try (OutputStreamWriter writer = new OutputStreamWriter(
                 new CloseShieldOutputStream(appender), this.charset)) {
-            this.gson.toJson(getData().orElse(null), this.typeOfT, writer);
+            this.gson.toJson(singleFieldDataStore.getData().orElse(null), this.typeOfT, writer);
             writer.flush();
         }
     }
@@ -88,20 +87,9 @@ public class JsonDiagnosableSingleFieldDataStore<T> implements DiagnosableSingle
             throws DiagnosticsException {
         try (InputStream in = new ByteArrayInputStream(bytes);
              Reader reader = new InputStreamReader(in, this.charset)) {
-            setData(this.gson.fromJson(reader, this.typeOfT));
+            singleFieldDataStore.setData(this.gson.fromJson(reader, this.typeOfT));
         } catch (IOException e) {
             throw new DiagnosticsException(e);
         }
-    }
-
-    @Override
-    public void setData(@Nullable final T data) {
-        this.singleFieldDataStore.setData(data);
-    }
-
-    @Nonnull
-    @Override
-    public Optional<T> getData() {
-        return this.singleFieldDataStore.getData();
     }
 }

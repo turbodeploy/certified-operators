@@ -10,7 +10,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.mapstruct.BeanMapping;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -51,7 +50,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
@@ -239,7 +238,7 @@ public class MarketRunnerConfig {
                 topologyCostCalculatorFactory(),
                 wastedFilesAnalysisFactory(),
                 buyRIImpactAnalysisConfig.buyRIImpactAnalysisFactory(),
-                namespaceQuotaAnalysisEngine(),
+                namespaceQuotaAnalysisEngineFactory(),
                 marketCloudCostDataProvider(),
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
@@ -319,13 +318,13 @@ public class MarketRunnerConfig {
     }
 
     /**
-     * Create the instance of {@link NamespaceQuotaAnalysisEngine}.
+     * Create the instance of {@link NamespaceQuotaAnalysisFactory}.
      *
-     * @return Instance of {@link NamespaceQuotaAnalysisEngine}.
+     * @return Instance of {@link NamespaceQuotaAnalysisFactory}.
      */
     @Bean
-    public NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine() {
-        return new NamespaceQuotaAnalysisEngine();
+    public NamespaceQuotaAnalysisFactory namespaceQuotaAnalysisEngineFactory() {
+        return new NamespaceQuotaAnalysisFactory();
     }
 
     /**

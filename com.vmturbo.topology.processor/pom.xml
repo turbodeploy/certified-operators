@@ -280,7 +280,7 @@
                                     <images>
                                         <image>
                                             <alias>postgres</alias>
-                                            <name>postgres:${postgres-image-tag}</name>
+                                            <name>${postgres-image}</name>
                                             <run>
                                                 <!--
                                                 pattern needs to start with "maven-" so jenkins builds
@@ -323,7 +323,7 @@
                                     <dockerHost>${fabricateDockerHost}</dockerHost>
                                     <images>
                                         <image>
-                                            <name>postgres:${postgres-image-tag}</name>
+                                            <name>${postgres-image}</name>
                                         </image>
                                     </images>
                                 </configuration>

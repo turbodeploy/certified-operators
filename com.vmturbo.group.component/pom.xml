@@ -35,7 +35,6 @@
         <pre-integration-test-phase>pre-integration-test</pre-integration-test-phase>
         <integration-test-phase>integration-test</integration-test-phase>
         <it.suite.name>group_it_test</it.suite.name>
-        <dockerHost>${fabricateDockerHost}</dockerHost>
     </properties>
 
     <dependencies>
@@ -429,7 +428,7 @@
                                     <images>
                                         <image>
                                             <alias>postgres</alias>
-                                            <name>postgres:${postgres-image-tag}</name>
+                                            <name>${postgres-image}</name>
                                             <run>
                                                 <!--
                                                 pattern needs to start with "maven-" so jenkins builds
@@ -472,7 +471,7 @@
                                     <dockerHost>${dockerHost}</dockerHost>
                                     <images>
                                         <image>
-                                            <name>postgres:${postgres-image-tag}</name>
+                                            <name>${postgres-image}</name>
                                         </image>
                                     </images>
                                 </configuration>

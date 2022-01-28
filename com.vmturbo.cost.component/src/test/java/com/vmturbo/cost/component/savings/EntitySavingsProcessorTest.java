@@ -2,21 +2,49 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
 
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Test the entity savings processor.
  */
+@RunWith(Parameterized.class)
 public class EntitySavingsProcessorTest {
+
+    /**
+     * Parameterized test data.
+     *
+     * @return whether to enable TEM.
+     */
+    @Parameters(name = "{index}: Test with enable TEM = {0}")
+    public static Collection<Object[]> data() {
+        Object[][] data = new Object[][] {{true}, {false}};
+        return Arrays.asList(data);
+    }
+
+    /**
+     * Test parameter.
+     */
+    @Parameter(0)
+    public boolean enableTEM;
 
     private TopologyEventsPoller topologyEventsPoller = Mockito.mock(TopologyEventsPoller.class);
 
@@ -38,6 +66,25 @@ public class EntitySavingsProcessorTest {
             Mockito.mock(CostNotificationSender.class)));
 
     /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_SAVINGS_TEM);
+
+    /**
+     * Test initialization.
+     */
+    @Before
+    public void setup() {
+        if (enableTEM) {
+            featureFlagTestRule.enable(FeatureFlags.ENABLE_SAVINGS_TEM);
+        } else {
+            featureFlagTestRule.disable(FeatureFlags.ENABLE_SAVINGS_TEM);
+        }
+    }
+
+    /**
      * Start time is 9:00. End time is 10:00.
      * Verify start and end times are passed to the tracker.
      */
@@ -51,7 +98,10 @@ public class EntitySavingsProcessorTest {
         LocalDateTime endTime = LocalDateTime.of(2021, 3, 23, 10, 0);
         Mockito.when(entitySavingsProcessor.getCurrentDateTime()).thenReturn(endTime);
         entitySavingsProcessor.execute();
-        Mockito.verify(topologyEventsPoller).poll(startTime, endTime);
+        if (!FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
+            // The poller is enabled only when TEM is disabled
+            Mockito.verify(topologyEventsPoller).poll(startTime, endTime);
+        }
         Mockito.verify(entitySavingsTracker).processEvents(startTime, endTime,
                 Collections.emptySet());
     }
@@ -88,11 +138,15 @@ public class EntitySavingsProcessorTest {
         LocalDateTime endTime = LocalDateTime.of(2021, 3, 23, 10, 0);
         Mockito.when(entitySavingsProcessor.getCurrentDateTime()).thenReturn(endTime);
         entitySavingsProcessor.execute();
-        Mockito.verify(topologyEventsPoller, Mockito.never()).poll(Mockito.any(LocalDateTime.class),
-                Mockito.any(LocalDateTime.class));
-        Mockito.verify(entitySavingsTracker, Mockito.never())
-                .processEvents(Mockito.any(LocalDateTime.class), Mockito.any(LocalDateTime.class),
-                        Mockito.anySet());
+        if (!FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
+            // We only run this test once (for the TEM disabled case) because verify fails when
+            // the test itself runs twice.  We also should not invoke poll when TEM is enabled,
+            // so skipping this when it is.
+            Mockito.verify(topologyEventsPoller, Mockito.never()).poll(Mockito.any(LocalDateTime.class),
+                    Mockito.any(LocalDateTime.class));
+            Mockito.verify(entitySavingsTracker, Mockito.never()).processEvents(Mockito.any(LocalDateTime.class), Mockito.any(LocalDateTime.class),
+                    Mockito.anySet());
+        }
     }
 
     /**
@@ -110,9 +164,12 @@ public class EntitySavingsProcessorTest {
         Mockito.when(entitySavingsProcessor.getCurrentDateTime()).thenReturn(endTime);
         entitySavingsProcessor.execute();
         LocalDateTime updatedEndTime = LocalDateTime.of(2021, 3, 23, 9, 0);
-        Mockito.verify(topologyEventsPoller).poll(startTime, updatedEndTime);
+        if (!FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
+            // The poller is enabled only when TEM is disabled
+            Mockito.verify(topologyEventsPoller).poll(startTime, updatedEndTime);
         Mockito.verify(entitySavingsTracker).processEvents(startTime, updatedEndTime,
                 Collections.emptySet());
+        }
     }
 
     /**

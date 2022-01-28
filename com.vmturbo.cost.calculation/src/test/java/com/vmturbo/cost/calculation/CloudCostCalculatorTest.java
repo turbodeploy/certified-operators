@@ -787,15 +787,16 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
 
         // assert
+        double totalGpDbStoragePrice = STORAGE_PRICE * CloudCostCalculator.LOG_STORAGE_COST_FACTOR;
         assertThat(journal.getTotalHourlyCost().getValue(),
                 is(BASE_PRICE + MYSQL_ADJUSTMENT +
                         CostProtoUtil.getHourlyPriceAmount(price(Unit.GB_MONTH,
-                                GB_RANGE * STORAGE_PRICE))));
+                                GB_RANGE * totalGpDbStoragePrice))));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
                 is(BASE_PRICE ));
         assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(),
                 is(CostProtoUtil.getHourlyPriceAmount(price(Unit.GB_MONTH,
-                        GB_RANGE * STORAGE_PRICE))));
+                        GB_RANGE * totalGpDbStoragePrice))));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
                 is(MYSQL_ADJUSTMENT));
 

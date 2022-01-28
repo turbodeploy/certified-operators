@@ -6,15 +6,20 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.jetbrains.annotations.NotNull;
+
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
+
 /**
  * In-memory source and projected fields data store.
  *
- * @param <T> type of data.
+ * @param <DataTypeT> type of data.
+ * @param <FilterTypeT> The filter type.
  * @param <S> type of store.
  */
 @ThreadSafe
-public class InMemorySourceProjectedFieldsDataStore<T, S extends SingleFieldDataStore<T>>
-        implements SourceProjectedFieldsDataStore<T> {
+public class InMemorySourceProjectedFieldsDataStore<DataTypeT, FilterTypeT, S extends SingleFieldDataStore<DataTypeT, FilterTypeT>>
+        implements SourceProjectedFieldsDataStore<DataTypeT, FilterTypeT> {
 
     private final S sourceSingleFieldDataStore;
     private final S projectedSingleFieldDataStore;
@@ -33,23 +38,35 @@ public class InMemorySourceProjectedFieldsDataStore<T, S extends SingleFieldData
 
     @Nonnull
     @Override
-    public Optional<T> getProjectedData() {
+    public Optional<DataTypeT> getProjectedData() {
         return this.projectedSingleFieldDataStore.getData();
     }
 
     @Override
-    public void setProjectedData(@Nullable final T data) {
+    public Optional<DataTypeT> filterData(@NotNull TopologyType topologyType, @NotNull FilterTypeT filter) {
+
+        if (topologyType == TopologyType.TOPOLOGY_TYPE_SOURCE) {
+            return sourceSingleFieldDataStore.filterData(filter);
+        } else if (topologyType == TopologyType.TOPOLOGY_TYPE_PROJECTED) {
+            return projectedSingleFieldDataStore.filterData(filter);
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public void setProjectedData(@Nullable final DataTypeT data) {
         this.projectedSingleFieldDataStore.setData(data);
     }
 
     @Nonnull
     @Override
-    public Optional<T> getSourceData() {
+    public Optional<DataTypeT> getSourceData() {
         return this.sourceSingleFieldDataStore.getData();
     }
 
     @Override
-    public void setSourceData(@Nullable final T data) {
+    public void setSourceData(@Nullable final DataTypeT data) {
         this.sourceSingleFieldDataStore.setData(data);
     }
 }

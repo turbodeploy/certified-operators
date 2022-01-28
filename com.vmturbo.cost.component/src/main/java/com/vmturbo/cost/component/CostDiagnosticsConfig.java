@@ -22,15 +22,12 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDi
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
-import com.vmturbo.cost.component.cloud.commitment.coverage.CoverageInfo;
-import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
-import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
-import com.vmturbo.cost.component.stores.DiagnosableSingleFieldDataStore;
+import com.vmturbo.cost.component.stores.DiagnosableDataStoreCollector;
 
 /**
  * Class for handling cost diagnostics export and import.
@@ -61,24 +58,22 @@ public class CostDiagnosticsConfig {
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<CoverageInfo> sourceTopologyCommitmentCoverageStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentCoverageStoreDiagnosable;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<CoverageInfo> projectedTopologyCommitmentCoverageStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentCoverageStoreDiagnosable;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<UtilizationInfo>
-            sourceTopologyCommitmentUtilizationStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentUtilizationStoreDiagnosable;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<UtilizationInfo>
-            projectedTopologyCommitmentUtilizationStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentUtilizationStoreDiagnosable;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<MappingInfo> sourceTopologyCommitmentMappingStore;
+    private DiagnosableDataStoreCollector sourceTopologyCommitmentMappingStoreDiagnosable;
 
     @Autowired
-    private DiagnosableSingleFieldDataStore<MappingInfo> projectedTopologyCommitmentMappingStore;
+    private DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStoreDiagnosable;
 
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveAllocationDemandDiags;
@@ -152,11 +147,12 @@ public class CostDiagnosticsConfig {
                 storesToSave.add(computeTierDemandStatsConfig.riDemandStatsStore());
             }
 
-            storesToSave.addAll(Arrays.asList(sourceTopologyCommitmentCoverageStore,
-                    projectedTopologyCommitmentCoverageStore,
-                    sourceTopologyCommitmentUtilizationStore,
-                    projectedTopologyCommitmentUtilizationStore,
-                    sourceTopologyCommitmentMappingStore, projectedTopologyCommitmentMappingStore));
+            storesToSave.addAll(Arrays.asList(sourceTopologyCommitmentCoverageStoreDiagnosable,
+                    projectedTopologyCommitmentCoverageStoreDiagnosable,
+                    sourceTopologyCommitmentUtilizationStoreDiagnosable,
+                    projectedTopologyCommitmentUtilizationStoreDiagnosable,
+                    sourceTopologyCommitmentMappingStoreDiagnosable,
+                    projectedTopologyCommitmentMappingStoreDiagnosable));
         }
         return storesToSave;
     }

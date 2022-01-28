@@ -1,7 +1,9 @@
 package com.vmturbo.cost.component.savings;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -11,11 +13,22 @@ import javax.annotation.Nullable;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.component.savings.TopologyEventsMonitor.ChangeResult;
+
 /**
  * Class to encapsulate the entity states that need to be persisted or to be passed from the
  * savings calculator to EntitySavingsTracker.
  */
-public class EntityState {
+public class EntityState implements MonitoredEntity {
+    /**
+     * Logger.
+     */
+    private final transient Logger logger = LogManager.getLogger();
+
     /**
      * Used to JSONify fields.
      */
@@ -45,6 +58,11 @@ public class EntityState {
      * Power state of the entity. 1 is powered on; 0 is powered off.
      */
     private long powerFactor;
+
+    /**
+     * Last time we detected an on -> off power transition, for debouncing power events.
+     */
+    private Long lastPowerOffTransition;
 
     /**
      * Contains current cost info in the recommendation active for an entity.
@@ -87,6 +105,16 @@ public class EntityState {
     private List<Long> expirationList;
 
     /**
+     * Current commodity usage.
+     */
+    private Map<Integer, Double> commodityUsage;
+
+    /**
+     * Current provider ID.
+     */
+    private Long providerId;
+
+    /**
      * Boolean flag to indicate this state was updated as a result of an event.
      * The flag is used to indicate that this state will need to be processed again in the next
      * period even if there will be no events detected for this entity in the next period.
@@ -104,6 +132,7 @@ public class EntityState {
         this.entityId = entityId;
         this.deletePending = false;
         this.powerFactor = 1L;
+        this.lastPowerOffTransition = 0L;
         this.currentRecommendation = currentRecommendation;
 
         // Initialize the current action list and their expiration times. Not scaled by
@@ -111,8 +140,11 @@ public class EntityState {
         this.actionList = new ArrayList<>();
         this.expirationList = new ArrayList<>();
         this.lastExecutedAction = Optional.empty();
+        this.commodityUsage = new HashMap<>();
+        this.providerId = 0L;
     }
 
+    @Override
     public long getEntityId() {
         return entityId;
     }
@@ -230,7 +262,18 @@ public class EntityState {
      * @return StateInfo object made out of JSON string.
      */
     public static EntityState fromJson(@Nonnull final String jsonSerialized) {
-        return GSON.fromJson(jsonSerialized, EntityState.class);
+        EntityState entityState = GSON.fromJson(jsonSerialized, EntityState.class);
+        // Migration:  Fill in missing fields.
+        if (entityState.providerId == null) {
+            entityState.providerId = 0L;
+        }
+        if (entityState.commodityUsage == null) {
+            entityState.commodityUsage = new HashMap<>();
+        }
+        if (entityState.getLastPowerOffTransition() == null) {
+            entityState.setLastPowerOffTransition(0L);
+        }
+        return entityState;
     }
 
     /**
@@ -266,5 +309,65 @@ public class EntityState {
 
     public void setLastExecutedAction(@Nonnull Optional<ActionEntry> lastExecutedAction) {
         this.lastExecutedAction = lastExecutedAction;
+    }
+
+    @Override
+    public Long getLastPowerOffTransition() {
+        return lastPowerOffTransition;
+    }
+
+    @Override
+    public void setLastPowerOffTransition(Long lastPowerOffTransition) {
+        this.lastPowerOffTransition = lastPowerOffTransition;
+    }
+
+    @Override
+    public Long getProviderId() {
+        return providerId;
+    }
+
+    @Override
+    public void setProviderId(Long providerId) {
+        this.providerId = providerId;
+    }
+
+    @Override
+    @Nullable
+    public Map<Integer, Double> getCommodityUsage() {
+        return commodityUsage;
+    }
+
+    public void setCommodityUsage(Map<Integer, Double> commodityUsage) {
+        this.commodityUsage = commodityUsage;
+    }
+
+    /**
+     * Call the TEM to generate topology events, then add them to the event journal and update
+     * entity state if necessary.
+     *
+     * @param topologyEventsMonitor topology events monitor
+     * @param entityStateStore persistent entity state store
+     * @param entityEventsJournal savings event journal
+     * @param topologyTimestamp time of the discovered topology
+     * @param cloudTopology The cloud topology to process.
+     */
+    public void handleTopologyUpdate(TopologyEventsMonitor topologyEventsMonitor,
+            EntityStateStore entityStateStore, EntityEventsJournal entityEventsJournal,
+            long topologyTimestamp, CloudTopology cloudTopology) {
+        // Identify differences and generate appropriate events
+        ChangeResult result =
+                topologyEventsMonitor.generateEvents(this, cloudTopology, topologyTimestamp);
+
+        // Generate events
+        entityEventsJournal.addEvents(result.savingsEvents);
+
+        // Update state
+        if (result.stateUpdated) {
+            try {
+                entityStateStore.updateEntityState(this);
+            } catch (EntitySavingsException e) {
+                logger.error("Cannot update entity state for {}: {}", getEntityId(), e.toString());
+            }
+        }
     }
 }

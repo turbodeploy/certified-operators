@@ -72,7 +72,7 @@ import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -297,8 +297,8 @@ public class AnalysisDebuggingTest {
             mock(WastedFilesAnalysisEngine.class);
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
-        final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine =
-            mock(NamespaceQuotaAnalysisEngine.class);
+        final NamespaceQuotaAnalysisFactory namespaceQuotaAnalysisFactory =
+            mock(NamespaceQuotaAnalysisFactory.class);
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
@@ -308,7 +308,7 @@ public class AnalysisDebuggingTest {
             new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel())),
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine, tierExcluderFactory,
+                wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory, tierExcluderFactory,
                 mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder,
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                         new CommodityIdUpdater(), actionSavingsCalculatorFactory, mock(

@@ -35,8 +35,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroup;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -168,11 +170,8 @@ public class DiscoveredGroupUploader {
                 discoveredGroupInterpreter.interpretSdkGroupList(groups, targetId);
         final DiscoveredPolicyInfoParser parser = new DiscoveredPolicyInfoParser(groups, targetId);
         final List<DiscoveredPolicyInfo> discoveredPolicyInfos = parser.parsePoliciesOfGroups();
-        final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicyInfos = new ArrayList<>();
-        discoveredSettingPolicyInfos
-                    .addAll(convertTemplateExclusionGroupsToPolicies(targetId, groups));
-        discoveredSettingPolicyInfos
-                    .addAll(convertConsistentScalingGroupsToPolicies(targetId, groups));
+        final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicyInfos =
+                convertDiscoveredSettingPolicies(targetId, groups);
 
         synchronized (dataByTarget) {
             dataByTarget.computeIfAbsent(targetId, k -> new TargetDiscoveredData())
@@ -180,6 +179,19 @@ public class DiscoveredGroupUploader {
                   discoveredSettingPolicyInfos);
             discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId, groups);
         }
+    }
+
+    @Nonnull
+    private List<DiscoveredSettingPolicyInfo> convertDiscoveredSettingPolicies(final long targetId,
+                                                  @Nonnull final List<CommonDTO.GroupDTO> groups) {
+        final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicyInfos = new ArrayList<>();
+        discoveredSettingPolicyInfos
+                .addAll(convertTemplateExclusionGroupsToPolicies(targetId, groups));
+        discoveredSettingPolicyInfos
+                .addAll(convertConsistentScalingGroupsToPolicies(targetId, groups));
+        discoveredSettingPolicyInfos
+                .addAll(convertSettingPolicies(targetId, groups));
+        return discoveredSettingPolicyInfos;
     }
 
     /**
@@ -197,19 +209,13 @@ public class DiscoveredGroupUploader {
             if (!group.getIsConsistentResizing()) {
                 continue;
             }
-            DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
+
             Setting.Builder setting = Setting.newBuilder();
             setting.setSettingSpecName(EntitySettingSpecs.EnableConsistentResizing.getSettingName());
             setting.setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true));
-            policy.setEntityType(group.getEntityType().getNumber());
-            policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-            String targetName = getTargetDisplayName(targetId);
-            String displayName = String.format("%s - Consistent Scaling Policy (target %d)",
-                                        group.getDisplayName(), targetId);
-            policy.setDisplayName(displayName);
-            policy.setName(createPolicyName(group, targetId, "CSP"));
-            policy.addSettings(setting);
-            discoveredPolicyInfos.add(policy.build());
+
+            discoveredPolicyInfos.add(createPolicy(group, targetId,
+                Collections.singletonList(setting.build()), "Consistent Scaling Policy", "CSP"));
         }
         return discoveredPolicyInfos;
     }
@@ -241,19 +247,83 @@ public class DiscoveredGroupUploader {
             setting.setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName());
             setting.setSortedSetOfOidSettingValue(oids);
 
-            DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
-            policy.setEntityType(group.getEntityType().getNumber());
-            policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-            String name = String.format("%s - %s (target %d)",
-                    group.getDisplayName(), "Cloud Compute Tier Exclusion Policy", targetId);
-            policy.setDisplayName(name);
-            policy.setName(createPolicyName(group, targetId, "EXP"));
-            policy.addSettings(setting);
-
-            result.add(policy.build());
+            result.add(createPolicy(group, targetId, Collections.singletonList(setting.build()),
+                    "Cloud Compute Tier Exclusion Policy", "EXP"));
         }
 
         return result;
+    }
+
+    /**
+     * Convert setting policies GroupDTOs to DiscoveredSettingPolicyInfos.
+     *
+     * @param targetId The id of the target whose groups were discovered
+     * @param groups GroupDTOs to process
+     * @return the list of DiscoveredSettingPolicyInfos
+     */
+    @Nonnull
+    private List<DiscoveredSettingPolicyInfo> convertSettingPolicies(
+            long targetId, @Nonnull List<CommonDTO.GroupDTO> groups) {
+        List<DiscoveredSettingPolicyInfo> result = new ArrayList<>();
+        String targetName = getTargetDisplayName(targetId);
+
+        for (GroupDTO group : groups) {
+            if (!group.hasSettingPolicy()) {
+                continue;
+            }
+
+            List<Setting> settings = new ArrayList<>(group.getSettingPolicy().getSettingsCount());
+
+            for (GroupDTO.Setting discoveredSetting : group.getSettingPolicy().getSettingsList()) {
+                Setting.Builder setting;
+
+                switch (discoveredSetting.getType()) {
+                    case VCPU_CORES_MIN_THRESHOLD:
+                        setting = Setting.newBuilder()
+                          .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold
+                                .getSettingName())
+                          .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                .setValue(discoveredSetting.getNumericSettingValueType().getValue())
+                                .build());
+                        settings.add(setting.build());
+                        break;
+                    case VCPU_CORES_MAX_THRESHOLD:
+                        setting = Setting.newBuilder()
+                          .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMaxThreshold
+                                .getSettingName())
+                          .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                .setValue(discoveredSetting.getNumericSettingValueType().getValue())
+                                .build());
+                        settings.add(setting.build());
+                        break;
+                    default:
+                        logger.error("The setting \"{}\" discovered from target \"{}\" is unknown.",
+                                discoveredSetting.getType(), targetName);
+                }
+            }
+
+            if (settings.size() > 0) {
+                result.add(createPolicy(group, targetId, settings, "Setting policy", "SET"));
+            } else {
+                logger.warn("No setting policy were created for \"{}\" discovered from \"{}\"",
+                        group.getDisplayName(), targetName);
+            }
+        }
+
+        return result;
+    }
+
+    private DiscoveredSettingPolicyInfo createPolicy(GroupDTO group, long targetId,
+                                List<Setting> settings, String displayNameId, String nameId) {
+        DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
+        policy.setEntityType(group.getEntityType().getNumber());
+        policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
+        String name = String.format("%s - %s (target %d)",
+                group.getDisplayName(), displayNameId, targetId);
+        policy.setDisplayName(name);
+        policy.setName(createPolicyName(group, targetId, nameId));
+        policy.addAllSettings(settings);
+        return policy.build();
     }
 
     /**
@@ -268,11 +338,25 @@ public class DiscoveredGroupUploader {
     private String createPolicyName(GroupDTO group, long targetId, String prefix) {
         // It is expected that the group name is unique in the scope of that target.
         // Therefore, the concatenation of group name and target id should be unqiue.
-        final String name = String.join(":", prefix, group.hasGroupName()
-            ? group.getGroupName() : group.getConstraintInfo().getConstraintId(),
+        final String name = String.join(":", prefix, extractSettingPolicyGroupName(group),
             String.valueOf(targetId));
         // The name of policy should not be longer than character limit. Fix if that is the case
         return SDKUtil.fixUuid(name, 255, 215);
+    }
+
+    @Nonnull
+    private String extractSettingPolicyGroupName(@Nonnull GroupDTO group) {
+        switch (group.getInfoCase()) {
+            case GROUP_NAME:
+                return group.getGroupName();
+            case CONSTRAINT_INFO:
+                return group.getConstraintInfo().getConstraintId();
+            case SETTING_POLICY:
+                return group.getSettingPolicy().getName();
+            default:
+                throw new IllegalArgumentException("Unknown group info " + group.getInfoCase()
+                        + " for group " + group.getDisplayName());
+        }
     }
 
     @Nonnull

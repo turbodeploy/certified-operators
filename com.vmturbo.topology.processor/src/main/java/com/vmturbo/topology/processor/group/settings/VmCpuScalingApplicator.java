@@ -70,7 +70,8 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
                     VCPU_SCALING_MODE_TO_HANDLER =
                     ImmutableMap.of(VCPUScalingUnitsEnum.MHZ, MHZ_HANDLER,
                                     VCPUScalingUnitsEnum.CORES, new CoresHandler(),
-                                    VCPUScalingUnitsEnum.SOCKETS, new SocketsHandler());
+                                    VCPUScalingUnitsEnum.SOCKETS, new SocketsHandler(),
+                                    VCPUScalingUnitsEnum.VCPUS, new VcpusHandler());
 
     private final TopologyGraph<TopologyEntity> topologyGraph;
 
@@ -164,7 +165,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
     private static class CoresHandler extends MhzHandler {
         private static final Map<VcpuScalingCoresPerSocketSocketModeEnum, CoresModeHandler>
                         MODE_TO_HANDLER =
-                        ImmutableMap.of(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE,
+                        ImmutableMap.of(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS,
                                         new HandlePreserve(),
                                         VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST,
                                         new HandleMatchHost(),
@@ -188,7 +189,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             final VcpuScalingCoresPerSocketSocketModeEnum coresPerSocketModeType =
                             getSettingValue(entitySettings,
                                             EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
-                                            VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE);
+                                            VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS);
 
             final CoresModeHandler modeHandler = MODE_TO_HANDLER.get(coresPerSocketModeType);
             final int sockets;
@@ -208,6 +209,36 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             }
         }
 
+    }
+
+    /**
+     * Implementation of VCPUS case. This case will take a user specified value
+     * and scale in the specified increments in sockets.
+     * VC probe should execute the action, change the vcpu capacity by changing the sockets based on
+     * the socket increment and set the cores per socket to 1.
+     */
+    private static class VcpusHandler extends MhzHandler {
+        @Override
+        public float getVcpuIncrement(@Nonnull TopologyEntityDTO.Builder entity,
+                @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
+                @Nonnull CommoditySoldDTO.Builder vcpuCommodityBuilder) {
+            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
+                    VirtualMachineInfo::getNumCpus);
+
+            final int vcpuIncrementSize = (int)getNumericSetting(entitySettings,
+                    EntitySettingSpecs.VcpuScaling_Vcpus_VcpusIncrementValue, LOGGER);
+
+            entity.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                    .getCpuScalingPolicyBuilder().setCoresPerSocket(1);
+
+            if (numCpus != null && numCpus > 0) {
+                return Math.round(vcpuCommodityBuilder.getCapacity() / numCpus) * vcpuIncrementSize;
+            } else {
+                return super.getVcpuIncrement(entity, topologyGraph, entitySettings,
+                        vcpuCommodityBuilder);
+            }
+        }
     }
 
 

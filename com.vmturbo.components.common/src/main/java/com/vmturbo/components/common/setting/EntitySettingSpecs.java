@@ -609,7 +609,7 @@ public enum EntitySettingSpecs {
     VcpuScaling_Sockets_CoresPerSocketMode("vcpuScaling_sockets_coresPerSocketMode", "Cores per socket mode",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
+            new EnumSettingDataType<>(VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE_CORES_PER_SOCKET, VcpuScalingSocketsCoresPerSocketModeEnum.class), true),
 
     /**
      * Cores Per Socket value specified by user when CoresPerSocket mode is user_specified.
@@ -635,7 +635,7 @@ public enum EntitySettingSpecs {
     VcpuScaling_CoresPerSocket_SocketMode("vcpuScaling_coresPerSocket_SocketMode", "Socket mode",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE, VcpuScalingCoresPerSocketSocketModeEnum.class), true),
+            new EnumSettingDataType<>(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS, VcpuScalingCoresPerSocketSocketModeEnum.class), true),
 
     /**
      * Cores Per Socket value specified by user when CoresPerSocket mode is user_specified.
@@ -645,7 +645,13 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(1.0f, 1000.f, 1.0f), true),
 
-
+    /**
+     * VCPUs value specified by user when VCPUs mode is default increment_size.
+     */
+    VcpuScaling_Vcpus_VcpusIncrementValue("vcpuScaling_Vcpus_VcpusIncrementValue", "VCPUs value",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1.0f, 1000.f, 1.0f), true),
 
     /**
      * Virtual Memory Increment for virtual machines.

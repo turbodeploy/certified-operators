@@ -46,6 +46,14 @@ class DiscoveredGroupConstants {
 
     public static final String GROUP_NAME = "group";
 
+    public static final String VM_ID = "1001";
+
+    public static final String PM_ID = "2001";
+
+    public static final String CONSTRAINT_ID = "const-111";
+
+    public static final String CONSTRAINT_NAME = "Constraint 123";
+
     public static final String DISPLAY_NAME = "Freedom is slavery.";
 
     static final String PLACEHOLDER_PROP_NAME = "prop";
@@ -211,6 +219,50 @@ class DiscoveredGroupConstants {
 
     static final InterpretedGroup STORAGE_INTERPRETED_CLUSTER = new InterpretedGroup(TARGET_ID,
             STATIC_MEMBER_DTO, Optional.of(STORAGE_CLUSTER_DEF.toBuilder()));
+
+    static final CommonDTO.GroupDTO LICENSE_PROVIDER_DTO = CommonDTO.GroupDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                    .setConstraintType(ConstraintType.LICENSE)
+                    .setConstraintId(CONSTRAINT_ID)
+                    .setConstraintName(CONSTRAINT_NAME)
+                    .setIsBuyer(false))
+            .setMemberList(MembersList.newBuilder()
+                    .addMember(PM_ID).build())
+            .build();
+
+    static final CommonDTO.GroupDTO LICENSE_CONSUMER_DTO = CommonDTO.GroupDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                    .setConstraintType(ConstraintType.LICENSE)
+                    .setConstraintId(CONSTRAINT_ID)
+                    .setConstraintName(CONSTRAINT_NAME)
+                    .setIsBuyer(true))
+            .setMemberList(MembersList.newBuilder()
+                    .addMember(VM_ID).build())
+            .build();
+
+    static final CommonDTO.GroupDTO VCPU_RESIZE_THRESHOLD_DTO = CommonDTO.GroupDTO.newBuilder()
+            .setGroupType(GroupType.REGULAR)
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setMemberList(MembersList.newBuilder().addMember("1").build())
+            .setSettingPolicy(CommonDTO.GroupDTO.SettingPolicy.newBuilder()
+                .setName(GROUP_NAME)
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                    .setType(CommonDTO.GroupDTO.Setting.SettingType.VCPU_CORES_MIN_THRESHOLD)
+                    .setNumericSettingValueType(CommonDTO.GroupDTO.Setting
+                        .NumericSettingValueType.newBuilder().setValue(4.0f).build())
+                )
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                    .setType(CommonDTO.GroupDTO.Setting.SettingType.VCPU_CORES_MAX_THRESHOLD)
+                    .setNumericSettingValueType(CommonDTO.GroupDTO.Setting
+                        .NumericSettingValueType.newBuilder().setValue(16.0f).build())
+                )
+                .build())
+            .build();
 
     private DiscoveredGroupConstants() {}
 }

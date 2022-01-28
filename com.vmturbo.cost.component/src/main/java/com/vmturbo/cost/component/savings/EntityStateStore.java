@@ -58,6 +58,15 @@ public interface EntityStateStore<T> {
     void deleteEntityStates(@Nonnull Set<Long> entityIds, T transaction) throws EntitySavingsException;
 
     /**
+     * Update a single existing entity states. This is used by the TEM to updated existing state,
+     * and does not affect the cloud topology table.
+     *
+     * @param entityState entity state to write
+     * @throws EntitySavingsException error during operation
+     */
+    void updateEntityState(@Nonnull EntityState entityState) throws EntitySavingsException;
+
+    /**
      * Update entity states. If the state of the entity is not already in the store, create it.
      *
      * @param entityStateMap entity ID mapped to entity state

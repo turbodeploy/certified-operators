@@ -9,15 +9,11 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.SqlAuditLogWriter.AuditLogEntry;
+import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 
 /**
  * Tests for audit log writer.
@@ -32,41 +28,32 @@ public class SqlAuditLogWriterTest {
     @Test
     public void auditTopologyEvent() throws InvalidProtocolBufferException {
         long vmId = 101L;
-        long vendorId = 2001L;
         long timestamp = System.currentTimeMillis();
         long powerChangeTime = timestamp - 60 * 60 * 1000;
-        TopologyEventType eventType = TopologyEventType.STATE_CHANGE;
-
-        final TopologyDTO.EntityState sourceState = TopologyDTO.EntityState.POWERED_OFF;
-        final TopologyDTO.EntityState destinationState = TopologyDTO.EntityState.POWERED_ON;
+        EventType eventType = EventType.STATE_CHANGE;
+        final boolean destinationState = true;
         final SavingsEvent savingsEvent = new SavingsEvent.Builder()
                 .entityId(vmId)
                 .timestamp(timestamp)
-                .topologyEvent(TopologyEvent.newBuilder()
-                        .setEventTimestamp(powerChangeTime)
-                        .setType(eventType)
-                        .setEventInfo(TopologyEventInfo.newBuilder()
-                                .setVendorEventId(String.valueOf(vendorId))
-                                .setStateChange(EntityStateChangeDetails.newBuilder()
-                                        .setSourceState(sourceState)
-                                        .setDestinationState(destinationState)
-                                        .build())
-                                .build())
+                .topologyEvent(new TopologyEvent.Builder()
+                        .eventType(eventType.getValue())
+                        .timestamp(powerChangeTime)
+                        .poweredOn(true)
                         .build())
                 .build();
 
         final Gson gson = SqlAuditLogWriter.createGson();
         final AuditLogEntry logEntry = new AuditLogEntry(savingsEvent, gson);
+        final long vendorId = logEntry.getEventInfo().hashCode() & 0xfffffff;
 
         assertNotNull(logEntry);
         assertEquals(vmId, logEntry.getEntityOid());
         assertEquals(timestamp, logEntry.getEventTime());
-        assertEquals(eventType.getNumber(), logEntry.getEventType());
+        assertEquals(eventType.getValue(), logEntry.getEventType());
         assertEquals(String.valueOf(vendorId), logEntry.getEventId());
 
         final String eventInfo = logEntry.getEventInfo();
         assertNotNull(eventInfo);
-        assertTrue(eventInfo.contains(String.format("\"ss\":%d", 0)));
         assertTrue(eventInfo.contains(String.format("\"ds\":%d", 1)));
     }
 
