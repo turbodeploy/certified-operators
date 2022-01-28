@@ -16,6 +16,7 @@ import com.vmturbo.api.dto.action.RelatedActionApiDTO;
 import com.vmturbo.api.dto.entity.DiscoveredEntityApiDTO;
 import com.vmturbo.api.enums.ActionRelationType;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.BlockedByRelation.BlockedByRelationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.BlockingRelation.BlockingRelationTypeCase;
@@ -148,6 +149,31 @@ public class RelatedActionMapper {
                 }
             default:
                 logger.error("Unsupported action relation type {}", actionRelationTypeCase);
+                return Optional.empty();
+        }
+    }
+
+    /**
+     * Map an API ActionRelationType to an equivalent XL ActionRelationType.
+     *
+     * @param apiRelatedAction TActionRelationType in the UI.
+     * @return An optional containing a {@link ActionRelationTypeCase}, or an empty optional if
+     *         no equivalent ActionRelationType exists in XL.
+     */
+    public static Optional<ActionDTO.ActionRelationType> mapApiActionRelationTypeEnumToXl(
+            @Nonnull final ActionRelationType apiRelatedAction) {
+        switch (apiRelatedAction) {
+            case BLOCKING:
+                return Optional.of(ActionDTO.ActionRelationType.BLOCKING);
+            case BLOCKED_BY:
+                return Optional.of(ActionDTO.ActionRelationType.BLOCKED_BY);
+            case CAUSING:
+                return Optional.of(ActionDTO.ActionRelationType.CAUSING);
+            case CAUSED_BY:
+                return Optional.of(ActionDTO.ActionRelationType.CAUSED_BY);
+            case NONE:
+                return Optional.of(ActionDTO.ActionRelationType.RELATION_NONE);
+            default:
                 return Optional.empty();
         }
     }
