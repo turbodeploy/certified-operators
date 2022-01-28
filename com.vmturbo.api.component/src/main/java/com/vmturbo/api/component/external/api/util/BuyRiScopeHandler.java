@@ -41,9 +41,13 @@ public class BuyRiScopeHandler {
     private static final Set<ApiEntityType> GROUP_OF_REGIONS = Collections.singleton(ApiEntityType.REGION);
     private static final Set<GroupType> GROUP_OF_BILLING_FAMILY = Collections.singleton(GroupType.BILLING_FAMILY);
     private static final Set<ApiEntityType> GROUP_OF_SERVICE_PROVIDERS = Collections.singleton(ApiEntityType.SERVICE_PROVIDER);
-    private static final Set<Integer> NON_RI_BUY_ENTITY_TYPES = Sets.newHashSet(
+    //adding workload entities as NON_RI_BUY related Entity types
+    private static final Set<Integer> NON_RI_BUY_RELATED_ENTITY_TYPES = Sets.newHashSet(
         EntityType.VIRTUAL_VOLUME_VALUE,
-        EntityType.STORAGE_TIER_VALUE);
+        EntityType.STORAGE_TIER_VALUE,
+        EntityType.DATABASE_SERVER_VALUE,
+        EntityType.VIRTUAL_MACHINE_VALUE,
+        EntityType.DATABASE_VALUE);
 
     /**
      * Extract action types from user input and selected scope. Selected scope affects whether
@@ -138,7 +142,7 @@ public class BuyRiScopeHandler {
     /**
      * Determines if the buy RI discount should be included in the costs or actions queried for the
      * input scope and the entity types in the scope.  If all the related entities types provided are
-     * non eligible for Buy RI, no Ri Entities will be returned. Refer to NON_RI_BUY_ENTITY_TYPES for
+     * non eligible for Buy RI, no Ri Entities will be returned. Refer to NON_RI_BUY_RELATED_ENTITY_TYPES for
      * the list of non Buy RI entity types.
      *
      * @param inputScope {@link ApiId} inputScope the input scope.
@@ -216,6 +220,6 @@ public class BuyRiScopeHandler {
      */
     private boolean shouldIncludeBuyRiEntities(@Nonnull final Set<Integer> entityTypes) {
         return entityTypes.size() == 0
-            || entityTypes.stream().filter(relatedEntityTypeId -> !NON_RI_BUY_ENTITY_TYPES.contains(relatedEntityTypeId)).count() > 0;
+            || entityTypes.stream().filter(relatedEntityTypeId -> !NON_RI_BUY_RELATED_ENTITY_TYPES.contains(relatedEntityTypeId)).count() > 0;
     }
 }

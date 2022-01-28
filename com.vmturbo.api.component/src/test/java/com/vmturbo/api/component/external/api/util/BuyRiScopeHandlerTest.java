@@ -343,15 +343,31 @@ public class BuyRiScopeHandlerTest {
      * Billing Family scope and VM & VV entity types.
      */
     @Test
-    public void testExtractBuyRiEntitiesForBillingFamilyAndVirtualVolumeTypeAndVirtualMachineType() {
+    public void testExtractBuyRiEntitiesForBillingFamilyAndVirtualVolumeType() {
         // Given
         final ApiId apiId = apiIdForBillingFamily();
-        final Set<Integer> entityTypeIds = Sets.newHashSet(EntityType.VIRTUAL_VOLUME_VALUE, EntityType.VIRTUAL_MACHINE_VALUE);
+        final Set<Integer> entityTypeIds = Sets.newHashSet(EntityType.VIRTUAL_VOLUME_VALUE);
         // Act
         final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiId, entityTypeIds);
 
         // Assert
-        assertThat(result, is(ImmutableSet.of(OID_ACCOUNT_1, OID_ACCOUNT_2)));
+        assertThat(result, is(Collections.emptySet()));
+    }
+
+    /**
+     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId, Set)} method with
+     * Region scope and VM, DB server, DB entity types (workload).
+     */
+    @Test
+    public void testExtractBuyRiEntitiesForRegionAndWorkloadTypes() {
+        // Given
+        final ApiId apiId = apiIdForRegion();
+        final Set<Integer> entityTypeIds = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.DATABASE_SERVER_VALUE, EntityType.DATABASE_VALUE);
+        // Act
+        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiId, entityTypeIds);
+
+        // Assert
+        assertThat(result, is(Collections.emptySet()));
     }
 
     private static ApiId apiIdForGlobalScope() {
