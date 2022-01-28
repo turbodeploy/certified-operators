@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -221,12 +222,33 @@ public class TopologyConversionUtils {
     /**
      * This helper method is to check if caller should convert storageAmount between GB to MB,
      * IO_Throughput between MBps to KBps and vice versa.
+     * To be used when converting into analysis.
+     *
+     * @param commodityType CommodityDTO.CommodityType
+     * @param topoEntity topology entity
+     * @return factor for dividing or multiplication.
+     */
+    public static float calculateFactorForCommodityValues(final int commodityType, @Nonnull TopologyEntityDTO topoEntity) {
+        // TODO make units uniform in the probes and get rid of this conversion
+        if (topoEntity.getEnvironmentType() == EnvironmentType.ON_PREM) {
+            return 1.0F;
+        }
+        return calculateFactorForCommodityValues(commodityType, topoEntity.getEntityType());
+    }
+
+    /**
+     * This helper method is to check if caller should convert storageAmount between GB to MB,
+     * IO_Throughput between MBps to KBps and vice versa.
+     * To be used when converting from analysis - in cloud scope only.
+     * NB volumes are not sent into analysis and do not get to be action targets
      *
      * @param commodityType CommodityDTO.CommodityType
      * @param actionTargetEntityType entity type
      * @return factor for dividing or multiplication.
      */
     public static float calculateFactorForCommodityValues(final int commodityType, final int actionTargetEntityType) {
+        // TODO there is no room for this ugly conversion here
+        // we should fix (in this case cloud) probes (and ui?) to report usages in same units as everyone else
         if (actionTargetEntityType == EntityType.VIRTUAL_VOLUME_VALUE
                 && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
             return Units.KBYTE;
