@@ -63,7 +63,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
-import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
+import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
@@ -173,8 +173,8 @@ public class MarketTimeoutTest {
                         mock(WastedFilesAnalysisEngine.class);
                     final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                             mock(BuyRIImpactAnalysisFactory.class);
-                    final NamespaceQuotaAnalysisEngine namespaceQuotaAnalysisEngine =
-                        mock(NamespaceQuotaAnalysisEngine.class);
+                    final NamespaceQuotaAnalysisFactory namespaceQuotaAnalysisFactory =
+                        mock(NamespaceQuotaAnalysisFactory.class);
                     when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
                     final GroupServiceBlockingStub groupServiceGrpc =
                             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -187,7 +187,7 @@ public class MarketTimeoutTest {
                         return new Analysis(rtTopologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                                         Clock.systemUTC(), configBuilder.build(),
                                         cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                                        wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisEngine,
+                                        wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
                                         tierExcluderFactory, mock(AnalysisRICoverageListener.class),
                                         consistentScalingHelperFactory, initialPlacementFinder,
                                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
