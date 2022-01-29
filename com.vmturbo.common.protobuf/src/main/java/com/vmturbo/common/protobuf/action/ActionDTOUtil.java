@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
@@ -1183,6 +1184,22 @@ public class ActionDTOUtil {
     public static LocalDateTime getLocalDateTime(final long dateTime) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime),
                                             Clock.systemUTC().getZone());
+    }
+
+    /**
+     * Check if the ActionQueryFilter has scope filters such as Account or Resource Group set.
+     *
+     * @param actionQueryFilter  The action query Filter.
+     * @return true if there's an organizational scope filter set, false otherwise.
+     */
+    public static boolean hasOrganizationalScopeRestriction(@Nonnull final ActionQueryFilter actionQueryFilter) {
+        if (actionQueryFilter.hasAccountFilter()) {
+            return true;
+        }
+        if (actionQueryFilter.hasResourceGroupFilter()) {
+            return true;
+        }
+        return false;
     }
 
     /**

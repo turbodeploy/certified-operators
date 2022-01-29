@@ -701,7 +701,8 @@ class LiveActions implements QueryableActionViews {
             final List<ActionView> succeededOrFailedActionList =
                                             actionHistoryDao.getActionHistoryByFilter(actionQueryFilter);
             Stream<ActionView> historical = succeededOrFailedActionList.stream().filter(view -> {
-                   if (entitiesRestriction != null) {
+                   if (!ActionDTOUtil.hasOrganizationalScopeRestriction(actionQueryFilter)
+                           && entitiesRestriction != null) {
                         try {
                             // include actions with ANY involved entities in the set.
                             return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
@@ -709,14 +710,13 @@ class LiveActions implements QueryableActionViews {
                         } catch (UnsupportedActionException e) {
                             return false;
                         }
-                    } else {
-                        return true;
+                    } else { // if there's a scope filter set, the historical actions will already be filtered correctly.
+                       return true;
                     }
                 });
             final Stream<ActionView> current = currentActions
                 .filter(action -> !isSucceededorFailed(action))
                 .filter(action -> endDate.compareTo(action.getRecommendationTime()) > 0);
-
             candidateActionViews = Stream.concat(historical, current);
         } else {
             candidateActionViews = currentActions;
