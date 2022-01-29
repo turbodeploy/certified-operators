@@ -132,6 +132,23 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
+    public void testGetStatsEmptyAccountScope() throws Exception {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
+        Set<ApiEntityType> baSet = new HashSet<>();
+        baSet.add(ApiEntityType.BUSINESS_ACCOUNT);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(baSet));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.emptySet());
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.emptySet());
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
+
+        assertThat(executor.getAggregateStats(scope, period), is(Collections.emptyList()));
+    }
+
+    @Test
     public void testGetStatsRequestAll() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
