@@ -113,6 +113,13 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.client</artifactId>
         </dependency>
+
+        <!-- This is necessary to avoid version conflict between ClusterMgr and Azure probe -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.8.1</version>
+        </dependency>
     </dependencies>
 
 </project>
