@@ -78,7 +78,8 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.VMPM_ACCESS_VALUE,
                     CommodityDTO.CommodityType.EXTENT_VALUE,
                     CommodityDTO.CommodityType.ACTIVE_SESSIONS_VALUE,
-                    CommodityDTO.CommodityType.ACCESS_VALUE);
+                    CommodityDTO.CommodityType.ACCESS_VALUE,
+                    CommodityDTO.CommodityType.TAINT_VALUE);
 
     /**
      * Constant price function used for segmentation commodities.
@@ -256,7 +257,8 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.VMPM_ACCESS_VALUE,
                                     CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE,
                                     CommodityDTO.CommodityType.ACCESS_VALUE,
-                                    CommodityDTO.CommodityType.HOST_LUN_ACCESS_VALUE);
+                                    CommodityDTO.CommodityType.HOST_LUN_ACCESS_VALUE,
+                                    CommodityDTO.CommodityType.TAINT_VALUE);
 
     public static final Set<Integer> SKIPPED_ENTITY_TYPES =
                     ImmutableSet.of(EntityType.ACTION_MANAGER_VALUE,

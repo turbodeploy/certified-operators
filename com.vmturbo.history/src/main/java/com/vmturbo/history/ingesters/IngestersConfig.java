@@ -459,7 +459,8 @@ public class IngestersConfig {
             CommodityType.VDC,
             CommodityType.VMPM_ACCESS,
             CommodityType.CONCURRENT_WORKER,
-            CommodityType.CONCURRENT_SESSION
+            CommodityType.CONCURRENT_SESSION,
+            CommodityType.TAINT
         };
         return Arrays.stream(commodities)
                 .map(CommodityTypeMapping::getMixedCaseFromCommodityType)
