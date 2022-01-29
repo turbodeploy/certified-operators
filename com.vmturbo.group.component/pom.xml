@@ -141,11 +141,6 @@
             <version>${javaslang.version}</version>
         </dependency>
         <dependency>
-            <groupId>io.projectreactor</groupId>
-            <artifactId>reactor-core</artifactId>
-            <version>${reactor.version}</version>
-        </dependency>
-        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
         </dependency>
