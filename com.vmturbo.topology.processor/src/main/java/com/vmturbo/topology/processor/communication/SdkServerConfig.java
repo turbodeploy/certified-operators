@@ -67,6 +67,14 @@ public class SdkServerConfig {
     @Value("${oldestSupportedClientProtocolVersion:8.0.0}")
     private String oldestSupportedClientProtocolVersion;
 
+    /**
+     * Used to limit probe types allowed in containers that connect through nginx (deemed external
+     * probe containers). Disabled by default. Enable by setting it to a comma separated list of
+     * probe types that are allowed. Typically this would be on "Kubernetes".
+     */
+    @Value("${supportedExternalProbeTypes:}")
+    private String supportedExternalProbeTypes;
+
     @Autowired
     private ProbeConfig probeConfig;
 
@@ -120,7 +128,8 @@ public class SdkServerConfig {
     @Bean
     public TransportHandler remoteMediationTransportHandler() {
         return new SdkWebsocketServerTransportHandler(remoteMediation(), sdkServerThreadPool(),
-                oldestSupportedClientProtocolVersion, negotiationTimeoutSec);
+                oldestSupportedClientProtocolVersion, negotiationTimeoutSec,
+                supportedExternalProbeTypes);
     }
 
     /**
