@@ -53,6 +53,8 @@ public class PolicyFactory {
                     DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD);
             case BIND_TO_GROUP:
                 return new BindToGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
+            case EXCLUSIVE_BIND_TO_GROUP:
+                return new ExclusiveBindToGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case MERGE:
                 return new MergePolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case MUST_RUN_TOGETHER:
@@ -90,6 +92,12 @@ public class PolicyFactory {
                             additionalConsumers),
                     new PolicyEntities(groups.get(policyInfo.getBindToGroup().getProviderGroupId()),
                             additionalProviders));
+            case EXCLUSIVE_BIND_TO_GROUP:
+                return new BindToGroupPolicy(policyDefinition,
+                        new PolicyEntities(groups.get(policyInfo.getExclusiveBindToGroup().getConsumerGroupId()),
+                                additionalConsumers),
+                        new PolicyEntities(groups.get(policyInfo.getExclusiveBindToGroup().getProviderGroupId()),
+                                additionalProviders));
             case BIND_TO_COMPLEMENTARY_GROUP:
                 return new BindToComplementaryGroupPolicy(policyDefinition,
                     new PolicyEntities(groups.get(policyInfo.getBindToComplementaryGroup().getConsumerGroupId()),
