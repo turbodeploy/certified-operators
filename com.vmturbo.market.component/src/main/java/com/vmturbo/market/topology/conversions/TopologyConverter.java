@@ -4304,7 +4304,7 @@ public class TopologyConverter {
                             .orElse(null);
                     float oldCapacity = (volumeSold == null) ? 0f : (float)volumeSold.getCapacity();
                     // Convert cloud volume StorageAmount quantity from MB to GB
-                    float factor = calculateFactorForCommodityValues(commodityType, buyerEntityType);
+                    float factor = calculateFactorForCommodityValues(commodityType, buyer);
                     quantity /= factor;
                     peakQuantity /= factor;
                     oldCapacity /= factor;
