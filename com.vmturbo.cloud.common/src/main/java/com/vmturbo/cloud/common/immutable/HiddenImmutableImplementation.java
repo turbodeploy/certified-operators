@@ -16,6 +16,7 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 @Style(
         visibility = ImplementationVisibility.PACKAGE,
         overshadowImplementation = true,
-        depluralize = true)
+        depluralize = true,
+        typeModifiable = "Mutable*")
 public @interface HiddenImmutableImplementation {
 }

@@ -1,24 +1,26 @@
 package com.vmturbo.reserved.instance.coverage.allocator.matcher;
 
-import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope.ComputeTierResourceScope;
 import com.vmturbo.cloud.common.commitment.aggregator.AggregationInfo;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * A {@link CommitmentMatcher} implementation, responsible for generating {@link CoverageKey} instances
@@ -42,64 +44,82 @@ public class ComputeCommitmentMatcher implements CommitmentMatcher {
 
         Preconditions.checkNotNull(commitmentAggregate);
 
-        final Set<CoverageKey> keySet = new HashSet<>();
+        final MutableComputeCoverageKey templateKey = MutableComputeCoverageKey.create();
+        final AggregationInfo aggregationInfo = commitmentAggregate.aggregationInfo();
 
-        final ComputeCoverageKey.Builder keyBuilder = ComputeCoverageKey.builder();
-
-        final CloudCommitmentLocation commitmentLocation = commitmentAggregate.aggregationInfo().location();
+        final CloudCommitmentLocation commitmentLocation = aggregationInfo.location();
         if (commitmentLocation.getLocationType() == CloudCommitmentLocationType.REGION) {
-            keyBuilder.regionOid(commitmentLocation.getLocationOid());
+            templateKey.setRegionOid(commitmentLocation.getLocationOid());
         } else if (commitmentLocation.getLocationType() == CloudCommitmentLocationType.AVAILABILITY_ZONE) {
-            keyBuilder.zoneOid(commitmentLocation.getLocationOid());
+            templateKey.setZoneOid(commitmentLocation.getLocationOid());
         }
 
-        if (commitmentAggregate.isReservedInstance()) {
-            final ReservedInstanceAggregate riAggregate = commitmentAggregate.asReservedInstanceAggregate();
-            final ReservedInstanceAggregationInfo riAggregateInfo = riAggregate.aggregationInfo();
+        // assume compute resource scope for now
+        final List<MutableComputeCoverageKey> resourceScopedKeyList =
+                addComputeResourceScope((ComputeTierResourceScope)aggregationInfo.resourceScope(), templateKey);
 
-            // set the tenancy
-            keyBuilder.tenancy(riAggregateInfo.tenancy());
-
-            // add tier info
-            riAggregateInfo.tierInfo().tierFamily().ifPresent(keyBuilder::tierFamily);
-            if (!riAggregateInfo.tierInfo().isSizeFlexible()) {
-                keyBuilder.tierOid(riAggregateInfo.tierInfo().tierOid());
-            }
-
-            // add platform info
-            if (!riAggregateInfo.platformInfo().isPlatformFlexible()) {
-                keyBuilder.platform(riAggregateInfo.platformInfo().platform());
-            }
-        }
-
-        final AggregationInfo aggregateInfo = commitmentAggregate.aggregationInfo();
         // Add account scope, if required
-        final CloudCommitmentEntityScope commitmentScope = aggregateInfo.entityScope();
+        final ImmutableSet.Builder<CoverageKey> completedKeys = ImmutableSet.builder();
+        final CloudCommitmentEntityScope entityScope = aggregationInfo.entityScope();
         if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP
-                && commitmentScope.getScopeType() != CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP ) {
+                && entityScope.getScopeType() != CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP ) {
             logger.error("Mismatch in scope configuration. Scope is configured to match against "
                             + "billing family, but commitment is not shared (Commitment Aggregate ID={})",
                     commitmentAggregate.aggregateId());
         } else {
-            if (commitmentScope.getScopeType() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
+            if (entityScope.getScopeType() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
 
                 if (matcherConfig.scope() == CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP) {
                     // Add the billing family ID
-                    keyBuilder.billingFamilyId(commitmentScope.getGroupScope().getGroupId(0));
+                    resourceScopedKeyList.forEach(resourceScopedKey -> {
+                        resourceScopedKey.setBillingFamilyId(entityScope.getGroupScope().getGroupId(0));
+                        completedKeys.add(resourceScopedKey.toImmutable());
+                    });
                 } else {
-                    keyBuilder.accountOid(aggregateInfo.purchasingAccountOid());
+                    resourceScopedKeyList.forEach(resourceScopedKey -> {
+                        resourceScopedKey.setAccountOid(aggregationInfo.purchasingAccountOid());
+                        completedKeys.add(resourceScopedKey.toImmutable());
+                    });
                 }
-
-                keySet.add(keyBuilder.build());
             } else { // must be account scoped RI for account matching
-                commitmentScope.getEntityScope().getEntityOidList().forEach(scopedAccountOid -> {
-                    keyBuilder.accountOid(scopedAccountOid);
-                    keySet.add(keyBuilder.build());
-                });
+                entityScope.getEntityScope().getEntityOidList().forEach(scopedAccountOid ->
+                    resourceScopedKeyList.forEach(resourceScopedKey -> {
+                        // intentionally re-use each resource scoped key, instead of creating
+                        // new MutableComputeCoverageKey instances
+                        resourceScopedKey.setAccountOid(scopedAccountOid);
+                        completedKeys.add(resourceScopedKey.toImmutable());
+                    }));
             }
         }
 
-        return keySet;
+        return completedKeys.build();
+    }
+
+    private List<MutableComputeCoverageKey> addComputeResourceScope(@Nonnull ComputeTierResourceScope resourceScope,
+                                                                    @Nonnull MutableComputeCoverageKey coverageKeyTemplate) {
+
+
+        // add tier info
+        if (resourceScope.isSizeFlexible()) {
+            coverageKeyTemplate.setTierFamily(resourceScope.computeTierFamily());
+        } else {
+            coverageKeyTemplate.setTierOid(resourceScope.computeTier());
+        }
+
+        if (!resourceScope.platformInfo().isPlatformFlexible()) {
+            coverageKeyTemplate.setPlatform(resourceScope.platformInfo().platform());
+        }
+
+        final Set<Tenancy> supportedTenancies = resourceScope.tenancies().isEmpty()
+                ? ImmutableSet.copyOf(Tenancy.values())
+                : resourceScope.tenancies();
+
+        return supportedTenancies.stream()
+                .map(tenancy -> MutableComputeCoverageKey.create()
+                        .from(coverageKeyTemplate)
+                        .setTenancy(tenancy))
+                .collect(ImmutableList.toImmutableList());
+
     }
 
     /**

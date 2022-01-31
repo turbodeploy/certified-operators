@@ -61,13 +61,13 @@ public class ReservedInstanceFilter implements CloudCommitmentFilter {
     private boolean filterPlatformFlexibility(@Nonnull ReservedInstanceAggregationInfo aggregateInfo) {
         return filterConfig.isPlatformFlexible()
                 .map(platformFlexible ->
-                        platformFlexible == aggregateInfo.platformInfo().isPlatformFlexible())
+                        platformFlexible == aggregateInfo.resourceScope().platformInfo().isPlatformFlexible())
                 .orElse(true);
     }
 
     private boolean filterSizeFlexibility(@Nonnull ReservedInstanceAggregationInfo aggregateInfo) {
         return filterConfig.isSizeFlexible()
-                .map(sizeFlexible -> sizeFlexible == aggregateInfo.tierInfo().isSizeFlexible())
+                .map(sizeFlexible -> sizeFlexible == aggregateInfo.resourceScope().isSizeFlexible())
                 .orElse(true);
     }
 

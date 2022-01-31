@@ -155,7 +155,8 @@ public class DefaultCoverageEntityMatcherTest {
         final CoverageKey coverageKey = Iterables.getOnlyElement(coverageKeys);
         assertThat(coverageKey, instanceOf(ComputeCoverageKey.class));
         final ComputeCoverageKey computeKey = (ComputeCoverageKey)coverageKey;
-        assertThat(computeKey.tierFamily(), equalTo(tierInfo.family().get()));
+        // if matching on tier, family should not be set
+        assertThat(computeKey.tierFamily(), equalTo(null));
         assertThat(computeKey.tierOid(), equalTo(OptionalLong.of(tierInfo.tierOid())));
     }
 

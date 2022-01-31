@@ -30,11 +30,11 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AnalysisCoverageTopology.AnalysisCoverageTopologyFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope.ComputeTierResourceScope;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope.ComputeTierResourceScope.PlatformInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.PlatformInfo;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.TierInfo;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
@@ -83,14 +83,12 @@ public class AnalysisCoverageTopologyTest {
                     .setLocationType(CloudCommitmentLocationType.REGION)
                     .setLocationOid(3L)
                     .build())
-            .tierInfo(TierInfo.builder()
-                    .tierFamily("A")
-                    .tierType(EntityType.COMPUTE_TIER)
-                    .tierOid(4L)
-                    .isSizeFlexible(true)
-                    .build())
-            .platformInfo(PlatformInfo.builder()
-                    .isPlatformFlexible(true)
+            .resourceScope(ComputeTierResourceScope.builder()
+                    .computeTierFamily("A")
+                    .platformInfo(PlatformInfo.builder()
+                            .isPlatformFlexible(true)
+                            .build())
+                    .addTenancies(Tenancy.DEFAULT)
                     .build())
             .entityScope(CloudCommitmentEntityScope.newBuilder()
                     .setScopeType(CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_BILLING_FAMILY_GROUP)
