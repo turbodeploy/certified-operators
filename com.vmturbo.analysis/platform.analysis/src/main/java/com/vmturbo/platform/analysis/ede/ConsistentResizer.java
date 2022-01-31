@@ -287,10 +287,15 @@ public class ConsistentResizer {
 
             }
 
+            // If consistent resize actions are non-executable resize up with unboundedNewCapacity
+            // as new capacity.
+            final boolean isNonExecutableResizeUp =
+                    isUnboundedCapDifferent && maxOldCapacity.isLessThan(unboundedNewCapacity);
+
             if (maxOldCapacity.isGreaterThan(newCapacity)) {
                 // if we are unable to generate an executable scale UP, try generating a
                 // non-executable action that fits the bounds.
-                if (isUnboundedCapDifferent && maxOldCapacity.isLessThan(unboundedNewCapacity)) {
+                if (isNonExecutableResizeUp) {
                     newCapacity = unboundedNewCapacity;
                 } else {
                     // The consistent new capacity is less than one of the individual old capacities
@@ -309,14 +314,24 @@ public class ConsistentResizer {
                 }
             }
             ConsistentScalingNumber tempNewCapacity = newCapacity;
-            final List<PartialResize> newResizes = resizes.stream()
-                // Drop Resize if the capacity difference is less than the configured
-                // capacity increment
-                .filter(pr -> pr.getConsistentScalingOldCapacity()
-                    .minus(tempNewCapacity)
-                    .abs()
-                    .isGreaterThanOrApproxEqual(capacityIncrement))
-                .collect(Collectors.toList());
+
+            // Note that there could be corner cases where after the filter, in the same consistent
+            // scaling group, some entities have resize actions, while others remain same capacity.
+            List<PartialResize> newResizes = resizes.stream()
+                    // Drop Resize if the capacity difference between tempNewCapacity and old capacity
+                    // is less than the configured capacity increment
+                    .filter(pr -> isCapacityIncrementSatisfied(pr.getConsistentScalingOldCapacity(), tempNewCapacity))
+                    .collect(Collectors.toList());
+            // If capacityIncrement is not satisfied by any executable resizes based on tempNewCapacity,
+            // and if isNonExecutableResizeUp is true, filter resize actions based on unboundedNewCapacity.
+            // If existing, these resize actions with unboundedNewCapacity as new capacity will be
+            // eventually marked as non-executable in ActionClassifier.
+            if (newResizes.isEmpty() && isNonExecutableResizeUp) {
+                newResizes = resizes.stream()
+                        .filter(pr -> isCapacityIncrementSatisfied(pr.getConsistentScalingOldCapacity(), unboundedNewCapacity))
+                        .collect(Collectors.toList());
+                newCapacity = unboundedNewCapacity;
+            }
 
             final ConsistentScalingNumber integralIncrementCount = newCapacity
                 .dividedBy(capacityIncrement)
@@ -346,6 +361,23 @@ public class ConsistentResizer {
                         .inNormalizedUnits(pr.getProviderConsistentScalingFactor()));
                     Resizer.takeAndAddResizeAction(actions, pr.getResize());
                 });
+        }
+
+        /**
+         * Check if the difference between given old capacity and new capacity is larger than or equal
+         * to the configured capacityIncrement.
+         *
+         * @param oldCapacity Given old capacity of resize action.
+         * @param newCapacity Given new capacity of resize action.
+         * @return True if the difference between given old capacity and new capacity is larger than
+         * or equal to capacityIncrement.
+         */
+        private boolean isCapacityIncrementSatisfied(@Nonnull final ConsistentScalingNumber oldCapacity,
+                                                     @Nonnull final ConsistentScalingNumber newCapacity) {
+            return oldCapacity
+                    .minus(newCapacity)
+                    .abs()
+                    .isGreaterThanOrApproxEqual(capacityIncrement);
         }
     }
 }

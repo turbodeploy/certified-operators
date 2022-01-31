@@ -349,7 +349,7 @@ public class ConsistentResizerTest {
      * so that namespace has sufficient available headroom for these 2 resizes. So 2 actions are generated.
      */
     @Test
-    public void testResizingGroupGenerateVMemResizeUpWithNamespaceQuota() {
+    public void testResizingGroupGenerateVMemResizeUpWithSufficientNamespaceQuota() {
         Optional<RawMaterials> rawMaterials = Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
             new RawMaterial(TestUtils.VMEM.getType(), false, false),
             new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false, false)))
@@ -373,11 +373,12 @@ public class ConsistentResizerTest {
         List<Action> actions = new ArrayList<>();
         rg.generateResizes(actions);
         assertEquals(2, actions.size());
+        actions.forEach(action -> assertEquals(200, ((Resize)action).getNewCapacity(), CAPACITY_COMPARISON_DELTA));
     }
 
     /**
      * Test ResizingGroup.generateResizes for containers VCPU where no resize up is generated with
-     * namespace quota.
+     * namespace quota as hard constraint.
      * <p/>
      * Both resize1 and resize2 from 100 to 200. Provider namespace has capacity 400, quantity 100
      * and consistentScalingFactor 0.2. In this case of VCPU resizing (with requiresConsistentScalingFactor
@@ -386,10 +387,10 @@ public class ConsistentResizerTest {
      * 2 resizes. So no actions are generated.
      */
     @Test
-    public void testResizingGroupGenerateVCPUNoResizeUpWithNamespaceQuota() {
+    public void testResizingGroupGenerateVCPUNoResizeUpWithNamespaceQuotaAsHardConstraint() {
         Optional<RawMaterials> rawMaterials = Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
             new RawMaterial(TestUtils.VCPU.getType(), false, false),
-            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false, false)))
+            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false, true)))
             .requiresConsistentScalingFactor(true)
             .build()));
 
@@ -401,7 +402,7 @@ public class ConsistentResizerTest {
             Collections.singletonList(TestUtils.VCPULIMITQUOTA), new double[]{400}, false, false);
         sellerTrader.getSettings().setConsistentScalingFactor(0.2f);
         CommoditySold sellerCommSold = getCommoditySold(400, 100);
-        RawMaterialMetadata metadataForQuota = new RawMaterialMetadata(TestUtils.VCPULIMITQUOTA.getType(), true, false);
+        RawMaterialMetadata metadataForQuota = new RawMaterialMetadata(TestUtils.VCPULIMITQUOTA.getType(), true, true);
         Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialAndSupplier =
                 ImmutableMap.of(metadataForQuota, new Pair(sellerCommSold, sellerTrader));
         rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
@@ -410,6 +411,45 @@ public class ConsistentResizerTest {
         List<Action> actions = new ArrayList<>();
         rg.generateResizes(actions);
         assertEquals(0, actions.size());
+    }
+
+    /**
+     * Test ResizingGroup.generateResizes for containers VCPU where no resize up is generated with
+     * namespace quota as soft constraint.
+     * <p/>
+     * Both resize1 and resize2 from 100 to 200. Provider namespace has capacity 400, quantity 100
+     * and consistentScalingFactor 0.2. In this case of VCPU resizing (with requiresConsistentScalingFactor
+     * true), seller consistentScalingFactor is applied to the calculation of headroom of namespace so
+     * that namespace only has 60 (0.2 * 300) available headroom which is not sufficient for these
+     * 2 resizes. However, with VCPULimitQuota commodity as soft constraint (isHardConstraint is false),
+     * both resize up actions resize1 and resize2 can be still generated.
+     */
+    @Test
+    public void testResizingGroupGenerateVCPUNoResizeUpWithNamespaceQuotaAsSoftConstraint() {
+        Optional<RawMaterials> rawMaterials = Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
+                        new RawMaterial(TestUtils.VCPU.getType(), false, false),
+                        new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false, false)))
+                .requiresConsistentScalingFactor(true)
+                .build()));
+
+        Resize resize1 = mockResize(TestUtils.CONTAINER_TYPE, TestUtils.VCPU, 100, 200, 0, true, VCPU_CAPACITY_INCREMENT);
+        Resize resize2 = mockResize(TestUtils.CONTAINER_TYPE, TestUtils.VCPU, 100, 200, 0, true, VCPU_CAPACITY_INCREMENT);
+        ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
+
+        Trader sellerTrader = TestUtils.createTrader(new Economy(), TestUtils.NAMESPACE_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.VCPULIMITQUOTA), new double[]{400}, false, false);
+        sellerTrader.getSettings().setConsistentScalingFactor(0.2f);
+        CommoditySold sellerCommSold = getCommoditySold(400, 100);
+        RawMaterialMetadata metadataForQuota = new RawMaterialMetadata(TestUtils.VCPULIMITQUOTA.getType(), true, false);
+        Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialAndSupplier =
+                ImmutableMap.of(metadataForQuota, new Pair(sellerCommSold, sellerTrader));
+        rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
+        rg.addResize(resize2, true, rawMaterialAndSupplier, rawMaterials);
+
+        List<Action> actions = new ArrayList<>();
+        rg.generateResizes(actions);
+        assertEquals(2, actions.size());
+        actions.forEach(action -> assertEquals(200, ((Resize)action).getNewCapacity(), CAPACITY_COMPARISON_DELTA));
     }
 
     private CommoditySold getCommoditySold(final double capacity, final double quantity) {
