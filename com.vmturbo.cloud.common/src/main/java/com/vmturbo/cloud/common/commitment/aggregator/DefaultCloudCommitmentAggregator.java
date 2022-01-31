@@ -22,12 +22,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope.ComputeTierResourceScope;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope.ComputeTierResourceScope.PlatformInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology.CloudCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.commitment.TopologyCommitmentData;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.PlatformInfo;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregationInfo.TierInfo;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
@@ -50,6 +49,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudCo
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -221,30 +221,45 @@ public class DefaultCloudCommitmentAggregator implements CloudCommitmentAggregat
                         .build();
             }
 
+            final PlatformInfo platformInfo = PlatformInfo.builder()
+                    .isPlatformFlexible(riSpecInfo.getPlatformFlexible())
+                    .platform(riSpecInfo.getPlatformFlexible()
+                            ? OSType.UNKNOWN_OS
+                            : riSpecInfo.getOs())
+                    .build();
+
+            final ComputeTierResourceScope resourceScope = ComputeTierResourceScope.builder()
+                    .platformInfo(platformInfo)
+                    .computeTierFamily(riSpecInfo.getSizeFlexible()
+                            ? computeTierFamilyResolver.getCoverageFamily(riSpecInfo.getTierId())
+                                .orElseThrow(() -> new AggregationFailureException(String.format(
+                                        "Unable to resolve family for tier ID %s for size flexible RI %s",
+                                        riSpecInfo.getTierId(), commitmentData.commitmentId())))
+                            : null)
+                    .computeTier(riSpecInfo.getSizeFlexible()
+                            ? OptionalLong.empty()
+                            : OptionalLong.of(riSpecInfo.getTierId()))
+                    .addTenancies(riSpecInfo.hasTenancy() ? riSpecInfo.getTenancy() : Tenancy.DEFAULT)
+                    .build();
+
             return ReservedInstanceAggregationInfo.builder()
                     .serviceProviderOid(serviceProviderOid)
                     .purchasingAccountOid(purchaseAccountScope)
                     .coverageType(CloudCommitmentCoverageType.COUPONS)
                     .entityScope(entityScope)
                     .location(commitmentLocation)
-                    .platformInfo(PlatformInfo.builder()
-                            .isPlatformFlexible(riSpecInfo.getPlatformFlexible())
-                            // platform will be ignored if the RI is platform flexible
-                            .platform(riSpecInfo.getOs())
-                            .build())
-                    .tierInfo(TierInfo.builder()
-                            .tierType(EntityType.COMPUTE_TIER)
-                            .tierFamily(computeTierFamilyResolver.getCoverageFamily(riSpecInfo.getTierId()))
-                            .tierOid(riSpecInfo.getTierId())
-                            .isSizeFlexible(riSpecInfo.getSizeFlexible())
-                            .build())
-                    .tenancy(riSpecInfo.hasTenancy() ? riSpecInfo.getTenancy() : Tenancy.DEFAULT)
+                    .resourceScope(resourceScope)
                     .build();
         } catch (Exception e) {
             // This may happen if billing family or compute tier retrieval fails
             logger.error("Error aggregating cloud commitment (OID={}, Type={})",
                     commitmentData.commitmentId(), commitmentData.type(), e);
-            throw new AggregationFailureException(e);
+
+            if (e instanceof AggregationFailureException) {
+                throw e;
+            } else {
+                throw new AggregationFailureException(e);
+            }
         }
     }
 

@@ -109,13 +109,11 @@ public class DefaultCoverageEntityMatcher implements CoverageEntityMatcher {
             }
 
             // Add compute tier info
-            if (config.tierMatcher() != TierMatcher.NONE) {
-                final ComputeTierInfo computeTierInfo = entityContext.computeTierInfo();
+            final ComputeTierInfo computeTierInfo = entityContext.computeTierInfo();
+            if (config.tierMatcher() == TierMatcher.FAMILY) {
                 keyBuilder.tierFamily(computeTierInfo.family().get());
-
-                if (config.tierMatcher() == TierMatcher.TIER) {
-                    keyBuilder.tierOid(computeTierInfo.tierOid());
-                }
+            } else if (config.tierMatcher() == TierMatcher.TIER) {
+                keyBuilder.tierOid(computeTierInfo.tierOid());
             }
 
             // Add platform and tenancy info

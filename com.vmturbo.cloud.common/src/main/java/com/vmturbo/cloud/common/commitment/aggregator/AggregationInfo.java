@@ -4,6 +4,7 @@ import java.util.OptionalLong;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentEntityScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
@@ -64,4 +65,12 @@ public interface AggregationInfo {
      */
     @Nonnull
     CloudCommitmentStatus status();
+
+    /**
+     * The resource scope of the cloud commitment, representing the cloud tier or cloud service
+     * this aggregate can cover.
+     * @return The resource scope.
+     */
+    @Nonnull
+    CloudCommitmentResourceScope resourceScope();
 }

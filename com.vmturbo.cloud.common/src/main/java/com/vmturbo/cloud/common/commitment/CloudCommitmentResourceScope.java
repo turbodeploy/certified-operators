@@ -1,11 +1,17 @@
 package com.vmturbo.cloud.common.commitment;
 
+import java.util.OptionalLong;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.StringUtils;
+import org.immutables.value.Value.Check;
+import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 
@@ -62,14 +68,14 @@ public interface CloudCommitmentResourceScope {
      */
     @HiddenImmutableImplementation
     @Immutable
-    interface ComputeTierResourceScope extends CloudCommitmentResourceScope {
+    abstract class ComputeTierResourceScope implements CloudCommitmentResourceScope {
 
         /**
          * {@inheritDoc}.
          */
         @Derived
         @Override
-        default Set<EntityType> cloudTiers() {
+        public Set<EntityType> cloudTiers() {
             return ImmutableSet.of(EntityType.COMPUTE_TIER);
         }
 
@@ -77,43 +83,68 @@ public interface CloudCommitmentResourceScope {
          * The compute tier family.
          * @return The compute tier family.
          */
+        @Nullable
+        public abstract String computeTierFamily();
+
+        /**
+         * The compute tier OID, if the commitments are scoped to a single tier.
+         * @return The compute tier OID, if the commitments are scoped to a single tier.
+         */
         @Nonnull
-        String computeTierFamily();
+        public abstract OptionalLong computeTier();
+
+        /**
+         * True, if {@link #computeTierFamily()} is set, indicating {@link #computeTier()} is not set. False,
+         * if {@link #computeTier()} is set.
+         * @return True, if {@link #computeTierFamily()} is set, indicating {@link #computeTier()} is not set. False,
+         * if {@link #computeTier()} is set.
+         */
+        @Derived
+        public boolean isSizeFlexible() {
+            return StringUtils.isNotBlank(computeTierFamily());
+        }
 
         /**
          * The platform info.
          * @return The platform info.
          */
         @Nonnull
-        PlatformInfo platformInfo();
+        public abstract PlatformInfo platformInfo();
 
         /**
          * The set of supported tenancies.
          * @return The set of supported tenancies.
          */
         @Nonnull
-        Set<Tenancy> tenancies();
+        public abstract Set<Tenancy> tenancies();
+
+        @Check
+        protected void validate() {
+
+            Preconditions.checkState(isSizeFlexible() ^ computeTier().isPresent(),
+                    "Either compute tier family or compute tier must be set");
+        }
 
         /**
          * Constructs and returns a new {@link Builder} instance.
          * @return The newly constructed {@link Builder} instance.
          */
         @Nonnull
-        static Builder builder() {
+        public static Builder builder() {
             return new Builder();
         }
 
         /**
          * A builder class for constructing immutable {@link ComputeTierResourceScope} instances.
          */
-        class Builder extends ImmutableComputeTierResourceScope.Builder {}
+        public static class Builder extends ImmutableComputeTierResourceScope.Builder {}
 
         /**
          * The platform information.
          */
         @HiddenImmutableImplementation
         @Immutable
-        interface PlatformInfo {
+        public interface PlatformInfo {
 
             /**
              * Indicates whether the cloud commitment can cover any OS.
@@ -126,6 +157,7 @@ public interface CloudCommitmentResourceScope {
              * can be covered.
              * @return The coverable platform, if the commitment is not platform flexible.
              */
+            @Default
             @Nonnull
             default OSType platform() {
                 return OSType.UNKNOWN_OS;
