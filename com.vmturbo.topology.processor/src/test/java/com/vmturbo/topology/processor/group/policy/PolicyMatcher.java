@@ -35,14 +35,21 @@ public class PolicyMatcher {
     }
 
     public Matcher<TopologyEntity> hasProviderSegment(final long segmentId) {
+        return getBaseMatcherToCheckProviderSegment(Long.toString(segmentId));
+    }
+
+    private BaseMatcher<TopologyEntity> getBaseMatcherToCheckProviderSegment(String segmentId) {
         return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
-                    .anyMatch(commodity ->
-                        commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
-                            commodity.getCommodityType().getKey().equals(Long.toString(segmentId)));
+                return entity.getTopologyEntityDtoBuilder()
+                        .getCommoditySoldListList()
+                        .stream()
+                        .anyMatch(commodity -> commodity.getCommodityType().getType()
+                                == CommodityType.SEGMENTATION_VALUE && commodity.getCommodityType()
+                                .getKey()
+                                .equals(segmentId));
             }
 
             @Override
@@ -50,6 +57,10 @@ public class PolicyMatcher {
                 description.appendText("should be selling a segmentation commodity.");
             }
         };
+    }
+
+    public Matcher<TopologyEntity> hasProviderSegment(final String segmentId) {
+        return getBaseMatcherToCheckProviderSegment(segmentId);
     }
 
     public Matcher<TopologyEntity> hasProviderSegmentWithCapacity(final long segmentId,
@@ -156,31 +167,49 @@ public class PolicyMatcher {
     }
 
     public Matcher<TopologyEntity> hasConsumerSegment(long segmentId, final EntityType expectedEntityType) {
+        return getBaseMatcherToCheckConsumerSegment(String.valueOf(segmentId), expectedEntityType);
+    }
+
+    private BaseMatcher<TopologyEntity> getBaseMatcherToCheckConsumerSegment(String segmentId,
+            EntityType expectedEntityType) {
         return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
-                    .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
-                        .anyMatch(commodity ->
-                            commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
-                                (!commodityBoughtGroup.hasProviderId() ||
-                                    (commodityBoughtGroup.hasProviderId() &&
-                                        providerIsExpectedEntityType(commodityBoughtGroup.getProviderId())))
-                                && commodity.getCommodityType().getKey().equals(Long.toString(segmentId))));
+                return entity.getTopologyEntityDtoBuilder()
+                        .getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .anyMatch(
+                                commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList()
+                                        .stream()
+                                        .anyMatch(commodity ->
+                                                commodity.getCommodityType().getType()
+                                                        == CommodityType.SEGMENTATION_VALUE && (
+                                                        !commodityBoughtGroup.hasProviderId() || (
+                                                                commodityBoughtGroup.hasProviderId()
+                                                                        && providerIsExpectedEntityType(
+                                                                        commodityBoughtGroup.getProviderId())))
+                                                        && commodity.getCommodityType()
+                                                        .getKey()
+                                                        .equals(segmentId)));
             }
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("should be buying a segmentation commodity from an entity of type "
-                    + expectedEntityType + ".");
+                description.appendText(
+                        "should be buying a segmentation commodity from an entity of type "
+                                + expectedEntityType + ".");
             }
 
             private boolean providerIsExpectedEntityType(final long providerId) {
-                return topologyGraph.getEntity(providerId).get()
-                    .getEntityType() == expectedEntityType.getNumber();
+                return topologyGraph.getEntity(providerId).get().getEntityType()
+                        == expectedEntityType.getNumber();
             }
         };
+    }
+
+    public Matcher<TopologyEntity> hasConsumerSegment(String segmentId, final EntityType expectedEntityType) {
+        return getBaseMatcherToCheckConsumerSegment(segmentId, expectedEntityType);
     }
 
     public Matcher<TopologyEntity> hasConsumerSegment(long segmentId, long providerId) {

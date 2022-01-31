@@ -78,6 +78,7 @@ import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -1413,23 +1414,25 @@ public class HistorydbIO {
         if (uuids.isEmpty()) {
             return Optional.empty();
         }
-        DSLContext dsl = DSL.using(connection);
-        final String tempTableName = String.format("Tmp_%s",
+        DSLContext connDsl = DSL.using(connection, dsl.dialect());
+        final String tempTableName = String.format("tmp_%s",
                 java.util.UUID.randomUUID().toString().replace("-", ""));
         try {
             // The collation of this temp table should be unicode because the monthly and the daily stats tables have
             // unicode collation. If the collation does not match, there could be a problem executing joins with this
             // temp table.
-            dsl.execute(
-                    String.format("CREATE TEMPORARY TABLE %s ( %s varchar(%d), primary key (%s))",
-                            tempTableName, StringConstants.TARGET_OBJECT_UUID, 80,
-                            StringConstants.TARGET_OBJECT_UUID));
+            Field<String> fTargetUuid = DSL.field(DSL.name(StringConstants.TARGET_OBJECT_UUID),
+                    SQLDataType.VARCHAR(80));
+            connDsl.createTemporaryTable(tempTableName)
+                    .columns(fTargetUuid)
+                    .constraint(DSL.constraint().primaryKey(fTargetUuid))
+                    .execute();
             // Collect to set to avoid duplicates
             final List<String> uuidStrings = uuids.stream()
                     .distinct()
                     .map(Object::toString)
                     .collect(Collectors.toList());
-            insertIntoTempTableDummyBatch(uuidStrings, tempTableName, dsl);
+            insertIntoTempTableDummyBatch(uuidStrings, tempTableName, connDsl);
             return Optional.of(tempTableName);
         } catch (DataAccessException e) {
             logger.error("When inserting into a temporary table, there is an error due to {}.",
@@ -1497,7 +1500,8 @@ public class HistorydbIO {
                 if (useTempTable) {
                     tempTableName = createTemporaryTableFromUuids(uuids, conn);
                 }
-                Result<?> statsRecords = DSL.using(conn).fetch(
+                DSLContext connDsl = DSL.using(conn, dsl.dialect());
+                Result<?> statsRecords = connDsl.fetch(
                         new EntityCommoditiesMaxValuesQuery(
                                 table.get(),
                                 commStrings,
@@ -1510,8 +1514,7 @@ public class HistorydbIO {
                         table.get(), statsRecords.size());
                 if (useTempTable) {
                     // Drop the temp table
-                    DSL.using(conn).execute(String.format("DROP TEMPORARY TABLE IF EXISTS %s",
-                            tempTableName.get()));
+                    dropTemporaryTable(tempTableName, connDsl);
                 }
                 return convertToEntityCommoditiesMaxValues(table.get(), isBought, statsRecords);
             });
@@ -1520,6 +1523,11 @@ public class HistorydbIO {
                     + "bought by migrating source entities: %s", e);
             throw e;
         }
+    }
+
+    @VisibleForTesting
+    void dropTemporaryTable(Optional<String> tempTableName, DSLContext connDsl) {
+        connDsl.dropTemporaryTable(tempTableName.get()).execute();
     }
 
     /**

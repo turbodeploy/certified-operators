@@ -395,6 +395,10 @@ public class GroupProtoUtil {
                 result.add(policyInfo.getBindToGroup().getConsumerGroupId());
                 result.add(policyInfo.getBindToGroup().getProviderGroupId());
                 break;
+            case EXCLUSIVE_BIND_TO_GROUP:
+                result.add(policyInfo.getExclusiveBindToGroup().getConsumerGroupId());
+                result.add(policyInfo.getExclusiveBindToGroup().getProviderGroupId());
+                break;
             case AT_MOST_NBOUND:
                 result.add(policyInfo.getAtMostNbound().getConsumerGroupId());
                 result.add(policyInfo.getAtMostNbound().getProviderGroupId());

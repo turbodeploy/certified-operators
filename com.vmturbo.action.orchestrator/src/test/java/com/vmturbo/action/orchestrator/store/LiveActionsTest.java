@@ -13,6 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -76,6 +77,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -514,9 +516,9 @@ public class LiveActionsTest {
 
         // Target only action 1's entity.
         final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
-            .setInvolvedEntities(InvolvedEntities.newBuilder()
-                .addOids(ActionDTOUtil.getPrimaryEntity(action1.getRecommendation()).getId()))
-            .build();
+                .setInvolvedEntities(InvolvedEntities.newBuilder()
+                        .addOids(ActionDTOUtil.getPrimaryEntity(action1.getRecommendation()).getId()))
+                .build();
 
         when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE), any(), any())).thenReturn(queryFilter);
 
@@ -583,6 +585,61 @@ public class LiveActionsTest {
         verify(queryFilter, never()).test(succeededAction);
         verify(queryFilter, never()).test(failedAction);
         verify(queryFilter, never()).test(lateRecommendedAction);
+    }
+
+    @Test
+    public void testGetByFilterInvolvedEntitiesAndScopeFilter() throws UnsupportedActionException {
+        final Action action1 = ActionOrchestratorTestUtils.createMoveAction(100, 2);
+        final Action action2 = ActionOrchestratorTestUtils.createMoveAction(200, 2);
+        liveActions.replaceMarketActions(Stream.of(action1, action2));
+
+        final QueryFilter queryFilter = mock(QueryFilter.class);
+        // Suppose both actions would have passed the query filter.
+        when(queryFilter.test(action1)).thenReturn(true);
+        when(queryFilter.test(action2)).thenReturn(true);
+
+        final Instant start = clock.instant().minusMillis(100);
+        final Instant end = clock.instant().plusMillis(100);
+        final LocalDateTime startDate = LocalDateTime.ofInstant(start, clock.getZone());
+        final LocalDateTime endDate = LocalDateTime.ofInstant(end, clock.getZone());
+        // Target only action 1's entity.
+        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+                .setInvolvedEntities(InvolvedEntities.newBuilder()
+                        .addOids(ActionDTOUtil.getPrimaryEntity(action1.getRecommendation()).getId()))
+                .setResourceGroupFilter(ResourceGroupFilter.newBuilder().addResourceGroupOid(300))
+                .setStartDate(start.toEpochMilli())
+                .setEndDate(end.toEpochMilli())
+                .build();
+
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE),
+                any(), any())).thenReturn(queryFilter);
+
+        // When an organizational scope filter (such as AccountFilter, ResourceGrpupFilter,..) along with dates is set, it has
+        // precedence and historical actions pertaining to that scope will be returned.
+        when(actionHistoryDao.getActionHistoryByFilter(actionQueryFilter)).thenReturn(Arrays.asList(action1, action2));
+
+        assertThat(liveActions.get(actionQueryFilter).collect(Collectors.toList()), containsInAnyOrder(action1, action2));
+        verify(queryFilter,times(1)).test(action1);
+        verify(queryFilter, times(1)).test(action2);
+
+        // Repeat test without start end dates.  We should only get action1 - action 2 shouldn't even be considered
+        // by the query filter, as the OID of the target that action is not in the involved entities set, even if it's
+        // in the historical actions for the Resource Group specified.  Hence for Live Actions, the Involved Entities
+        // determine what's fetched.
+        final ActionQueryFilter actionQueryFilterWithoutDates = ActionQueryFilter.newBuilder()
+                .setInvolvedEntities(InvolvedEntities.newBuilder()
+                        .addOids(ActionDTOUtil.getPrimaryEntity(action1.getRecommendation()).getId()))
+                .setResourceGroupFilter(ResourceGroupFilter.newBuilder().addResourceGroupOid(300))
+                .build();
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilterWithoutDates), eq(LiveActionStore.VISIBILITY_PREDICATE),
+                any(), any())).thenReturn(queryFilter);
+        when(actionHistoryDao.getActionHistoryByFilter(actionQueryFilterWithoutDates))
+                .thenReturn(Arrays.asList(action1, action2));
+
+        assertThat(liveActions.get(actionQueryFilterWithoutDates).collect(Collectors.toList()), containsInAnyOrder(action1));
+        // Only action1 is valid in this case.
+        verify(queryFilter,times(2)).test(action1);
+        verify(queryFilter, times(1)).test(action2);
     }
 
     @Test

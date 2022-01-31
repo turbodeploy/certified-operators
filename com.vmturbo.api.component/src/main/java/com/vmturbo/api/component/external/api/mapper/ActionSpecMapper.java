@@ -1916,32 +1916,39 @@ public class ActionSpecMapper {
                 queryBuilder.setHasPrerequisites(inputDto.getHasPrerequisites());
             }
 
+            if (CollectionUtils.isNotEmpty(inputDto.getActionRelationTypeFilter())) {
+                inputDto.getActionRelationTypeFilter().forEach(apiRelatedAction -> {
+                    Optional<ActionDTO.ActionRelationType> xlRelatedActionType
+                            = RelatedActionMapper.mapApiActionRelationTypeEnumToXl(apiRelatedAction);
+                    if (xlRelatedActionType.isPresent()) {
+                        queryBuilder.addRelationTypes(xlRelatedActionType.get());
+                    } else {
+                        logger.warn("Unable to map RelatedActionType {} to XL RelatedActionType.", xlRelatedActionType);
+                    }
+                });
+            }
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
             OPERATIONAL_ACTION_STATES.forEach(queryBuilder::addStates);
         }
 
-        // Set either scope related action query filters, or invoved entities.
-        // Scope Filters have precedence over InvolvedEntities, based on current UI workflows.
-        // Handling scope filter and involved entities together would exclude actions of deleted
-        // entities as they're no longer part of the scope.
-        // If a user is scoped, a separate entities restriction will be involved.
-        if (!setScopeRelatedActionQueryFilters(scopeId, queryBuilder)) {
-            // Set involved entities from user input and Buy RI scope
-            final Set<Long> allInvolvedEntities = new HashSet<>(
-                    buyRiScopeHandler.extractBuyRiEntities(scopeId));
-            involvedEntities.ifPresent(allInvolvedEntities::addAll);
-            if (!allInvolvedEntities.isEmpty()) {
-                queryBuilder.setInvolvedEntities(InvolvedEntities.newBuilder()
-                        .addAllOids(allInvolvedEntities));
-            }
+        // Set involved entities from user input and Buy RI scope
+        final Set<Long> allInvolvedEntities = new HashSet<>(
+                buyRiScopeHandler.extractBuyRiEntities(scopeId));
+        involvedEntities.ifPresent(allInvolvedEntities::addAll);
+        if (!allInvolvedEntities.isEmpty()) {
+            queryBuilder.setInvolvedEntities(InvolvedEntities.newBuilder()
+                    .addAllOids(allInvolvedEntities));
         }
+
+        // Set organization scope filter
+        setScopeOrganizationQueryFilters(scopeId, queryBuilder);
 
         return queryBuilder.build();
     }
 
     /**
-     * Set scope related filters in ActionQueryFilter.
+     * Set organizational related scope filters in ActionQueryFilter.
      *
      * <p>At present UI supports one scope views, however, this method can be reworked to support
      * multiple scopes, as fetching from multiple scopes is supported in the db.
@@ -1949,7 +1956,7 @@ public class ActionSpecMapper {
      * @param queryBuilder The action query filter builder.
      * @return true if any filters were set, false otherwise;
      */
-    private boolean setScopeRelatedActionQueryFilters(@Nullable final ApiId scopeId,
+    private boolean setScopeOrganizationQueryFilters(@Nullable final ApiId scopeId,
                                                       @Nonnull final ActionQueryFilter.Builder queryBuilder) {
         // Set Account Filter if scope is a supported scope or group.
         if (scopeId != null && !scopeId.isRealtimeMarket()

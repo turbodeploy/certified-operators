@@ -51,6 +51,7 @@ import org.jooq.Record3;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -1158,8 +1159,15 @@ public class HistorydbIOTest extends MultiDbTestBase {
             dsl.connection(conn -> {
                 Optional<String> tempTableName = historydbIO.createTemporaryTableFromUuids(uuids,
                         conn);
-
                 assertEquals(count != 0, tempTableName.isPresent());
+                if (tempTableName.isPresent()) {
+                    DSLContext connDsl = DSL.using(conn, dsl.dialect());
+                    long countInDb = connDsl.fetchCount(DSL.table(DSL.name(tempTableName.get())));
+                    assertEquals(count, countInDb);
+                    // this would happen anyway with connection close, but we'll use our method
+                    // explicitly here so it gets tested
+                    historydbIO.dropTemporaryTable(tempTableName, connDsl);
+                }
             });
         }
     }

@@ -39,6 +39,7 @@ message PolicyInfo {
         MergePolicy merge = 21;
         MustRunTogetherPolicy must_run_together = 22;
         MustNotRunTogetherPolicy must_not_run_together = 23;
+        ExclusiveBindToGroupPolicy exclusive_bind_to_group = 24;
     }
 
     // Defines a limit on the number of entities from the consumer group that can run on each
@@ -72,6 +73,14 @@ message PolicyInfo {
     // Limits the entities in the consumer group to run only on the entities in the provider group.
     // Common use case: VM->Host or VM->Storage affinity.
     message BindToGroupPolicy {
+        optional int64 consumer_group_id = 1;
+        optional int64 provider_group_id = 2;
+    }
+
+    // Consumers have exclusive access to the members of the provider group.
+    // Containing consumers should be moved in to the provider group.
+    // Non-containing consumers should be moved out of the provider group.
+    message ExclusiveBindToGroupPolicy {
         optional int64 consumer_group_id = 1;
         optional int64 provider_group_id = 2;
     }

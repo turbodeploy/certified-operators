@@ -154,6 +154,14 @@ public class PolicyMapper {
                 policyApiDTO.setProviderGroup(getPolicyGroupApiDTO(bindToGroup.getProviderGroupId(),
                         policyInfo.getName(), groupsByID));
                 break;
+            case EXCLUSIVE_BIND_TO_GROUP:
+                final PolicyDTO.PolicyInfo.ExclusiveBindToGroupPolicy exclusiveBindToGroupPolicy = policyInfo.getExclusiveBindToGroup();
+                policyApiDTO.setType(PolicyType.EXCLUSIVE_BIND_TO_GROUP);
+                policyApiDTO.setConsumerGroup(getPolicyGroupApiDTO(exclusiveBindToGroupPolicy.getConsumerGroupId(),
+                        policyInfo.getName(), groupsByID));
+                policyApiDTO.setProviderGroup(getPolicyGroupApiDTO(exclusiveBindToGroupPolicy.getProviderGroupId(),
+                        policyInfo.getName(), groupsByID));
+                break;
             case BIND_TO_GROUP_AND_LICENSE:
                 final PolicyDTO.PolicyInfo.BindToGroupAndLicencePolicy bindToGroupAndLicense =
                         policyInfo.getBindToGroupAndLicense();
@@ -261,6 +269,13 @@ public class PolicyMapper {
             switch (policyApiDTO.getType()) {
                 case BIND_TO_GROUP:
                     policyInfoBuilder.setBindToGroup(bindToGroupPolicy(policyApiDTO));
+                    break;
+                case EXCLUSIVE_BIND_TO_GROUP:
+                    policyInfoBuilder.setExclusiveBindToGroup(
+                            PolicyInfo.ExclusiveBindToGroupPolicy.newBuilder()
+                                    .setProviderGroupId(providersId(policyApiDTO))
+                                    .setConsumerGroupId(consumersId(policyApiDTO))
+                                    .build());
                     break;
                 case BIND_TO_COMPLEMENTARY_GROUP:
                     policyInfoBuilder.setBindToComplementaryGroup(bindToComplementaryGroup(policyApiDTO));
@@ -446,6 +461,16 @@ public class PolicyMapper {
                                     .setConsumerGroupId(consumerId)
                                     .build();
                     inputPolicyBuilder.setBindToGroup(bindToGroupPolicy);
+                    break;
+                case EXCLUSIVE_BIND_TO_GROUP:
+                    providerId = providersGroupId(policyApiInputDTO);
+                    consumerId = consumersGroupId(policyApiInputDTO);
+                    final PolicyDTO.PolicyInfo.ExclusiveBindToGroupPolicy exclusiveBindToGroup =
+                            PolicyDTO.PolicyInfo.ExclusiveBindToGroupPolicy.newBuilder()
+                                    .setProviderGroupId(providerId)
+                                    .setConsumerGroupId(consumerId)
+                                    .build();
+                    inputPolicyBuilder.setExclusiveBindToGroup(exclusiveBindToGroup);
                     break;
                 case BIND_TO_COMPLEMENTARY_GROUP:
                     providerId = providersGroupId(policyApiInputDTO);

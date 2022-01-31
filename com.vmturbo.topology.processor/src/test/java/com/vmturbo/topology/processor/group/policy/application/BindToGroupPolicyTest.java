@@ -57,6 +57,8 @@ import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
  */
 public class BindToGroupPolicyTest {
 
+    private static final String EXCLUSIVE_PLACE_POLICY_KEY_POSTFIX = "_out";
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -74,6 +76,11 @@ public class BindToGroupPolicyTest {
         .setProviderGroupId(providerID)
         .build();
 
+    private final PolicyInfo.ExclusiveBindToGroupPolicy exclusiveBindToGroupPolicy = PolicyInfo.ExclusiveBindToGroupPolicy.newBuilder()
+            .setConsumerGroupId(consumerID)
+            .setProviderGroupId(providerID)
+            .build();
+
     private final PolicyInfo.BindToGroupAndLicencePolicy bindToGroupAndLicense =
             PolicyInfo.BindToGroupAndLicencePolicy.newBuilder()
                 .setConsumerGroupId(consumerID)
@@ -86,6 +93,12 @@ public class BindToGroupPolicyTest {
         .setPolicyInfo(PolicyInfo.newBuilder()
             .setBindToGroup(bindToGroup))
         .build();
+
+    final PolicyDTO.Policy ebtgPolicy = PolicyDTO.Policy.newBuilder()
+            .setId(POLICY_ID)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setExclusiveBindToGroup(exclusiveBindToGroupPolicy))
+            .build();
 
     private static final long LICENSE_POLICY_ID = 9998L;
     final PolicyDTO.Policy btglPolicy = PolicyDTO.Policy.newBuilder()
@@ -124,6 +137,7 @@ public class BindToGroupPolicyTest {
         topologyMap.put(9L, connectedTopologyEntity(9L, EntityType.VIRTUAL_VOLUME, 7L));
         topologyMap.put(10L, connectedTopologyEntity(10L, EntityType.VIRTUAL_VOLUME, 7L));
         topologyMap.put(11L, connectedTopologyEntity(11L, EntityType.VIRTUAL_MACHINE, 10L));
+        topologyMap.put(13L, topologyEntity(13L, EntityType.VIRTUAL_MACHINE, 2));
         // replacement from template
         topologyMap.put(12L, topologyEntity(12L, EntityType.PHYSICAL_MACHINE));
         topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
@@ -240,6 +254,46 @@ public class BindToGroupPolicyTest {
         // reservation vm will not buy the segmentation commodity
         assertThat(results.addedCommodities().get(CommodityType.SEGMENTATION), is(5));
         assertThat(resultsForLicense.addedCommodities().get(CommodityType.SOFTWARE_LICENSE_COMMODITY), is(5));
+    }
+
+    /**
+     * Test the application of Exclusive Place policy.
+     *
+     * @throws GroupResolutionException thrown when we could not resolve groups.
+     */
+    @Test
+    public void testApplyExlusivePlacePolicy() throws GroupResolutionException {
+        when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph))).thenReturn(
+                resolvedGroup(consumerGroup, 13L));
+        when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph))).thenReturn(
+                resolvedGroup(providerGroup, 1L));
+        final BindToGroupPolicy exclusiveBindToGroupPolicy = new BindToGroupPolicy(ebtgPolicy,
+                new PolicyEntities(consumerGroup, Sets.newHashSet(13L)),
+                new PolicyEntities(providerGroup));
+        final ExclusiveBindToGroupPolicyApplication application =
+                new ExclusiveBindToGroupPolicyApplication(groupResolver, topologyGraph,
+                        new TopologyInvertedIndexFactory());
+        final PolicyApplicationResults results = application.apply(
+                Collections.singletonList(exclusiveBindToGroupPolicy));
+
+        //Exclusive place VM (13L) on Host (1L) means:
+        //  Place VM (13L) on Host (1L)
+        assertThat(topologyGraph.getEntity(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
+        assertThat(topologyGraph.getEntity(13L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+
+        // Don't Place others VM on Host (1L)
+        assertThat(topologyGraph.getEntity(2L).get(),
+                policyMatcher.hasProviderSegment(POLICY_ID + EXCLUSIVE_PLACE_POLICY_KEY_POSTFIX));
+        assertThat(topologyGraph.getEntity(12L).get(),
+                policyMatcher.hasProviderSegment(POLICY_ID + EXCLUSIVE_PLACE_POLICY_KEY_POSTFIX));
+        assertThat(topologyGraph.getEntity(4L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID + EXCLUSIVE_PLACE_POLICY_KEY_POSTFIX, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(5L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID + EXCLUSIVE_PLACE_POLICY_KEY_POSTFIX, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(6L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID + EXCLUSIVE_PLACE_POLICY_KEY_POSTFIX, EntityType.PHYSICAL_MACHINE));
+        assertThat(results.addedCommodities().get(CommodityType.SEGMENTATION), is(7));
     }
 
     /**

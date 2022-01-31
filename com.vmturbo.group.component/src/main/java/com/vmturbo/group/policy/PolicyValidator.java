@@ -144,6 +144,12 @@ public class PolicyValidator {
                 createErrorIf(policyInfo.getBindToGroup().hasProviderGroupId(), policyCase.name(),
                     PROVIDER_GROUP).ifPresent(errors::add);
                 break;
+            case EXCLUSIVE_BIND_TO_GROUP:
+                createErrorIf(policyInfo.getExclusiveBindToGroup().hasConsumerGroupId(),
+                        policyCase.name(), CONSUMER_GROUP).ifPresent(errors::add);
+                createErrorIf(policyInfo.getExclusiveBindToGroup().hasProviderGroupId(),
+                        policyCase.name(), PROVIDER_GROUP).ifPresent(errors::add);
+                break;
             case BIND_TO_GROUP_AND_LICENSE:
                 createErrorIf(policyInfo.getBindToGroupAndLicense().hasConsumerGroupId(), policyCase.name(),
                     CONSUMER_GROUP).ifPresent(errors::add);

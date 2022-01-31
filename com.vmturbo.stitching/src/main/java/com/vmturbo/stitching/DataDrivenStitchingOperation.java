@@ -1,6 +1,8 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -222,17 +224,37 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
             // by a probe and they are in a consumer/provider relationship with each other.
             // The proxy entity (internalEntity) and real entity (externalEntity) to merge
             final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
-            final StitchingEntity externalEntity =
-                    stitchingPoint.getExternalMatches().iterator().next();
-
+            Iterator<? extends StitchingEntity> iterator =
+                    stitchingPoint.getExternalMatches().iterator();
+            StitchingEntity externalEntity = iterator.next();
+            final StringBuilder internalEntityMessageBuilder = new StringBuilder();
             // log an error if more than one external entity matched a single internal entity
-            if (stitchingPoint.getExternalMatches().size() > 1) {
-                errorMessageBuilder.append(String.format(
-                                "Internal Entity %s matched multiple External Entities: %s%n",
-                                internalEntity.getDisplayName(),
-                                stitchingPoint.getExternalMatches().stream()
-                                                .map(StitchingEntity::getDisplayName)
-                                                .collect(Collectors.joining(", "))));
+            while (iterator.hasNext()) {
+                StitchingEntity nextEntity = iterator.next();
+                if (internalEntityMessageBuilder.length() == 0) {
+                    internalEntityMessageBuilder.append(String.format(
+                            "Internal Entity %s matched multiple External Entities: %s, %s",
+                            internalEntity.getDisplayName(), externalEntity.getDisplayName(),
+                            nextEntity.getDisplayName()));
+
+                } else {
+                    internalEntityMessageBuilder.append(String.format(", %s", nextEntity.getDisplayName()));
+                }
+
+                // if we have multiple potential matches, pick the one with the lowest OID
+                // so we consistently stitch with the same external entity.  This avoids flapping
+                // of entity relationships in the TP broadcast which can lead to problems for
+                // consumers of the broadcast.
+                if (nextEntity.getOid() < externalEntity.getOid()) {
+                    externalEntity = nextEntity;
+                }
+            }
+            if (internalEntityMessageBuilder.length() > 0) {
+                internalEntityMessageBuilder.append(String.format(
+                        ". Stitching it with external entity %s.%n",
+                        externalEntity.getDisplayName()
+                ));
+                errorMessageBuilder.append(internalEntityMessageBuilder.toString());
             }
             stitch(internalEntity, externalEntity, resultBuilder);
         });
