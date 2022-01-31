@@ -16,9 +16,10 @@ import org.jooq.Name;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.SQLDialect;
-import org.jooq.SelectConditionStep;
+import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
+import org.springframework.util.CollectionUtils;
 
 /**
  * Class to construct upsert statements, including provisions useful for rollup operations.
@@ -28,6 +29,7 @@ public class UpsertBuilder {
     private Table<?> source;
     private Table<?> target;
     private Field<?>[] insertFields;
+    private List<Field<?>> sourceGroupByFields = new ArrayList<>();
     private final List<Condition> conditions = new ArrayList<>();
     private final Map<Field<?>, Field<?>> insertValues = new HashMap<>();
     private final List<UpdateBinding<?>> updates = new ArrayList<>();
@@ -64,6 +66,17 @@ public class UpsertBuilder {
      */
     public UpsertBuilder withSourceCondition(Condition... conditions) {
         this.conditions.addAll(Arrays.asList(conditions));
+        return this;
+    }
+
+    /**
+     * Specify group by fields.
+     *
+     * @param sourceGroupByFields source group by fields
+     * @return one or more group by fields to be applied to the source table
+     */
+    public UpsertBuilder withSourceGroupBy(Field<?>... sourceGroupByFields) {
+        this.sourceGroupByFields.addAll(Arrays.asList(sourceGroupByFields));
         return this;
     }
 
@@ -202,9 +215,13 @@ public class UpsertBuilder {
                 selectList[i] = getSourceField(field);
             }
         }
-        SelectConditionStep<Record> select = dsl.select(selectList)
-                .from(source)
-                .where(conditions);
+        final Select select;
+        if (!CollectionUtils.isEmpty(sourceGroupByFields)) {
+            select = dsl.select(selectList).from(source).where(conditions).groupBy(
+                    sourceGroupByFields);
+        } else {
+            select = dsl.select(selectList).from(source).where(conditions);
+        }
         InsertOnDuplicateStep<?> insert = dsl.insertInto(target)
                 .columns(insertFields)
                 .select(select);
@@ -214,8 +231,8 @@ public class UpsertBuilder {
         }
         InsertOnDuplicateSetStep<? extends Record> upsert
                 = conflictColumns.isEmpty()
-                  ? insert.onDuplicateKeyUpdate()
-                  : insert.onConflict(conflictColumns).doUpdate();
+                ? insert.onDuplicateKeyUpdate()
+                : insert.onConflict(conflictColumns).doUpdate();
         upsert.set(updateMap);
         return (Query)upsert;
     }

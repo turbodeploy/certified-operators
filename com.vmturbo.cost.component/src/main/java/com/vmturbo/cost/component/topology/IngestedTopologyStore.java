@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -21,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
+import org.jooq.SelectJoinStep;
 import org.springframework.scheduling.TaskScheduler;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -53,6 +56,23 @@ public class IngestedTopologyStore {
         this.dslContext = Objects.requireNonNull(dslContext);
 
         taskScheduler.scheduleWithFixedDelay(this::cleanup, cleanupInterval);
+    }
+
+    /**
+     * Get CreationTime since last topology rollup.
+     *
+     * @param lastRollupTimes last roll up time from metadata table
+     * @return list of CreationTime since last topology rollup
+     */
+    public List<LocalDateTime> getCreationTimeSinceLastTopologyRollup(
+            @Nonnull final Optional<Long> lastRollupTimes) {
+        final SelectJoinStep<Record1<LocalDateTime>> step = dslContext.select(
+                INGESTED_LIVE_TOPOLOGY.CREATION_TIME).from(INGESTED_LIVE_TOPOLOGY);
+        // Using ZoneOffset.UTC to be consistent with `recordIngestedTopology` method
+        return lastRollupTimes.map(
+                time -> step.where(INGESTED_LIVE_TOPOLOGY.CREATION_TIME.gt(Instant.ofEpochMilli(
+                        time).atZone(ZoneOffset.UTC).toLocalDateTime())).fetch()).orElse(
+                step.fetch()).stream().map(Record1::value1).collect(Collectors.toList());
     }
 
     /**

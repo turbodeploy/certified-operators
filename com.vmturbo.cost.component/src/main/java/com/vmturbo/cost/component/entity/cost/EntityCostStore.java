@@ -1,6 +1,9 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
@@ -11,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.sql.utils.DbException;
@@ -65,4 +69,14 @@ public interface EntityCostStore extends MultiStoreDiagnosable {
      * @throws DbException if there was an error removing the plan cost data.
      */
     void deleteEntityCosts(long planId) throws DbException;
+
+    /**
+     * Calls the rollup stored procedure.
+     *
+     * @param durationType whether this is a daily or monthly rollup
+     * @param fromTimes    times of source records to be rolled up
+     * @param clock        system clock
+     */
+    void performRollup(@Nonnull RollupDurationType durationType,
+            @Nonnull List<LocalDateTime> fromTimes, @Nonnull Clock clock);
 }

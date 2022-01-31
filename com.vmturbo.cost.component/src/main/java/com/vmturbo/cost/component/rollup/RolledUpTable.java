@@ -10,6 +10,11 @@ public enum RolledUpTable {
     ENTITY_SAVINGS("entity_savings"),
 
     /**
+     * Entity savings.
+     */
+    ENTITY_COST("entity_cost"),
+
+    /**
      * Billed costs.
      */
     BILLED_COST("billed_cost");
