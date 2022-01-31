@@ -54,4 +54,21 @@ public class RollupConfig {
             throw new BeanCreationException("Failed to create billedCostRollupTimesStore", e);
         }
     }
+
+    /**
+     * Entity cost rollup time store.
+     *
+     * @return rollup time store
+     */
+    @Bean
+    public RollupTimesStore entityCostRollupTimesStore() {
+        try {
+            return new RollupTimesStore(dbAccessConfig.dsl(), RolledUpTable.ENTITY_COST);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create entityCostRollupTimesStore", e);
+        }
+    }
 }

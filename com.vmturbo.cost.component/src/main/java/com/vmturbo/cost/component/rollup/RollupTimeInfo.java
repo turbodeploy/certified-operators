@@ -35,6 +35,15 @@ public class RollupTimeInfo {
     }
 
     /**
+     * Check if it is latest-to-hourly rollup.
+     *
+     * @return True for latest-to-hourly rollup.
+     */
+    public boolean isHourly() {
+        return durationType == RollupDurationType.HOURLY;
+    }
+
+    /**
      * Check if it is hourly-to-daily rollup.
      *
      * @return True for hourly-to-daily rollup.

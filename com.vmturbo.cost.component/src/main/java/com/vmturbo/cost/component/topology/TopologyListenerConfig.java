@@ -1,11 +1,16 @@
 package com.vmturbo.cost.component.topology;
 
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -15,6 +20,7 @@ import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -34,6 +40,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
@@ -42,6 +49,7 @@ import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
+import com.vmturbo.cost.component.entity.cost.RollupEntityCostProcessor;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
@@ -50,6 +58,7 @@ import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsTopologyMonitor;
 import com.vmturbo.cost.component.topology.cloud.listener.CCADemandCollector;
@@ -58,6 +67,7 @@ import com.vmturbo.cost.component.topology.cloud.listener.LiveCloudTopologyListe
 import com.vmturbo.cost.component.topology.cloud.listener.RIBuyRunner;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.ConditionalDbConfig.DbEndpointCondition;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
 
@@ -81,10 +91,18 @@ import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
         SupplyChainServiceConfig.class,
         GroupClientConfig.class,
         CloudCommitmentAnalysisStoreConfig.class,
-        CostClientConfig.class})
+        CostClientConfig.class,
+        CostComponentGlobalConfig.class,
+        RollupConfig.class})
 public class TopologyListenerConfig {
 
     private final Logger logger = LogManager.getLogger();
+
+    @Autowired
+    private RollupConfig rollupConfig;
+
+    @Autowired
+    private CostComponentGlobalConfig costComponentGlobalConfig;
 
     @Autowired
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
@@ -345,6 +363,37 @@ public class TopologyListenerConfig {
     @Bean
     public CCADemandCollector ccaDemandCollector() {
         return new CCADemandCollector(cloudCommitmentAnalysisStoreConfig.cloudCommitmentDemandWriter());
+    }
+
+    /**
+     * Get instance of rollup processor.
+     *
+     * @return Rollup processor.
+     */
+    @Bean
+    @Conditional(DbEndpointCondition.class)
+    public RollupEntityCostProcessor rollupEntityCostProcessor() {
+        RollupEntityCostProcessor rollupEntityCostProcessor = new RollupEntityCostProcessor(
+                entityCostConfig.entityCostStore(), rollupConfig.entityCostRollupTimesStore(),
+                ingestedTopologyStore(), costComponentGlobalConfig.clock());
+
+        int initialDelayMinutes = 1;
+        entityCostRollUpExpirationScheduledExecutor().scheduleAtFixedRate(
+                rollupEntityCostProcessor::execute, initialDelayMinutes, 60, TimeUnit.MINUTES);
+        logger.info("EntityCostProcessor is enabled, will run every hour after 1 min.");
+        return rollupEntityCostProcessor;
+    }
+
+    /**
+     * Setup and return a ScheduledExecutorService for the running of recurrent tasks.
+     *
+     * @return a new single threaded scheduled executor service with the thread factory configured.
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService entityCostRollUpExpirationScheduledExecutor() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
+                "Entity-Cost-Rollup").build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
     }
 
     /**

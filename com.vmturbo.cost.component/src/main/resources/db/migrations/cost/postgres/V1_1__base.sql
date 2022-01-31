@@ -403,8 +403,8 @@ CREATE TABLE IF NOT EXISTS entity_cost (
     -- The associated entity id
     associated_entity_id bigint NOT NULL,
     -- The timestamp at which the entity cost is calculated in Cost component.
-    -- The time is UTC.
-    created_time timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    -- The time is UTC
+    created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- The associated entity type, e.g. vm_spend, app_spend
     associated_entity_type int NOT NULL,
     -- The cost type, e.g. LICENSE, IP, STORAGE, COMPUTE
@@ -428,7 +428,7 @@ CREATE INDEX IF NOT EXISTS idx_entity_cost_associated_entity_id on entity_cost(a
 
 CREATE TABLE IF NOT EXISTS entity_cost_by_day (
     associated_entity_id bigint NOT NULL,
-    created_time timestamp DEFAULT '0001-01-01 00:00:00.000',
+    created_time TIMESTAMP NOT NULL DEFAULT '0001-01-01 00:00:00.000',
     associated_entity_type int NOT NULL,
     cost_type int NOT NULL,
     currency int NOT NULL,
@@ -436,7 +436,8 @@ CREATE TABLE IF NOT EXISTS entity_cost_by_day (
     samples int,
     account_id bigint DEFAULT '0',
     region_id bigint DEFAULT '0',
-    availability_zone_id bigint DEFAULT '0'
+    availability_zone_id bigint DEFAULT '0',
+    UNIQUE (created_time,associated_entity_id,associated_entity_type,cost_type,currency,account_id,region_id,availability_zone_id)
 );
 
 CREATE INDEX IF NOT EXISTS ecd_ct ON entity_cost_by_day(created_time);
@@ -446,7 +447,7 @@ CREATE INDEX IF NOT EXISTS entity_cost_by_day_availability_zone_id_index ON enti
 
 CREATE TABLE IF NOT EXISTS entity_cost_by_hour (
     associated_entity_id bigint NOT NULL,
-    created_time timestamp,
+    created_time TIMESTAMP NOT NULL DEFAULT '0001-01-01 00:00:00.000',
     associated_entity_type int NOT NULL,
     cost_type int NOT NULL,
     currency int NOT NULL,
@@ -454,7 +455,8 @@ CREATE TABLE IF NOT EXISTS entity_cost_by_hour (
     samples int,
     account_id bigint DEFAULT '0',
     region_id bigint DEFAULT '0',
-    availability_zone_id bigint DEFAULT '0'
+    availability_zone_id bigint DEFAULT '0',
+    UNIQUE (created_time,associated_entity_id,associated_entity_type,cost_type,currency,account_id,region_id,availability_zone_id)
 );
 
 CREATE INDEX IF NOT EXISTS ech_ct ON entity_cost_by_hour(created_time);
@@ -464,7 +466,7 @@ CREATE INDEX IF NOT EXISTS entity_cost_by_hour_availability_zone_id_index ON ent
 
 CREATE TABLE IF NOT EXISTS entity_cost_by_month (
     associated_entity_id bigint NOT NULL,
-    created_time timestamp,
+    created_time TIMESTAMP NOT NULL DEFAULT '0001-01-01 00:00:00.000',
     associated_entity_type int NOT NULL,
     cost_type int NOT NULL,
     currency int NOT NULL,
@@ -472,7 +474,8 @@ CREATE TABLE IF NOT EXISTS entity_cost_by_month (
     samples int,
     account_id bigint DEFAULT '0',
     region_id bigint DEFAULT '0',
-    availability_zone_id bigint DEFAULT '0'
+    availability_zone_id bigint DEFAULT '0',
+    UNIQUE (created_time,associated_entity_id,associated_entity_type,cost_type,currency,account_id,region_id,availability_zone_id)
 );
 
 CREATE INDEX IF NOT EXISTS ecm_ct ON entity_cost_by_month(created_time);

@@ -1,6 +1,9 @@
 package com.vmturbo.cost.component.entity.cost;
 
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_DAY;
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_HOUR;
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_MONTH;
 import static com.vmturbo.cost.component.db.Tables.PLAN_ENTITY_COST;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.max;
@@ -12,11 +15,12 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -65,7 +69,6 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
 
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -89,11 +92,13 @@ import com.vmturbo.cost.component.db.tables.records.EntityCostByHourRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByMonthRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.CostGroupBy;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.jooq.UpsertBuilder;
 import com.vmturbo.trax.TraxNumber;
 
 public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosable {
@@ -682,6 +687,156 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 .where(Tables.PLAN_ENTITY_COST.PLAN_ID.eq(planId))
                 .execute();
         logger.info("Deleted {} records from plan entity costs for planId {}", rowsDeleted, planId);
+    }
+
+    /**
+     * Stats table field info by rollup type.
+     */
+    final static Map<RollupDurationType, StatsTypeFields> statsFieldsByRollup =
+            buildStatsFieldsForRollup();
+
+    private static Map<RollupDurationType, StatsTypeFields> buildStatsFieldsForRollup() {
+        ImmutableMap.Builder<RollupDurationType, StatsTypeFields> statsFieldsByRollupBuilder = new ImmutableMap.Builder<>();
+        StatsTypeFields hourFields = new StatsTypeFields();
+        hourFields.table = ENTITY_COST_BY_HOUR;
+        hourFields.associatedEntityIdFiled = ENTITY_COST_BY_HOUR.ASSOCIATED_ENTITY_ID;
+        hourFields.createdTimeField = ENTITY_COST_BY_HOUR.CREATED_TIME;
+        hourFields.associatedEntityTypeField = ENTITY_COST_BY_HOUR.ASSOCIATED_ENTITY_TYPE;
+        hourFields.costTypeField = ENTITY_COST_BY_HOUR.COST_TYPE;
+        hourFields.currencyField = ENTITY_COST_BY_HOUR.CURRENCY;
+        hourFields.amountField = ENTITY_COST_BY_HOUR.AMOUNT;
+        hourFields.accountIdFiled = ENTITY_COST_BY_HOUR.ACCOUNT_ID;
+        hourFields.regionIdFiled = ENTITY_COST_BY_HOUR.REGION_ID;
+        hourFields.availabilityZoneIdFiled = ENTITY_COST_BY_HOUR.AVAILABILITY_ZONE_ID;
+        hourFields.samplesField = ENTITY_COST_BY_HOUR.SAMPLES;
+        statsFieldsByRollupBuilder.put(RollupDurationType.HOURLY, hourFields);
+
+        StatsTypeFields dayFields = new StatsTypeFields();
+        dayFields.table = ENTITY_COST_BY_DAY;
+        dayFields.associatedEntityIdFiled = ENTITY_COST_BY_DAY.ASSOCIATED_ENTITY_ID;
+        dayFields.createdTimeField = ENTITY_COST_BY_DAY.CREATED_TIME;
+        dayFields.associatedEntityTypeField = ENTITY_COST_BY_DAY.ASSOCIATED_ENTITY_TYPE;
+        dayFields.costTypeField = ENTITY_COST_BY_DAY.COST_TYPE;
+        dayFields.currencyField = ENTITY_COST_BY_DAY.CURRENCY;
+        dayFields.accountIdFiled = ENTITY_COST_BY_DAY.ACCOUNT_ID;
+        dayFields.regionIdFiled = ENTITY_COST_BY_DAY.REGION_ID;
+        dayFields.availabilityZoneIdFiled = ENTITY_COST_BY_DAY.AVAILABILITY_ZONE_ID;
+        dayFields.amountField = ENTITY_COST_BY_DAY.AMOUNT;
+        dayFields.samplesField = ENTITY_COST_BY_DAY.SAMPLES;
+        statsFieldsByRollupBuilder.put(RollupDurationType.DAILY, dayFields);
+
+        StatsTypeFields monthFields = new StatsTypeFields();
+        monthFields.table = ENTITY_COST_BY_MONTH;
+        monthFields.associatedEntityIdFiled = ENTITY_COST_BY_MONTH.ASSOCIATED_ENTITY_ID;
+        monthFields.createdTimeField = ENTITY_COST_BY_MONTH.CREATED_TIME;
+        monthFields.associatedEntityTypeField = ENTITY_COST_BY_MONTH.ASSOCIATED_ENTITY_TYPE;
+        monthFields.costTypeField = ENTITY_COST_BY_MONTH.COST_TYPE;
+        monthFields.currencyField = ENTITY_COST_BY_MONTH.CURRENCY;
+        monthFields.accountIdFiled = ENTITY_COST_BY_MONTH.ACCOUNT_ID;
+        monthFields.regionIdFiled = ENTITY_COST_BY_MONTH.REGION_ID;
+        monthFields.availabilityZoneIdFiled = ENTITY_COST_BY_MONTH.AVAILABILITY_ZONE_ID;
+        monthFields.amountField = ENTITY_COST_BY_MONTH.AMOUNT;
+        monthFields.samplesField = ENTITY_COST_BY_MONTH.SAMPLES;
+        statsFieldsByRollupBuilder.put(RollupDurationType.MONTHLY, monthFields);
+        return statsFieldsByRollupBuilder.build();
+    }
+
+    @Override
+    public void performRollup(@Nonnull RollupDurationType durationType,
+            @Nonnull List<LocalDateTime> fromTimes, @Nonnull Clock clock) {
+        fromTimes.forEach(fromTime -> getRollupUpsert(durationType, fromTime, clock));
+    }
+
+    private void getRollupUpsert(@Nonnull final RollupDurationType rollupDuration,
+            @Nonnull final LocalDateTime fromDateTimes, @Nonnull final Clock clock) {
+        final Table<?> source;
+        final Table<?> target;
+        final Field<Integer> fSourceSamples;
+        final LocalDateTime toDateTime;
+        final LocalDateTime sourceConditionTime;
+        final StatsTypeFields sourceFields = new StatsTypeFields();
+        if (rollupDuration == RollupDurationType.HOURLY) {
+            source = ENTITY_COST;
+            target = ENTITY_COST_BY_HOUR;
+            fSourceSamples = DSL.inline(1);
+            sourceFields.createdTimeField = ENTITY_COST.CREATED_TIME;
+            toDateTime = fromDateTimes.truncatedTo(ChronoUnit.HOURS);
+            sourceConditionTime = fromDateTimes;
+        } else if (rollupDuration == RollupDurationType.DAILY) {
+            source = ENTITY_COST;
+            target = ENTITY_COST_BY_DAY;
+            fSourceSamples = DSL.inline(1);
+            sourceFields.createdTimeField = ENTITY_COST.CREATED_TIME;
+            toDateTime = fromDateTimes.truncatedTo(ChronoUnit.DAYS);
+            sourceConditionTime = fromDateTimes;
+        } else {
+            source = ENTITY_COST;
+            target = ENTITY_COST_BY_MONTH;
+            fSourceSamples = DSL.inline(1);
+            sourceFields.createdTimeField = ENTITY_COST.CREATED_TIME;
+            YearMonth month = YearMonth.from(fromDateTimes);
+            toDateTime = month.atEndOfMonth().atStartOfDay();
+            sourceConditionTime = fromDateTimes;
+        }
+
+        final StatsTypeFields rollupFields = statsFieldsByRollup.get(rollupDuration);
+
+        final UpsertBuilder upsert = new UpsertBuilder().withTargetTable(target)
+                .withSourceTable(source)
+                .withInsertFields(rollupFields.associatedEntityIdFiled,
+                        rollupFields.createdTimeField, rollupFields.associatedEntityTypeField,
+                        rollupFields.costTypeField, rollupFields.currencyField,
+                        rollupFields.amountField, rollupFields.samplesField,
+                        rollupFields.accountIdFiled, rollupFields.regionIdFiled,
+                        rollupFields.availabilityZoneIdFiled)
+                .withInsertValue(rollupFields.createdTimeField, DSL.val(toDateTime))
+                .withInsertValue(rollupFields.associatedEntityIdFiled,
+                        DSL.max(ENTITY_COST.ASSOCIATED_ENTITY_ID).as("associated_entity_id"))
+                .withInsertValue(rollupFields.associatedEntityTypeField,
+                        DSL.max(ENTITY_COST.ASSOCIATED_ENTITY_TYPE).as("associated_entity_type"))
+                .withInsertValue(rollupFields.costTypeField,
+                        DSL.max(ENTITY_COST.COST_TYPE).as("cost_type"))
+                .withInsertValue(rollupFields.currencyField,
+                        DSL.max(ENTITY_COST.CURRENCY).as("currency"))
+                .withInsertValue(rollupFields.accountIdFiled,
+                        DSL.max(ENTITY_COST.ACCOUNT_ID).as("account_id"))
+                .withInsertValue(rollupFields.regionIdFiled,
+                        DSL.max(ENTITY_COST.REGION_ID).as("region_id"))
+                .withInsertValue(rollupFields.availabilityZoneIdFiled,
+                        DSL.max(ENTITY_COST.AVAILABILITY_ZONE_ID).as("availability_zone_id"))
+                .withInsertValue(rollupFields.amountField, DSL.sum(ENTITY_COST.AMOUNT).as("amount"))
+                .withInsertValue(rollupFields.samplesField, fSourceSamples)
+                .withUpdateValue(rollupFields.samplesField, UpsertBuilder::sum)
+                .withUpdateValue(rollupFields.amountField,
+                        UpsertBuilder.avg(rollupFields.samplesField))
+                .withSourceCondition(sourceFields.createdTimeField.eq(sourceConditionTime))
+                .withSourceGroupBy(ENTITY_COST.ASSOCIATED_ENTITY_ID, ENTITY_COST.CREATED_TIME,
+                        ENTITY_COST.ASSOCIATED_ENTITY_TYPE, ENTITY_COST.COST_TYPE,
+                        ENTITY_COST.CURRENCY, ENTITY_COST.ACCOUNT_ID, ENTITY_COST.REGION_ID,
+                        ENTITY_COST.AVAILABILITY_ZONE_ID)
+                .withConflictColumns(rollupFields.associatedEntityIdFiled,
+                        rollupFields.createdTimeField, rollupFields.associatedEntityTypeField,
+                        rollupFields.costTypeField, rollupFields.currencyField,
+                        rollupFields.accountIdFiled, rollupFields.regionIdFiled,
+                        rollupFields.availabilityZoneIdFiled);
+        upsert.getUpsert(dsl).execute();
+    }
+
+    /**
+     * Used to store info about stats tables (hourly/daily/monthly fields).
+     */
+    private static final class StatsTypeFields {
+        Table<?> table;
+        TableField<?, Long> associatedEntityIdFiled;
+        TableField<?, LocalDateTime> createdTimeField;
+        TableField<?, Integer> associatedEntityTypeField;
+        TableField<?, Integer> costTypeField;
+        TableField<?, Integer> currencyField;
+        TableField<?, BigDecimal> amountField;
+        TableField<?, Long> accountIdFiled;
+        TableField<?, Long> regionIdFiled;
+        TableField<?, Long> availabilityZoneIdFiled;
+        TableField<?, Integer> samplesField;
     }
 
     /**
