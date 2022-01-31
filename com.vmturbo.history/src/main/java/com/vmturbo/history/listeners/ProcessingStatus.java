@@ -29,13 +29,12 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.InsertQuery;
+import org.jooq.InsertSetMoreStep;
+import org.jooq.InsertSetStep;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
@@ -221,20 +220,15 @@ class ProcessingStatus {
         }
         if (!records.isEmpty()) {
             try {
-                // the cast is needed because we've broken construction of the insert object across
-                // multiple stmts, and we need to access the interface normally returned by
-                // the first data values have been supplied. It's all the same object under the
-                // covers, just a case where JOOQ's "cascading interfaces" cause some clumsiness
-                InsertQuery<IngestionStatusRecord> stmt = dsl.insertQuery(INGESTION_STATUS);
-                records.forEach(stmt::addRecord);
-                stmt.onDuplicateKeyUpdate(true);
-                stmt.addValueForUpdate(INGESTION_STATUS.STATUS,
-                        FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
-                        ? JooqUtil.upsertValue(INGESTION_STATUS.STATUS, dsl.dialect())
-                        : DSL.field("VALUES({0})",
-                                INGESTION_STATUS.STATUS.getDataType(),
-                                INGESTION_STATUS.STATUS));
-                stmt.execute();
+                InsertSetStep<IngestionStatusRecord> insert = dsl.insertInto(INGESTION_STATUS);
+                // need to insert first record by itself in order to get variable of required type
+                // for following steps
+                InsertSetMoreStep<IngestionStatusRecord> insertValues = insert.set(records.get(0));
+                records.stream().skip(1L).forEach(insertValues::set);
+                insertValues.onDuplicateKeyUpdate()
+                        .set(INGESTION_STATUS.STATUS,
+                                JooqUtil.upsertValue(INGESTION_STATUS.STATUS, dsl.dialect()))
+                        .execute();
             } catch (DataAccessException e) {
                 logger.error("Failed to persist topology processing status", e);
             }
