@@ -164,6 +164,10 @@
                                 <skip>${skipITs}</skip>
                                 <dockerHost>${fabricateDockerHost}</dockerHost>
                                 <showLogs>true</showLogs>
+     <authConfig>
+      <username>turbdev</username>
+      <password>f9b809c1-eb0c-49f1-bcb3-5263ef66f11f</password>
+    </authConfig>
                                 <images>
                                     <image>
                                         <name>${dockerRobotImage}</name>
