@@ -5,7 +5,6 @@ import javax.annotation.Nonnull;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentResourceScope;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 
@@ -15,14 +14,6 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 @HiddenImmutableImplementation
 @Immutable(prehash = true)
 public interface TopologyCommitmentAggregationInfo extends AggregationInfo {
-
-    /**
-     * The resource scope of the cloud commitment, representing the cloud tier or cloud service
-     * this aggregate can cover.
-     * @return The resource scope.
-     */
-    @Nonnull
-    CloudCommitmentResourceScope resourceScope();
 
     /**
      * {@inheritDoc}.

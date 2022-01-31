@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.immutables.value.Value.Immutable;
+import org.immutables.value.Value.Modifiable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -16,6 +17,7 @@ import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatche
  * A {@link CoverageKey} implementation for matching compute-based commitments to coverage entities (e.g.
  * an EC2 RI to an AWS VM).
  */
+@Modifiable
 @HiddenImmutableImplementation
 @Immutable(lazyhash = true)
 public interface ComputeCoverageKey extends CoverageKey {
