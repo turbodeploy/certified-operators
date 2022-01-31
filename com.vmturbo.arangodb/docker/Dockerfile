@@ -14,7 +14,7 @@ COPY licenses /licenses
 
 ENV ARANGO_VERSION 3.6.4-1.0
 ENV ARANGO_URL https://download.arangodb.com/arangodb36/RPM/x86_64/arangodb3-${ARANGO_VERSION}.x86_64.rpm
-ENV OPENSSL_URL http://mirror.centos.org/centos/8/AppStream/x86_64/os/Packages/compat-openssl10-1.0.2o-3.el8.x86_64.rpm
+ENV OPENSSL_URL http://mirror.centos.org/centos/8-stream/AppStream/x86_64/os/Packages/compat-openssl10-1.0.2o-3.el8.x86_64.rpm
 
 # The systemd-coredump userid 999 would be the owner of the /var/lib/arangodb3 directory after the ubi8 update
 # We should have created arangodb user with an explicit userid instead of it picking 999
