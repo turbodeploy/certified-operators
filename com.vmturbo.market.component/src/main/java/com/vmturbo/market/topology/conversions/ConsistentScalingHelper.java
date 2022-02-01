@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -85,23 +86,48 @@ public class ConsistentScalingHelper {
      */
     void initialize(final Map<Long, TopologyEntityDTO> topology) {
         logger.info("Initializing ConsistentScalingHelper");
-
-        // Get scaling group membership information
-        List<EntitySettingGroup> entitySettingGroups =
-            fetchConsistentScalingSettings(settingPolicyService)
-                // Skip empty scaling groups.
-                .filter(esg -> esg.getEntityOidsList().size() > 0)
-                .collect(Collectors.toList());
-        entitySettingGroups.forEach(v -> populateConsistentScalingGroup(topology, v.getSetting().getStringSettingValue().getValue(), v.getEntityOidsList()));
-
         // Iterate the topology and form the oid2MembersMap through the CONTROLLED_BY_CONNECTION
         // oid2MembersMap is the map with key == controller oid, value == List<controlled entity oids>
         Map<Long, Set<Long>> controllerOid2MembersMap = new HashMap<>();
+        // The inverse map between controlled entity to controller, for quick index check purpose, to merge and de-duplicate with consistent scaling group from policy.
+        Map<Long, Long> oid2ControllerMap = new HashMap<>();
         topology.forEach((oid, topoDTO) -> topoDTO.getConnectedEntityListList().stream()
                 .filter(connectedEntity -> connectedEntity.getConnectionType() == TopologyEntityDTO.ConnectedEntity.ConnectionType.CONTROLLED_BY_CONNECTION)
-                .forEach(connectedEntity -> controllerOid2MembersMap.computeIfAbsent(connectedEntity.getConnectedEntityId(), s -> new HashSet<>()).add(topoDTO.getOid())));
+                .forEach(connectedEntity -> {
+                    controllerOid2MembersMap.computeIfAbsent(connectedEntity.getConnectedEntityId(), s -> new HashSet<>()).add(topoDTO.getOid());
+                    oid2ControllerMap.put(topoDTO.getOid(), connectedEntity.getConnectedEntityId());
+                }));
+        // MapWithUnion is created to handle the case when a user defined consistent scaling policy overlaps with the consistent scaling group created through ControlledBy
+        // For example: Deployment 1 has containers: 1, 2, 3
+        //              Deployment 2 has containers: 4, 5, 6
+        //              User Policy foo has containers: 1, 4, 100, 200
+        // In the above case, we need to merge those containers to make sure they are consistently scaled.
+        // MapWithUnion will have containers: 1, 2, 3, 4, 5, 6, 100, 200
+        // Besides, we will No LONGER create consistent scaling group for Deployment 1 and Deployment 2
+        Map<String, Set<Long>> mapWithUnion = new HashMap<>();
+        // Get scaling group membership information
+        List<EntitySettingGroup> entitySettingGroups =
+                fetchConsistentScalingSettings(settingPolicyService)
+                        // Skip empty scaling groups.
+                        .filter(esg -> esg.getEntityOidsList().size() > 0)
+                        .collect(Collectors.toList());
+        for (SettingProto.EntitySettingGroup esp : entitySettingGroups) {
+            for (Long oid : esp.getEntityOidsList()) {
+                if (oid2ControllerMap.containsKey(oid)) {
+                    Long controllerKey = oid2ControllerMap.get(oid);
+                    if (controllerOid2MembersMap.get(controllerKey) != null) {
+                        mapWithUnion.computeIfAbsent(esp.getSetting().getStringSettingValue().getValue(), s -> new HashSet<>()).addAll(controllerOid2MembersMap.get(controllerKey));
+                        // Remove the entry when the oids are merged to another consistent scaling group because of policy
+                        controllerOid2MembersMap.remove(controllerKey);
+                    }
+                } else {
+                    mapWithUnion.computeIfAbsent(esp.getSetting().getStringSettingValue().getValue(), s -> new HashSet<>()).add(oid);
+                }
+            }
+        }
         // Populate the scaling groups. The scaling group name will be CSG-<controller_oid>
         controllerOid2MembersMap.forEach((controllerId, members) -> populateConsistentScalingGroup(topology, "CSG-" + controllerId, members));
+        mapWithUnion.forEach((controllerId, members) -> populateConsistentScalingGroup(topology, controllerId, members));
         logger.info("ConsistentScalingHelper initialization complete");
     }
 
