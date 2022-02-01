@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology.clone;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
@@ -84,6 +85,9 @@ public class DefaultEntityCloneEditor {
         Map<Long, Long> oldProvidersMap = Maps.newHashMap();
         long noProvider = 0;
         for (CommoditiesBoughtFromProvider bought : entityDTOBuilder.getCommoditiesBoughtFromProvidersList()) {
+            if (shouldSkipProvider(bought)) {
+                continue;
+            }
             long oldProvider = bought.getProviderId();
             // If oldProvider is found in origToClonedProviderIdMap, corresponding provider of given
             // entity is also cloned. Set cloned provider id to CommoditiesBoughtFromProvider and
@@ -103,12 +107,17 @@ public class DefaultEntityCloneEditor {
                             .setProviderId(providerId)
                             .setMovable(movable)
                             .setProviderEntityType(bought.getProviderEntityType());
-            // In legacy opsmgr, during topology addition, all constraints are
-            // implicitly ignored. We do the same thing here.
-            // A Commodity has a constraint if it has a key in its CommodityType.
             bought.getCommodityBoughtList().forEach(commodityBought -> {
-                if (!commodityBought.getCommodityType().hasKey()) {
-                    clonedBoughtFromProvider.addCommodityBought(commodityBought);
+                if (shouldCopyBoughtCommodity(commodityBought)) {
+                    final TopologyDTO.CommodityType commodityType = commodityBought.getCommodityType();
+                    if (shouldReplaceBoughtKey(commodityType, bought.getProviderEntityType())) {
+                        final TopologyDTO.CommodityType newType = newCommodityTypeWithClonedKey(commodityType, cloneCounter);
+                        final TopologyDTO.CommodityBoughtDTO clonedBought = commodityBought.toBuilder()
+                                .setCommodityType(newType).build();
+                        clonedBoughtFromProvider.addCommodityBought(clonedBought);
+                    } else {
+                        clonedBoughtFromProvider.addCommodityBought(commodityBought);
+                    }
                 }
             });
             // Create the Comm bought grouping if it will have at least one commodity bought
@@ -119,28 +128,32 @@ public class DefaultEntityCloneEditor {
         }
 
         long cloneId = identityProvider.getCloneId(entityDTOBuilder);
-        cloneBuilder.getCommoditySoldListBuilderList().stream()
-                // Do not set the utilization to 0. The usage of clone should exactly be like the original.
-                .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
-                .forEach(bicliqueCommSold -> {
-                    // Set commodity sold for storage/host in case of a DSPM/DATASTORE commodity.
-                    // This will make sure we have an edge for biclique creation between newly cloned host
-                    // to original storages or newly cloned storage to original hosts.
-                    TopologyEntity.Builder connectedEntity = topology.get(bicliqueCommSold.getAccesses());
-                    if (connectedEntity != null) {
-                        int commType =
-                                bicliqueCommSold.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE
-                                        ? CommodityType.DATASTORE_VALUE : CommodityType.DSPM_ACCESS_VALUE;
-                        connectedEntity.getEntityBuilder().addCommoditySoldList(
-                                CommoditySoldDTO.newBuilder().setCommodityType(
-                                                TopologyDTO.CommodityType.newBuilder()
-                                                        .setKey("CommodityInClone::" + commType + "::"
-                                                                        + cloneId)
-                                                        .setType(commType))
-                                        .setAccesses(cloneId)
-                                        .build());
-                    }
-                });
+        for (final CommoditySoldDTO.Builder commSold : cloneBuilder.getCommoditySoldListBuilderList()) {
+            if (AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType())) {
+                // Set commodity sold for storage/host in case of a DSPM/DATASTORE commodity.
+                // This will make sure we have an edge for biclique creation between newly cloned host
+                // to original storages or newly cloned storage to original hosts.
+                TopologyEntity.Builder connectedEntity = topology.get(commSold.getAccesses());
+                if (connectedEntity != null) {
+                    int commType =
+                            commSold.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE
+                                    ? CommodityType.DATASTORE_VALUE : CommodityType.DSPM_ACCESS_VALUE;
+                    connectedEntity.getEntityBuilder().addCommoditySoldList(
+                            CommoditySoldDTO.newBuilder().setCommodityType(
+                                            TopologyDTO.CommodityType.newBuilder()
+                                                    .setKey("CommodityInClone::" + commType + "::"
+                                                            + cloneId)
+                                                    .setType(commType))
+                                    .setAccesses(cloneId)
+                                    .build());
+                }
+            }
+
+            final TopologyDTO.CommodityType commodityType = commSold.getCommodityType();
+            if (shouldReplaceSoldKey(commodityType)) {
+                commSold.setCommodityType(newCommodityTypeWithClonedKey(commodityType, cloneCounter));
+            }
+        }
 
         Map<String, String> entityProperties =
                 Maps.newHashMap(cloneBuilder.getEntityPropertyMapMap());
@@ -149,8 +162,86 @@ public class DefaultEntityCloneEditor {
             entityProperties.put(TopologyDTOUtil.OLD_PROVIDERS, new Gson().toJson(oldProvidersMap));
         }
         return cloneBuilder
-                .setDisplayName(entityDTOBuilder.getDisplayName() + " - Clone #" + cloneCounter)
+                .setDisplayName(entityDTOBuilder.getDisplayName() + cloneSuffix(cloneCounter))
                 .setOid(cloneId)
                 .putAllEntityPropertyMap(entityProperties);
+    }
+
+    /**
+     * Whether to skip this provider and skip copying all the commodities from this provider.
+     * Default is false, not to skip.
+     *
+     * @param boughtFromProvider the commodities bought from the provider
+     * @return true if we should skip this provider, or otherwise false
+     */
+    protected boolean shouldSkipProvider(
+            @Nonnull final CommoditiesBoughtFromProvider boughtFromProvider) {
+        return false;
+    }
+
+    /**
+     * Return true if we should copy the bought commodity.  By default, we will copy if it is not
+     * a constraint, i.e., a commodity has key.  This default behavior comes from the legacy OpsMgr:
+     * during topology addition, all constraints are implicitly ignored. We do the same thing here.
+     *
+     * <p>Subclasses such as {@link ContainerPodCloneEditor} could override this.
+     *
+     * @param commodityBought the commodity bought DTO
+     * @return true if we should copy the bought commodity; otherwise, return false.
+     */
+    protected boolean shouldCopyBoughtCommodity(
+            @Nonnull final TopologyDTO.CommodityBoughtDTO commodityBought) {
+         return !Objects.requireNonNull(commodityBought).getCommodityType().hasKey();
+    }
+
+    /**
+     * Whether to replace the key in the bought commodity with a distinct one.  Use cases include
+     * the VMPM access commodity that a container pod sells to its containers to keep them together.
+     * Default is false, not to replace.
+     *
+     * @param commodityType the bought commodity type
+     * @param providerEntityType the provider entity type
+     * @return true if we should replace the key, or otherwise false
+     */
+    protected boolean shouldReplaceBoughtKey(@Nonnull final TopologyDTO.CommodityType commodityType,
+            final int providerEntityType) {
+        return false;
+    }
+
+    /**
+     * Whether to replace the key in the sold commodity with a distinct one.  Use cases include the
+     * VMPM access commodity that a container pod sells to its containers to keep them together.
+     * Default is false, not to replace.
+     *
+     * @param commodityType the sold commodity type
+     * @return true if we should replace the key, or otherwise false
+     */
+    protected boolean shouldReplaceSoldKey(@Nonnull final TopologyDTO.CommodityType commodityType) {
+        return false;
+    }
+
+    /**
+     * Return a new {@link TopologyDTO.CommodityType} same as the input one except replacing the key
+     * by adding a suffix indicating the clone counter.
+     *
+     * @param commodityType the original {@link TopologyDTO.CommodityType} which key to be replaced
+     * @param cloneCounter the clone counter to be added to the key to make it distinct
+     * @return the new {@link TopologyDTO.CommodityType} with the key replaced
+     */
+    private static TopologyDTO.CommodityType newCommodityTypeWithClonedKey(
+            @Nonnull final TopologyDTO.CommodityType commodityType, long cloneCounter) {
+        final String newKey = Objects.requireNonNull(commodityType).getKey() + cloneSuffix(cloneCounter);
+        return commodityType.toBuilder().setKey(newKey).build();
+    }
+
+    /**
+     * Abstract the way of generating a clone suffix.  Use cases include appending the suffix to
+     * the display name and the commodity key of the clone to make it distinct.
+     *
+     * @param cloneCounter the clone counter to be part of the suffix to make it distinct
+     * @return the constructed clone suffix
+     */
+    public static String cloneSuffix(long cloneCounter) {
+        return " - Clone #" + cloneCounter;
     }
 }
