@@ -7,6 +7,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
 import static org.jooq.impl.DSL.currentDate;
 import static org.jooq.impl.DSL.dateDiff;
@@ -44,6 +45,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.DatePart;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
@@ -60,6 +62,7 @@ import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.MarketStatsRollups;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.schema.HistoryVariety;
+import com.vmturbo.history.schema.RetentionUtil;
 import com.vmturbo.history.schema.abstraction.Routines;
 import com.vmturbo.history.schema.abstraction.routines.EntityStatsRollup;
 import com.vmturbo.history.schema.abstraction.routines.MarketAggregate;
@@ -67,6 +70,7 @@ import com.vmturbo.history.schema.abstraction.tables.MarketStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByMonth;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
+import com.vmturbo.sql.utils.jooq.PurgeProcedure;
 
 /**
  * This class performs rollups of stats entity and market stats data in the database, and it can
@@ -238,7 +242,26 @@ public class RollupProcessor {
         }
         timer.start("Purge expired cluster_stats records");
         try {
-            Routines.purgeExpiredClusterStats(dsl.configuration());
+            if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+                new PurgeProcedure(dsl, CLUSTER_STATS_LATEST,
+                        CLUSTER_STATS_LATEST.RECORDED_ON, RETENTION_POLICIES,
+                        RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD,
+                        RetentionUtil.LATEST_STATS_RETENTION_POLICY_NAME, DatePart.HOUR).run();
+                new PurgeProcedure(dsl, CLUSTER_STATS_BY_HOUR,
+                        CLUSTER_STATS_BY_HOUR.RECORDED_ON, RETENTION_POLICIES,
+                        RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD,
+                        RetentionUtil.HOURLY_STATS_RETENTION_POLICY_NAME, DatePart.HOUR).run();
+                new PurgeProcedure(dsl, CLUSTER_STATS_BY_DAY,
+                        CLUSTER_STATS_BY_DAY.RECORDED_ON, RETENTION_POLICIES,
+                        RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD,
+                        RetentionUtil.DAILY_STATS_RETENTION_POLICY_NAME, DatePart.DAY).run();
+                new PurgeProcedure(dsl, CLUSTER_STATS_BY_MONTH,
+                        CLUSTER_STATS_BY_MONTH.RECORDED_ON, RETENTION_POLICIES,
+                        RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD,
+                        RetentionUtil.MONTHLY_STATS_RETENTION_POLICY_NAME, DatePart.MONTH).run();
+            } else {
+                Routines.purgeExpiredClusterStats(dsl.configuration());
+            }
         } catch (DataAccessException e) {
             logger.error("Failed to delete expired cluster_stats records", e);
         } finally {
