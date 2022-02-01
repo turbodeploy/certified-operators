@@ -1,4 +1,4 @@
-package com.vmturbo.cost.calculation.integration;
+package com.vmturbo.cloud.common.topology;
 
 import java.util.Collection;
 import java.util.List;
@@ -10,7 +10,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;

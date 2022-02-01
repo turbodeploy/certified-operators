@@ -23,12 +23,12 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;

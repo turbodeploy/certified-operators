@@ -19,6 +19,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -30,9 +33,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter.ComputeTierDemandStatsRecord;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter.WeightedCounts;

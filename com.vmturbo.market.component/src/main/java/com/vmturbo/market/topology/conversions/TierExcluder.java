@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO.ActionTypeCase;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;

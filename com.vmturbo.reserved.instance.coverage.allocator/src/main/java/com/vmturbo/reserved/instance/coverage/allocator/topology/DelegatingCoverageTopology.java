@@ -15,11 +15,11 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 

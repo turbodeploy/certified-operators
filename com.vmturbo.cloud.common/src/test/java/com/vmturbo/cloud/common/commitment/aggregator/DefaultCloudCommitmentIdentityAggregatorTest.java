@@ -21,6 +21,7 @@ import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggr
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -28,7 +29,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class DefaultCloudCommitmentIdentityAggregatorTest {

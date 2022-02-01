@@ -49,7 +49,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;

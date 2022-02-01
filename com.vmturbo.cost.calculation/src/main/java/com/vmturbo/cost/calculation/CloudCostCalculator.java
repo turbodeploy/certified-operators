@@ -48,7 +48,7 @@ import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;

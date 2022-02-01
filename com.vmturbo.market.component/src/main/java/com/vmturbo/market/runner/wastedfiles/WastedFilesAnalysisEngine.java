@@ -21,6 +21,7 @@ import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -36,7 +37,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;

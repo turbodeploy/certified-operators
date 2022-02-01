@@ -35,7 +35,6 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -47,9 +46,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.journal.CostJournal;
-import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
@@ -64,7 +61,6 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.trax.Trax;
 
 /**

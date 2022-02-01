@@ -3,7 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 
 public class ReservedInstanceCoverageValidatorFactory {
 

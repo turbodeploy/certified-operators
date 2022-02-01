@@ -7,7 +7,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 
 /**
  * Interface for read/write of entity states.

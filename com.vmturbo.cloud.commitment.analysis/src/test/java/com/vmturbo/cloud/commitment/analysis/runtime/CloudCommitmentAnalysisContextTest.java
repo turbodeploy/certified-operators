@@ -38,10 +38,13 @@ import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
 import com.vmturbo.cloud.common.topology.MinimalEntityCloudTopology.DefaultMinimalEntityCloudTopologyFactory;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
@@ -59,9 +62,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
