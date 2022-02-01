@@ -14,6 +14,7 @@ import junitparams.naming.TestCaseName;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -35,6 +36,8 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule.FeatureFlagTest;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -44,6 +47,12 @@ import com.google.common.collect.ImmutableList;
 
 @RunWith(JUnitParamsRunner.class)
 public class ResizerTest {
+
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     TestCommon testEconomy;
     Trader app, app1, app2, app3;
@@ -1884,7 +1893,27 @@ public class ResizerTest {
     }
 
     @Test
-    public void testResizeDecisionsUsingHistoricalQuantityResizeDown() {
+    public void testResizeDecisionsUsingHistoricalQuantityResizeDownWithoutPeakLimiting() {
+        double historicalQuantity = 2;
+        double currentQuantity = 6.5;
+        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuantity);
+
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        Ledger ledger = new Ledger(economy);
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(1, actions.size());
+
+        Resize resizeAction = (Resize)actions.get(0);
+
+        assertEquals(4d, resizeAction.getNewCapacity(), 0.01);
+    }
+
+    @Test
+    @FeatureFlagTest(defaultEnabled={"LIMIT_RESIZE_DOWN_BY_PEAK"})
+    public void testResizeDecisionsUsingHistoricalQuantityResizeDownWithPeakLimiting() {
         double historicalQuantity = 2;
         double currentQuantity = 6.5;
         Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuantity);

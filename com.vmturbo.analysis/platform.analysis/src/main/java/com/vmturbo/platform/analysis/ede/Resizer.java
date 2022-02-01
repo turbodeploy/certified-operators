@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.commons.Pair;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -592,7 +593,11 @@ public class Resizer {
         }
         double capacityLowerBound = resizeCommodity.getSettings().getCapacityLowerBound();
         // don't permit resize below historical max/peak or below capacity lower bound
-        double maxAmount = currentCapacity - Math.max(Math.max(historicalOrMaxQuantity, peakQuantity), capacityLowerBound);
+        double leastPossibleCapacity = Math.max(historicalOrMaxQuantity, capacityLowerBound);
+        if (FeatureFlags.LIMIT_RESIZE_DOWN_BY_PEAK.isEnabled()) {
+            leastPossibleCapacity = Math.max(leastPossibleCapacity, peakQuantity);
+        }
+        double maxAmount = currentCapacity - leastPossibleCapacity;
         if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
             logger.info("The max amount we can resize down {}/{} is {}. This is derived from currentCapcity {}, max {}, peak {}, capcityLowerBound {}",
                 seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
