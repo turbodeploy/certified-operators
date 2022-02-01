@@ -102,7 +102,7 @@ public class DbCleanupRule implements TestRule {
                 .filter(t -> tableTypesWithInserts.contains(t.getClass())
                         || truncated.contains(t.getClass())
                         || (checkOthers && dsl.fetchExists(t)))
-                .peek(t -> logger.info("Truncating table {} during cleanup", t))
+                .peek(t -> logger.debug("Truncating table {} during cleanup", t))
                 .map(dsl::truncate)
                 .forEach(q::add);
         q.add(dsl.query("SET FOREIGN_KEY_CHECKS=1;"));

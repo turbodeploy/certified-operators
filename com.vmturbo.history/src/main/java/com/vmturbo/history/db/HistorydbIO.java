@@ -1422,7 +1422,7 @@ public class HistorydbIO {
             // unicode collation. If the collation does not match, there could be a problem executing joins with this
             // temp table.
             Field<String> fTargetUuid = DSL.field(DSL.name(StringConstants.TARGET_OBJECT_UUID),
-                    SQLDataType.VARCHAR(80));
+                    SQLDataType.VARCHAR(80).nullable(false));
             connDsl.createTemporaryTable(tempTableName)
                     .columns(fTargetUuid)
                     .constraint(DSL.constraint().primaryKey(fTargetUuid))

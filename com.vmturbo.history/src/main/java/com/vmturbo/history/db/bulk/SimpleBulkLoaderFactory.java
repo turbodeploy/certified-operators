@@ -3,16 +3,20 @@ package com.vmturbo.history.db.bulk;
 import static com.vmturbo.history.db.bulk.DbInserters.excludeFieldsUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.simpleUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.valuesInserter;
-import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
-import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
-import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MONTH;
-import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
 import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
+import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -21,21 +25,24 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
-import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
+import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.sql.utils.jooq.ProxyKey;
 
 /**
  * This class uses {@link BulkInserterFactory} to create bulk loaders that are automatically
@@ -63,15 +70,6 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     private static final String DAY_KEY_FIELD_NAME = VM_STATS_LATEST.DAY_KEY.getName();
     private static final String MONTH_KEY_FIELD_NAME = VM_STATS_LATEST.MONTH_KEY.getName();
 
-    // cluster stats tables
-    private static final Set<Table<?>> CLUSTER_STATS_TABLES = ImmutableSet.of(
-            CLUSTER_STATS_LATEST,
-            CLUSTER_STATS_BY_HOUR,
-            CLUSTER_STATS_BY_DAY,
-            CLUSTER_STATS_BY_MONTH);
-
-    private DSLContext dsl;
-
     // we delegate to this factory for all the writers we create
     private final BulkInserterFactory factory;
 
@@ -96,7 +94,6 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      */
     public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
             final @Nonnull BulkInserterFactory factory) {
-        this.dsl = dsl;
         this.factory = factory;
     }
 
@@ -186,8 +183,9 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
 
     private <R extends Record> RecordTransformer<R, R> getRecordTransformer(Table<R> table) {
         final Optional<EntityType> entityType = EntityType.fromTable(table);
-        if (entityType.map(EntityType::rollsUp).orElse(false)) {
-            return new RollupKeyTransfomer<>(dsl);
+        if (entityType.map(EntityType::rollsUp).orElse(false)
+                || table == MARKET_STATS_LATEST) {
+            return new RollupKeyTransfomer<>();
         } else {
             return RecordTransformer.identity();
         }
@@ -245,39 +243,87 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
         factory.close(logger);
     }
 
-    /**
-     * RecordTransformer that adds rollup keys to a stats record.
-     *
-     * <p>With POSTGRES_PRIMARY_DB feature flag enabled and POSTGRES dialect, we no only use a
-     * single key, which we place in the hour_key columnm of a stats_latest record, since the
-     * postgres schema does not include the other key columns. Currently this is immaterial for
-     * postgres because rollups are suppressed. When they are implemented for postgres, the new
-     * implementation will also apply to MARIADB dialect with POSTGRES_PRIMARY_DB enabled.
-     *
+    /** RecordTransformer that adds rollup keys to a stats record.
      * @param <R> Type of stats record
      */
     static class RollupKeyTransfomer<R extends Record> implements RecordTransformer<R, R> {
-
-        private final DSLContext dsl;
-
-        RollupKeyTransfomer(DSLContext dsl) {
-            this.dsl = dsl;
-        }
-
         @Override
         public Optional<R> transform(final R record, final Table<R> inTable,
                 final Table<R> outTable) {
-            Builder<String, Object> rollupKeyMapBuilder =
-                    ImmutableMap.<String, Object>builder()
-                            .put(HOUR_KEY_FIELD_NAME, RollupKey.getHourKey(inTable, record));
-            if (!FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
-                    || dsl.dialect() != SQLDialect.POSTGRES) {
-                rollupKeyMapBuilder
-                        .put(DAY_KEY_FIELD_NAME, RollupKey.getDayKey(inTable, record))
-                        .put(MONTH_KEY_FIELD_NAME, RollupKey.getMonthKey(inTable, record));
+            Builder<String, Object> rollupKeyMap = ImmutableMap.builder();
+
+            if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+                if (inTable == MARKET_STATS_LATEST) {
+                    // market-stats gets a key in non-legacy scenarios
+                    String key = getMarketStatsKey(record);
+                    rollupKeyMap.put(MARKET_STATS_LATEST.TIME_SERIES_KEY.getName(), key);
+                } else {
+                    // and entity-stats tables only get a single key stored in latest.hour_key
+                    String key = getEntityStatsKey(record, inTable, null);
+                    rollupKeyMap.put(HOUR_KEY_FIELD_NAME, key);
+                }
+            } else if (inTable != MARKET_STATS_LATEST) {
+                // entity stats tables get hour_key, day_key, and month_key that include
+                // a timestamp
+                rollupKeyMap.put(HOUR_KEY_FIELD_NAME,
+                        getEntityStatsKey(record, inTable, HOUR_KEY_FIELD_NAME));
+                rollupKeyMap.put(DAY_KEY_FIELD_NAME,
+                        getEntityStatsKey(record, inTable, DAY_KEY_FIELD_NAME));
+                rollupKeyMap.put(MONTH_KEY_FIELD_NAME,
+                        getEntityStatsKey(record, inTable, MONTH_KEY_FIELD_NAME));
             }
-            record.fromMap(rollupKeyMapBuilder.build());
+            record.fromMap(rollupKeyMap.build());
             return Optional.of(record);
+        }
+
+        @NotNull
+        private String getMarketStatsKey(R record) {
+            return ProxyKey.getKeyAsHex(record,
+                    MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
+                    MARKET_STATS_LATEST.ENTITY_TYPE, MARKET_STATS_LATEST.ENVIRONMENT_TYPE,
+                    MARKET_STATS_LATEST.PROPERTY_TYPE, MARKET_STATS_LATEST.PROPERTY_SUBTYPE,
+                    MARKET_STATS_LATEST.RELATION);
+        }
+
+        private String getEntityStatsKey(R record, Table<R> inTable, String keyName) {
+            Timestamp timestamp = getTimestamp(record, keyName);
+            List<Field<?>> fields = new ArrayList<>();
+            if (timestamp != null) {
+                fields.add(DSL.inline(timestamp));
+            }
+            fields.add(JooqUtils.getStringField(inTable, StringConstants.UUID));
+            fields.add(JooqUtils.getStringField(inTable, StringConstants.PRODUCER_UUID));
+            fields.add(JooqUtils.getStringField(inTable, StringConstants.PROPERTY_TYPE));
+            fields.add(JooqUtils.getStringField(inTable, StringConstants.PROPERTY_SUBTYPE));
+            fields.add(JooqUtils.getRelationTypeField(inTable, StringConstants.RELATION));
+            fields.add(JooqUtils.getStringField(inTable, StringConstants.COMMODITY_KEY));
+            return ProxyKey.getKeyAsHex(record, fields.toArray(new Field<?>[0]));
+        }
+
+        private Timestamp getTimestamp(R record, String keyName) {
+            if (keyName == null) {
+                return null;
+            }
+            Instant latestTime = Instant.ofEpochMilli(
+                    record.getValue(StringConstants.SNAPSHOT_TIME, Timestamp.class).getTime());
+            if (keyName.equals((HOUR_KEY_FIELD_NAME))) {
+                return Timestamp.from(latestTime.truncatedTo(ChronoUnit.HOURS));
+            } else if (keyName.equals(DAY_KEY_FIELD_NAME)) {
+                return Timestamp.from(latestTime.truncatedTo(ChronoUnit.DAYS));
+            } else {
+                // monthly - we need the start of the last day in the current month
+                return Timestamp.from(
+                        OffsetDateTime.ofInstant(latestTime, ZoneOffset.UTC)
+                                // start-of-day
+                                .truncatedTo(ChronoUnit.DAYS)
+                                // start of this day next month
+                                .plus(1L, ChronoUnit.MONTHS)
+                                // start of first day of next month
+                                .withDayOfMonth(1)
+                                // start of last day of this month
+                                .minusDays(1L)
+                                .toInstant());
+            }
         }
     }
 }

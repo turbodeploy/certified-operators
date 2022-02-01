@@ -12,7 +12,6 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.InsertOnDuplicateSetStep;
 import org.jooq.InsertOnDuplicateStep;
-import org.jooq.Name;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.SQLDialect;
@@ -33,7 +32,7 @@ public class UpsertBuilder {
     private final List<Condition> conditions = new ArrayList<>();
     private final Map<Field<?>, Field<?>> insertValues = new HashMap<>();
     private final List<UpdateBinding<?>> updates = new ArrayList<>();
-    private List<Field<?>> conflictColumns = new ArrayList<>();
+    private final List<Field<?>> conflictColumns = new ArrayList<>();
 
     /**
      * Specify the table that is the target of the upsert operation, i.e. the table that will
@@ -170,7 +169,7 @@ public class UpsertBuilder {
      * <p>The dialect is particularly when one wishes to use the value that <i>would have been</i>
      * inserted into the target-table field if the record had not caused a collision. Some databases
      * provide a special syntax for such values, but the syntax is not standardized. The {@link
-     * #upsertValue(Field, SQLDialect)} method will produce the correct syntax for the given
+     * JooqUtil#upsertValue(Field, SQLDialect)} method will produce the correct syntax for the given
      * dialect.</p>
      *
      * @param field field to be updated
@@ -179,7 +178,7 @@ public class UpsertBuilder {
      * @return this builder
      */
     public <T> UpsertBuilder withUpdateValue(Field<T> field, UpsertValue<T> value) {
-        updates.add(new UpdateBinding<T>(field, value));
+        updates.add(new UpdateBinding<>(field, value));
         return this;
     }
 
@@ -244,9 +243,21 @@ public class UpsertBuilder {
      * @param <T>   field type
      * @return corresdponging source-table field
      */
-    private <T> Field<T> getSourceField(Field<T> field) {
-        return DSL.field(DSL.name(source.getQualifiedName(), DSL.name(field.getName())),
-                field.getDataType());
+    public <T> Field<T> getSourceField(Field<T> field) {
+        return getSameNamedField(field, source);
+    }
+
+    /**
+     * Given a field, and a table (where the field object is not necessarily attached to that
+     * table), find a field of the same name and datatype from the table, if there is one.
+     *
+     * @param field field with desired name
+     * @param table table in which to find field
+     * @param <T>   field type
+     * @return field with same name and type appearing in table, or null if there is none
+     */
+    public static <T> Field<T> getSameNamedField(Field<T> field, Table<?> table) {
+        return table.field(field.getName(), field.getDataType());
     }
 
     /**
@@ -277,8 +288,9 @@ public class UpsertBuilder {
      * @return field that will compute the max value
      */
     public static <T> Field<T> max(Field<T> field, SQLDialect dialect) {
-        return DSL.case_().when(field.gt(upsertValue(field, dialect)), field)
-                .else_(upsertValue(field, dialect));
+        return DSL.case_()
+                .when(field.gt(JooqUtil.upsertValue(field, dialect)), field)
+                .else_(JooqUtil.upsertValue(field, dialect));
     }
 
     /**
@@ -291,8 +303,9 @@ public class UpsertBuilder {
      * @return field that will compute the min value
      */
     public static <T> Field<T> min(Field<T> field, SQLDialect dialect) {
-        return DSL.case_().when(field.lt(upsertValue(field, dialect)), field)
-                .else_(upsertValue(field, dialect));
+        return DSL.case_()
+                .when(field.lt(JooqUtil.upsertValue(field, dialect)), field)
+                .else_(JooqUtil.upsertValue(field, dialect));
     }
 
     /**
@@ -305,7 +318,7 @@ public class UpsertBuilder {
      * @return field that will compute the sum
      */
     public static <T> Field<T> sum(Field<T> field, SQLDialect dialect) {
-        return field.plus(upsertValue(field, dialect));
+        return field.plus(JooqUtil.upsertValue(field, dialect));
     }
 
     /**
@@ -321,9 +334,13 @@ public class UpsertBuilder {
         return new UpsertValue<T>() {
             @Override
             public Field<T> resolve(Field<T> field, SQLDialect dialect) {
-                return (field.times(weight).plus(upsertValue(field, dialect)
-                        .times(upsertValue(weight, dialect))))
-                        .divide(weight.plus(upsertValue(weight, dialect)));
+                Field<T> sumOfProducts =
+                        field.times(weight).plus(
+                                JooqUtil.upsertValue(field, dialect)
+                                        .times(JooqUtil.upsertValue(weight, dialect)));
+                Field<? extends Number> sumOfWeights
+                        = weight.plus(JooqUtil.upsertValue(weight, dialect));
+                return sumOfProducts.divide(sumOfWeights);
             }
         };
     }
@@ -338,7 +355,7 @@ public class UpsertBuilder {
      * @return field that will provide the proposed insertion value
      */
     public static <T> Field<T> inserted(Field<T> field, SQLDialect dialect) {
-        return upsertValue(field, dialect);
+        return JooqUtil.upsertValue(field, dialect);
     }
 
     /**
@@ -349,41 +366,7 @@ public class UpsertBuilder {
      * @return UpsertValue instance
      */
     public static <T> UpsertValue<T> inline(T value) {
-        return new UpsertValue<T>() {
-            @Override
-            public Field<T> resolve(Field<T> field, SQLDialect dialect) {
-                return DSL.inline(value);
-            }
-        };
-    }
-
-    /**
-     * Construct a field that will retrieve the proposed insert value for the given destination-
-     * table field.
-     *
-     * <p>Note: an equivalent function will appear in JooqUtil class as part of OM-79188, and
-     * should be removed from this class when that code is merged.</p>
-     *
-     * @param field   field whose insert value is needed
-     * @param dialect dialect controlling the syntax to use
-     * @param <T>     field type
-     * @return field that will yield the given field's proposed insert value
-     */
-    private static <T> Field<T> upsertValue(Field<T> field, SQLDialect dialect) {
-        Name name = DSL.name(field.getName());
-        Class<T> type = field.getType();
-        switch (dialect) {
-            case POSTGRES:
-                // POSTGRES provides a pseudo-table named "excluded" that contains all the
-                // proposed insertion values
-                return DSL.field("excluded.{0}", type, name);
-            case MARIADB:
-            case MYSQL:
-                // MySQL uses the special `VALUES(field)` syntax to retrieve proposed insert values
-                return DSL.field("values({0})", type, name);
-            default:
-                throw new UnsupportedOperationException("dialect not supported");
-        }
+        return (field, dialect) -> DSL.inline(value);
     }
 
     /**
