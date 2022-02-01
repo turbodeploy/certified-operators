@@ -1114,7 +1114,9 @@ public class ActionSpecMapper {
         wrapperDto.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
         final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action, true);
-        wrapperDto.setTarget(getServiceEntityDTO(context, target));
+        final ServiceEntityApiDTO targetEntity = getServiceEntityDTO(context, target);
+
+        wrapperDto.setTarget(targetEntity);
 
         final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(action).orElse(null);
         final boolean hasPrimarySource = !initialPlacement
@@ -1143,9 +1145,12 @@ public class ActionSpecMapper {
         }
 
         List<ActionApiDTO> actions = Lists.newArrayList();
+        final Collection<BaseApiDTO> resources = new HashSet<>();
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(action)) {
             actions.add(singleMove(actionType, wrapperDto, target, change, context));
+            change.getResourceList().forEach(resource -> resources.add(getServiceEntityDTO(context, resource)));
         }
+        targetEntity.getConnectedEntities().addAll(resources);
         wrapperDto.addCompoundActions(actions);
 
         setReasonCommodities(wrapperDto.getRisk(), ActionDTOUtil.getReasonCommodities(action));
