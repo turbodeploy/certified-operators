@@ -6,8 +6,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -118,9 +120,9 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the " +
                 "request for resource(s) Mem, CPU, Segmentation",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem compliance", "CPU compliance", "Placement policy compliance"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     /**
@@ -150,7 +152,7 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~Alice can not satisfy the "
                 + "request for resource(s) Mem, CPU, Segmentation",
             ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
     }
 
     /**
@@ -172,9 +174,9 @@ public class ExplanationComposerTest {
         Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU, IOPS));
         ActionDTO.Action action = createAction(actionInfo, explanation);
         assertEquals("(^_^)~Mem, CPU, IOPS Congestion",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion", "IOPS Congestion"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
 
         final ReasonCommodity tsCommoditySlot0Total6 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, 0, 6);
@@ -182,9 +184,9 @@ public class ExplanationComposerTest {
         action = createAction(actionInfo, explanation);
 
         assertEquals("(^_^)~Mem, Pool CPU at 12:00 AM - 04:00 AM Congestion",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
 
         final ReasonCommodity tsCommoditySlot1Total3 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, 1, 3);
@@ -192,35 +194,35 @@ public class ExplanationComposerTest {
         action = createAction(actionInfo, explanation);
 
         assertEquals("(^_^)~Mem, Pool CPU at 08:00 AM - 04:00 PM Congestion",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
 
         final ReasonCommodity tsInvalidSlot = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, -1, 3);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsInvalidSlot));
         action = createAction(actionInfo, explanation);
         assertEquals("(^_^)~Mem, Pool CPU Congestion",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
 
         final ReasonCommodity tsInvalidTotalSlotNumber = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, -0, 0);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsInvalidTotalSlotNumber));
         action = createAction(actionInfo, explanation);
         assertEquals("(^_^)~Mem, Pool CPU Congestion",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
 
         final ReasonCommodity reasonWithReservationSuffix = createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, Suffix.RESERVATION);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, reasonWithReservationSuffix));
         action = createAction(actionInfo, explanation);
         assertEquals("(^_^)~Mem, CPU Reservation Congestion",
-                ExplanationComposer.composeExplanation(action));
+                ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem Congestion", "CPU Reservation Congestion"),
-                ExplanationComposer.composeRelatedRisks(action));
+                ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     @Test
@@ -246,25 +248,25 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(moveAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
-                Optional.empty(), null));
+                Optional.empty(), null, Collections.emptyList()));
         assertEquals(Collections.singleton("Setting policy compliance"),
-            ExplanationComposer.composeRelatedRisks(moveAction));
+            ExplanationComposer.composeRelatedRisks(moveAction, Collections.emptyList()));
         assertEquals("(^_^)~Emily doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(moveAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
         // Test deleted policy(s).
         assertEquals("(^_^)~Emily doesn't comply with setting1, a compliance policy that used to exist",
                      ExplanationComposer.composeExplanation(moveAction,
                                                 ImmutableMap.of(reasonSetting1,
                                                     "setting1"),
                                                 Optional.of(graphCreator.build()),
-                                                null));
+                                                null, Collections.emptyList()));
         assertEquals("(^_^)~Emily doesn't comply with compliance policies that used to exist",
                      ExplanationComposer.composeExplanation(moveAction,
                                                 ImmutableMap.of(),
                                                 Optional.of(graphCreator.build()),
-                                                null));
+                                                null, Collections.emptyList()));
     }
 
     /**
@@ -288,7 +290,7 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals("(^_^)~Comply to Auto Scaling Groups: TestScalingGroup123",
-            ExplanationComposer.composeExplanation(scaleAction, Maps.newHashMap(), Optional.empty(), null));
+            ExplanationComposer.composeExplanation(scaleAction, Maps.newHashMap(), Optional.empty(), null, Collections.emptyList()));
     }
 
     /**
@@ -314,12 +316,12 @@ public class ExplanationComposerTest {
         setupTopologyGraph(entity(2, "Fred", EntityType.PHYSICAL_MACHINE_VALUE));
 
         assertEquals("(^_^)~{entity:2:displayName:Current supplier} can be suspended to improve efficiency",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(Collections.singleton("Underutilized resources"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
         assertEquals("(^_^)~Fred can be suspended to improve efficiency",
             ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
     }
 
     @Test
@@ -343,12 +345,12 @@ public class ExplanationComposerTest {
         setupTopologyGraph(host(2, "Gwen"));
 
         assertEquals("(^_^)~{entity:2:displayName:Current supplier} is not available",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(Collections.singleton("Underutilized resources"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
         assertEquals("(^_^)~Gwen is not available",
             ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
     }
 
     @Test
@@ -366,9 +368,9 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals("(^_^)~Improve overall performance",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(Collections.singleton("Improve overall performance"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     /**
@@ -400,9 +402,9 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem, CPU",
-            ExplanationComposer.composeExplanation(action));
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(ImmutableSet.of("Mem compliance", "CPU compliance"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     @Test
@@ -419,9 +421,9 @@ public class ExplanationComposerTest {
                 .build();
 
         assertEquals("Increase RI Coverage by 50%",
-                ExplanationComposer.composeExplanation(action));
+                ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(Collections.singleton("Increase RI Coverage"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
 
         final Builder invalidExplanation = Explanation.newBuilder()
                 .setBuyRI(BuyRIExplanation.newBuilder()
@@ -435,9 +437,9 @@ public class ExplanationComposerTest {
                 .build();
 
         assertEquals("Invalid total demand",
-                ExplanationComposer.composeExplanation(action));
+                ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(Collections.singleton("Invalid total demand"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     /**
@@ -463,24 +465,24 @@ public class ExplanationComposerTest {
 
         assertEquals("Configure supplier to update resource(s) Segmentation, Network " +
                         "testNetwork1",
-            ExplanationComposer.composeExplanation(reconfigure));
+            ExplanationComposer.composeExplanation(reconfigure, Collections.emptyList()));
         assertEquals(Collections.singleton("Misconfiguration"),
-            ExplanationComposer.composeRelatedRisks(reconfigure));
+            ExplanationComposer.composeRelatedRisks(reconfigure, Collections.emptyList()));
 
         assertEquals("Configure supplier to update resource(s) Segmentation, Network " +
                         "testNetwork2",
-                ExplanationComposer.composeExplanation(reconfigureWithPrefix));
+                ExplanationComposer.composeExplanation(reconfigureWithPrefix, Collections.emptyList()));
         assertEquals(Collections.singleton("Misconfiguration"),
-            ExplanationComposer.composeRelatedRisks(reconfigureWithPrefix));
+            ExplanationComposer.composeRelatedRisks(reconfigureWithPrefix, Collections.emptyList()));
 
         // Make the reconfigure with prefix  for a member of a scaling group
         builder.getExplanationBuilder().getReconfigureBuilder().setScalingGroupId("example group");
         ActionDTO.Action reconfigureWithPrefixCSG = builder.build();
         assertEquals("Configure supplier to update resource(s) Segmentation, " +
                     "Network testNetwork2 (Auto Scaling Groups: example group)",
-            ExplanationComposer.composeExplanation(reconfigureWithPrefixCSG));
+            ExplanationComposer.composeExplanation(reconfigureWithPrefixCSG, Collections.emptyList()));
         assertEquals(Collections.singleton("Misconfiguration"),
-            ExplanationComposer.composeRelatedRisks(reconfigureWithPrefixCSG));
+            ExplanationComposer.composeRelatedRisks(reconfigureWithPrefixCSG, Collections.emptyList()));
     }
 
     /**
@@ -506,9 +508,9 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(reconfigureAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
-                Optional.empty(), null));
+                Optional.empty(), null, Collections.emptyList()));
         assertEquals(Collections.singleton("Misconfiguration"),
-            ExplanationComposer.composeRelatedRisks(reconfigureAction));
+            ExplanationComposer.composeRelatedRisks(reconfigureAction, Collections.emptyList()));
     }
 
     /**
@@ -535,9 +537,9 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~Bob doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(reconfigureAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
         assertEquals(Collections.singleton("Misconfiguration"),
-            ExplanationComposer.composeRelatedRisks(reconfigureAction));
+            ExplanationComposer.composeRelatedRisks(reconfigureAction, Collections.emptyList()));
     }
 
     /**
@@ -556,8 +558,8 @@ public class ExplanationComposerTest {
 
                 .build();
 
-        assertEquals("Mem Congestion", ExplanationComposer.composeExplanation(provision));
-        assertEquals(Collections.singleton("Mem Congestion"), ExplanationComposer.composeRelatedRisks(provision));
+        assertEquals("Mem Congestion", ExplanationComposer.composeExplanation(provision, Collections.emptyList()));
+        assertEquals(Collections.singleton("Mem Congestion"), ExplanationComposer.composeRelatedRisks(provision, Collections.emptyList()));
     }
 
     /**
@@ -579,8 +581,8 @@ public class ExplanationComposerTest {
                         .build()))
                 .build();
 
-        assertEquals("Clone entity on cloned provider", ExplanationComposer.composeExplanation(provision));
-        assertEquals(Collections.singleton("Clone entity on cloned provider"), ExplanationComposer.composeRelatedRisks(provision));
+        assertEquals("Clone entity on cloned provider", ExplanationComposer.composeExplanation(provision, Collections.emptyList()));
+        assertEquals(Collections.singleton("Clone entity on cloned provider"), ExplanationComposer.composeRelatedRisks(provision, Collections.emptyList()));
     }
 
     /**
@@ -604,9 +606,9 @@ public class ExplanationComposerTest {
 
         assertTrue(ImmutableSet.of("(^_^)~CPU, Mem Congestion in '{entity:1:displayName:Physical Machine}'",
             "(^_^)~Mem, CPU Congestion in '{entity:1:displayName:Physical Machine}'").contains(
-                ExplanationComposer.composeExplanation(provision)));
+                ExplanationComposer.composeExplanation(provision, Collections.emptyList())));
         assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion"),
-            ExplanationComposer.composeRelatedRisks(provision));
+            ExplanationComposer.composeRelatedRisks(provision, Collections.emptyList()));
     }
 
     /**
@@ -632,7 +634,7 @@ public class ExplanationComposerTest {
         assertThat(ImmutableSet.of("(^_^)~CPU, Mem Congestion in 'Christie'",
             "(^_^)~Mem, CPU Congestion in 'Christie'"), hasItem(
             ExplanationComposer.composeExplanation(provision, Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null)));
+                Optional.of(graphCreator.build()), null, Collections.emptyList())));
     }
 
     @Test
@@ -655,12 +657,12 @@ public class ExplanationComposerTest {
         // test resize down by capacity
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(4).setNewCapacity(2).build();
         assertEquals("(^_^)~Underutilized VCPU in Virtual Machine {entity:0:displayName:}",
-            ExplanationComposer.composeExplanation(action.build()));
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyList()));
         assertEquals(Collections.singleton("Underutilized VCPU"),
-            ExplanationComposer.composeRelatedRisks(action.build()));
+            ExplanationComposer.composeRelatedRisks(action.build(), Collections.emptyList()));
         assertEquals("(^_^)~Underutilized VCPU in Virtual Machine Danny",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
 
         // test resize up by capacity
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4)
@@ -669,29 +671,70 @@ public class ExplanationComposerTest {
                 .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE))
                 .build();
         assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine {entity:0:displayName:}",
-            ExplanationComposer.composeExplanation(action.build()));
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyList()));
         assertEquals(Collections.singleton("VCPU Throttling Congestion"),
-            ExplanationComposer.composeRelatedRisks(action.build()));
+            ExplanationComposer.composeRelatedRisks(action.build(), Collections.emptyList()));
         assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine Danny",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
 
         // Test the resize up again with scaling group information
         action.getExplanationBuilder().getResizeBuilder()
             .setScalingGroupId("example scaling group");
         assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine {entity:0:displayName:}" +
                 " (Auto Scaling Groups: example scaling group)",
-            ExplanationComposer.composeExplanation(action.build()));
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyList()));
         assertEquals(Collections.singleton("VCPU Throttling Congestion"),
-            ExplanationComposer.composeRelatedRisks(action.build()));
+            ExplanationComposer.composeRelatedRisks(action.build(), Collections.emptyList()));
         assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine Danny"
                 + " (Auto Scaling Groups: example scaling group)",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
 
         // Test action without Resize action
         action.getInfoBuilder().clearResize();
-        assertEquals("", ExplanationComposer.composeExplanation(action.build()));
+        assertEquals("", ExplanationComposer.composeExplanation(action.build(), Collections.emptyList()));
+    }
+
+    @Test
+    public void testResizeExplanationUsingRelatedActions() {
+        ActionDTO.Action.Builder action = ActionDTO.Action.newBuilder()
+                .setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(0)
+                                        .setType(EntityType.NAMESPACE.getNumber()))
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))))
+                .setExplanation(Explanation.newBuilder()
+                        .setResize(ResizeExplanation.newBuilder()
+                                .setDeprecatedStartUtilization(0.2f)
+                                .setDeprecatedEndUtilization(0.4f)));
+        setupTopologyGraph(entity(0, "Quotas", EntityType.NAMESPACE_VALUE));
+
+        List<ActionDTO.RelatedAction> relatedActionList = new ArrayList<>();
+        ActionDTO.RelatedAction ra = ActionDTO.RelatedAction.newBuilder()
+                .setActionEntity(ActionEntity.newBuilder().setId(11l).setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                .setBlockingRelation(ActionDTO.BlockingRelation.newBuilder()
+                                    .setResize(ActionDTO.BlockingRelation.BlockingResize.newBuilder()
+                                                    .setCommodityType(CommodityType.newBuilder()
+                                                            .setType(CommodityDTO.CommodityType.VCPU_VALUE))))
+                .build();
+        relatedActionList.add(ra);
+
+        ActionDTO.RelatedAction ra2 = ActionDTO.RelatedAction.newBuilder()
+                .setActionEntity(ActionEntity.newBuilder().setId(12l).setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                .setBlockingRelation(ActionDTO.BlockingRelation.newBuilder()
+                        .setResize(ActionDTO.BlockingRelation.BlockingResize.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.VCPU_VALUE))))
+                .build();
+        relatedActionList.add(ra2);
+
+        assertEquals("VCPU Limit Congestion in Related Workload Controller",
+                ExplanationComposer.composeExplanation(action.build(),relatedActionList));
+
     }
 
     /**
@@ -747,13 +790,13 @@ public class ExplanationComposerTest {
         assertEquals("VCPU Limit Congestion, "
                 + "Underutilized VMem Request"
                 + " in Container Spec {entity:1:displayName:}",
-            ExplanationComposer.composeExplanation(action.build()));
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyList()));
 
         assertEquals("VCPU Limit Congestion, "
                         + "Underutilized VMem Request"
                         + " in Container Spec Irene",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+                Optional.of(graphCreator.build()), null, Collections.emptyList()));
     }
 
     /**
@@ -852,7 +895,7 @@ public class ExplanationComposerTest {
         setupTopologyGraph(entity(2, "John", EntityType.CONTAINER_SPEC_VALUE));
         setupTopologyGraph(entity(3, "Kelly", EntityType.CONTAINER_SPEC_VALUE));
 
-        String explanation = ExplanationComposer.composeExplanation(action.build());
+        String explanation = ExplanationComposer.composeExplanation(action.build(), Collections.emptyList());
         assertTrue(explanation.contains("Underutilized VMem Limit, "
                                          + "VCPU Throttling Congestion"
                                          + " in Container Spec {entity:2:displayName:}"));
@@ -863,7 +906,7 @@ public class ExplanationComposerTest {
                 + " in Container Spec {entity:3:displayName:}"));
 
         String translatedExplanation = ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null);
+                Optional.of(graphCreator.build()), null, Collections.emptyList());
         assertTrue(translatedExplanation.contains("Underutilized VMem Limit, "
                 + "VCPU Throttling Congestion"
                 + " in Container Spec John"));
@@ -883,9 +926,9 @@ public class ExplanationComposerTest {
                     .setMostExpensiveCommodity(CPU.getCommodityType().getType())))
                 .build();
 
-        assertEquals("Address high utilization of CPU", ExplanationComposer.composeExplanation(activate));
+        assertEquals("Address high utilization of CPU", ExplanationComposer.composeExplanation(activate, Collections.emptyList()));
         assertEquals(Collections.singleton("CPU Congestion"),
-            ExplanationComposer.composeRelatedRisks(activate));
+            ExplanationComposer.composeRelatedRisks(activate, Collections.emptyList()));
     }
 
     @Test
@@ -896,9 +939,9 @@ public class ExplanationComposerTest {
                 .setDeactivate(DeactivateExplanation.getDefaultInstance()))
             .build();
 
-        assertEquals("Improve infrastructure efficiency", ExplanationComposer.composeExplanation(deactivate));
+        assertEquals("Improve infrastructure efficiency", ExplanationComposer.composeExplanation(deactivate, Collections.emptyList()));
         assertEquals(Collections.singleton("Improve infrastructure efficiency"),
-            ExplanationComposer.composeRelatedRisks(deactivate));
+            ExplanationComposer.composeRelatedRisks(deactivate, Collections.emptyList()));
     }
 
     /**
@@ -924,9 +967,9 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals("Increase savings",
-            ExplanationComposer.composeExplanation(deleteVolume));
+            ExplanationComposer.composeExplanation(deleteVolume, Collections.emptyList()));
         assertEquals(Collections.singleton("Increase savings"),
-            ExplanationComposer.composeRelatedRisks(deleteVolume));
+            ExplanationComposer.composeRelatedRisks(deleteVolume, Collections.emptyList()));
 
 
         // Test On-Prem Delete Storage Action
@@ -947,9 +990,9 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals("Idle or non-productive",
-            ExplanationComposer.composeExplanation(deleteFiles));
+            ExplanationComposer.composeExplanation(deleteFiles, Collections.emptyList()));
         assertEquals(Collections.singleton("Idle or non-productive"),
-            ExplanationComposer.composeRelatedRisks(deleteFiles));
+            ExplanationComposer.composeRelatedRisks(deleteFiles, Collections.emptyList()));
     }
 
     /**
@@ -973,9 +1016,9 @@ public class ExplanationComposerTest {
 
         // Assert
         final String expectedExplanation = "Virtual Machine can be covered by m4 RI";
-        assertEquals(expectedExplanation, ExplanationComposer.composeExplanation(action));
+        assertEquals(expectedExplanation, ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(Collections.singleton("Virtual Machine RI Coverage"),
-            ExplanationComposer.composeRelatedRisks(action));
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     private static ActionEntity createActionEntity(long id, int type) {

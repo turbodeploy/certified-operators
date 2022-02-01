@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,6 +32,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,6 +74,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.util.BaseGraphEntity;
+import org.apache.logging.log4j.util.Strings;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -158,26 +161,30 @@ public class ExplanationComposer {
      * criteria for action stats), or in other places where full details are not necessary.
      *
      * @param action the action to explain
+     * @param relatedActions RelatedActions for the given action
      * @return a set of short explanation sentences
      */
     @Nonnull
     @VisibleForTesting
-    public static Set<String> composeRelatedRisks(@Nonnull ActionDTO.Action action) {
+    public static Set<String> composeRelatedRisks(@Nonnull ActionDTO.Action action,
+                                                  @Nonnull List<ActionDTO.RelatedAction> relatedActions) {
         return internalComposeExplanation(action, true, Collections.emptyMap(),
-            Optional.empty(), null);
+            Optional.empty(), null, relatedActions);
     }
 
     /**
      * This method should be used only for tests.
      *
      * @param action the action to explain
+     * @param relatedActions RelatedActions for the given action
      * @return the explanation sentence
      */
     @Nonnull
     @VisibleForTesting
-    static String composeExplanation(@Nonnull final ActionDTO.Action action) {
+    static String composeExplanation(@Nonnull final ActionDTO.Action action,
+                                     @Nonnull List<ActionDTO.RelatedAction> relatedActions) {
         return internalComposeExplanation(action, false, Collections.emptyMap(),
-            Optional.empty(), null)
+            Optional.empty(), null, relatedActions)
             .iterator().next();
     }
 
@@ -189,6 +196,7 @@ public class ExplanationComposer {
      * @param topology A minimal topology graph containing the relevant topology.
      *                 May be empty if no relevant topology is available.
      * @param topologyInfo Info about plan topology for explanation override.
+     * @param relatedActions RelatedActions for the given action
      * @return the explanation sentence
      */
     @Nonnull
@@ -196,9 +204,10 @@ public class ExplanationComposer {
             @Nonnull final ActionDTO.Action action,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
             @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
-            @Nullable final TopologyInfo topologyInfo) {
+            @Nullable final TopologyInfo topologyInfo,
+            @Nonnull List<ActionDTO.RelatedAction> relatedActions) {
         return internalComposeExplanation(action, false,
-            settingPolicyIdToSettingPolicyName, topology, topologyInfo)
+            settingPolicyIdToSettingPolicyName, topology, topologyInfo, relatedActions)
             .iterator().next();
     }
 
@@ -231,6 +240,7 @@ public class ExplanationComposer {
      * @param topology A minimal topology graph containing the relevant topology.
      *                 May be empty if no relevant topology is available.
      * @param topologyInfo Info about plan topology for explanation override.
+     * @param relatedActions RelatedActions for the given action
      * @return a set of explanation sentences
      */
     @Nonnull
@@ -238,7 +248,8 @@ public class ExplanationComposer {
             @Nonnull final ActionDTO.Action action, final boolean keepItShort,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
             @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
-            @Nullable final TopologyInfo topologyInfo) {
+            @Nullable final TopologyInfo topologyInfo,
+            @Nonnull List<ActionDTO.RelatedAction> relatedActions) {
         final Explanation explanation = action.getExplanation();
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
@@ -251,7 +262,7 @@ public class ExplanationComposer {
                 //invoked when the action spec is created from the action view
                 return buildAtomicResizeExplanation(action, topology, keepItShort);
             case RESIZE:
-                return Collections.singleton(buildResizeExplanation(action, topology, keepItShort));
+                return Collections.singleton(buildResizeExplanation(action, relatedActions, topology, keepItShort));
             case ACTIVATE:
                 return Collections.singleton(buildActivateExplanation(action, keepItShort));
             case DEACTIVATE:
@@ -786,18 +797,24 @@ public class ExplanationComposer {
      *      resize up: "Mem Congestion"
      *
      * @param action the resize action
+     * @param relatedActions RelatedActions for the given action
      * @param topology A minimal topology graph containing the relevant topology.
      *                 May be empty if no relevant topology is available.
      * @param keepItShort compose a short explanation if true
      * @return the explanation sentence
      */
     private static String buildResizeExplanation(@Nonnull final ActionDTO.Action action,
+                                                 @Nonnull List<ActionDTO.RelatedAction> relatedActions,
                                                  @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
                                                  final boolean keepItShort) {
         // verify it's a resize.
         if (!action.getInfo().hasResize()) {
             logger.warn("Can't build resize explanation for non-resize action {}", action.getId());
             return "";
+        }
+
+        if (!relatedActions.isEmpty()) {
+            return buildResizeCoreExplanationUsingRelatedActions(action, relatedActions);
         }
 
         final String resizeExplanation = buildResizeCoreExplanation(action, keepItShort);
@@ -815,6 +832,48 @@ public class ExplanationComposer {
         sb.append(resizeExplanation).append(targetClause);
         getScalingGroupExplanation(action.getExplanation(), sb.toString()).ifPresent(sb::append);
         return sb.toString();
+    }
+
+    /**
+     * Build RESIZE explanation for actions whose risk is due to the related actions.
+     * <p> Example: For Namespace resize actions that resize up VCPU quota,
+     * the explanation is that the resize is recommended due to the congestion in the VCPUs for containers
+     * in that namespace. The risk explanation is as follows:
+     * 'VCPU congestion in Related Workload Controller'
+     *
+     * @param action            ActionDTO for the resize action
+     * @param relatedActions    List of {@link ActionDTO.RelatedAction}s
+     * @return                  Explanation string
+     */
+    private static String buildResizeCoreExplanationUsingRelatedActions(@Nonnull ActionDTO.Action action,
+                                                                        @Nonnull List<ActionDTO.RelatedAction> relatedActions) {
+
+        Map<CommodityType, List<EntityType>> commToEntityTypes = new HashMap<>();
+
+        relatedActions.stream()
+                .filter(ra -> ra.hasBlockingRelation())
+                .forEach(ra -> {
+                    CommodityType commType = ra.getBlockingRelation().getResize().getCommodityType();
+                    EntityType entityType = EntityType.forNumber(ra.getActionEntity().getType());
+                    commToEntityTypes.computeIfAbsent(commType, v -> new ArrayList<>()).add(entityType);
+                });
+
+        CommodityType comm = commToEntityTypes.keySet().stream().findFirst().get();
+        String commodityType = ActionDTOUtil.getAtomicResizeCommodityDisplayName(comm);
+
+        Set<String> entityTypeNames = commToEntityTypes.get(comm).stream()
+                    .map(entityType -> ApiEntityType.fromType(entityType.getNumber()).displayName())
+                    .collect(Collectors.toSet());
+
+        final boolean isResizeDown = action.getInfo().getResize().getOldCapacity() >
+                    action.getInfo().getResize().getNewCapacity();
+        if (isResizeDown) {
+            return UNDERUTILIZED_EXPLANATION + commodityType + " in Related "
+                        +  Strings.join(entityTypeNames, ',');
+        } else {
+            return commodityType + CONGESTION_EXPLANATION + " in Related "
+                        +  Strings.join(entityTypeNames, ',');
+        }
     }
 
     /**

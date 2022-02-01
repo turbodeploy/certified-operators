@@ -44,7 +44,8 @@ public class StatsActionViewFactory {
         // for example: a move vm action may involve target entity (vm), current entity (current
         // host), new entity (new host), we should only count the vm in "numEntities" stats.
         final ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(translationResultOrOriginal);
-        final Set<String> relatedRisks = ExplanationComposer.composeRelatedRisks(translationResultOrOriginal);
+        final Set<String> relatedRisks = ExplanationComposer.composeRelatedRisks(translationResultOrOriginal,
+                action.getRelatedActions());
         final ImmutableStatsActionView.Builder snapshotBuilder = ImmutableStatsActionView.builder()
                 .recommendation(translationResultOrOriginal)
                 .actionGroupKey(ImmutableActionGroupKey.builder()
