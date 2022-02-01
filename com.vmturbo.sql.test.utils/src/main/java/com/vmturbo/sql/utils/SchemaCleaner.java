@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
@@ -125,11 +124,7 @@ public class SchemaCleaner {
             }
             setForeignKeyChecks(true, truncatedTables, tdsl);
         });
-        Level level = extraTruncatedTables.isEmpty() && failedTruncations.isEmpty()
-                      ? Level.DEBUG
-                      : Level.WARN;
-
-        logger.log(level, "Cleanup: truncated {}; truncated for checkAll {}; failed truncation {}",
+        logger.info("Cleanup: truncated {}; truncated for checkAll {}; failed truncation {}",
                 sortTableNames(truncatedTables), sortTableNames(extraTruncatedTables),
                 sortTableNames(failedTruncations));
     }

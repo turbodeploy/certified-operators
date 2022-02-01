@@ -1,11 +1,10 @@
 package com.vmturbo.history.listeners;
 
 import static com.vmturbo.history.schema.abstraction.Tables.AVAILABLE_TIMESTAMPS;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_DAY;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_HOUR;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
 import static org.jooq.impl.DSL.currentDate;
@@ -20,7 +19,6 @@ import java.sql.Connection;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -35,6 +33,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -54,10 +53,7 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
-import com.vmturbo.history.db.ClusterStatsRollups;
-import com.vmturbo.history.db.EntityStatsRollups;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.MarketStatsRollups;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.abstraction.Routines;
@@ -124,10 +120,10 @@ public class RollupProcessor {
      */
 
     void performHourRollups(@Nonnull List<Table> tables, @Nonnull Instant msecSnapshot) {
-        Timestamp snapshot = dsl.dialect() == SQLDialect.POSTGRES
-                             // postgres schmea has msec-granularity timestamps
-                             ? Timestamp.from(msecSnapshot)
-                             : Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.SECONDS));
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() && dsl.dialect() == SQLDialect.POSTGRES) {
+            return;
+        }
+        Timestamp snapshot = Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.SECONDS));
         MultiStageTimer timer = new MultiStageTimer(logger);
         performRollups(tables, snapshot, RollupType.BY_HOUR, timer);
         addAvailableTimestamps(snapshot, RollupType.BY_HOUR, HistoryVariety.ENTITY_STATS,
@@ -160,12 +156,17 @@ public class RollupProcessor {
      * @param doRetention  true to do retention processing after rollups
      */
     void performDayMonthRollups(final List<Table> tables, final Instant msecSnapshot, boolean doRetention) {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() && dsl.dialect() == SQLDialect.POSTGRES) {
+            return;
+        }
         Timestamp snapshot = Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.HOURS));
         MultiStageTimer timer = new MultiStageTimer(logger);
         performRollups(tables, snapshot, RollupType.BY_DAY, timer);
-        addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
+        addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS,
+                HistoryVariety.PRICE_DATA);
         performRollups(tables, snapshot, RollupType.BY_MONTH, timer);
-        addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
+        addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS,
+                HistoryVariety.PRICE_DATA);
         if (doRetention) {
             performRetentionProcessing(timer);
         }
@@ -184,7 +185,7 @@ public class RollupProcessor {
         Timestamp rollupStart = rollupType.getPeriodStart(snapshot);
         Timestamp rollupEnd = rollupType.getPeriodEnd(snapshot);
         try {
-            dsl.insertInto(AVAILABLE_TIMESTAMPS,
+            String sql = dsl.insertInto(AVAILABLE_TIMESTAMPS,
                             AVAILABLE_TIMESTAMPS.TIME_STAMP,
                             AVAILABLE_TIMESTAMPS.TIME_FRAME,
                             AVAILABLE_TIMESTAMPS.HISTORY_VARIETY,
@@ -206,10 +207,15 @@ public class RollupProcessor {
                                                     inline(rollupStart), inline(rollupEnd)))
                                             .and(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY.eq(
                                                     inline(historyVariety.name()))))
-                                    ))
+                                    )
 
-                    .onDuplicateKeyIgnore()
-                    .execute();
+                    ).getSQL();
+            // JOOQ's onDuplicateKeyIgnore method can't currently be used with its INSERT...SELECT
+            // construction. So we need to create the INSERT statement without it, and then modify
+            // the generated SQL as needed to get the intended effect.
+            sql = Pattern.compile("^INSERT", Pattern.CASE_INSENSITIVE).matcher(sql).replaceFirst(
+                    "INSERT IGNORE");
+            dsl.execute(sql);
         } catch (DataAccessException e) {
             logger.error("Failed to rollup available_timestamps", e);
         }
@@ -220,10 +226,12 @@ public class RollupProcessor {
     }
 
     void performRetentionProcessing(MultiStageTimer timer, boolean doRepartitioning) {
+        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() && dsl.dialect() == SQLDialect.POSTGRES) {
+            return;
+        }
         // retention processing for entity stats tables is done by reconfiguring their partitions so
-        // that partitions containing expired records are dropped, and currently only works in
-        // MARIADB.
-        if (doRepartitioning && dsl.dialect() != SQLDialect.POSTGRES) {
+        // that partitions containing expired records are dropped.
+        if (doRepartitioning) {
             performRepartitioning(timer);
         }
         // available_timestamps is small, so we just manually delete records that exceed expiration
@@ -331,7 +339,9 @@ public class RollupProcessor {
     }
 
     private void performRollups(@Nonnull final List<Table> tables,
-            final Timestamp snapshot, final RollupType rollupType, @Nonnull MultiStageTimer timer) {
+            final Timestamp snapshot,
+            final RollupType rollupType,
+            @Nonnull MultiStageTimer timer) {
         timer.start(rollupType.getLabel() + " Prep");
         // schedule all the task for execution in the thread pool
         final List<Pair<Table, List<Future<Void>>>> tableFutures = tables.stream()
@@ -354,7 +364,7 @@ public class RollupProcessor {
             return scheduleEntityStatsRollupTasks(
                     table, rollupType, snapshotTime, TASKS_PER_ENTITY_STATS_ROLLUP);
         } else if (table == MARKET_STATS_LATEST) {
-            return scheduleMarketStatsRollupTask(table, rollupType, snapshotTime);
+            return scheduleMarketStatsRollupTask();
         }
         throw new IllegalArgumentException(
                 String.format("Cannot schedule rollup tasks for table: %s", table));
@@ -376,26 +386,20 @@ public class RollupProcessor {
             String low = lowBound > 0 ? String.format("'%x'", lowBound) : null;
             String high = highBound < 16 ? String.format("'%x'", highBound) : null;
             Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
+            String sql = String.format(
+                    "CALL %s('%s', '%s', '%s', '%s', %s, %s, %d, %d, %d, %d, @count)",
+                    ENTITY_ROLLUP_PROC, source.getName(), rollup.getName(), snapshotTime,
+                    rollupTime,
+                    low, high,
+                    rollupType.isCopyHourKey() ? 1 : 0,
+                    rollupType.isCopyDayKey() ? 1 : 0,
+                    rollupType.isCopyMonthKey() ? 1 : 0,
+                    rollupType.sourceHasSamples() ? 1 : 0);
             futures.add(executorService.submit(() -> {
                 unpooledDsl.transaction(trans -> {
                     trans.dsl().connection(conn ->
                             conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
-                    if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                        new EntityStatsRollups(source, rollup, snapshotTime, rollupTime, low, high)
-                                .execute(trans.dsl());
-                    } else {
-                        String sql = String.format(
-                                "CALL %s('%s', '%s', '%s', '%s', %s, %s, %d, %d, %d, %d, @count)",
-                                ENTITY_ROLLUP_PROC, source.getName(), rollup.getName(),
-                                snapshotTime,
-                                rollupTime,
-                                low, high,
-                                rollupType.isCopyHourKey() ? 1 : 0,
-                                rollupType.isCopyDayKey() ? 1 : 0,
-                                rollupType.isCopyMonthKey() ? 1 : 0,
-                                rollupType.sourceHasSamples() ? 1 : 0);
-                        trans.dsl().execute(sql);
-                    }
+                    trans.dsl().execute(sql);
                 });
                 return null;
             }));
@@ -404,23 +408,13 @@ public class RollupProcessor {
         return futures;
     }
 
-    private List<Future<Void>> scheduleMarketStatsRollupTask(@Nonnull Table table,
-            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
-        Table source = rollupType.getSourceTable(table);
-        Table rollup = rollupType.getRollupTable(table);
-        Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
+    private List<Future<Void>> scheduleMarketStatsRollupTask() {
+        String sql = String.format("CALL %s('%s')", MARKET_ROLLUP_PROC, MARKET_TABLE_PREFIX);
         final Future<Void> future = executorService.submit(() -> {
             unpooledDsl.transaction(trans -> {
                 trans.dsl().connection(conn ->
                         conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
-                if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                    new MarketStatsRollups(source, rollup, snapshotTime, rollupTime)
-                            .execute(trans.dsl());
-                } else {
-                    String sql = String.format("CALL %s('%s')",
-                            MARKET_ROLLUP_PROC, MARKET_TABLE_PREFIX);
-                    trans.dsl().execute(sql);
-                }
+                trans.dsl().execute(sql);
             });
             return null;
         });
@@ -433,21 +427,16 @@ public class RollupProcessor {
         Table source = rollupType.getSourceTable(table);
         Table rollup = rollupType.getRollupTable(table);
         Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
+        String sql = String.format(
+                "CALL %s('%s', '%s', '%s', '%s', %d, @count)",
+                CLUSTER_STATS_ROLLUP_PROC, source.getName(), rollup.getName(),
+                snapshotTime, rollupTime,
+                rollupType.sourceHasSamples() ? 1 : 0);
         final Future<Void> future = executorService.submit(() -> {
             unpooledDsl.transaction(trans -> {
                 trans.dsl().connection(conn ->
                         conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
-                if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                    new ClusterStatsRollups(source, rollup, snapshotTime, rollupTime)
-                            .execute(trans.dsl());
-                } else {
-                    String sql = String.format(
-                            "CALL %s('%s', '%s', '%s', '%s', %d, @count)",
-                            CLUSTER_STATS_ROLLUP_PROC, source.getName(), rollup.getName(),
-                            snapshotTime, rollupTime,
-                            rollupType.sourceHasSamples() ? 1 : 0);
-                    trans.dsl().execute(sql);
-                }
+                trans.dsl().execute(sql);
             });
             return null;
         });
@@ -522,9 +511,9 @@ public class RollupProcessor {
          */
         public boolean canRollup(Table table) {
             if (table == MARKET_STATS_LATEST) {
-                // market stats participates in all rollups except in legacy scenario, where it
-                // only participates in hourly (the legacy stored proc actually does all three)
-                return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() || this == BY_HOUR;
+                // market stats rollup stored proc handles all three rollup types in one shot,
+                // so we only run it when hourly rollups are invoked
+                return this == BY_HOUR;
             } else if (table == CLUSTER_STATS_LATEST) {
                 // cluster stats participates in all rollups
                 return true;
@@ -546,7 +535,7 @@ public class RollupProcessor {
          */
         public Table getSourceTable(Table table) {
             if (table == MARKET_STATS_LATEST) {
-                return this == BY_HOUR ? table : MARKET_STATS_BY_HOUR;
+                return table;
             } else if (table == CLUSTER_STATS_LATEST) {
                 return this == BY_HOUR ? table : CLUSTER_STATS_BY_HOUR;
             } else {
@@ -566,14 +555,14 @@ public class RollupProcessor {
          * @return the stats table that should be updated for this rollup
          */
         public Table getRollupTable(Table table) {
-            if (table == MARKET_STATS_LATEST) {
+            if (table == CLUSTER_STATS_LATEST) {
                 switch (this) {
                     case BY_HOUR:
-                        return MARKET_STATS_BY_HOUR;
+                        return CLUSTER_STATS_BY_HOUR;
                     case BY_DAY:
-                        return MARKET_STATS_BY_DAY;
+                        return CLUSTER_STATS_BY_DAY;
                     case BY_MONTH:
-                        return MARKET_STATS_BY_MONTH;
+                        return CLUSTER_STATS_BY_MONTH;
                     default:
                         badValue();
                 }
@@ -602,12 +591,12 @@ public class RollupProcessor {
                 case BY_DAY:
                     return Timestamp.from(t.truncatedTo((ChronoUnit.DAYS)));
                 case BY_MONTH:
-                    OffsetDateTime rollupTime = OffsetDateTime.ofInstant(t, ZoneOffset.UTC)
+                    LocalDateTime rollupTime = LocalDateTime.ofInstant(t, ZoneOffset.UTC)
                             .truncatedTo(ChronoUnit.DAYS)
                             .withDayOfMonth(1)
                             .plusMonths(1)
                             .minusDays(1);
-                    return Timestamp.from(rollupTime.toInstant());
+                    return Timestamp.from(rollupTime.toInstant(ZoneOffset.UTC));
                 default:
                     badValue();
                     return null;
@@ -652,8 +641,6 @@ public class RollupProcessor {
                 case BY_DAY:
                     return Timestamp.from(t.truncatedTo(ChronoUnit.DAYS).plus(1, ChronoUnit.DAYS));
                 case BY_MONTH:
-                    // rollup time is start of final day in month, so we add one day to get start
-                    // of first day of next month
                     return Timestamp.from(getRollupTime(snapshotTime).toInstant()
                             .plus(1, ChronoUnit.DAYS));
                 default:

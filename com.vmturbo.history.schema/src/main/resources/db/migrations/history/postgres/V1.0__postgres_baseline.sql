@@ -303,7 +303,6 @@ CREATE TABLE ingestion_status (
 
 CREATE TABLE market_stats_latest (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
     topology_context_id bigint,
     topology_id bigint,
     entity_type character varying(80) DEFAULT NULL::character varying,
@@ -314,9 +313,9 @@ CREATE TABLE market_stats_latest (
     min_value numeric(15,3) DEFAULT NULL::numeric,
     max_value numeric(15,3) DEFAULT NULL::numeric,
     relation smallint,
+    aggregated boolean DEFAULT false NOT NULL,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric,
-    environment_type smallint DEFAULT '1'::smallint NOT NULL,
-    PRIMARY KEY (snapshot_time, time_series_key)
+    environment_type smallint DEFAULT '1'::smallint NOT NULL
 );
 CREATE INDEX market_stats_latest_market_latest_idx ON market_stats_latest USING btree (snapshot_time, topology_context_id, entity_type, property_type, property_subtype, relation);
 CREATE INDEX market_stats_latest_property_subtype ON market_stats_latest USING btree (property_subtype);
@@ -327,7 +326,6 @@ CREATE INDEX market_stats_latest_topology_id ON market_stats_latest USING btree 
 
 CREATE TABLE market_stats_by_hour (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
     topology_context_id bigint,
     entity_type character varying(80) DEFAULT NULL::character varying,
     property_type character varying(36) DEFAULT NULL::character varying,
@@ -339,8 +337,7 @@ CREATE TABLE market_stats_by_hour (
     relation smallint,
     samples bigint,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric,
-    environment_type smallint DEFAULT '1'::smallint NOT NULL,
-    PRIMARY KEY (snapshot_time, time_series_key)
+    environment_type smallint DEFAULT '1'::smallint NOT NULL
 );
 CREATE INDEX market_stats_by_hour_market_stats_by_hour_idx ON market_stats_by_hour USING btree (snapshot_time, topology_context_id, entity_type, property_type, property_subtype, relation);
 CREATE INDEX market_stats_by_hour_property_subtype ON market_stats_by_hour USING btree (property_subtype);
@@ -350,7 +347,6 @@ CREATE INDEX market_stats_by_hour_topology_context_id ON market_stats_by_hour US
 
 CREATE TABLE market_stats_by_day (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
     topology_context_id bigint,
     entity_type character varying(80) DEFAULT NULL::character varying,
     property_type character varying(36) DEFAULT NULL::character varying,
@@ -362,8 +358,7 @@ CREATE TABLE market_stats_by_day (
     relation smallint,
     samples bigint,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric,
-    environment_type smallint DEFAULT '1'::smallint NOT NULL,
-    PRIMARY KEY (snapshot_time, time_series_key)
+    environment_type smallint DEFAULT '1'::smallint NOT NULL
 );
 CREATE INDEX market_stats_by_day_market_stats_by_hour_idx ON market_stats_by_day USING btree (snapshot_time, topology_context_id, entity_type, property_type, property_subtype, relation);
 CREATE INDEX market_stats_by_day_property_subtype ON market_stats_by_day USING btree (property_subtype);
@@ -373,7 +368,6 @@ CREATE INDEX market_stats_by_day_topology_context_id ON market_stats_by_day USIN
 
 CREATE TABLE market_stats_by_month (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
     topology_context_id bigint,
     entity_type character varying(80) DEFAULT NULL::character varying,
     property_type character varying(36) DEFAULT NULL::character varying,
@@ -385,8 +379,7 @@ CREATE TABLE market_stats_by_month (
     relation smallint,
     samples bigint,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric,
-    environment_type smallint DEFAULT '1'::smallint NOT NULL,
-    PRIMARY KEY (snapshot_time, time_series_key)
+    environment_type smallint DEFAULT '1'::smallint NOT NULL
 );
 CREATE INDEX market_stats_by_month_market_stats_by_hour_idx ON market_stats_by_month USING btree (snapshot_time, topology_context_id, entity_type, property_type, property_subtype, relation);
 CREATE INDEX market_stats_by_month_property_subtype ON market_stats_by_month USING btree (property_subtype);
@@ -460,8 +453,7 @@ CREATE INDEX percentile_blobs_start_timestamp ON percentile_blobs USING btree (s
 CREATE TABLE retention_policies (
     policy_name character varying(50) NOT NULL,
     retention_period bigint,
-    unit character varying(20) DEFAULT NULL::character varying,
-    PRIMARY KEY (policy_name)
+    unit character varying(20) DEFAULT NULL::character varying
 );
 COPY retention_policies (policy_name, retention_period, unit) FROM stdin;
 moving_statistics_retention_days	2	DAYS

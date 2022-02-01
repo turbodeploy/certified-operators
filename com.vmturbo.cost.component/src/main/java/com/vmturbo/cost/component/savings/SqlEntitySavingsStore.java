@@ -48,8 +48,8 @@ import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
+import com.vmturbo.cost.component.rollup.RollupUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.jooq.JooqUtil;
 
 /**
  * Implementation of store that accesses savings hourly/daily/monthly DB tables.
@@ -354,10 +354,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                         rollupFields.valueField, rollupFields.samplesField)
                 .select(embeddedSelect)
                 .onDuplicateKeyUpdate()
-                .set(rollupFields.valueField, rollupFields.valueField.plus(
-                        JooqUtil.upsertValue(rollupFields.valueField, dsl.dialect())))
-                .set(rollupFields.samplesField, rollupFields.samplesField.plus(
-                        JooqUtil.upsertValue(rollupFields.samplesField, dsl.dialect())));
+                .set(rollupFields.valueField, rollupFields.valueField.plus(RollupUtils.values(dsl, rollupFields.valueField)))
+                .set(rollupFields.samplesField, rollupFields.samplesField.plus(RollupUtils.values(dsl, rollupFields.samplesField)));
     }
 
     /**
