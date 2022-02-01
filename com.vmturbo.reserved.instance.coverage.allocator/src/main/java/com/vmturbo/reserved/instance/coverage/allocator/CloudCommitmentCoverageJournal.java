@@ -344,7 +344,7 @@ public class CloudCommitmentCoverageJournal {
     public Table<Long, Long, CloudCommitmentAmount> getCoverages() {
         coveragesLock.readLock().lock();
         try {
-            return Tables.unmodifiableTable(coverages);
+            return ImmutableTable.copyOf(coverages);
         } finally {
             coveragesLock.readLock().unlock();
         }
