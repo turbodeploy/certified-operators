@@ -312,7 +312,7 @@ public class ActionTranslator {
             .setExplanation(ExplanationComposer.composeExplanation(
                 recommendationForDisplay, settingPolicyIdToSettingPolicyName,
                 actionTopologyStore.getSourceTopology().map(BaseTopology::entityGraph),
-                topologyInfo))
+                topologyInfo, actionView.getRelatedActions()))
             .setCategory(actionView.getActionCategory())
             .setSeverity(actionView.getActionSeverity())
             .setDescription(actionView.getDescription());

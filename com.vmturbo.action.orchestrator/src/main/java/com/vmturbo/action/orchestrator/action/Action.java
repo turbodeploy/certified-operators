@@ -569,7 +569,8 @@ public class Action implements ActionView {
             setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
                actionTranslation.getTranslationResultOrOriginal()));
 
-            setRelatedRisks(ExplanationComposer.composeRelatedRisks(actionTranslation.getTranslationResultOrOriginal()));
+            setRelatedRisks(ExplanationComposer.composeRelatedRisks(actionTranslation.getTranslationResultOrOriginal(),
+                                                                            getRelatedActions()));
         }
     }
 

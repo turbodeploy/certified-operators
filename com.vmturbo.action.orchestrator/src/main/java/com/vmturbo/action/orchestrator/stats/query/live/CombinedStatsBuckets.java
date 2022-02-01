@@ -178,7 +178,7 @@ class CombinedStatsBuckets {
         Set<ImmutableGroupByBucketKey> bucketKeys = new HashSet<>();
         bucketKeys.add(keyBuilder.build());
         bucketKeys = groupByReasonCommodities(bucketKeys, action);
-        bucketKeys = groupByActionRelatedRisk(bucketKeys, action);
+        bucketKeys = groupByActionRelatedRisk(bucketKeys, actionView);
         bucketKeys = groupByEnvironmentType(bucketKeys, action);
         bucketKeys = groupByNodePoolIds(bucketKeys, actionView);
 
@@ -228,12 +228,14 @@ class CombinedStatsBuckets {
      */
     private Set<ImmutableGroupByBucketKey> groupByActionRelatedRisk(
             @Nonnull final Set<ImmutableGroupByBucketKey> bucketKeys,
-            @Nonnull final Action action) {
+            @Nonnull final ActionView actionView) {
+        ActionDTO.Action action = actionView.getTranslationResultOrOriginal();
         if (!groupBy.contains(GroupBy.ACTION_RELATED_RISK)) {
             return bucketKeys;
         }
 
-        final Set<String> relatedRisks = ExplanationComposer.composeRelatedRisks(action);
+        final Set<String> relatedRisks = ExplanationComposer.composeRelatedRisks(action,
+                actionView.getRelatedActions());
         if (relatedRisks.isEmpty()) {
             return bucketKeys;
         }
