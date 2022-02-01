@@ -21,7 +21,6 @@ import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
-import static com.vmturbo.history.schema.RetentionUtil.AUDIT_LOG_RETENTION_POLICY_NAME;
 import static com.vmturbo.history.schema.abstraction.Tables.AUDIT_LOG_RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
@@ -187,6 +186,8 @@ public class HistorydbIO {
 
     private final ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
             retentionDbColumnNameToSettingName.inverse();
+
+    private static final String AUDIT_LOG_RETENTION_POLICY_NAME = "retention_days";
 
     private static final String MAX_COLUMN_NAME = "max";
 
