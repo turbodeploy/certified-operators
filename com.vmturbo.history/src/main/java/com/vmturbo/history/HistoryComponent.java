@@ -29,6 +29,7 @@ import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.DbAccessConfig;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.bulk.BulkInserterFactory;
+import com.vmturbo.history.db.procedure.StoredProcedureConfig;
 import com.vmturbo.history.diagnostics.HistoryDiagnosticsConfig;
 import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.stats.StatsConfig;
@@ -45,7 +46,8 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         HistoryApiConfig.class,
         ApiSecurityConfig.class,
         SpringSecurityConfig.class,
-        HistoryDiagnosticsConfig.class
+        HistoryDiagnosticsConfig.class,
+        StoredProcedureConfig.class
 })
 public class HistoryComponent extends BaseVmtComponent {
 
