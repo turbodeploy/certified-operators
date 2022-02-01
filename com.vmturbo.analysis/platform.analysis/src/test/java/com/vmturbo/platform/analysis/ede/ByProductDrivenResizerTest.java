@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -32,12 +33,19 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunctionFactory;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * A collection of tests to evaluate the resizing decisions for a container that has a byProduct commodity.
  */
 @RunWith(JUnitParamsRunner.class)
 public class ByProductDrivenResizerTest {
+
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     TestCommon testEconomy;
     Trader app;
