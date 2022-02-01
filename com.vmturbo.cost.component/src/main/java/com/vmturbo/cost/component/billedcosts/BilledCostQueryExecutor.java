@@ -1,6 +1,6 @@
 package com.vmturbo.cost.component.billedcosts;
 
-import static org.jooq.impl.DSL.avg;
+import static org.jooq.impl.DSL.count;
 import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
 import static org.jooq.impl.DSL.sum;
@@ -17,10 +17,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
@@ -141,7 +144,7 @@ class BilledCostQueryExecutor {
 
         // Build SELECT clause
         final List<Field<?>> selectFields = ImmutableList.<Field<?>>builder()
-                .add(sum(cost), avg(cost), min(cost), max(cost))
+                .add(sum(cost), count(), min(cost), max(cost))
                 .addAll(groupByFields)
                 .build();
 
@@ -157,9 +160,12 @@ class BilledCostQueryExecutor {
                 .groupBy(groupByFields)
                 .fetch()
                 .stream()
+                .map(record -> InternalStatRecord.toInternalRecord(record, tags))
+                .collect(Collectors.toMap(Function.identity(), Function.identity(), InternalStatRecord::combineRecords))
+                .values().stream()
                 .collect(
                         ArrayListMultimap::<LocalDateTime, StatRecord>create,
-                        (map, record) -> accumulateBilledCostResult(map, record, tags, timeFrame.getUnits()),
+                        (map, record) -> accumulateBilledCostResult(map, record, timeFrame.getUnits()),
                         Multimap::putAll)
                 .asMap()
                 .entrySet()
@@ -208,11 +214,13 @@ class BilledCostQueryExecutor {
     private static Condition tagFilterToCondition(@Nonnull final TagFilter tagFilter) {
         final String tagKey = tagFilter.getTagKey();
         final Condition tagValueCondition = tagFilter.getTagValueList().stream()
-                .map(Tables.COST_TAG.TAG_VALUE::eq)
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .map(Tables.COST_TAG.TAG_VALUE.lower()::eq)
                 .reduce(Condition::or)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Invalid TagFilter: no tag values provided for tag key: " + tagKey));
-        return Tables.COST_TAG.TAG_KEY.eq(tagKey).and(tagValueCondition);
+        return Tables.COST_TAG.TAG_KEY.lower().eq(tagKey.trim().toLowerCase()).and(tagValueCondition);
     }
 
     @Nonnull
@@ -238,13 +246,12 @@ class BilledCostQueryExecutor {
 
     private static void accumulateBilledCostResult(
             @Nonnull final Multimap<LocalDateTime, StatRecord> map,
-            @Nonnull final Record record,
-            @Nonnull final Map<Long, TagKeyValuePair> tags,
+            @Nonnull final InternalStatRecord record,
             @Nonnull final String units) {
-        final float total = record.getValue(0, BigDecimal.class).floatValue();
-        final float avg = record.getValue(1, BigDecimal.class).floatValue();
-        final float min = record.getValue(2, Double.class).floatValue();
-        final float max = record.getValue(3, Double.class).floatValue();
+        final float total = record.getTotal();
+        final float avg = record.getAvg();
+        final float min = record.getMin();
+        final float max = record.getMax();
         final StatRecord.Builder statRecord = StatRecord.newBuilder()
                 .setName(StringConstants.BILLED_COST)
                 .setValue(StatValue.newBuilder()
@@ -254,14 +261,8 @@ class BilledCostQueryExecutor {
                         .setMax(max)
                         .build())
                 .setUnits(units);
-        if (record.size() >= 6) {
-            final Long tagId = record.getValue(5, Long.class);
-            if (tagId != null) {
-                statRecord.addTag(tags.get(tagId));
-            }
-        }
-        final LocalDateTime sampleTime = record.getValue(4, LocalDateTime.class);
-        map.put(sampleTime, statRecord.build());
+        record.getTag().ifPresent(statRecord::addTag);
+        map.put(record.getSampleTime(), statRecord.build());
     }
 
     private static CostStatsSnapshot toCostStatsSnapshot(
@@ -270,5 +271,103 @@ class BilledCostQueryExecutor {
                 .setSnapshotDate(entry.getKey().atOffset(ZoneOffset.UTC).toInstant().toEpochMilli())
                 .addAllStatRecords(entry.getValue())
                 .build();
+    }
+
+    /**
+     * Internal representation of stat record.
+     */
+    private static class InternalStatRecord {
+        private final float total;
+        private final float count;
+        private final float min;
+        private final float max;
+        private final LocalDateTime sampleTime;
+        private final TagKeyValuePair tag;
+
+        private InternalStatRecord(float total, float count, float min, float max, @Nonnull LocalDateTime sampleTime,
+                                   @Nullable TagKeyValuePair tag) {
+            this.total = total;
+            this.count = count;
+            this.min = min;
+            this.max = max;
+            this.sampleTime = Objects.requireNonNull(sampleTime);
+            this.tag = tag != null
+                    ? TagKeyValuePair.newBuilder()
+                    .setKey(tag.getKey().toLowerCase())
+                    .setValue(tag.getValue().toLowerCase())
+                    .build() : null;
+        }
+
+        static InternalStatRecord toInternalRecord(@Nonnull Record record, @Nonnull Map<Long, TagKeyValuePair> tags) {
+            final float total = record.getValue(0, BigDecimal.class).floatValue();
+            final float count = record.getValue(1, BigDecimal.class).floatValue();
+            final float min = record.getValue(2, Double.class).floatValue();
+            final float max = record.getValue(3, Double.class).floatValue();
+            final TagKeyValuePair tag;
+            if (record.size() >= 6) {
+                final Long tagId = record.getValue(5, Long.class);
+                tag = Optional.ofNullable(tagId).map(tags::get).orElse(null);
+            } else {
+                tag = null;
+            }
+            final LocalDateTime sampleTime = record.getValue(4, LocalDateTime.class);
+            return new InternalStatRecord(total, count, min, max, sampleTime, tag);
+        }
+
+        static InternalStatRecord combineRecords(@Nonnull final InternalStatRecord record1,
+                                                 @Nonnull final InternalStatRecord record2) {
+            return new InternalStatRecord(
+                    record1.getTotal() + record2.getTotal(),
+                    record1.getCount() + record2.getCount(),
+                    Math.min(record1.getMin(), record2.getMin()),
+                    Math.max(record1.getMax(), record2.getMax()),
+                    record1.getSampleTime(),
+                    record1.getTag().orElse(null));
+        }
+
+        public float getTotal() {
+            return total;
+        }
+
+        public float getCount() {
+            return count;
+        }
+
+        public float getMin() {
+            return min;
+        }
+
+        public float getMax() {
+            return max;
+        }
+
+        public float getAvg() {
+            return total / count;
+        }
+
+        public Optional<TagKeyValuePair> getTag() {
+            return Optional.ofNullable(tag);
+        }
+
+        public LocalDateTime getSampleTime() {
+            return sampleTime;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            InternalStatRecord that = (InternalStatRecord)o;
+            return sampleTime.equals(that.sampleTime) && Objects.equals(tag, that.tag);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(sampleTime, tag);
+        }
     }
 }

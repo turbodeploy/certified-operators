@@ -19,6 +19,7 @@ import com.google.common.base.Objects;
 
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -88,6 +89,7 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
     private static final long VM1_ID = 1L;
     private static final long VM2_ID = 2L;
     private static final long VM3_ID = 3L;
+    private static final long VM4_ID = 4L;
     private static final long REGION_ID = 3L;
     private static final long ACCOUNT1_ID = 4L;
     private static final long ACCOUNT2_ID = 5L;
@@ -97,6 +99,10 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
     private static final String TAG_OWNER_BOB = "bob";
     private static final String TAG_LOCATION = "location";
     private static final String TAG_LOCATION_CHICAGO = "chicago";
+    private static final String TAG_OWNER_CAPITALIZED = "Owner";
+    private static final String TAG_OWNER_ALICE_CAPITALIZED = "Alice";
+    private static final String TAG_DEPARTMENT = "Department";
+    private static final String TAG_DEPARTMENT_ENG = "eng";
 
     private static final double DELTA = 0.0001;
 
@@ -122,6 +128,11 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
      *   Region: 3
      *   Account: 4
      *   Tags: no tags
+     * VM 4:
+     *   ID: 4
+     *   Region: 3
+     *   Account: 4
+     *   Tags: Owner = Alice
      */
     @Before
     public void setup() {
@@ -138,6 +149,14 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
         dsl.insertInto(costTag)
                 .columns(costTag.TAG_ID, costTag.TAG_KEY, costTag.TAG_VALUE)
                 .values(3L, TAG_LOCATION, TAG_LOCATION_CHICAGO)
+                .execute();
+        dsl.insertInto(costTag)
+                .columns(costTag.TAG_ID, costTag.TAG_KEY, costTag.TAG_VALUE)
+                .values(4L, TAG_OWNER_CAPITALIZED, TAG_OWNER_ALICE_CAPITALIZED)
+                .execute();
+        dsl.insertInto(costTag)
+                .columns(costTag.TAG_ID, costTag.TAG_KEY, costTag.TAG_VALUE)
+                .values(5L, TAG_DEPARTMENT, TAG_DEPARTMENT_ENG)
                 .execute();
         final CostTagGrouping costTagGrouping = Tables.COST_TAG_GROUPING;
         dsl.insertInto(costTagGrouping)
@@ -156,6 +175,15 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
                 .columns(costTagGrouping.TAG_GROUP_ID, costTagGrouping.TAG_ID)
                 .values(2L, 3L)
                 .execute();
+        dsl.insertInto(costTagGrouping)
+                .columns(costTagGrouping.TAG_GROUP_ID, costTagGrouping.TAG_ID)
+                .values(3L, 4L)
+                .execute();
+        dsl.insertInto(costTagGrouping)
+                .columns(costTagGrouping.TAG_GROUP_ID, costTagGrouping.TAG_ID)
+                .values(4L, 5L)
+                .execute();
+
 
         // Set up billed costs
         insertBilledCost(day1, VM1_ID, ACCOUNT1_ID, 1L, 1D);
@@ -164,6 +192,7 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
         insertBilledCost(day2, VM2_ID, ACCOUNT2_ID, 2L, 8D);
         insertBilledCost(day1, VM3_ID, ACCOUNT1_ID, 0L, 16D);
         insertBilledCost(day2, VM3_ID, ACCOUNT1_ID, 0L, 32D);
+        insertBilledCost(day1, VM4_ID, ACCOUNT1_ID, 3L, 25D);
 
         final TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.DAY);
@@ -446,7 +475,7 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
         assertEquals(2, result.size());
         final CostStatsSnapshot snapshot1 = result.get(0);
         assertEquals(4, snapshot1.getStatRecordsCount());
-        verifyRecord(snapshot1, TAG_OWNER, TAG_OWNER_ALICE, 1);
+        verifyRecord(snapshot1, TAG_OWNER, TAG_OWNER_ALICE, 26, 13, 1, 25);
         verifyRecord(snapshot1, TAG_OWNER, TAG_OWNER_BOB, 4);
         verifyRecord(snapshot1, TAG_LOCATION, TAG_LOCATION_CHICAGO, 5, 2.5, 1, 4);
         verifyRecord(snapshot1, null, null, 16);
@@ -477,7 +506,7 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
         assertEquals(2, result.size());
         final CostStatsSnapshot snapshot1 = result.get(0);
         assertEquals(1, snapshot1.getStatRecordsCount());
-        verifyRecord(snapshot1, null, null, 21, 7, 1, 16);
+        verifyRecord(snapshot1, null, null, 46, 11.5, 1, 25);
         final CostStatsSnapshot snapshot2 = result.get(1);
         assertEquals(1, snapshot2.getStatRecordsCount());
         verifyRecord(snapshot2, null, null, 42, 14, 2, 32);
@@ -562,7 +591,7 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
         assertEquals(2, result.size());
         final CostStatsSnapshot snapshot1 = result.get(0);
         assertEquals(3, snapshot1.getStatRecordsCount());
-        verifyRecord(snapshot1, TAG_OWNER, TAG_OWNER_ALICE, 1);
+        verifyRecord(snapshot1, TAG_OWNER, TAG_OWNER_ALICE, 26, 13, 1, 25);
         verifyRecord(snapshot1, TAG_LOCATION, TAG_LOCATION_CHICAGO, 1);
         verifyRecord(snapshot1, null, null, 16);
         final CostStatsSnapshot snapshot2 = result.get(1);
@@ -591,7 +620,7 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
         assertEquals(2, result.size());
         final CostStatsSnapshot snapshot1 = result.get(0);
         assertEquals(1, snapshot1.getStatRecordsCount());
-        verifyRecord(snapshot1, null, null, 17, 8.5, 1, 16);
+        verifyRecord(snapshot1, null, null, 42, 14, 1, 25);
         final CostStatsSnapshot snapshot2 = result.get(1);
         assertEquals(1, snapshot2.getStatRecordsCount());
         verifyRecord(snapshot2, null, null, 34, 17, 2, 32);
@@ -628,6 +657,66 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
     }
 
     /**
+     * Test getting billed costs grouped by tag for account with case-insensitive tag filter matching 2 tags.
+     */
+    @Test
+    public void testGetBilledCostsGroupedByTagForAccountWithTagFilterCaseInsensitive() {
+        // ARRANGE
+        final GetCloudBilledStatsRequest request = GetCloudBilledStatsRequest.newBuilder()
+                .setAccountFilter(AccountFilter.newBuilder()
+                        .addAccountId(ACCOUNT1_ID)
+                        .build())
+                .addTagFilter(TagFilter.newBuilder()
+                        .setTagKey(TAG_OWNER_CAPITALIZED)
+                        .addTagValue(TAG_OWNER_ALICE_CAPITALIZED)
+                        .build())
+                .addGroupBy(GroupByType.TAG)
+                .build();
+
+        // ACT
+        final List<CostStatsSnapshot> result = executor.getBilledCostStats(request);
+
+        // ASSERT
+        assertEquals(2, result.size());
+        final CostStatsSnapshot snapshot1 = result.get(0);
+        assertEquals(1, snapshot1.getStatRecordsCount());
+        verifyRecord(snapshot1, TAG_OWNER, TAG_OWNER_ALICE, 26, 13, 1, 25);
+        final CostStatsSnapshot snapshot2 = result.get(1);
+        assertEquals(1, snapshot2.getStatRecordsCount());
+        verifyRecord(snapshot2, TAG_OWNER, TAG_OWNER_ALICE, 2);
+    }
+
+    /**
+     * Test getting billed costs grouped by tag when tag filter contains tags with trailing and leading spaces.
+     */
+    @Test
+    public void testGetBilledCostsGroupedByTagForAccountWithTagFilterSpaces() {
+        // ARRANGE
+        final GetCloudBilledStatsRequest request = GetCloudBilledStatsRequest.newBuilder()
+                .setAccountFilter(AccountFilter.newBuilder()
+                        .addAccountId(ACCOUNT1_ID)
+                        .build())
+                .addTagFilter(TagFilter.newBuilder()
+                        .setTagKey(TAG_OWNER + " ")
+                        .addTagValue(" " + TAG_OWNER_ALICE)
+                        .build())
+                .addGroupBy(GroupByType.TAG)
+                .build();
+
+        // ACT
+        final List<CostStatsSnapshot> result = executor.getBilledCostStats(request);
+
+        // ASSERT
+        assertEquals(2, result.size());
+        final CostStatsSnapshot snapshot1 = result.get(0);
+        assertEquals(1, snapshot1.getStatRecordsCount());
+        verifyRecord(snapshot1, TAG_OWNER, TAG_OWNER_ALICE, 26, 13, 1, 25);
+        final CostStatsSnapshot snapshot2 = result.get(1);
+        assertEquals(1, snapshot2.getStatRecordsCount());
+        verifyRecord(snapshot2, TAG_OWNER, TAG_OWNER_ALICE, 2);
+    }
+
+    /**
      * Test getting billed costs (no grouping) for an account with tag filter.
      */
     @Test
@@ -654,6 +743,86 @@ public class BilledCostQueryExecutorTest extends MultiDbTestBase {
         final CostStatsSnapshot snapshot2 = result.get(1);
         assertEquals(1, snapshot2.getStatRecordsCount());
         verifyRecord(snapshot2, null, null, 8);
+    }
+
+    /**
+     * Test that empty stats are returned when a tag in tag filter are present in the Tag table and the corresponding
+     * Tag id is present in the Tag grouping table, but no records for the Tag group id are present in the Billed cost
+     * tables. The request is without group by.
+     */
+    @Test
+    public void testGetBilledCostTagFilterTagGroupNotFoundInBilledCostNoGroupBy() {
+        final GetCloudBilledStatsRequest request = GetCloudBilledStatsRequest.newBuilder()
+                .setAccountFilter(AccountFilter.newBuilder()
+                        .addAccountId(ACCOUNT1_ID)
+                        .build())
+                .addTagFilter(TagFilter.newBuilder()
+                        .setTagKey(TAG_DEPARTMENT)
+                        .addTagValue(TAG_DEPARTMENT_ENG)
+                        .build())
+                .build();
+        final List<CostStatsSnapshot> result = executor.getBilledCostStats(request);
+        Assert.assertTrue(result.isEmpty());
+    }
+
+    /**
+     * Test that empty stats are returned when a tag in tag filter are present in the Tag table and the corresponding
+     * Tag id is present in the Tag grouping table, but no records for the Tag group id are present in the Billed cost
+     * tables. The request is with group by.
+     */
+    @Test
+    public void testGetBilledCostTagFilterTagGroupNotFoundInBilledCostWithGroupBy() {
+        final GetCloudBilledStatsRequest request = GetCloudBilledStatsRequest.newBuilder()
+                .setAccountFilter(AccountFilter.newBuilder()
+                        .addAccountId(ACCOUNT1_ID)
+                        .build())
+                .addTagFilter(TagFilter.newBuilder()
+                        .setTagKey(TAG_DEPARTMENT)
+                        .addTagValue(TAG_DEPARTMENT_ENG)
+                        .build())
+                .addGroupBy(GroupByType.TAG)
+                .build();
+        final List<CostStatsSnapshot> result = executor.getBilledCostStats(request);
+        Assert.assertTrue(result.isEmpty());
+    }
+
+    /**
+     * Test that empty stats are returned when a tag in the tag filter is not found in the Tag table. The request is
+     * without group by.
+     */
+    @Test
+    public void testGetBilledCostTagFilterNotFoundInTagTableNoGroupBy() {
+        final GetCloudBilledStatsRequest request = GetCloudBilledStatsRequest.newBuilder()
+                .setAccountFilter(AccountFilter.newBuilder()
+                        .addAccountId(ACCOUNT1_ID)
+                        .build())
+                .addTagFilter(TagFilter.newBuilder()
+                        .setTagKey("foo")
+                        .addTagValue("bar")
+                        .build())
+                .build();
+        final List<CostStatsSnapshot> result = executor.getBilledCostStats(request);
+        Assert.assertTrue(result.isEmpty());
+    }
+
+    /**
+     * Test that empty stats are returned when a tag in the tag filter is not found in the Tag table. The request is
+     * with group by.
+     */
+    @Test
+    public void testGetBilledCostTagFilterNotFoundInTagTableWithGroupBy() {
+        final GetCloudBilledStatsRequest request = GetCloudBilledStatsRequest.newBuilder()
+                .setAccountFilter(AccountFilter.newBuilder()
+                        .addAccountId(ACCOUNT1_ID)
+                        .build())
+                .addTagFilter(TagFilter.newBuilder()
+                        .setTagKey("foo")
+                        .addTagValue("bar")
+                        .build())
+                .addGroupBy(GroupByType.TAG)
+                .build();
+        final List<CostStatsSnapshot> result = executor.getBilledCostStats(request);
+        Assert.assertTrue(result.isEmpty());
     }
 
     private void insertBilledCost(
