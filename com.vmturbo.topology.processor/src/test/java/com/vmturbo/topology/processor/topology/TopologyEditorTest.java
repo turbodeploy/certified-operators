@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -66,6 +67,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -75,18 +77,22 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanSc
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
+import com.vmturbo.topology.processor.topology.clone.DefaultEntityCloneEditor;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
@@ -94,11 +100,19 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
  */
 public class TopologyEditorTest {
 
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
+
     private static final long vmId = 10;
     private static final long pmId = 20;
     private static final long stId = 30;
     private static final long podId = 40;
     private static final long containerId = 50;
+    private static final long controllerId = 60;
+    private static final long volumeId = 70;
     private static final double USED = 100;
     private static final double VCPU_CAPACITY = 1000;
     private static final double VMEM_CAPACITY = 1000;
@@ -115,13 +129,32 @@ public class TopologyEditorTest {
         .setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
     private static final CommodityType VMEM = CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
+    private static final CommodityType VCPU_REQUEST_QUOTA = CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE).build();
+    private static final CommodityType VCPU_LIMIT_QUOTA = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE).build();
+    private static final CommodityType VMEM_REQUEST_QUOTA = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMEM_REQUEST_QUOTA_VALUE).build();
+    private static final CommodityType VMEM_LIMIT_QUOTA = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE).build();
+    private static final CommodityType STORAGE_AMOUNT = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
     private static final CommodityType VMPM = CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).build();
-    private static final CommodityType VMPM_KEYED = CommodityType.newBuilder()
+    private static final CommodityType VMPM_NODE_TO_POD = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE)
+            .setKey("role=worker")
+            .build();
+    private static final CommodityType VMPM_POD_TO_CONTAINER = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE)
             .setKey("MyKey")
             .build();
+    private static final CommodityType CLUSTER_KEYED = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.CLUSTER_VALUE)
+            .setKey("foo")
+            .build();
     private TopologyPipelineContext context;
+    private TopologyPipelineContext containerClusterPlanContext;
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
             .setOid(vmId)
@@ -210,12 +243,17 @@ public class TopologyEditorTest {
             .addCommoditiesBoughtFromProviders(
                 CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(podId)
+                    .setProviderEntityType(EntityType.CONTAINER_POD_VALUE)
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
                         .setCommodityType(VMEM)
                         .setUsed(USED)
                         .build())
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
                         .setCommodityType(VCPU)
+                        .setUsed(USED)
+                        .build())
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(VMPM_POD_TO_CONTAINER)
                         .setUsed(USED)
                         .build())
                     .build())
@@ -239,13 +277,29 @@ public class TopologyEditorTest {
             .setDisplayName("ContainerPod")
             .setEntityType(EntityType.CONTAINER_POD_VALUE)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setProviderId(vmId)
                 .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM)
                     .setUsed(USED).build())
                 .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU)
                     .setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMPM_KEYED)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMPM_NODE_TO_POD)
                     .build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(CLUSTER_KEYED)
+                    .build())
+                .build())
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
+                .setProviderId(controllerId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU_REQUEST_QUOTA).setUsed(USED).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU_LIMIT_QUOTA).setUsed(USED).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM_REQUEST_QUOTA).setUsed(USED).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM_LIMIT_QUOTA).setUsed(USED).build())
+                .build())
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setProviderId(volumeId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(STORAGE_AMOUNT).setUsed(USED).build())
                 .build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                 .setCommodityType(VCPU)
@@ -256,7 +310,7 @@ public class TopologyEditorTest {
                 .setUsed(USED)
                 .setCapacity(VMEM_CAPACITY))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(VMPM)
+                .setCommodityType(VMPM_POD_TO_CONTAINER)
                 .setUsed(1.0)
                 .setCapacity(1.0))
     ).addConsumer(container);
@@ -324,6 +378,15 @@ public class TopologyEditorTest {
             .setTopologyType(TopologyType.PLAN)
             .build();
 
+    private final TopologyInfo containerClusterPlanTopologyInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(2)
+            .setTopologyId(2)
+            .setCreationTime(System.currentTimeMillis())
+            .setTopologyType(TopologyType.PLAN)
+            .setPlanInfo(PlanTopologyInfo.newBuilder()
+                    .setPlanType(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN).build())
+            .build();
+
     private final Set<Long> sourceEntities = new HashSet<>();
     private final Set<Long> destinationEntities = new HashSet<>();
 
@@ -337,6 +400,7 @@ public class TopologyEditorTest {
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
             .thenAnswer(invocation -> cloneId++);
         context = new TopologyPipelineContext(topologyInfo);
+        containerClusterPlanContext = new TopologyPipelineContext(containerClusterPlanTopologyInfo);
         topologyEditor = new TopologyEditor(identityProvider,
                 templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
@@ -1247,16 +1311,34 @@ public class TopologyEditorTest {
                     .filter(Edit::hasReplaced)
                     .count());
     }
+
+    /**
+     * Test adding a container pod to a plan with constraints ignored.
+     */
+    @Test
+    public void testTopologyAdditionPodCloneIgnoringConstraints() throws Exception {
+        featureFlagTestRule.disable(FeatureFlags.APPLY_CONSTRAINTS_IN_CONTAINER_CLUSTER_PLAN);
+        testTopologyAdditionPodClone(false);
+    }
+
+    /**
+     * Test adding a container pod to a plan with constraints ignored.
+     */
+    @Test
+    public void testTopologyAdditionPodCloneApplyingConstraints() throws Exception {
+        featureFlagTestRule.enable(FeatureFlags.APPLY_CONSTRAINTS_IN_CONTAINER_CLUSTER_PLAN);
+        testTopologyAdditionPodClone(true);
+    }
+
     /**
      * Test adding a container pod to a plan.
      */
-    @Test
-    public void testTopologyAdditionPodClone() throws Exception {
+    private void testTopologyAdditionPodClone(boolean applyConstraints) throws Exception {
         Map<Long, TopologyEntity.Builder> topology = Stream.of(container, pod, vm, pm)
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_POD);
 
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, containerClusterPlanContext, groupResolver, sourceEntities, destinationEntities);
 
         Map<Integer, List<TopologyEntity.Builder>> clonedEntitiesMap = topology.values().stream()
             .filter(entity -> entity.getOid() != pod.getOid()
@@ -1281,16 +1363,64 @@ public class TopologyEditorTest {
         assertTrue("Cloned containers must not be controllable", noneControllable);
         assertTrue("Cloned containers must not be suspendable", noneSuspendable);
 
-        // Verify that the cloned pods do not buy any keyed commodities
-        final boolean noneKeyedCommoditiesBought = clonedContainerPods.stream()
-                .map(TopologyEntity.Builder::getEntityBuilder)
-                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersList)
-                .flatMap(List::stream)
-                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
-                .flatMap(List::stream)
-                .map(CommodityBoughtDTO::getCommodityType)
-                .noneMatch(CommodityType::hasKey);
-        assertTrue("Cloned pods do not buy any keyed commodities", noneKeyedCommoditiesBought);
+        // Verify that cloned containers have correct bought keyed commodities
+        int cloneCounter = 0;
+        for (final TopologyEntity.Builder entity : clonedContainers) {
+            for (final CommoditiesBoughtFromProvider bought : entity.getEntityBuilder().getCommoditiesBoughtFromProvidersList()) {
+                assertEquals("Cloned containers only buy from pods", EntityType.CONTAINER_POD_VALUE,
+                        bought.getProviderEntityType());
+
+                final List<CommodityType> keyed = bought.getCommodityBoughtList().stream().map(
+                        CommodityBoughtDTO::getCommodityType).filter(CommodityType::hasKey).collect(
+                        Collectors.toList());
+                if (applyConstraints) {
+                    // Verify that the cloned containers each buy a VMPM keyed commodity
+                    final TopologyDTO.CommodityType expected = VMPM_POD_TO_CONTAINER.toBuilder()
+                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter))
+                            .build();
+                    assertEquals("Cloned containers buy a keyed VMPM access commodity",
+                            Collections.singletonList(expected), keyed);
+                } else {
+                    // Verify that the cloned containers do not buy any keyed commodities
+                    assertTrue("Cloned containers do not buy any keyed commodities", keyed.isEmpty());
+                }
+            }
+            cloneCounter++;
+        }
+
+        // Verify that the cloned pods each only buy the VMPM keyed commodity but not the cluster one
+        cloneCounter = 0;
+        for (final TopologyEntity.Builder entity : clonedContainerPods) {
+            for (final CommoditiesBoughtFromProvider bought : entity.getEntityBuilder().getCommoditiesBoughtFromProvidersList()) {
+                assertNotEquals("Cloned pods should skip bought commodities from workload controller",
+                        EntityType.WORKLOAD_CONTROLLER_VALUE, bought.getProviderEntityType());
+                assertNotEquals("Cloned pods should skip bought commodities from virtual volume",
+                        EntityType.VIRTUAL_VOLUME_VALUE, bought.getProviderEntityType());
+
+                final List<CommodityType> keyed = bought.getCommodityBoughtList().stream()
+                                .map(CommodityBoughtDTO::getCommodityType)
+                                .filter(CommodityType::hasKey)
+                                .collect(Collectors.toList());
+                if (applyConstraints) {
+                    // Verify that the cloned pods each only buy the VMPM keyed commodity but not the cluster one
+                    assertEquals("Cloned pods do buy keyed commodities except for the cluster commodity",
+                            Collections.singletonList(VMPM_NODE_TO_POD), keyed);
+                } else {
+                    // Verify that the cloned pods do not buy any keyed commodities
+                    assertTrue("Cloned pods do not buy any keyed commodities", keyed.isEmpty());
+                }
+            }
+            for (final CommoditySoldDTO sold : entity.getEntityBuilder().getCommoditySoldListList()) {
+                if (sold.getCommodityType().hasKey()) {
+                    final TopologyDTO.CommodityType expected = VMPM_POD_TO_CONTAINER.toBuilder()
+                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter))
+                            .build();
+                    assertEquals("Cloned pods sell keyed commodities but with a distinct key",
+                            expected, sold.getCommodityType());
+                }
+            }
+            cloneCounter++;
+        }
     }
 
     /**
