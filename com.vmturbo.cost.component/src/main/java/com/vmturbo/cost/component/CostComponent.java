@@ -38,6 +38,7 @@ import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsRpcService;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentUploadRpcService;
 import com.vmturbo.cost.component.db.DbAccessConfig;
+import com.vmturbo.cost.component.db.StoredProcedureConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.flyway.CostFlywayCallback;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -77,6 +78,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CloudCommitmentStatsConfig.class,
     CloudCommitmentConfig.class,
     BilledCostConfig.class,
+    StoredProcedureConfig.class
 })
 public class CostComponent extends BaseVmtComponent {
     /**
