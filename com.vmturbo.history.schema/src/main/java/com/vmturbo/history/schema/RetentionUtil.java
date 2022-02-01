@@ -28,6 +28,10 @@ public class RetentionUtil {
     public static final String SYSTEM_LOAD_RETENTION_POLICY_NAME = "systemload_retention_days";
     /** name of policy in the retention_policies for retention of percentile data. */
     public static final String PERCENTILE_RETENTION_POLICY_NAME = "percentile_retention_days";
+    /** name of the policy for the retention of audit_log_entries in the audit_log_retention_policies table. */
+    public static final String AUDIT_LOG_RETENTION_POLICY_NAME = "retention_days";
+    /** name of policy in the retention_policies for retention of moving_statistics_blobs. */
+    public static final String MOVING_STATISTICS_RETENTION_POLICY_NAME = "moving_statistics_retention_days";
 
     /** prevent instantiation. */
     private RetentionUtil(){
