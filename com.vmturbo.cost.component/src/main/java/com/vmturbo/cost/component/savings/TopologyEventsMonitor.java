@@ -15,9 +15,9 @@ import com.google.common.collect.ImmutableList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.TopologyEvent.Builder;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;

@@ -28,7 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;

@@ -4,7 +4,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;

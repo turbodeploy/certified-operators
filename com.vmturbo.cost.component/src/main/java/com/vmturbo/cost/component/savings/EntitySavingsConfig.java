@@ -25,8 +25,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -34,6 +32,8 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;

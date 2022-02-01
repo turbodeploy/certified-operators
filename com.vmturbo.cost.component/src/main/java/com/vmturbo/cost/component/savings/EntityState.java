@@ -16,7 +16,7 @@ import com.google.gson.GsonBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.savings.TopologyEventsMonitor.ChangeResult;
 
 /**

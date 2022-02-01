@@ -17,8 +17,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.cloud.common.topology.CloudTopology;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -30,7 +28,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;

@@ -7,7 +7,6 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;

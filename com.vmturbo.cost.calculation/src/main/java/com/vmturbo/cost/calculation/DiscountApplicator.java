@@ -16,7 +16,7 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.trax.TraxNumber;
 

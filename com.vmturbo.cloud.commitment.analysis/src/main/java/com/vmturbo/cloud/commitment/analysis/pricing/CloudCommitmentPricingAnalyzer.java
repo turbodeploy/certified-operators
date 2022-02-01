@@ -6,9 +6,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 
 /**
  * Interface representing the CloudCommitmentPricinganalyzer. This interface is responsible for resolving the pricing

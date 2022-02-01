@@ -8,8 +8,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.topology.cloud.listener.LiveCloudTopologyListener;
 
 /**

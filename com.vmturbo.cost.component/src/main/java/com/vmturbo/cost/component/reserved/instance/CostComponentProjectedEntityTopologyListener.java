@@ -24,8 +24,8 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.cloud.common.topology.CloudTopology;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 
 /**

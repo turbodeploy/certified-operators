@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.common.topology;
+package com.vmturbo.cost.calculation.topology;
 
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.PRIMARY_TIER_VALUES;
 
@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;

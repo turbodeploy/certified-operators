@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.common.topology;
+package com.vmturbo.cost.calculation.topology;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;

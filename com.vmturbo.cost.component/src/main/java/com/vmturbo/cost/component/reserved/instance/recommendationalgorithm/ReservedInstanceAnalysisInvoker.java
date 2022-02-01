@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,7 +58,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
-import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;

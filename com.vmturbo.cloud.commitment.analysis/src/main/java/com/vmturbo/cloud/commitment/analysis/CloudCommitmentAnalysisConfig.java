@@ -53,8 +53,8 @@ import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
 import com.vmturbo.cloud.common.topology.MinimalEntityCloudTopology.DefaultMinimalEntityCloudTopologyFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 
 /**
  * Configures all classes required to run a cloud commitment analysis. The underlying demand stores

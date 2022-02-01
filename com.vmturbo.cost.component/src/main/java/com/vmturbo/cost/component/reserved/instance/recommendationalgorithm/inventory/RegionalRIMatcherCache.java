@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 
 /**
  * Provides a mapping of {@link ReservedInstanceSpecMatcher} and {@link ReservedInstanceInventoryMatcher}

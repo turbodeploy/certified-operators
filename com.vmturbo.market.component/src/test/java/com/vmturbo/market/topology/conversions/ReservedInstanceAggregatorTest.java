@@ -33,7 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;

@@ -22,7 +22,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -35,6 +34,7 @@ import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;

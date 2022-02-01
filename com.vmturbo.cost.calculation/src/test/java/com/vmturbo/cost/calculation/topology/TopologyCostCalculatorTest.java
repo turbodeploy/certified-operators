@@ -27,7 +27,6 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory.DefaultTopologyCostCalculatorFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 
 /**
  * Unit test for {@link TopologyCostCalculator}.

@@ -52,10 +52,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cloud.common.topology.CloudTopology;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;

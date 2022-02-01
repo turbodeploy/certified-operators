@@ -52,7 +52,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.cca.SQLComputeTierAllocationStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;

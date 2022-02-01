@@ -33,7 +33,6 @@ import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -45,6 +44,7 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
 import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore.AccountRIMappingItem;

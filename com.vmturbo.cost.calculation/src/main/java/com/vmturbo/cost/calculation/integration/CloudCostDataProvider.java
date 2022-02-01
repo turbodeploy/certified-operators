@@ -3,6 +3,7 @@ package com.vmturbo.cost.calculation.integration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,14 +20,15 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.EntityUptime;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.AccountPricingData.DebugInfoNeverUsedInCode;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 
 /**
  * An interface provided by the users of the cost calculation library to get the

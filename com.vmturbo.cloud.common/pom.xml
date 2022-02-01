@@ -51,15 +51,11 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
+        <!-- required for the CloudTopology -->
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>topology-processor-api</artifactId>
+            <artifactId>cost-calculation</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.components.common</artifactId>
-        </dependency>
-
 
         <!-- TEST DEPENDENCIES -->
         <dependency>

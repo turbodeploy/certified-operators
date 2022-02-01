@@ -15,10 +15,10 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCal
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;

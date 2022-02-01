@@ -14,11 +14,13 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]DiscountApplicator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]ReservedInstanceApplicator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]integration[/\\]CloudCostDataProvider.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]integration[/\\]CloudTopology.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]integration[/\\]EntityInfoExtractor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]journal[/\\]CostJournal.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]journal[/\\]tabulator[/\\]OnDemandEntryTabulator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]AccountPricingData.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]TopologyCostCalculator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]TopologyEntityCloudTopology.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]CloudCostCalculatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]CloudCostDataProviderTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]DiscountApplicatorTest.java" />
@@ -26,5 +28,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]TestEntityClass.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]CostCalculationContextTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]TopologyCostCalculatorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]TopologyEntityCloudTopologyFactoryTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]TopologyEntityCloudTopologyTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]calculation[/\\]topology[/\\]TopologyEntityInfoExtractorTest.java" />
 </suppressions>
