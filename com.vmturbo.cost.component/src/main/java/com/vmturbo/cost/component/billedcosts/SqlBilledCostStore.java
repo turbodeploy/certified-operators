@@ -34,10 +34,10 @@ import com.vmturbo.cost.component.db.Keys;
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.cost.component.db.tables.records.BilledCostDailyRecord;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
-import com.vmturbo.cost.component.rollup.RollupUtils;
 import com.vmturbo.platform.sdk.common.CommonCost;
 import com.vmturbo.platform.sdk.common.CostBilling;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.jooq.JooqUtil;
 
 /**
  * This object contains Sql operations for Billed Cost tables.
@@ -238,8 +238,11 @@ public class SqlBilledCostStore implements BilledCostStore {
                 .select(embeddedSelect)
                 .onConflict(Keys.KEY_BILLED_COST_MONTHLY_UNIQUE_MONTHLY_BILLING_ITEM.getFields())
                 .doUpdate()
-                .set(BILLED_COST_MONTHLY.USAGE_AMOUNT, RollupUtils.values(BILLED_COST_MONTHLY.USAGE_AMOUNT))
-                .set(BILLED_COST_MONTHLY.COST, RollupUtils.values(BILLED_COST_MONTHLY.COST))
+                .set(BILLED_COST_MONTHLY.USAGE_AMOUNT,
+                        JooqUtil.upsertValue(BILLED_COST_MONTHLY.USAGE_AMOUNT,
+                                dslContext.dialect()))
+                .set(BILLED_COST_MONTHLY.COST,
+                        JooqUtil.upsertValue(BILLED_COST_MONTHLY.COST, dslContext.dialect()))
                 .execute();
 
         logger.info("Billed costs {} rollup completed for {}", rollupDurationType, toTime);
