@@ -2,7 +2,6 @@ package com.vmturbo.reserved.instance.coverage.allocator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -16,12 +15,14 @@ import com.google.common.base.VerifyException;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
+import com.google.common.collect.Table.Cell;
 import com.google.common.collect.Tables;
 import com.google.common.math.DoubleMath;
 
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountJournal;
 import com.vmturbo.cloud.common.commitment.CommitmentAmountUtils;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
@@ -42,7 +43,7 @@ public class CloudCommitmentCoverageJournal {
 
     @GuardedBy("coveragesLock")
     // <EntityOid, CloudCommitmentOid, AllocatedCoverage>
-    private final Table<Long, Long, CloudCommitmentAmount> coverages;
+    private final Table<Long, Long, CommitmentAmountJournal> coverages;
 
     @GuardedBy("coveragesLock")
     private final List<CoverageJournalEntry> journalEntries = new ArrayList<>();
@@ -58,7 +59,12 @@ public class CloudCommitmentCoverageJournal {
     private CloudCommitmentCoverageJournal(@Nonnull Table<Long, Long, CloudCommitmentAmount> coverages,
                                            @Nonnull CoverageTopology coverageTopology) {
 
-        this.coverages = HashBasedTable.create(Objects.requireNonNull(coverages));
+        this.coverages = coverages.cellSet().stream()
+                .collect(Tables.toTable(
+                        Cell::getRowKey,
+                        Cell::getColumnKey,
+                        (coverageCell) -> CommitmentAmountJournal.create(coverageCell.getValue()),
+                        HashBasedTable::create));
         this.coverageTopology = Objects.requireNonNull(coverageTopology);
     }
 
@@ -87,9 +93,9 @@ public class CloudCommitmentCoverageJournal {
 
         coveragesLock.readLock().lock();
         try {
-            return CommitmentAmountUtils.sumCoverageType(
-                            coverages.row(entityOid).values(),
-                            coverageType);
+            return coverages.row(entityOid).values().stream()
+                    .mapToDouble(amountJournal -> amountJournal.getVectorAmount(coverageType))
+                    .sum();
         } finally {
             coveragesLock.readLock().unlock();
         }
@@ -148,9 +154,10 @@ public class CloudCommitmentCoverageJournal {
                                              @Nonnull CloudCommitmentCoverageTypeInfo coverageType) {
         coveragesLock.readLock().lock();
         try {
-            return CommitmentAmountUtils.sumCoverageType(
-                            coverages.column(commitmentOid).values(),
-                            coverageType);
+
+            return coverages.column(commitmentOid).values().stream()
+                    .mapToDouble(amountJournal -> amountJournal.getVectorAmount(coverageType))
+                    .sum();
         } finally {
             coveragesLock.readLock().unlock();
         }
@@ -277,10 +284,10 @@ public class CloudCommitmentCoverageJournal {
             // check the individual capacity, not that the VM's aggregate coverage is greater than 100%
             coverages.rowKeySet().stream().forEach(entityOid -> {
 
-                final Map<CloudCommitmentCoverageTypeInfo, Double> coverageByType =
-                        CommitmentAmountUtils.groupAndSum(coverages.row(entityOid).values());
+                final CommitmentAmountJournal aggregateCoverageJournal =
+                        CommitmentAmountJournal.reduce(coverages.row(entityOid).values());
 
-                coverageByType.forEach((coverageType, allocatedAmount) -> {
+                aggregateCoverageJournal.getVectorMap().forEach((coverageType, allocatedAmount) -> {
 
                     final double coverageCapacity = getEntityCapacity(entityOid, coverageType);
 
@@ -295,10 +302,10 @@ public class CloudCommitmentCoverageJournal {
 
             coverages.columnKeySet().stream().forEach(commitmentOid -> {
 
-                final Map<CloudCommitmentCoverageTypeInfo, Double> coverageByType =
-                        CommitmentAmountUtils.groupAndSum(coverages.column(commitmentOid).values());
+                final CommitmentAmountJournal aggregateUtilizationJournal =
+                        CommitmentAmountJournal.reduce(coverages.column(commitmentOid).values());
 
-                coverageByType.forEach((coverageType, allocatedAmount) -> {
+                aggregateUtilizationJournal.getVectorMap().forEach((coverageType, allocatedAmount) -> {
                     final double coverageCapacity = getCommitmentCapacity(commitmentOid, coverageType);
 
                     Verify.verify(DoubleMath.fuzzyCompare(allocatedAmount, coverageCapacity, TOLERANCE) <= 0,
@@ -344,7 +351,11 @@ public class CloudCommitmentCoverageJournal {
     public Table<Long, Long, CloudCommitmentAmount> getCoverages() {
         coveragesLock.readLock().lock();
         try {
-            return ImmutableTable.copyOf(coverages);
+            return coverages.cellSet().stream()
+                    .collect(ImmutableTable.toImmutableTable(
+                            Cell::getRowKey,
+                            Cell::getColumnKey,
+                            coverageCell -> coverageCell.getValue().getCommitmentAmount()));
         } finally {
             coveragesLock.readLock().unlock();
         }
@@ -357,16 +368,15 @@ public class CloudCommitmentCoverageJournal {
         coveragesLock.writeLock().lock();
         try {
 
-            final CloudCommitmentAmount newCoverageAmount =
-                    CommitmentAmountUtils.convertToAmount(coverageTypeInfo, coverageAmount);
+            final CommitmentAmountJournal commitmentAmountJournal;
             if (coverages.contains(entityOid, commitmentOid)) {
-                coverages.put(entityOid, commitmentOid,
-                        CommitmentAmountCalculator.sum(
-                                coverages.get(entityOid, commitmentOid),
-                                newCoverageAmount));
+                commitmentAmountJournal = coverages.get(entityOid, commitmentOid);
             } else {
-                coverages.put(entityOid, commitmentOid, newCoverageAmount);
+                commitmentAmountJournal = CommitmentAmountJournal.create();
+                coverages.put(entityOid, commitmentOid, commitmentAmountJournal);
             }
+
+            commitmentAmountJournal.addAmount(coverageTypeInfo, coverageAmount);
         } finally {
             coveragesLock.writeLock().unlock();
         }
