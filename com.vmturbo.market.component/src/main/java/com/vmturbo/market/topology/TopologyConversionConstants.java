@@ -51,12 +51,10 @@ public class TopologyConversionConstants {
                     .put(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.VCPU_VALUE)
                     .put(CommodityType.MEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.CPU_VALUE, CommodityType.VCPU_VALUE)
-                    // mapping for AWS DatabaseServer commodities
+                    // mapping for AWS DatabaseServer/Database commodities
                     .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE)
                     // mapping for Azure Database commodities
-                    .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
-                    .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE)
                     .put(CommodityType.DTU_VALUE, CommodityType.DTU_VALUE)
                     .put(CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_AMOUNT_VALUE)
             // mapping for cloud volume commodities
@@ -80,10 +78,6 @@ public class TopologyConversionConstants {
                     ImmutableMap.<Integer, Integer>builder()
                             .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
                             .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE).build())
-            .put(EntityType.DATABASE_TIER.getNumber(),
-                    ImmutableMap.<Integer, Integer>builder()
-                            .put(CommodityType.VMEM_VALUE, CommodityType.DB_MEM_VALUE)
-                            .put(CommodityType.VCPU_VALUE, CommodityType.TRANSACTION_VALUE).build())
             .build();
 
     // TODO: the following constants will be from user settings once UI supports it
