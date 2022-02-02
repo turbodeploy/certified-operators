@@ -35,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -89,6 +90,9 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.VcpuScalingCoresPerSocketSocketModeEnum;
+import com.vmturbo.components.common.setting.VcpuScalingSocketsCoresPerSocketModeEnum;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
@@ -1449,9 +1453,20 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
      * Setting value converter for enum setting values.
      */
     private static class EnumSettingValueConverter extends SimpleValueSettingConverter {
+        private static final Map<Pair<String, String>, String> MIGRATION_MAP = ImmutableMap.of(
+                new Pair<>(EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode.getSettingName(), "PRESERVE"),
+                VcpuScalingSocketsCoresPerSocketModeEnum.PRESERVE_CORES_PER_SOCKET.name(),
+                new Pair<>(EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode.getSettingName(), "PRESERVE"),
+                VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS.name());
         @Nonnull
         @Override
         protected String toDbValue(@Nonnull Setting setting) {
+            // TODO: This is a hack to support loading topologies from 8.4.4 and before into a 8.4.5 instance. It can be retired after a few releases.
+            Pair<String, String> pair = new Pair<>(setting.getSettingSpecName(),
+                    setting.getEnumSettingValue().getValue());
+            if (MIGRATION_MAP.containsKey(pair)) {
+                return MIGRATION_MAP.get(pair);
+            }
             return setting.getEnumSettingValue().getValue();
         }
 
