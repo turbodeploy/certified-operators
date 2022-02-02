@@ -183,33 +183,30 @@ public class CommitmentAmountUtils {
     @Nonnull
     public static Map<CloudCommitmentCoverageTypeInfo, Double> groupByKey(@Nonnull CloudCommitmentAmount amount) {
 
-        final ImmutableMap.Builder<CloudCommitmentCoverageTypeInfo, Double> amountByType =
-                ImmutableMap.builder();
-
         switch (amount.getValueCase()) {
             case COUPONS:
-                amountByType.put(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO, amount.getCoupons());
-                break;
+                return ImmutableMap.of(CloudCommitmentUtils.COUPON_COVERAGE_TYPE_INFO, amount.getCoupons());
             case AMOUNT:
                 final CloudCommitmentCoverageTypeInfo coverageKey = CloudCommitmentCoverageTypeInfo.newBuilder()
                         .setCoverageType(CloudCommitmentCoverageType.SPEND_COMMITMENT)
                         .setCoverageSubtype(amount.getAmount().getCurrency())
                         .build();
-                amountByType.put(coverageKey, amount.getAmount().getAmount());
-                break;
+                return ImmutableMap.of(coverageKey, amount.getAmount().getAmount());
             case COMMODITIES_BOUGHT:
-                amount.getCommoditiesBought().getCommodityList().forEach(committedCommodityBought ->
-                        amountByType.put(
-                                CloudCommitmentCoverageTypeInfo.newBuilder()
+                return amount.getCommoditiesBought().getCommodityList()
+                        .stream()
+                        .collect(ImmutableMap.toImmutableMap(
+                                committedCommodityBought -> CloudCommitmentCoverageTypeInfo.newBuilder()
                                         .setCoverageType(CloudCommitmentCoverageType.COMMODITY)
                                         .setCoverageSubtype(committedCommodityBought.getCommodityType().getNumber())
                                         .build(),
-                                committedCommodityBought.getCapacity()));
-                break;
-
+                                CommittedCommodityBought::getCapacity));
+            case VALUE_NOT_SET:
+                return Collections.emptyMap();
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Cloud commitment amount case %s is not supported", amount.getValueCase()));
         }
-
-        return amountByType.build();
     }
 
     /**
