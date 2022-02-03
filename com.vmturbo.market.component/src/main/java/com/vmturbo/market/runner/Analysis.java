@@ -665,15 +665,18 @@ public class Analysis {
                             boolean reduceDependency = config.isSMALite();
                             SMAInput smaInput = new SMAInput(originalCloudTopology,
                                     cloudVmOidToProvidersOIDsMap,
-                                    topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan, reduceDependency);
-                            saveSMADiags(smaInput);
+                                    topologyCostCalculator.getCloudCostData(),
+                                    converter.getConsistentScalingHelper(), isOptimizeCloudPlan,
+                                    reduceDependency,
+                                    this.groupMemberRetriever);
                             try (DataMetricTimer timer = SMA_RUNTIME_SUMMARY.labels(contextType).startTimer()) {
                                 try (TracingScope ignored = Tracing.trace("execute_sma")) {
                                     smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
                                     smaConverter.setSmaCloudCostCalculator(
-                                            smaInput.getCloudCostCalculator());
+                                            smaInput.getSmaCloudCostCalculator());
                                 }
                             }
+                            saveSMADiags(smaInput);
                         }
                         // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
                         converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());

@@ -1,7 +1,5 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -10,11 +8,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.CostContext;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-
 /**
  * SMA representation of a provide, either on-demand or discounted.
  * This is a template for a specific context.
@@ -51,27 +44,6 @@ public class SMATemplate {
      */
     private TopologyEntityDTO computeTier;
 
-    /*
-     * instance variables set outside of the construtor
-     */
-    /*
-     *  Map from business account to on-demand cost
-     */
-    private Map<Long, Map<OSType, SMACost>> onDemandCosts = new HashMap();
-
-    /*
-     * Map from business account to discounted cost (only Azure).
-     * For AWS, discountedCosts is always 0.
-     */
-    private Map<Long, Map<OSType, SMACost>> discountedCosts = new HashMap();
-
-    public Map<Long, Map<OSType, SMACost>> getOnDemandCosts() {
-        return onDemandCosts;
-    }
-
-    public Map<Long, Map<OSType, SMACost>> getDiscountedCosts() {
-        return discountedCosts;
-    }
 
     /**
      * The scaling penalty that will be applied as a tie breaker in the
@@ -131,29 +103,6 @@ public class SMATemplate {
         return computeTier;
     }
 
-    /**
-     * Given a business account ID, set the on-demand cost.
-     * @param businessAccountId business account ID
-     * @param osType OS
-     * @param cost cost
-     */
-    public void setOnDemandCost(long businessAccountId, @Nonnull OSType osType, @Nonnull SMACost cost) {
-        onDemandCosts.putIfAbsent(businessAccountId, new HashMap<>());
-        onDemandCosts.get(businessAccountId).put(osType, Objects.requireNonNull(cost));
-    }
-
-    /**
-     * Given a business account ID, set the discounted cost.
-     * @param businessAccountId business account ID
-     * @param osType OS.
-     * @param cost discounted cost
-     */
-    public void setDiscountedCost(long businessAccountId, @Nonnull OSType osType, @Nonnull SMACost cost) {
-        this.discountedCosts.putIfAbsent(businessAccountId, new HashMap<>());
-        this.discountedCosts.get(businessAccountId).put(osType, Objects.requireNonNull(cost));
-    }
-
-
 
     /**
      * Getter for the scalingPenalty.
@@ -167,23 +116,6 @@ public class SMATemplate {
 
     @Override
     public String toString() {
-        return "SMATemplate{" +
-            "OID='" + oid + "'" +
-            ", name='" + name + '\'' +
-            ", family='" + family + '\'' +
-            ", coupons=" + coupons +
-            ", onDemandCosts=" + onDemandCosts +
-            ", discountedCosts=" + discountedCosts +
-            ", scalingPenalty=" + scalingPenalty
-                + '}';
-    }
-
-    /**
-     * toString without dumping the details of the cost maps.  Dumps the set of account IDs and
-     * OSTypes that there is cost information for.
-     * @return the templates fields with the list of business accounts and OSTypes in the on-demand costs.
-     */
-    public String toStringWithOutCost() {
         return "SMATemplate{" +
             "OID='" + oid + "'" +
             ", name='" + name + '\'' +

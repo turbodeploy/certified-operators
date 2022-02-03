@@ -94,7 +94,7 @@ public class SMAInputContext {
         for (SMAVirtualMachine oldVM : inputContext.getVirtualMachines()) {
             SMAVirtualMachineProvider virtualMachineProvider = cloudCostCalculator
                     .updateProvidersOfVirtualMachine(oldVM.getProviders(), oldVM.getCurrentTemplate(),
-                            oldVM.getCostContext());
+                            oldVM);
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                     oldVM.getName(),
                     oldVM.getGroupName(),
@@ -109,7 +109,8 @@ public class SMAInputContext {
                     oldVM.isScaleUp(),
                     virtualMachineProvider.getGroupProviders(),
                     virtualMachineProvider.getNaturalTemplate(),
-                    virtualMachineProvider.getMinCostProviderPerFamily());
+                    virtualMachineProvider.getMinCostProviderPerFamily(),
+                    oldVM.getRegionId(), oldVM.getAccountPricingDataOid());
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;
@@ -196,7 +197,7 @@ public class SMAInputContext {
                     .stream().map(oid -> oidToTemplateMap.get(oid)).collect(Collectors.toList()));
             SMAVirtualMachineProvider smaVirtualMachineProvider = cloudCostCalculator
                     .updateProvidersOfVirtualMachine(providerList, vm.getCurrentTemplate(),
-                            vm.getCostContext());
+                            vm);
             vm.setVirtualMachineProviderInfo(smaVirtualMachineProvider);
             vm.getProvidersOid().clear();
         });

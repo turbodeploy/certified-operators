@@ -456,7 +456,7 @@ public class SMAReservedInstance {
                 ", isf=" + isf +
                 ", platformFlexible=" + platformFlexible +
                 ", shared=" + shared +
-                ", normalizedTemplate=" + normalizedTemplate.toStringWithOutCost() +
+                ", normalizedTemplate=" + normalizedTemplate +
                 '}';
     }
 

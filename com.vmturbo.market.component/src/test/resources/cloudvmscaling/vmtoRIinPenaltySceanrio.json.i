@@ -25,7 +25,10 @@
                 "100002",
                 "100003"
             ],
-            "currentRIOIøD": "0"
+            "currentRIOIøD": "0",
+            "regionId": "31",
+            "accountPricingDataOid": "10",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED"
         },
         {
             "oid": "2000002",
@@ -44,7 +47,10 @@
                 "100002",
                 "100003"
             ],
-            "currentRIOID": "0"
+            "currentRIOID": "0",
+            "regionId": "31",
+            "accountPricingDataOid": "10",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED"
         }
     ],
     "reservedInstances": [

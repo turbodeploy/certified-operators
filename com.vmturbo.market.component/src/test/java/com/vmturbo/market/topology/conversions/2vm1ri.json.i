@@ -101,7 +101,10 @@
                 "100001",
                 "100002"
             ],
-            "zoneId": "21"
+            "zoneId": "21",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
         },
         {
             "businessAccountId": "10",
@@ -120,7 +123,10 @@
                 "100001",
                 "100002"
             ],
-            "zoneId": "21"
+            "zoneId": "21",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
         }
     ]
 }

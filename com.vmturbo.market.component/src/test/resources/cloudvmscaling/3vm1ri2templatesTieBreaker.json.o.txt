@@ -10,7 +10,7 @@
          {
              "virtualMachineOid": "2000003",
              "reservedInstanceOid": "1000001",
-             "templateOid": "100001",
+             "templateOid": "100002",
              "discountedCoupons": 3
          }
 ]

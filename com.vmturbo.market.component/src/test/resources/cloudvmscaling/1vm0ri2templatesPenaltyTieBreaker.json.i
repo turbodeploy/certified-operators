@@ -24,7 +24,10 @@
         "100001",
         "100002"
       ],
-      "currentRIOID": "0"
+      "currentRIOID": "0",
+      "regionId": "31",
+      "accountPricingDataOid": "10",
+      "operatingSystemLicenseModel":"LICENSE_INCLUDED"
     }
   ],
   "reservedInstances": [],

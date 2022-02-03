@@ -50,7 +50,7 @@ public class SMAVirtualMachineGroup {
         this.groupLeader.setGroupSize(getVirtualMachines().size());
         SMAVirtualMachineProvider smaVirtualMachineProvider =
                 smaCloudCostCalculator.updateGroupProvidersOfVirtualMachine(groupProviderList,
-                this.groupLeader.getCostContext(), this.groupLeader.getCurrentTemplate());
+                this.groupLeader, this.groupLeader.getCurrentTemplate());
         this.groupLeader.setVirtualMachineProviderInfoWithoutProviders(smaVirtualMachineProvider);
         this.zonalDiscountable = true;
         updateAllMembers();

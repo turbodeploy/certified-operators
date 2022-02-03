@@ -9,6 +9,7 @@ import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTI
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTIME_CACHED_ECONOMY_NAME;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONFIG_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONTEXT_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_COST_LOOKUP;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_RESERVED_INSTANCE_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_TEMPLATE_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_VIRTUAL_MACHINE_PREFIX;
@@ -61,6 +62,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
@@ -73,8 +75,10 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
+import com.vmturbo.market.cloudscaling.sma.entities.CloudCostContextEntry;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
@@ -252,7 +256,7 @@ public class AnalysisDiagnosticsCollectorTest {
             SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
             logger.info("SMA generated {} outputContexts", smaOutput.getContexts().size());
             assertTrue(getActionCount(smaOutput) > 0);
-            computeSaving(smaOutput, smaInput.get().getCloudCostCalculator());
+            //computeSaving(smaOutput, smaInput.get().getSmaCloudCostCalculator());
         } else {
             logger.error("Could not create SMAInput. SMA was not run.");
         }
@@ -272,9 +276,13 @@ public class AnalysisDiagnosticsCollectorTest {
             for (SMAMatch smaMatch : outputContext.getMatches()) {
                 SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
                 float currentCost = cloudCostCalculator.getNetCost(
-                        virtualMachine.getCostContext(), virtualMachine.getCurrentRICoverage(), virtualMachine.getCurrentTemplate());
+                        virtualMachine, virtualMachine.getCurrentTemplate(),
+                        virtualMachine.getCurrentRI() == null ? 0 : virtualMachine.getCurrentRICoverage(),
+                        virtualMachine.getCurrentRI() == null ? SMAUtils.UNKNOWN_OID : virtualMachine.getCurrentRI().getOid());
                 float projectedCost = cloudCostCalculator.getNetCost(
-                        virtualMachine.getCostContext(), smaMatch.getDiscountedCoupons(), smaMatch.getTemplate());
+                        virtualMachine, smaMatch.getTemplate(),
+                        smaMatch.getReservedInstance() == null ? 0 : smaMatch.getDiscountedCoupons(),
+                        smaMatch.getReservedInstance() == null ? SMAUtils.UNKNOWN_OID : smaMatch.getReservedInstance().getOid());
                 if (currentCost - projectedCost > 0) {
                     saving += currentCost - projectedCost;
                 } else {
@@ -531,6 +539,7 @@ public class AnalysisDiagnosticsCollectorTest {
             Map<Integer, List<SMATemplate>> templateList = new HashMap<>();
             Map<Integer, SMAContext> contextList = new HashMap<>();
             Map<Integer, SMAConfig> configList = new HashMap<>();
+            List<CloudCostContextEntry> cloudCostContextEntries = new ArrayList<>();
             List<SMAInputContext> smaInputContexts = new ArrayList<>();
             while (paths.hasNext()) {
                 Path path = paths.next();
@@ -541,6 +550,9 @@ public class AnalysisDiagnosticsCollectorTest {
                 }
                 int index = Integer.parseInt(splitStrings[1]);
                 switch (splitStrings[0]) {
+                    case SMA_COST_LOOKUP:
+                        cloudCostContextEntries = extractMultipleInstancesOfType(path, CloudCostContextEntry.class);
+                        break;
                     case SMA_RESERVED_INSTANCE_PREFIX:
                         reservedInstanceList.put(index, extractMultipleInstancesOfType(path, SMAReservedInstance.class));
                         break;
@@ -573,7 +585,11 @@ public class AnalysisDiagnosticsCollectorTest {
                         break;
                 }
             }
-            SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator();
+            SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator(
+                    Mockito.mock(SimulatedTopologyEntityCloudTopology.class),
+                    Mockito.mock(CloudCostData.class));
+            cloudCostContextEntries.stream().forEach(entry ->
+                    cloudCostCalculator.getCloudCostLookUp().put(entry.getCostContext(), entry.getCostValue()));
             for (Integer index : contextList.keySet()) {
                 if (contextList.get(index) == null || virtualMachineList.get(index) == null
                         || reservedInstanceList.get(index) == null

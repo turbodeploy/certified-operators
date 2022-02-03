@@ -26,7 +26,11 @@
                 "100004",
                 "100006"
             ],
-            "currentRIOID": "1000001"
+            "currentRIOID": "1000001",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         },
         {
             "oid": "2000010",
@@ -47,7 +51,11 @@
                 "100005",
                 "100006"
             ],
-            "currentRIOID": "1000001"
+            "currentRIOID": "1000001",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         },
         {
             "oid": "2000011",
@@ -68,7 +76,11 @@
                 "100005",
                 "100006"
             ],
-            "currentRIOID": "1000001"
+            "currentRIOID": "1000001",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         },
         {
             "oid": "2000003",
@@ -89,7 +101,11 @@
                 "100004",
                 "100006"
             ],
-            "currentRIOID": "0"
+            "currentRIOID": "0",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         },
         {
             "oid": "2000020",
@@ -110,7 +126,11 @@
                 "100005",
                 "100006"
             ],
-            "currentRIOID": "0"
+            "currentRIOID": "0",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         },
         {
             "oid": "2000021",
@@ -131,7 +151,11 @@
                 "100005",
                 "100006"
             ],
-            "currentRIOID": "0"
+            "currentRIOID": "0",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         }
     ],
     "reservedInstances": [

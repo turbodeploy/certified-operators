@@ -10,7 +10,12 @@ import java.util.List;
 
 import com.google.gson.Gson;
 
+import org.mockito.Mockito;
+
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAMatchTestTrim;
+import com.vmturbo.market.cloudscaling.sma.entities.CloudCostContextEntry;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
@@ -46,9 +51,6 @@ public class JsonToSMAInputTranslator {
         for (SMAMatchTestTrim smaMatchTestTrim : output) {
             SMAVirtualMachine smaVirtualMachine = inputContext.getVirtualMachines().stream()
                     .filter(a -> a.getOid() == smaMatchTestTrim.getVirtualMachineOid()).findFirst().get();
-            if (smaMatchTestTrim.getReservedInstanceOid() == null) {
-
-            }
             SMAReservedInstance smaReservedInstance = smaMatchTestTrim
                     .getReservedInstanceOid() == null ? null
                     : inputContext.getReservedInstances().stream()
@@ -72,7 +74,9 @@ public class JsonToSMAInputTranslator {
      */
     public SMAInput readsmaInput(String filename) {
         BufferedReader br = null;
-        SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator();
+        SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator(
+                Mockito.mock(SimulatedTopologyEntityCloudTopology.class),
+                Mockito.mock(CloudCostData.class));
         try {
             br = new BufferedReader(new FileReader(filename));
         } catch (FileNotFoundException e) {
@@ -81,6 +85,15 @@ public class JsonToSMAInputTranslator {
         SMAInputContext smaInputContext = new Gson().fromJson(br, SMAInputContext.class);
         if (smaInputContext.getSmaConfig() == null) {
             smaInputContext.setSmaConfig(new SMAConfig());
+        }
+        try {
+            br = new BufferedReader(new FileReader(filename + ".cost"));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        CloudCostContextEntry[] cloudCostContextEntries = new Gson().fromJson(br, CloudCostContextEntry[].class);
+        for(CloudCostContextEntry entry : cloudCostContextEntries) {
+            cloudCostCalculator.getCloudCostLookUp().put(entry.getCostContext(), entry.getCostValue());
         }
         smaInputContext.decompress(cloudCostCalculator);
         // this will initialize fields which are not set in json.
