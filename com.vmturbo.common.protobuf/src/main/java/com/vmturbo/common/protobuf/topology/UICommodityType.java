@@ -271,6 +271,8 @@ public enum UICommodityType {
     IO_THROUGHPUT_READ(CommodityType.IO_THROUGHPUT_READ, "IO Throughput Read"),
     /** The commodity IO_THROUGHPUT_WRITE **/
     IO_THROUGHPUT_WRITE(CommodityType.IO_THROUGHPUT_WRITE, "IO Throughput Write"),
+    /** The commodity TAINT **/
+    TAINT(CommodityType.TAINT, "Kubernetes Taint"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 

@@ -56,7 +56,8 @@ public class CommoditiesEditor {
                     ImmutableSet.of(CommodityType.STORAGE_ACCESS, CommodityType.DISK_ARRAY_ACCESS,
                                     CommodityType.TEMPLATE_ACCESS, CommodityType.LICENSE_ACCESS,
                                     CommodityType.ACCESS, CommodityType.TENANCY_ACCESS,
-                                    CommodityType.VMPM_ACCESS, CommodityType.VAPP_ACCESS);
+                                    CommodityType.VMPM_ACCESS, CommodityType.VAPP_ACCESS,
+                                    CommodityType.TAINT);
 
     private final Logger logger = LogManager.getLogger();
     private final StatsHistoryServiceBlockingStub historyClient;
