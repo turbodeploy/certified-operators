@@ -18,6 +18,7 @@ import static org.mockito.Mockito.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,10 +42,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
-import org.mockito.Mock;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -79,12 +79,9 @@ import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
-import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionDisruptiveness;
@@ -152,7 +149,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -447,6 +443,40 @@ public class ActionSpecMapperTest {
         // no external url
         assertEquals(null, actionApiDTO.getExternalActionName());
         assertEquals(null, actionApiDTO.getExternalActionName());
+    }
+
+    /**
+     * Checks that Move Virtual Volume action will be converted into {@link ActionApiDTO} including resources
+     * information that effectively points to related volume instances.
+     *
+     * @throws Exception in case of error while action mapping process.
+     */
+    @Test
+    public void testMapMoveWithResources() throws Exception {
+        final Collection<Long> resourceIds = ImmutableSet.of(4L, 5L);
+        final ActionInfo moveInfo = getMoveActionInfoWithResources(ApiEntityType.STORAGE.apiStr(),
+                resourceIds, true);
+        final Explanation compliance = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder()
+                                        .addMissingCommodities(MEM)
+                                        .addMissingCommodities(CPU)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
+        final ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance),
+                        REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        final Collection<BaseApiDTO> resources = actionApiDTO.getTarget().getConnectedEntities();
+        Assert.assertThat(resources.stream().map(BaseApiDTO::getClassName).collect(Collectors.toSet()),
+                CoreMatchers.is(Collections.singleton(ApiEntityType.VIRTUAL_VOLUME.apiStr())));
+        Assert.assertThat(resources.stream().map(BaseApiDTO::getUuid).collect(Collectors.toSet()),
+                CoreMatchers.is(resourceIds.stream().map(String::valueOf).collect(Collectors.toSet())));
     }
 
     /**
@@ -3142,27 +3172,33 @@ public class ActionSpecMapperTest {
     }
 
     private ActionInfo getMoveActionInfo(final String srcAndDestType, boolean hasSource) {
-        ChangeProvider changeProvider = hasSource ? ChangeProvider.newBuilder()
-                .setSource(ApiUtilsTest.createActionEntity(1))
-                .setDestination(ApiUtilsTest.createActionEntity(2))
-                .build()
-                : ChangeProvider.newBuilder()
-                .setDestination(ApiUtilsTest.createActionEntity(2))
+        return getMoveActionInfoWithResources(srcAndDestType, Collections.emptySet(), hasSource);
+    }
+
+    private ActionInfo getMoveActionInfoWithResources(final String srcAndDestType,
+            Collection<Long> resources, boolean hasSource) {
+        final ChangeProvider.Builder changeProviderBuilder = ChangeProvider.newBuilder();
+        if (hasSource) {
+            changeProviderBuilder.setSource(ApiUtilsTest.createActionEntity(1));
+        }
+        resources.forEach(resId -> changeProviderBuilder.addResource(ApiUtilsTest.createActionEntity(resId,
+                ApiEntityType.VIRTUAL_VOLUME.typeNumber())));
+        changeProviderBuilder.setDestination(ApiUtilsTest.createActionEntity(2))
                 .build();
 
         Move move = Move.newBuilder()
                 .setTarget(ApiUtilsTest.createActionEntity(3))
-                .addChanges(changeProvider)
+                .addChanges(changeProviderBuilder.build())
                 .build();
 
         ActionInfo moveInfo = ActionInfo.newBuilder().setMove(move).build();
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
-            new TestEntity(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            new TestEntity(SOURCE, 1L, ApiEntityType.fromString(srcAndDestType).typeNumber()),
-            new TestEntity(DESTINATION, 2L, ApiEntityType.fromString(srcAndDestType).typeNumber()))));
+                new TestEntity(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(SOURCE, 1L, ApiEntityType.fromString(srcAndDestType).typeNumber()),
+                new TestEntity(DESTINATION, 2L, ApiEntityType.fromString(srcAndDestType).typeNumber()))));
         when(repositoryApi.entitiesRequest(any()))
-            .thenReturn(req);
+                .thenReturn(req);
 
         return moveInfo;
     }
