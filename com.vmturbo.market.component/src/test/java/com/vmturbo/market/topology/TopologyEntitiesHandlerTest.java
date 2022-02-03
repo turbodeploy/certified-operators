@@ -46,7 +46,7 @@ import com.google.protobuf.util.JsonFormat;
 import com.vmturbo.commons.analysis.ByProductMap;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;

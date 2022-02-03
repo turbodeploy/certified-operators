@@ -1,4 +1,4 @@
-package com.vmturbo.cost.calculation.topology;
+package com.vmturbo.cloud.common.topology;
 
 import static org.mockito.Mockito.mock;
 

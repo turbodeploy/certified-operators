@@ -26,7 +26,7 @@ import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceA
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 
 /**
  * The {@link TopologyCostCalculator} is responsible for calculating the
