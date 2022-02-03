@@ -81,9 +81,15 @@ import com.vmturbo.components.common.utils.Strings;
  * <p>Consul key structure:
  * {@code
  * vmturbo/components/{component-type}/defaults/properties/{property-name} = default-property-value
+ * vmturbo/components/{component-type}/local/{property-name} = local-property-value
  * vmturbo/components/{component-type}/instances/{instance_id}/properties/{property-name} = property-value
  * vmturbo/components/{component-type}/instances/{instance_id}/node = {node id where instance runs}
  * }
+ *
+ * <p>Consumers with the componentId should use getEffectiveInstanceProperties</p>
+ *
+ * <p>Consumers with only the componentType have no option. As a hack they could use
+ * getEffectiveInstanceProperties with an instance id that does not exist.</p>
  *
  * <p>Consul values may be any byte string, with a size limit of 512kB.
  ***/
@@ -1160,7 +1166,7 @@ public class ClusterMgrService {
     public String getLocalComponentProperty(
             String componentType,
             String propertyName) {
-        String defaultPropertyKey = getComponentDefaultPropertyKey(componentType, propertyName);
+        String defaultPropertyKey = getComponentLocalPropertyKey(componentType, propertyName);
         return getComponentKeyValue(defaultPropertyKey);
     }
 
@@ -1179,7 +1185,7 @@ public class ClusterMgrService {
             String newValue) {
         String localPropertyKey = getComponentLocalPropertyKey(componentType, propertyName);
         setComponentKeyValue(localPropertyKey, newValue);
-        return getLocalComponentProperty(componentType, localPropertyKey);
+        return getLocalComponentProperty(componentType, propertyName);
     }
 
     /**
