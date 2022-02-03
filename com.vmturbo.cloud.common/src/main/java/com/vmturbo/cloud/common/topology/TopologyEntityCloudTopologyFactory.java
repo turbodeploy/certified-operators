@@ -1,4 +1,4 @@
-package com.vmturbo.cost.calculation.topology;
+package com.vmturbo.cloud.common.topology;
 
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;

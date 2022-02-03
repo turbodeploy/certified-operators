@@ -1,4 +1,4 @@
-package com.vmturbo.cost.calculation.topology;
+package com.vmturbo.cloud.common.topology;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -19,7 +20,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -55,6 +55,7 @@ public class TopologyEntityCloudTopologyFactoryTest {
         NON_CLOUD_ENTITY = TopologyDTO.Topology.DataSegment.newBuilder()
                                                        .setEntity(NON_CLOUD_ENTITY_E)
                                                        .build();
+
     @Test
     public void testStream() {
         final TopologyEntityCloudTopologyFactory factory =

@@ -4,7 +4,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 
 /**
  * An interface for extracting information from the topology, specific to cloud commitments.

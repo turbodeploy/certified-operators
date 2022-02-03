@@ -251,6 +251,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <runOrder>reversealphabetical</runOrder>
                     <systemPropertyVariables>
                         <dbs.postgresDefault.host>${postgresHost}</dbs.postgresDefault.host>
                         <dbs.postgresDefault.port>${postgresPort}</dbs.postgresDefault.port>

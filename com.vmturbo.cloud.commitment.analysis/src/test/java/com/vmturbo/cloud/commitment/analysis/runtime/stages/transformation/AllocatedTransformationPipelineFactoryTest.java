@@ -26,11 +26,11 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selec
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector.RecommendationSelectorFactory;
 import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
 
 public class AllocatedTransformationPipelineFactoryTest {
 

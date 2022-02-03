@@ -14,16 +14,12 @@ import io.opentracing.SpanContext;
 
 import org.junit.Test;
 
-import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 public class LiveTopologyEntitiesListenerTest {
