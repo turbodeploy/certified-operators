@@ -13,6 +13,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
+
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,7 +29,6 @@ import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
@@ -46,11 +47,10 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ReservedInstanceKey;
@@ -70,34 +70,25 @@ public class SMAInput {
 
     private static final Logger logger = LogManager.getLogger();
 
-    //price table to compute on-demand cost
-    private final CloudRateExtractor marketCloudRateExtractor;
-
     /**
      * List of input contexts.
      */
     public final List<SMAInputContext> inputContexts;
 
-    private final SMACloudCostCalculator cloudCostCalculator;
+    private final SMACloudCostCalculator smaCloudCostCalculator;
 
-    public SMACloudCostCalculator getCloudCostCalculator() {
-        return cloudCostCalculator;
+    public SMACloudCostCalculator getSmaCloudCostCalculator() {
+        return smaCloudCostCalculator;
     }
-
-    //keep retrieved compute price bundles
-    private final Map<PriceTableKey, ComputePriceBundle> computePriceBundleMap = new HashMap<>();
-    //keep retrieved reserved license price bundles
-    private final Map<PriceTableKey, Set<CoreBasedLicensePriceBundle>> reservedLicenseMap = new HashMap<>();
 
     /**
      * Constructor for SMAInput.
      * @param contexts the input to SMA partioned into contexts.
      *                 Each element in list corresponds to a context.
      */
-    public SMAInput(@Nonnull final List<SMAInputContext> contexts, SMACloudCostCalculator cloudCostCalculator) {
+    public SMAInput(@Nonnull final List<SMAInputContext> contexts, SMACloudCostCalculator smaCloudCostCalculator) {
         this.inputContexts = Objects.requireNonNull(contexts, "contexts is null!");
-        this.marketCloudRateExtractor = null;
-        this.cloudCostCalculator = cloudCostCalculator;
+        this.smaCloudCostCalculator = smaCloudCostCalculator;
     }
 
     /**
@@ -113,27 +104,31 @@ public class SMAInput {
      * @param providers     a map from VM ID  to list of compute tier ID s that are providers
      *                      for this VM.
      * @param cloudCostData what are the cloud costs.
-     * @param marketCloudRateExtractor used to figure out the discounts for business accounts
      * @param consistentScalingHelper used to figure out the consistent scaling information.
      * @param isPlan is true if plan otherwise real time.
      * @param reduceDependency if true will reduce relinquishing
+     * @param groupMemberRetriever the group memeber retriver
      */
     public SMAInput(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull Map<Long, Set<Long>> providers,
             @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
-            @Nonnull CloudRateExtractor marketCloudRateExtractor,
             @Nonnull ConsistentScalingHelper consistentScalingHelper,
             boolean isPlan,
-            boolean reduceDependency) {
+            boolean reduceDependency,
+            @Nonnull GroupMemberRetriever groupMemberRetriever) {
         // check input parameters are not null
         Objects.requireNonNull(cloudTopology, "source cloud topology is null");
         Objects.requireNonNull(providers, "providers are null");
         Objects.requireNonNull(cloudCostData, "cloudCostData is null");
         cloudCostData.logMissingAccountPricingData();
-        Objects.requireNonNull(marketCloudRateExtractor, "marketPriceTable is null");
-        this.marketCloudRateExtractor = marketCloudRateExtractor;
-        this.cloudCostCalculator = new SMACloudCostCalculator();
+        final Stream.Builder<TopologyEntityDTO> streamBuilder = Stream.builder();
+        cloudTopology.getEntities().values().stream().forEach(streamBuilder);
+
+        SimulatedTopologyEntityCloudTopology simulatedTopologyEntityCloudTopology =
+                new SimulatedTopologyEntityCloudTopology(streamBuilder.build(),
+                        groupMemberRetriever);
+        this.smaCloudCostCalculator = new SMACloudCostCalculator(simulatedTopologyEntityCloudTopology, cloudCostData);
         final Stopwatch stopWatch = Stopwatch.createStarted();
         /*
          * maps from SMAContext to entities.  Needed to build SMAInputContexts.
@@ -182,14 +177,11 @@ public class SMAInput {
             numberVMsCreated++;
             processVirtualMachine(vm, cloudTopology, consistentScalingHelper,
                 cspFromRegion, smaContextToVMs, regionIdToOsTypeToContexts,
-                contextToBusinessAccountIds, contextToOSTypes);
+                contextToBusinessAccountIds, contextToOSTypes, cloudCostData);
         }
         logger.info("{}ms to create {} VMs from {} VirtualMachines in {} contexts",
             stopWatchDetails.elapsed(TimeUnit.MILLISECONDS), numberVMsCreated, virtualMachines.size(),
             smaContextToVMs.keySet().size());
-        dumpContextToVMs(smaContextToVMs);
-        dumpRegionIdToOsTypeToContexts(regionIdToOsTypeToContexts);
-        dumpContextToBusinessAccountsIds(contextToBusinessAccountIds);
 
         /*
          * For each ComputeTier, create SMATemplates, but only in contexts where VMs exist.
@@ -206,8 +198,7 @@ public class SMAInput {
         logger.info("{}ms to create {} templates from {} compute tiers in {} contexts",
             () -> stopWatchDetails.elapsed(TimeUnit.MILLISECONDS), () -> numberTemplatesCreated,
             () -> computeTiers.size(), () -> smaContextToTemplates.keySet().size());
-        dumpSmaContextsToTemplates(smaContextToTemplates);
-        dumpComputeTierOidToContextToTemplate(computeTierOidToContextToTemplate);
+
 
         /*
          * For each the RI, create an SMAReservedInstance, but only in contexts where VMs exist.
@@ -236,7 +227,6 @@ public class SMAInput {
         logger.info("{}ms to create {} RIs from {} RI bought data in {} contexts",
             stopWatchDetails.elapsed(TimeUnit.MILLISECONDS), numberRIsCreated,
             cloudCostData.getAllRiBought().size(), smaContextToRIs.keySet().size());
-        dumpSmaContextsToRIs(smaContextToRIs);
 
         /*
          * Update VM's current template and provider list.
@@ -250,7 +240,6 @@ public class SMAInput {
             updateVirtualMachines(vmsInContext, computeTierOidToContextToTemplate, providers,
                     cloudTopology, context, riBoughtOidToRI, cloudCostData);
         }
-        dumpContextToVMsFinal(smaContextToVMs);
         logger.info("{}ms to update SMAVirtualMachines",
             stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
 
@@ -328,7 +317,8 @@ public class SMAInput {
                                       Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
                                       Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
                                       Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
-                                      Map<SMAContext, Set<OSType>> contextToOSTypes) {
+                                      Map<SMAContext, Set<OSType>> contextToOSTypes,
+                                      @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData) {
         long oid = entity.getOid();
         String name = entity.getDisplayName();
         int entityType = entity.getEntityType();
@@ -394,6 +384,14 @@ public class SMAInput {
             groupName = groupIdOptional.get();
         }
 
+        Optional<AccountPricingData<TopologyEntityDTO>> accountPricingData =
+                cloudCostData.getAccountPricingData(businessAccountId);
+        if(!accountPricingData.isPresent()){
+            logger.error("processVM: can't find accountPricing data for ID={}",
+                    businessAccountId);
+            return;
+        }
+        long accountPricingDataOid = accountPricingData.get().getAccountPricingDataOid();
         /*
          * Create Virtual Machine.
          */
@@ -411,7 +409,9 @@ public class SMAInput {
                 false,
                 new ArrayList<>(),
                 null,
-                new HashMap<>());
+                new HashMap<>(),
+                regionId,
+                accountPricingDataOid);
         logger.debug("processVM: new VM {}", vm);
 
         Set<SMAVirtualMachine> contextVMs = smaContextToVMs.getOrDefault(context, new HashSet<>());
@@ -477,8 +477,8 @@ public class SMAInput {
                     }
                 }
             }
-            SMAVirtualMachineProvider smaVirtualMachineProvider = cloudCostCalculator.updateProvidersOfVirtualMachine(providers, vm.getCurrentTemplate(),
-                    vm.getCostContext());
+            SMAVirtualMachineProvider smaVirtualMachineProvider = smaCloudCostCalculator.
+                    updateProvidersOfVirtualMachine(providers, vm.getCurrentTemplate(), vm);
             vm.setVirtualMachineProviderInfo(smaVirtualMachineProvider);
 
             Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
@@ -659,148 +659,12 @@ public class SMAInput {
                 Set<SMATemplate> templates = smaContextToTemplates.getOrDefault(context, new HashSet<>());
                 templates.add(template);
                 smaContextToTemplates.put(context, templates);
-                /*
-                 * For each business account in this context's billing family and OSType, compute cost.
-                 */
-                for (long businessAccountId : contextToBusinessAccountIds.get(context)) {
-                    if (csp == SMACSP.AZURE) {
-                        // If Azure, because of platform flexible, have to iterate threw all the os types explicitly.
-                        for (OSType osTypeInner : osTypesInContext) {
-                            updateTemplateRate(template, osTypeInner, context, businessAccountId,
-                                    regionId, cloudCostData, cloudTopology);
-                        }
-                    } else {
-                        updateTemplateRate(template, osType, context, businessAccountId,
-                                regionId, cloudCostData, cloudTopology);
-                    }
-                }
                 computeTierOidToContextToTemplate.put(oid, context, template);
             }
         }
         return true;
     }
 
-    /**
-     * Get compute price bundle.
-     * @param accountPricingData account pricing data
-     * @param regionOid region oid
-     * @param computeTier compute tier
-     * @return compute price bundle.
-     */
-    private ComputePriceBundle getComputeBundle(@NotNull AccountPricingData accountPricingData,
-            long regionOid, @NotNull TopologyEntityDTO computeTier) {
-        final PriceTableKey key = new PriceTableKey(accountPricingData.getAccountPricingDataOid(),
-                regionOid, computeTier.getOid());
-        return computePriceBundleMap.computeIfAbsent(key,
-                k -> marketCloudRateExtractor.getComputePriceBundle(computeTier, regionOid,
-                        accountPricingData));
-    }
-
-    /**
-     * Get reserved license price bundle.
-     * @param accountPricingData account pricing data
-     * @param region The region, used only for the PriceTableKey. It is not a constraint on the reserved
-     *               license price
-     * @param computeTier compute tier
-     * @return reserved license price bundle.
-     */
-    private Set<CoreBasedLicensePriceBundle> getReservedLicenseBundle(
-            @NotNull AccountPricingData accountPricingData,
-            @Nonnull TopologyEntityDTO region,
-            @NotNull TopologyEntityDTO computeTier) {
-        final PriceTableKey key = new PriceTableKey(accountPricingData.getAccountPricingDataOid(),
-                region.getOid(), computeTier.getOid());
-        return reservedLicenseMap.computeIfAbsent(key,
-                k -> marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData, computeTier));
-    }
-
-    /**
-     * Derived a template's on-demand cost from cloud cost data.
-     *
-     * @param template the template, whose cost will be updated.
-     * @param osType the OS type.
-     * @param context the context.
-     * @param businessAccountId business account of the template.
-     * @param regionId regionId of the template.
-     * @param cloudCostData cost dictionary.
-     * @param cloudTopology entity dictionary.
-     */
-    private void updateTemplateRate(SMATemplate template, OSType osType, SMAContext context,
-                                    long businessAccountId, long regionId, CloudCostData cloudCostData,
-                                    CloudTopology<TopologyEntityDTO> cloudTopology) {
-        long oid = template.getOid();
-        String name = template.getName();
-        /*
-         * compute on-demand rate
-         */
-        // business account specific pricing.
-        Optional<AccountPricingData> pricingDataOptional = cloudCostData.getAccountPricingData(businessAccountId);
-        if (!pricingDataOptional.isPresent()) {
-            logger.debug("updateTemplateRate: template ID={}:name={} doesn't have pricingData for accountId={} in {}",
-                oid, name, businessAccountId, context);
-            return;
-        } else {
-            AccountPricingData accountPricingData = pricingDataOptional.get();
-            ComputePriceBundle bundle = getComputeBundle(accountPricingData,
-                    context.getRegionId(), template.getComputeTier());
-            List<ComputePrice> computePrices = bundle.getPrices();
-            int computePriceSize = computePrices.size();
-            if (computePriceSize == 0) {
-                logger.trace("updateTemplateRate: template ID={}:name={} has computePrice.size() == 0 for accountId={} in {}",
-                    oid, name, businessAccountId, context);
-                return;
-            }
-            final ComputePrice computePrice = computePrices.stream()
-                .filter(price -> price.osType() == osType)
-                .findAny().orElse(null);
-
-            if (computePrice == null) {
-                return;
-            } else if (osType != OSType.UNKNOWN_OS) {
-                logger.trace("updateTemplateRate: on-demand Rate={}: template ID={}:name={} in accountId={} osType={} {}",
-                    computePrice.hourlyPrice(), oid, name, businessAccountId, osType.name(),
-                    context);
-            }
-            template.setOnDemandCost(businessAccountId, osType, new SMACost(
-                    (float)computePrice.hourlyComputeRate(), (float)computePrice.hourlyLicenseRate()));
-
-            /*
-             * compute discounted costs
-             * For AWS, there are no discounted costs.
-             * Accessing the accounting price data is not working.
-             */
-            TopologyEntityDTO computeTier = template.getComputeTier();
-            Optional<TopologyEntityDTO> regionOptional = cloudTopology.getEntity(regionId);
-            if (!regionOptional.isPresent()) {
-                logger.error("updateTemplateRate: can't find region for ID={} for template ID={}:name={} in accountId={} osType={} {}",
-                    regionId, oid, name, businessAccountId, osType.name(), context);
-                return;
-            } else {
-                TopologyEntityDTO region = regionOptional.get();
-                final Set<CoreBasedLicensePriceBundle> reservedLicensePrices =
-                        getReservedLicenseBundle(accountPricingData, region, computeTier);
-
-                if (reservedLicensePrices == null || reservedLicensePrices.isEmpty()) {
-                    logger.trace("updateTemplateRate: template ID={}:name={} has discount license computePrice.size() == 0 for accountId={} in {}",
-                        oid, name, businessAccountId, context);
-                    return;
-                }
-
-                final double hourlyRate = reservedLicensePrices.stream()
-                        .filter(CoreBasedLicensePriceBundle::hasPrice)
-                        .filter(priceBundle -> priceBundle.osType() == osType)
-                        .map(priceBundle -> priceBundle.price().get())
-                        .findFirst()
-                        .orElse(0.0);
-                if (osType != OSType.UNKNOWN_OS) {
-                    logger.trace("updateTemplateRate: template ID={}:name={} discount license Rate={} accountId={} in {}",
-                        oid, name, hourlyRate, businessAccountId, context);
-                }
-                // For AWS, hourly rate is zero.
-                template.setDiscountedCost(businessAccountId, osType, new SMACost(SMAUtils.NO_COST, (float)hourlyRate));
-            }
-        }
-    }
 
     /**
      * Create SMAReservedInstance and SMAContext from ReservedInstanceData.
@@ -915,10 +779,6 @@ public class SMAInput {
                 regionId, riBoughtId, name, businessAccountId, templateName, zoneId, osType.name(),
                 tenancy.name(), count);
         } else {
-            if (logger.isDebugEnabled()) {
-                double riRate = computeHourlyRIRate(boughtCost, years);
-                logger.debug("processRI: new {} with riRate={} {}", ri, riRate, context);
-            }
             Set<SMAReservedInstance> smaRIs = smaContextToRIs.getOrDefault(context, new HashSet<>());
             smaRIs.add(ri);
             smaContextToRIs.put(context, smaRIs);
@@ -1099,14 +959,6 @@ public class SMAInput {
         return new Pair(ri, coverage);
     }
 
-    private static double computeHourlyRIRate(ReservedInstanceBoughtCost boughtCost, int years) {
-        double fixedCost = boughtCost.getFixedCost().getAmount();
-        double recurringCostPerHour = boughtCost.getRecurringCostPerHour().getAmount();
-        double usageCostPerHour = boughtCost.getUsageCostPerHour().getAmount();
-        double amortizedFixedCost = fixedCost / (float)(years * 365 * 24);
-        return amortizedFixedCost + recurringCostPerHour + usageCostPerHour;
-    }
-
     /**
      * Update regionToOsTypeToContexts table.
      *
@@ -1139,112 +991,6 @@ public class SMAInput {
         return "SMAInput{" +
             "inputContexts=" + inputContexts.size() +
             '}';
-    }
-
-    /*
-     * Debug code
-     */
-    private void dumpContextToVMs(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs) {
-        logger.info("dump contexts to VMS for {} contexts",
-            () -> smaContextToVMs.keySet().size());
-        if (logger.isDebugEnabled()) {
-            for (SMAContext context : smaContextToVMs.keySet()) {
-                logger.info("  {}", context);
-                for (SMAVirtualMachine vm : smaContextToVMs.get(context)) {
-                    logger.info("    VM: ID={} name={} businessAccountId={} OS={}", () -> vm.getOid(),
-                        () -> vm.getName(), () -> vm.getBusinessAccountId(), () -> vm.getOsType().name());
-                }
-            }
-        }
-    }
-
-    private void dumpContextToVMsFinal(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs) {
-        if (logger.isDebugEnabled()) {
-            List<SMAVirtualMachine> vms = new ArrayList<>();
-            smaContextToVMs.values().forEach(vms::addAll);
-            logger.debug("dump {} VMs after updated", () -> vms.size());
-            for (SMAVirtualMachine vm : vms) {
-                logger.debug("  {}", vm);
-            }
-        }
-    }
-
-    private void dumpRegionIdToOsTypeToContexts(Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("dump region to osType to context table for {} regions",
-                () -> regionIdToOsTypeToContexts.rowKeySet().size());
-            for (long regionId : regionIdToOsTypeToContexts.rowKeySet()) {
-                logger.debug("  region={}", regionId);
-                Map<OSType, Set<SMAContext>> map = regionIdToOsTypeToContexts.row(regionId);
-                for (OSType osType : map.keySet()) {
-                    logger.debug("    osType={}", osType);
-                    for (SMAContext context : map.get(osType)) {
-                        logger.debug("      {}", context);
-                    }
-                }
-            }
-        }
-    }
-
-    private void dumpContextToBusinessAccountsIds(Map<SMAContext, Set<Long>> contextToBusinessAccountIds) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("dump context to business account IDs for {} contexts",
-                () -> contextToBusinessAccountIds.keySet().size());
-            for (SMAContext context : contextToBusinessAccountIds.keySet()) {
-                Set<Long> accountIds = contextToBusinessAccountIds.get(context);
-                StringBuffer buffer = new StringBuffer();
-                for (long id : accountIds) {
-                    buffer.append(" ").append(id);
-                }
-                logger.debug("  {}: account IDs={}", () -> context, () -> buffer.toString());
-            }
-        }
-    }
-
-    private void dumpSmaContextsToTemplates(Map<SMAContext, Set<SMATemplate>> smaContextToTemplates) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{} context for templates",
-                () -> smaContextToTemplates.keySet().size());
-            for (SMAContext context : smaContextToTemplates.keySet()) {
-                logger.trace("  context={}", context);
-                for (SMATemplate template : smaContextToTemplates.get(context)) {
-                    logger.trace("     {}", () -> template);
-                }
-            }
-        }
-    }
-
-    private void dumpComputeTierOidToContextToTemplate(Table<Long, SMAContext, SMATemplate>
-                                                           computeTierOidToContextToTemplate) {
-        if (logger.isTraceEnabled()) {
-            int counter = 0;
-            logger.trace("dump compute tier OID to context to templates for {} compute tiers",
-                () -> computeTierOidToContextToTemplate.rowKeySet().size());
-            for (Long computeTierOid : computeTierOidToContextToTemplate.rowKeySet()) {
-                logger.trace("  computer tier OID={}", computeTierOid);
-                Map<SMAContext, SMATemplate> entry = computeTierOidToContextToTemplate.row(computeTierOid);
-                for (SMAContext context : entry.keySet()) {
-                    SMATemplate template = entry.get(context);
-                    logger.trace("    context={}", context);
-                    logger.trace("      template={}", template);
-                }
-                if (counter++ > 20) {
-                    break;
-                }
-            }
-        }
-    }
-
-    private void dumpSmaContextsToRIs(Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("context to RIs for {} contexts", () -> smaContextToRIs.keySet().size());
-            for (SMAContext context : smaContextToRIs.keySet()) {
-                logger.debug("  context={}", context);
-                for (SMAReservedInstance ri : smaContextToRIs.get(context)) {
-                    logger.debug("     RI={}", ri);
-                }
-            }
-        }
     }
 
     /**
@@ -1338,39 +1084,6 @@ public class SMAInput {
                 csp = SMACSP.UNKNOWN;
             }
             return csp;
-        }
-    }
-
-    /**
-     * Key to cache prices.
-     */
-    private static class PriceTableKey {
-        private final long accountPricingKey;
-        private final long regionKey;
-        private final long computeTierKey;
-
-        public PriceTableKey(long accountPricingKey, long regionKey, long computeTierKey) {
-            this.accountPricingKey = accountPricingKey;
-            this.regionKey = regionKey;
-            this.computeTierKey = computeTierKey;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            PriceTableKey that = (PriceTableKey)o;
-            return accountPricingKey == that.accountPricingKey && regionKey == that.regionKey
-                    && computeTierKey == that.computeTierKey;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(accountPricingKey, regionKey, computeTierKey);
         }
     }
 }

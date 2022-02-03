@@ -58,11 +58,11 @@ public class StableMarriageAlgorithm {
              */
             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap =
                     createVirtualMachineGroupMap(inputContext.getVirtualMachines(),
-                            input.getCloudCostCalculator());
+                            input.getSmaCloudCostCalculator());
             preProcessing(inputContext, virtualMachineGroupMap);
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext,virtualMachineGroupMap,
-                    input.getCloudCostCalculator());
-            postProcessing(outputContext, input.getCloudCostCalculator());
+                    input.getSmaCloudCostCalculator());
+            postProcessing(outputContext, input.getSmaCloudCostCalculator());
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
@@ -397,10 +397,10 @@ public class StableMarriageAlgorithm {
         // it better be using up the RIs.
         for (SMAMatch smaMatch : nonASGMatch) {
             if (smaMatch.getReservedInstance() != null) {
-                float saving = cloudCostCalculator.getOnDemandTotalCost(smaMatch.getVirtualMachine().getCostContext(),
-                        smaMatch.getVirtualMachine().getNaturalTemplate())
-                        - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine().getCostContext(),
-                        smaMatch.getDiscountedCoupons(), smaMatch.getTemplate()) ;
+                float saving = cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(),
+                        smaMatch.getVirtualMachine().getNaturalTemplate(), 0, -1l)
+                        - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(),smaMatch.getTemplate(),
+                        smaMatch.getDiscountedCoupons(), smaMatch.getReservedInstance().getOid()) ;
                 if (saving <  -1 * SMAUtils.EPSILON || (saving <  SMAUtils.EPSILON &&
                         smaMatch.getVirtualMachine().getCurrentTemplate().getOid() != smaMatch.getTemplate().getOid())) {
                     float current_leftover = leftoverCoupons.getOrDefault(smaMatch
@@ -434,8 +434,10 @@ public class StableMarriageAlgorithm {
                     continue;
                 }
                 for (SMAMatch smaMatch : smaMatches) {
-                    saving += cloudCostCalculator.getOnDemandTotalCost(smaMatch.getVirtualMachine().getCostContext(), smaMatch.getVirtualMachine().getNaturalTemplate())
-                            - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine().getCostContext(), smaMatch.getDiscountedCoupons(), smaMatch.getTemplate()) ;
+                    saving += cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(),
+                            smaMatch.getVirtualMachine().getNaturalTemplate(), 0 , -1l)
+                            - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(), smaMatch.getTemplate(),
+                            smaMatch.getDiscountedCoupons(), matchWithCoverage.get().getReservedInstance().getOid()) ;
                 }
                 if (saving <  -1 * SMAUtils.EPSILON || (saving <  SMAUtils.EPSILON &&
                         matchWithCoverage.get().getVirtualMachine().getCurrentTemplate().getOid()

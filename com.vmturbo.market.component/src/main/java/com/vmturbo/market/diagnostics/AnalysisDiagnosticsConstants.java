@@ -41,6 +41,8 @@ public class AnalysisDiagnosticsConstants {
     static final String SMA_CONFIG_PREFIX = "Config";
     @VisibleForTesting
     static final String SMA_TEMPLATE_PREFIX = "Template";
+    @VisibleForTesting
+    static final String SMA_COST_LOOKUP = "CostLookUp";
 
     static final String ANALYSIS_DIAGS_DIRECTORY = "tmp/";
     static final String SMA_ZIP_LOCATION_PREFIX = "sma";

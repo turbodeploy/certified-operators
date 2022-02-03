@@ -12,6 +12,7 @@ import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTI
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMAINPUT_FILE_NAME;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONFIG_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_CONTEXT_PREFIX;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_COST_LOOKUP;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_RESERVED_INSTANCE_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_TEMPLATE_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.SMA_VIRTUAL_MACHINE_PREFIX;
@@ -50,6 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandler;
 import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
+import com.vmturbo.market.cloudscaling.sma.entities.CloudCostContextEntry;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -289,6 +291,14 @@ public class AnalysisDiagnosticsCollector {
                                 + SMAINPUT_FILE_NAME,
                         "SMA Config" + " contextID: " + contextIndex);
             }
+            List<CloudCostContextEntry> costLookUp = new ArrayList<>();
+            smaInput.getSmaCloudCostCalculator().getCloudCostLookUp().entrySet().forEach(entry ->
+                    costLookUp.add(new CloudCostContextEntry(entry.getKey(), entry.getValue())));
+            writeAnalysisDiagsEntry(diagsWriter, costLookUp.stream(),
+                    SMA_COST_LOOKUP + "_" + "0" + "_"
+                            + SMAINPUT_FILE_NAME,
+                    "SMA Cost Lookup");
+
         } catch (StackOverflowError e) {
             // If any of the objects being converted to JSON have a circular reference, then it
             // can lead to a StackOverflowError. We only print the message of the exception because
@@ -299,7 +309,7 @@ public class AnalysisDiagnosticsCollector {
             logger.error("Error when attempting to save SMA diags. But analysis will continue.", e);
         } finally {
             closeZipOutputStream(diagnosticZip);
-            smaInput.getContexts().stream().forEach(a -> a.decompress(smaInput.getCloudCostCalculator()));
+            smaInput.getContexts().stream().forEach(a -> a.decompress(smaInput.getSmaCloudCostCalculator()));
 
             stopwatch.stop();
             logger.info("Completed dump of SMA diagnostics for topology context id {} in {} seconds",

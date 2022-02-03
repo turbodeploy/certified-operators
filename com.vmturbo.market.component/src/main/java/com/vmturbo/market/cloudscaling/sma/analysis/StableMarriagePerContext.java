@@ -24,7 +24,6 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.CostContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachineGroup;
 
 /**
@@ -351,9 +350,9 @@ public class StableMarriagePerContext {
             // pick the RI which has lower ondemand cost.
 
             float newTemplateTotalCost =
-                cloudCostCalculator.getOnDemandTotalCost(vm.getCostContext(), newTemplate);
+                cloudCostCalculator.getNetCost(vm, newTemplate, 0, SMAUtils.UNKNOWN_OID);
             float oldTemplateTotalCost =
-                cloudCostCalculator.getOnDemandTotalCost(vm.getCostContext(), oldTemplate);
+                cloudCostCalculator.getNetCost(vm, oldTemplate, 0, SMAUtils.UNKNOWN_OID);
 
             if (SMAUtils.round(newTemplateTotalCost - oldTemplateTotalCost)
                     > SMAUtils.EPSILON) {
@@ -437,13 +436,15 @@ public class StableMarriagePerContext {
                                                              virtualMachineGroupMap,
                                                      SMACloudCostCalculator cloudCostCalculator) {
         SMAVirtualMachine virtualMachine = newEngagement.getVirtualMachine();
-        float costImprovement = costImprovement(virtualMachine.getCostContext(),
+        float costImprovement = costImprovement(virtualMachine,
                 newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 newEngagement.getTemplate(),
                 (oldEngagement == null) ?
                         0 : oldEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 (oldEngagement == null) ?
-                        virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate(), cloudCostCalculator);
+                        virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate(), cloudCostCalculator,
+                (oldEngagement == null) ? SMAUtils.UNKNOWN_OID : oldEngagement.getReservedInstance().getOid(),
+                newEngagement.getReservedInstance().getOid());
         costImprovement = SMAUtils.round(costImprovement);
         if (costImprovement < -1.0 * SMAUtils.EPSILON) {
             return false;
@@ -585,11 +586,14 @@ public class StableMarriagePerContext {
      * @return the effective savings of resize from oldTemplate to currentTemplate
      */
 
-    public static float costImprovement(CostContext costContext,
+    public static float costImprovement(SMAVirtualMachine virtualMachine,
                                         float currentCoupons, SMATemplate currentTemplate,
-                                        float oldCoupons, SMATemplate oldTemplate, SMACloudCostCalculator cloudCostCalculator) {
-        return (cloudCostCalculator.getNetCost(costContext, oldCoupons, oldTemplate)
-            - cloudCostCalculator.getNetCost(costContext, currentCoupons, currentTemplate));
+                                        float oldCoupons, SMATemplate oldTemplate, SMACloudCostCalculator cloudCostCalculator,
+                                        long oldRI, long newRI) {
+        float oldCost = cloudCostCalculator.getNetCost(virtualMachine,oldTemplate,oldCoupons,oldRI);
+        float newCost = cloudCostCalculator.getNetCost(virtualMachine, currentTemplate, currentCoupons, newRI);
+        return (oldCost - newCost);
+
     }
 
 

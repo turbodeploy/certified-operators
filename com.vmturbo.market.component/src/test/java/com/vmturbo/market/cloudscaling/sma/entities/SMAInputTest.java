@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -49,13 +48,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Compute
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
 import com.vmturbo.cost.calculation.pricing.ImmutableCoreBasedLicensePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -64,7 +63,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Class to test SMAInput functionality.
@@ -278,12 +276,6 @@ public class SMAInputTest {
                         .build())
                 .build();
 
-        // create MarketPriceTable
-        final CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
-        when(marketCloudRateExtractor.getComputePriceBundle(ct1Dto, regionId,
-                accountPricingData)).thenReturn(computePriceBundle1);
-        when(marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData,
-                ct1Dto)).thenReturn(ImmutableSet.of(riPrice));
 
         //create CloudCostData
         final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
@@ -303,7 +295,7 @@ public class SMAInputTest {
 
         //create SMAInput
         final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
-                marketCloudRateExtractor, consistentScalingHelper, false, false);
+                consistentScalingHelper, false, false, mock(GroupMemberRetriever.class));
         assertEquals(1, smaInput.getContexts().size());
         final SMAInputContext smaContext = smaInput.getContexts().iterator().next();
         assertEquals(2, smaContext.getVirtualMachines().size());
@@ -333,56 +325,6 @@ public class SMAInputTest {
         assertEquals(1, smaContext.getReservedInstances().size());
     }
 
-    /**
-     * Test that a Windows VM with License Model "License Included" moves to the Compute Tier with
-     * cheaper Windows compute costs.
-     */
-    @Test
-    public void testUpdateNaturalTemplateWindowsVmNoAhub() {
-        // given
-        final CloudTopology<TopologyEntityDTO> cloudTopology = mockCloudTopology(
-            Stream.of(createVirtualMachine(LicenseModel.LICENSE_INCLUDED), ct1Dto, regionDto,
-                zoneDto, accountDto, ct2Dto), windowsVmOid);
-        final CloudCostData<TopologyEntityDTO> cloudCostData = mockCloudCostData();
-        final Map<Long, Set<Long>> providers = ImmutableMap.of(windowsVmOid, ImmutableSet
-            .of(ct1Id, ct2Id));
-        final CloudRateExtractor marketCloudRateExtractor = mockCloudRateExtractor();
-        // when
-        final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
-            marketCloudRateExtractor, consistentScalingHelper, false, false);
-        final SMAVirtualMachine smaVirtualMachine = findVMByOid(
-            smaInput.getContexts().iterator().next(), windowsVmOid).orElse(null);
-        // then naturalTemplate must be ct2 as it has lower rates for Windows than ct1 (Windows
-        // rates are considered for Windows VM with LICENSE_INCLUDED OS License model)
-        Assert.assertNotNull(smaVirtualMachine);
-        assertEquals(ct2Id, smaVirtualMachine.getNaturalTemplate().getOid());
-    }
-
-    /**
-     * Test that a Windows VM with License Model "AHUB" (BYOL) moves to the Compute Tier with
-     * cheaper Linux compute costs.
-     */
-    @Test
-    public void testUpdateNaturalTemplateWindowsVmWithAhub() {
-        // given
-        final CloudTopology<TopologyEntityDTO> cloudTopology = mockCloudTopology(
-            Stream.of(createVirtualMachine(LicenseModel.AHUB), ct1Dto, regionDto, zoneDto,
-                accountDto, ct2Dto), windowsVmOid);
-        final CloudCostData<TopologyEntityDTO> cloudCostData = mockCloudCostData();
-        final Map<Long, Set<Long>> providers = ImmutableMap.of(windowsVmOid,
-            ImmutableSet.of(ct1Id, ct2Id));
-        final CloudRateExtractor marketCloudRateExtractor = mockCloudRateExtractor();
-        // when
-        final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
-            marketCloudRateExtractor, consistentScalingHelper, false, false);
-        final SMAInputContext smaContext = smaInput.getContexts().iterator().next();
-        final SMAVirtualMachine smaVirtualMachine = findVMByOid(smaContext, windowsVmOid)
-            .orElse(null);
-        // then naturalTemplate must be ct1 as it has lower rates for Linux than ct2 (Linux rates
-        // are considered for Windows VMs with AHUB License model)
-        Assert.assertNotNull(smaVirtualMachine);
-        assertEquals(ct1Id, smaVirtualMachine.getNaturalTemplate().getOid());
-    }
 
     /**
      *  Create a Region that is accessible for zone1 and zone2, a CT that is only connected with zone1.
@@ -421,9 +363,8 @@ public class SMAInputTest {
         CloudCostData costData = mockCloudCostData();
         CloudTopology<TopologyEntityDTO> cloudTopology = spy(defaultFactory.newCloudTopology(Stream
                 .of(gcpCT, regDto, zone1Dto, zone2Dto)));
-        final CloudRateExtractor marketCloudRateExtractor = mockCloudRateExtractor();
         SMAInput smaInput = new SMAInput(cloudTopology, new HashMap<>(), costData,
-                marketCloudRateExtractor, consistentScalingHelper, false, false);
+                consistentScalingHelper, false, false, mock(GroupMemberRetriever.class));
 
         when(cloudTopology.getOwner(zone1Id)).thenReturn(Optional.of(regDto));
         when(cloudTopology.getOwner(zone2Id)).thenReturn(Optional.of(regDto));
@@ -454,14 +395,6 @@ public class SMAInputTest {
         return computePriceBundle;
     }
 
-    private CloudRateExtractor mockCloudRateExtractor() {
-        final CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
-        Stream.of(Pair.create(ct1Dto, ct1PriceBundle), Pair.create(ct2Dto,
-            ct2PriceBundle)).forEach(pair ->
-            when(marketCloudRateExtractor.getComputePriceBundle(pair.getFirst(), regionId,
-            accountPricingData)).thenReturn(pair.getSecond()));
-        return marketCloudRateExtractor;
-    }
 
     private CloudCostData<TopologyEntityDTO> mockCloudCostData() {
         final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);

@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing.DbServerTierOnDemandPriceTable;
@@ -48,7 +49,6 @@ import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
@@ -117,7 +117,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final DependentCostLookup<ENTITY_CLASS> dependentCostLookup;
 
-    private final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage;
+    private Map<Long, EntityReservedInstanceCoverage> topologyRICoverage;
 
     private CloudCostCalculator(@Nonnull final CloudCostData<ENTITY_CLASS> cloudCostData,
                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
@@ -131,6 +131,15 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         this.reservedInstanceApplicatorFactory = Objects.requireNonNull(reservedInstanceApplicatorFactory);
         this.dependentCostLookup = Objects.requireNonNull(dependentCostLookup);
         this.topologyRICoverage = Objects.requireNonNull(topologyRICoverage);
+    }
+
+    /**
+     * Setter for TopologyRICoverage
+     * @param topologyRICoverage the new ri coverage.
+     */
+    public void setTopologyRICoverage(
+            @Nonnull Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
+        this.topologyRICoverage = topologyRICoverage;
     }
 
     /**

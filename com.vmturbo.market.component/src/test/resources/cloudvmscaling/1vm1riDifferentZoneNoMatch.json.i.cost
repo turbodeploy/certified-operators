@@ -1,0 +1,15 @@
+[
+        {
+                "costContext":{
+                        "pricingContext":{
+                                "regionId":"30",
+                                "osType":"WINDOWS",
+                                "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+                                "computeTierId":"100001",
+                                "accountPricingDataOid":"10"
+                        },
+                        "coverage":0.0
+                },
+                "costValue":120.0
+        }
+]

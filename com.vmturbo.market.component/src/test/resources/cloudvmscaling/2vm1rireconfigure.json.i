@@ -21,7 +21,10 @@
             "groupSize": 1,
             "currentTemplateOid": "100001",
             "providersOid": [],
-            "currentRIOID": "1000001"
+            "currentRIOID": "1000001",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
         },
         {
             "oid": "2000002",
@@ -37,7 +40,10 @@
             "groupSize": 1,
             "currentTemplateOid": "100001",
             "providersOid": [],
-            "currentRIOID": "1000001"
+            "currentRIOID": "1000001",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
         }
     ],
     "reservedInstances": [

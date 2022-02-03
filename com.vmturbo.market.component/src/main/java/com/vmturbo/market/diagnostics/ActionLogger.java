@@ -93,6 +93,7 @@ public class ActionLogger {
     private float naturalTemplateCoupons;
     private String sourceReservedInstanceName;
     private long sourceReservedInstanceKey;
+    private long sourceReservedInstanceId;
     private String sourceReservedInstanceTemplateName;
     private float sourceReservedInstanceCouponsApplied;
     private String projectedTemplateName;
@@ -100,6 +101,7 @@ public class ActionLogger {
     private float projectedTemplateCoupons;
     private String projectedReservedInstanceName;
     private long projectedReservedInstanceKey;
+    private long projectedReservedInstanceId;
     private String projectedReservedInstanceTemplateName;
     private float projectedReservedInstanceCouponsApplied;
     private int templateChange;
@@ -234,6 +236,7 @@ public class ActionLogger {
             sourceReservedInstanceCouponsApplied = vm.getCurrentRICoverage();
             sourceReservedInstanceName = ri.getName();
             sourceReservedInstanceKey = ri.getRiKeyOid();
+            sourceReservedInstanceId = ri.getOid();
             sourceReservedInstanceTemplateName = ri.getTemplate().getName();
         }
         long businessAccountId = vm.getBusinessAccountId();
@@ -261,12 +264,16 @@ public class ActionLogger {
             setProjectedReservedInstanceAttributes(ri, match);
         }
 
-        float sourceCost = cloudCostCalculator.getNetCost(vm.getCostContext(),
+        float sourceCost = cloudCostCalculator.getNetCost(vm,sourceTemplate,
             (sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
-                : sourceReservedInstanceCouponsApplied), sourceTemplate);
-        float projectedCost = cloudCostCalculator.getNetCost(vm.getCostContext(),
+                : sourceReservedInstanceCouponsApplied),
+                (sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? -1l
+                        : sourceReservedInstanceId));
+        float projectedCost = cloudCostCalculator.getNetCost(vm,projectedTemplate,
             (projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
-                : projectedReservedInstanceCouponsApplied), projectedTemplate);
+                : projectedReservedInstanceCouponsApplied),
+                (projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? -1l
+                : projectedReservedInstanceId));
         savingsPerHour = SMAUtils.format4Digits(sourceCost - projectedCost);
 
         setChange();
@@ -279,6 +286,7 @@ public class ActionLogger {
         projectedReservedInstanceTemplateName = ri.getTemplate().getName();
         projectedReservedInstanceCouponsApplied = match.getDiscountedCoupons();
         projectedReservedInstanceKey = ri.getRiKeyOid();
+        projectedReservedInstanceId = ri.getOid();
     }
 
     /**
@@ -599,6 +607,7 @@ public class ActionLogger {
         projectedTemplateCoupons = FLOAT_UNKNOWN;
         sourceReservedInstanceName = STRING_UNKNOWN;
         sourceReservedInstanceKey = LONG_UNKNOWN;
+        sourceReservedInstanceId = LONG_UNKNOWN;
         sourceReservedInstanceTemplateName = STRING_UNKNOWN;
         sourceReservedInstanceCouponsApplied = FLOAT_UNKNOWN;
         projectedReservedInstanceName = STRING_UNKNOWN;

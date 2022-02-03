@@ -7,80 +7,214 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.CloudCostCalculator;
+import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
+import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
+import com.vmturbo.cost.calculation.PricingContext;
+import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
+import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.CostContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.SortTemplateByOID;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.trax.Trax;
 
 /**
  * All cost computation logic of SMA.
  */
 public class SMACloudCostCalculator {
 
-    private static final Logger logger = LogManager.getLogger();
-
-    /**
-     * The cloud topology. This is used to create the costCalculator.
-     */
-    private final CloudTopology<TopologyEntityDTO> cloudTopology;
     /**
      * The cloud cost data.
      */
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
 
     /**
-     * Constructor for SMACloudCostCalculator.
+     * Simulated cloud topology. This will have the cloud topology with simulation run on top of
+     * it. The simulation will reflect some vms moving to a different compute tier.
      */
-    public SMACloudCostCalculator() {
-        this.cloudTopology = null;
-        this.cloudCostData = null;
-    }
 
-    public CloudCostData<TopologyEntityDTO> getCloudCostData() {
-        return cloudCostData;
-    }
+    private final SimulatedTopologyEntityCloudTopology simulatedTopologyEntityCloudTopology;
 
-    public CloudTopology<TopologyEntityDTO> getCloudTopology() {
-        return cloudTopology;
+    /**
+     * Look up table to save the cost already computed for a perticular costContext to improve
+     * efficiency. This is also used to recreate the SMA run since the map is populated
+     * before storing the diags.
+     */
+    private Map<CostContext, Float> cloudCostLookUp = new HashMap();
+
+    /**
+     * the cost calculator to compute various costs.
+     */
+    private final CloudCostCalculator<TopologyEntityDTO> costCalculator;
+
+
+    public Map<CostContext, Float> getCloudCostLookUp() {
+        return cloudCostLookUp;
     }
 
     /**
-     * Update the providers, group providers, natural template and the mincostprovider per family for
+     * Constructor for SMACloudCostCalculator.
+     *
+     * @param cloudTopology the cloud topology.
+     * @param cloudCostData the cloud cost data.
+     */
+    public SMACloudCostCalculator(SimulatedTopologyEntityCloudTopology cloudTopology,
+            CloudCostData<TopologyEntityDTO> cloudCostData) {
+        this.cloudCostData = cloudCostData;
+        this.simulatedTopologyEntityCloudTopology = cloudTopology;
+        costCalculator = createCostCalculator();
+    }
+
+    private CloudCostCalculator<TopologyEntityDTO> createCostCalculator() {
+        CloudCostCalculatorFactory<TopologyEntityDTO> factory = CloudCostCalculator.newFactory();
+        final Map<Long, CostJournal<TopologyEntityDTO>> retCosts = new HashMap<>(
+                simulatedTopologyEntityCloudTopology.size());
+        final DependentCostLookup<TopologyEntityDTO> dependentCostLookup = entity -> retCosts.get(
+                entity.getOid());
+        CloudCostCalculator<TopologyEntityDTO> costCalculator = factory.newCalculator(cloudCostData,
+                simulatedTopologyEntityCloudTopology, new TopologyEntityInfoExtractor(),
+                ReservedInstanceApplicator.newFactory(), dependentCostLookup, new HashMap<>());
+        return costCalculator;
+    }
+
+    /**
+     * Calculate the cost journal for the entity if moved to computeTierId and covered by riId.
+     *
+     * @param entityId the entity id of the virtual machine
+     * @param computeTierId The compute tier to which the virtual machine is moving to.
+     * @param riCoverage The riCoverage of the VM.
+     * @param riId the id of the ri covering the VM. considered only when riCoverage is > 0
+     * @return the cost journal for the vm if moved to computeTierId and covered by riId
+     */
+    private CostJournal<TopologyEntityDTO> calculateCost(Long entityId,
+            Long computeTierId, float riCoverage, Long riId) {
+        Optional<TopologyEntityDTO> entity = simulatedTopologyEntityCloudTopology.getEntity(
+                entityId);
+        if (!entity.isPresent()) {
+            return null;
+        }
+        Map<Long, Double> riCoverageMap = new HashMap<>();
+        if (riCoverage > SMAUtils.EPSILON) {
+            riCoverageMap.put(riId, (double)riCoverage);
+        }
+        Map<Long, Long> entityIdToComputeTierIdSimulation = new HashMap<>();
+        entityIdToComputeTierIdSimulation.put(entityId, computeTierId);
+        simulatedTopologyEntityCloudTopology.setEntityIdToComputeTierIdSimulation(entityIdToComputeTierIdSimulation);
+        final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage = new HashMap<>();
+        if (!riCoverageMap.isEmpty()) {
+            EntityReservedInstanceCoverage entityReservedInstanceCoverage =
+                    EntityReservedInstanceCoverage.newBuilder()
+                            .setEntityId(entityId)
+                            .setEntityCouponCapacity(
+                                    simulatedTopologyEntityCloudTopology.getRICoverageCapacityForEntity(
+                                            entityId))
+                            .putAllCouponsCoveredByRi(riCoverageMap)
+                            .build();
+            topologyRICoverage.put(entityId, entityReservedInstanceCoverage);
+            costCalculator.setTopologyRICoverage(topologyRICoverage);
+        }
+        return costCalculator.calculateCost(entity.get());
+    }
+
+    /**
+     * Compute the net cost for the virrtual machine if moved to the compute tier with id
+     * computeTierId
+     * and gets covered by ri with id riid and coverage riCoverage.
+     *
+     * @param virtualMachine the virtual machine of interest.
+     * @param smaTemplate the compute tier the vm is moving to.
+     * @param coverageAvailable the coverage available for the vm
+     * @param riId the id of the ri discounting the vm
+     * @return cost if moved to computeTierId with the specified coverage.
+     */
+    public float getNetCost(SMAVirtualMachine virtualMachine, SMATemplate smaTemplate,
+            float coverageAvailable, Long riId) {
+        Long computeTierId = smaTemplate.getOid();
+        float riCoverage = coverageAvailable < smaTemplate.getCoupons() ? coverageAvailable
+                : smaTemplate.getCoupons();
+        PricingContext pricingContext = new PricingContext(virtualMachine.getRegionId(),
+                virtualMachine.getOsType(), virtualMachine.getOsLicenseModel(), computeTierId,
+                virtualMachine.getAccountPricingDataOid());
+        CostContext context = new CostContext(pricingContext, riCoverage);
+
+        Float savedCost = cloudCostLookUp.get(context);
+        if (savedCost != null) {
+            return savedCost;
+        } else {
+            savedCost = Float.MAX_VALUE;
+        }
+        long entityId = virtualMachine.getOid();
+        CostJournal<TopologyEntityDTO> costJournal = calculateCost(entityId,
+                computeTierId, riCoverage, riId);
+        if (costJournal != null) {
+            double onDemandCompute = costJournal.getFilteredCategoryCostsBySource(
+                    CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.ON_DEMAND_RATE).getOrDefault(
+                    CostSource.ON_DEMAND_RATE, Trax.trax(Double.MAX_VALUE)).getValue();
+            double onDemandLicense = costJournal.getFilteredCategoryCostsBySource(
+                    CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.ON_DEMAND_RATE).getOrDefault(
+                    CostSource.ON_DEMAND_RATE, Trax.trax(0d)).getValue();
+            double discountCompute = costJournal.getFilteredCategoryCostsBySource(
+                    CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                    CostSource.RI_INVENTORY_DISCOUNT, Trax.trax(0d)).getValue();
+            double discountLicense = costJournal.getFilteredCategoryCostsBySource(
+                    CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                    CostSource.RI_INVENTORY_DISCOUNT, Trax.trax(0d)).getValue();
+            if (onDemandCompute != Double.MAX_VALUE) {
+                savedCost = (float)(onDemandCompute + onDemandLicense + discountCompute
+                        + discountLicense);
+            }
+        }
+        cloudCostLookUp.put(context, savedCost);
+        return savedCost;
+    }
+
+    /**
+     * Update the providers, group providers, natural template and the mincostprovider per family
+     * for
      * each virtual machine.
+     *
      * @param providers the list of providers
      * @param currentTemplate the current template of the vm
-     * @param costContext the costContext of the vm.
+     * @param virtualMachine the vm of interest.
      * @return SMAVirtualMachineProvider datastructure which encapsulate all the computed values.
      */
     public SMAVirtualMachineProvider updateProvidersOfVirtualMachine(
-            final List<SMATemplate> providers, SMATemplate currentTemplate, CostContext costContext) {
-        SMAVirtualMachineProvider smaVirtualMachineProvider =
-                new SMAVirtualMachineProvider();
+            final List<SMATemplate> providers, SMATemplate currentTemplate,
+            SMAVirtualMachine virtualMachine) {
+        SMAVirtualMachineProvider smaVirtualMachineProvider = new SMAVirtualMachineProvider();
         if (providers == null || providers.isEmpty()) {
             if (currentTemplate != null) {
-                smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(Arrays.asList(currentTemplate), costContext, currentTemplate);
+                smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(
+                        Arrays.asList(currentTemplate), virtualMachine, currentTemplate);
             }
         } else {
             // If currentTemplate has no cost data then the VM cannot move.
             // and currentTemplate is still valid template the vm can move to.
             // getOnDemandTotalCost returns Float.MAX_VALUE if there is no cost data.
-            if (currentTemplate != null
-                    && providers.stream().anyMatch(p -> p.getOid() == currentTemplate.getOid())
-                    && (getOnDemandTotalCost(costContext, currentTemplate) == Float.MAX_VALUE)) {
-                smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(Arrays.asList(currentTemplate), costContext, currentTemplate);
+            if (currentTemplate != null && providers.stream().anyMatch(
+                    p -> p.getOid() == currentTemplate.getOid()) && (getNetCost(virtualMachine,
+                    currentTemplate, 0, SMAUtils.UNKNOWN_OID) == Float.MAX_VALUE)) {
+                smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(
+                        Arrays.asList(currentTemplate), virtualMachine, currentTemplate);
             } else {
-                smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(providers, costContext, currentTemplate);
+                smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(providers,
+                        virtualMachine, currentTemplate);
                 // If the natural template is giving infinite quote then stay in the current template.
-                if (smaVirtualMachineProvider.getNaturalTemplate() != null
-                        && (getOnDemandTotalCost(costContext, smaVirtualMachineProvider.getNaturalTemplate()) == Float.MAX_VALUE)) {
-                    smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(Arrays.asList(currentTemplate), costContext, currentTemplate);
+                if (smaVirtualMachineProvider.getNaturalTemplate() != null) {
+                    float naturalTemplateNetCost = getNetCost(virtualMachine,
+                            smaVirtualMachineProvider.getNaturalTemplate(), 0,
+                            SMAUtils.UNKNOWN_OID);
+                    if (naturalTemplateNetCost == Float.MAX_VALUE) {
+                        smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(
+                                Arrays.asList(currentTemplate), virtualMachine, currentTemplate);
+                    }
                 }
             }
         }
@@ -91,16 +225,19 @@ public class SMACloudCostCalculator {
     /**
      * Update the group providers, natural template and the mincostprovider per family for
      * each virtual machine. This does not update the providers.
+     *
      * @param groupProviders the list of groupproviders
      * @param currentTemplate the current template of the vm
-     * @param costContext the costContext of the vm.
+     * @param virtualMachine the vm of interest.
      * @return SMAVirtualMachineProvider datastructure which encapsulate all the computed values.
      */
-    public SMAVirtualMachineProvider updateGroupProvidersOfVirtualMachine(final List<SMATemplate> groupProviders,
-        CostContext costContext, SMATemplate currentTemplate) {
+    public SMAVirtualMachineProvider updateGroupProvidersOfVirtualMachine(
+            final List<SMATemplate> groupProviders, SMAVirtualMachine virtualMachine,
+            SMATemplate currentTemplate) {
         SMAVirtualMachineProvider smaVirtualMachineProvider = new SMAVirtualMachineProvider();
         smaVirtualMachineProvider.setGroupProviders(groupProviders);
-        updateNaturalTemplateAndMinCostProviderPerFamily(smaVirtualMachineProvider, costContext, currentTemplate);
+        updateNaturalTemplateAndMinCostProviderPerFamily(smaVirtualMachineProvider, virtualMachine,
+                currentTemplate);
         return smaVirtualMachineProvider;
     }
 
@@ -110,50 +247,49 @@ public class SMACloudCostCalculator {
      * Call only after templates have been processed fully.
      * smaVirtualMachineProvider gets updated as part of this method.
      *
-     * @param smaVirtualMachineProvider datastructure which encapsulate all the computed values.
-     * @param costContext the costContext of the vm.
+     * @param smaVirtualMachineProvider datastructure which encapsulate all the computed
+     *         values.
+     * @param virtualMachine the vm of interest.
      * @param currentTemplate the current template of the vm
      */
-    public void updateNaturalTemplateAndMinCostProviderPerFamily(SMAVirtualMachineProvider smaVirtualMachineProvider,
-            CostContext costContext, SMATemplate currentTemplate) {
+    public void updateNaturalTemplateAndMinCostProviderPerFamily(
+            SMAVirtualMachineProvider smaVirtualMachineProvider, SMAVirtualMachine virtualMachine,
+            SMATemplate currentTemplate) {
         HashMap<String, SMATemplate> minCostProviderPerFamily = new HashMap<>();
         Optional<SMATemplate> naturalOptional = Optional.empty();
         List<SMATemplate> groupProviders = smaVirtualMachineProvider.getGroupProviders();
         Collections.sort(groupProviders, new SortTemplateByOID());
 
         /*
-        order for natural template:
+        order for natural template and mincost provider in family:
         ondemand cost
         penalty
         current template
         lower oid
-
-        order for mincost provider in family:
-        ondemand cost
-        discounted cost
-        penalty
-        current template
-        lower oid
-         */
+        */
 
         for (SMATemplate template : groupProviders) {
-            float onDemandTotalCost = getOnDemandTotalCost(costContext, template);
+            float onDemandTotalCost = getNetCost(virtualMachine, template, 0, SMAUtils.UNKNOWN_OID);
             float onDemandTotalCostWithPenalty = onDemandTotalCost + template.getScalingPenalty();
             if (!naturalOptional.isPresent()) {
                 naturalOptional = Optional.of(template);
             } else {
-                float naturalOnDemandTotalCost = getOnDemandTotalCost(costContext, naturalOptional.get());
-                float naturalOnDemandTotalCostWithPenalty = naturalOnDemandTotalCost + naturalOptional.get().getScalingPenalty();
+                float naturalOnDemandTotalCost = getNetCost(virtualMachine, naturalOptional.get(),
+                        0, SMAUtils.UNKNOWN_OID);
+                float naturalOnDemandTotalCostWithPenalty =
+                        naturalOnDemandTotalCost + naturalOptional.get().getScalingPenalty();
                 if (onDemandTotalCost - naturalOnDemandTotalCost < (-1 * SMAUtils.EPSILON)) {
                     // ondemand cost breaks the tie
                     naturalOptional = Optional.of(template);
                 } else if (Math.abs(onDemandTotalCost - naturalOnDemandTotalCost) < SMAUtils.EPSILON
-                        && onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty < (-1 * SMAUtils.EPSILON)) {
+                        && onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty < (-1
+                        * SMAUtils.EPSILON)) {
                     // ondemand cost the same. penalty breaks the tie.
                     naturalOptional = Optional.of(template);
                 } else if (Math.abs(onDemandTotalCost - naturalOnDemandTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty) < SMAUtils.EPSILON
-                        && (template.getOid() == currentTemplate.getOid())) {
+                        && Math.abs(
+                        onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty)
+                        < SMAUtils.EPSILON && (template.getOid() == currentTemplate.getOid())) {
                     // ondemand cost the same. penalty the same. current template breaks the tie.
                     naturalOptional = Optional.of(template);
                 }
@@ -161,30 +297,27 @@ public class SMACloudCostCalculator {
             if (minCostProviderPerFamily.get(template.getFamily()) == null) {
                 minCostProviderPerFamily.put(template.getFamily(), template);
             } else {
-                float discountedTotalCost = getDiscountedTotalCost(costContext, template);
-                float minCostProviderOnDemandTotalCost =
-                        getOnDemandTotalCost(costContext, minCostProviderPerFamily.get(template.getFamily()));
-                float minCostProviderDiscountedTotalCost =
-                        getDiscountedTotalCost(costContext, minCostProviderPerFamily.get(template.getFamily()));
-                float minCostProviderOnDemandTotalCostWithPenalty = minCostProviderOnDemandTotalCost
-                        + minCostProviderPerFamily.get(template.getFamily()).getScalingPenalty();
-                if (onDemandTotalCost - minCostProviderOnDemandTotalCost < (-1 * SMAUtils.EPSILON)) {
+                float minCostProviderOnDemandTotalCost = getNetCost(virtualMachine,
+                        minCostProviderPerFamily.get(template.getFamily()), 0,
+                        SMAUtils.UNKNOWN_OID);
+                float minCostProviderOnDemandTotalCostWithPenalty =
+                        minCostProviderOnDemandTotalCost + minCostProviderPerFamily.get(
+                                template.getFamily()).getScalingPenalty();
+                if (onDemandTotalCost - minCostProviderOnDemandTotalCost < (-1
+                        * SMAUtils.EPSILON)) {
                     // ondemand cost breaks the tie
                     minCostProviderPerFamily.put(template.getFamily(), template);
-                } else if (Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
-                        && (discountedTotalCost - minCostProviderDiscountedTotalCost) < (-1 * SMAUtils.EPSILON)) {
-                    // ondemand cost the same. discounted cost breaks the tie.
+                } else if (Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost)
+                        < SMAUtils.EPSILON
+                        && (onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty)
+                                < (-1 * SMAUtils.EPSILON)) {
+                    // ondemand cost same. penality break the tie.
                     minCostProviderPerFamily.put(template.getFamily(), template);
-                } else if (Math.abs(discountedTotalCost - minCostProviderDiscountedTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
-                        && (onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty) < (-1 * SMAUtils.EPSILON)) {
-                    // ondemand cost same. discounted cost the same. penality break the tie.
-                    minCostProviderPerFamily.put(template.getFamily(), template);
-                } else if (Math.abs(discountedTotalCost - minCostProviderDiscountedTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
-                        && Math.abs(onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty) < SMAUtils.EPSILON
-                        && (template.getOid() == currentTemplate.getOid())) {
-                    // discounted cost the same. ondemand cost the same. penalty the same. current template breaks the tie.
+                } else if (Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost)
+                        < SMAUtils.EPSILON && Math.abs(
+                        onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty)
+                        < SMAUtils.EPSILON && (template.getOid() == currentTemplate.getOid())) {
+                    // ondemand cost the same. penalty the same. current template breaks the tie.
                     minCostProviderPerFamily.put(template.getFamily(), template);
                 }
             }
@@ -195,94 +328,17 @@ public class SMACloudCostCalculator {
     }
 
     /**
-     * Lookup the on-demand total cost for the business account.
-     * @param costContext instance containing all the parameters for cost lookup.
-     * @param smaTemplate the template for which the cost is computed.
-     * @return on-demand total cost or Float.MAX_VALUE if not found.
-     */
-    public float getOnDemandTotalCost(CostContext costContext, SMATemplate smaTemplate) {
-        Map<OSType, SMACost> costMap = smaTemplate.getOnDemandCosts().get(costContext.getBusinessAccount());
-        SMACost cost = costMap != null ? costMap.get(costContext.getOsType()) : null;
-        if (cost == null) {
-            logger.debug("getOnDemandTotalCost: OID={} name={} has no on demand cost for {}",
-                    smaTemplate.getOid(), smaTemplate.getName(), costContext);
-            return Float.MAX_VALUE;
-        }
-        return getOsLicenseModelBasedCost(cost, costContext.getOsLicenseModel());
-    }
-
-    /**
-     * Lookup the discounted total cost for the business account.
-     *
-     * @param costContext instance containing all the parameters for cost lookup.
-     * @param smaTemplate the template for which the cost is computed.
-     * @return discounted total cost or Float.MAX_VALUE if not found.
-     */
-    public float getDiscountedTotalCost(CostContext costContext, SMATemplate smaTemplate) {
-        Map<OSType, SMACost> costMap = smaTemplate.getDiscountedCosts().get(costContext.getBusinessAccount());
-        SMACost cost = costMap != null ? costMap.get(costContext.getOsType()) : null;
-        if (cost == null) {
-            logger.debug("getDiscountedTotalCost: OID={} name={} has no discounted cost for {}",
-                    smaTemplate.getOid(), smaTemplate.getName(), costContext);
-            return Float.MAX_VALUE;
-        }
-        return getOsLicenseModelBasedCost(cost, costContext.getOsLicenseModel());
-    }
-
-    /**
-     * get the getOsLicenseModelBasedCost for the given SMACost.
-     * @param cost SMACost of interest.
-     * @param osLicenseModel the license model.
-     * @return the cost based on license model.
-     */
-    private float getOsLicenseModelBasedCost(final SMACost cost,
-            final LicenseModel osLicenseModel) {
-        if (osLicenseModel == LicenseModel.LICENSE_INCLUDED) {
-            return SMAUtils.round(cost.getTotal());
-        } else {
-            return SMAUtils.round(cost.getCompute());
-        }
-    }
-
-    /**
-     * compute the net cost based on discounted coupons and onDemandCost.
-     * For AWS, the cost is only non-discounted portion times the onDemand cost.
-     * For Azure, their may be a non zero discounted cost, which is applied to the discounted coupons.
-     *
-     * @param costContext instance containing all the parameters for cost lookup.
-     * @param discountedCoupons discounted coupons
-     * @param smaTemplate the template for which the cost is computed.
-     * @return cost after applying discounted coupons.
-     */
-    public float getNetCost(CostContext costContext, float discountedCoupons, SMATemplate smaTemplate) {
-        final float netCost;
-        float coupons = smaTemplate.getCoupons();
-        if (coupons < SMAUtils.BIG_EPSILON) {
-            // If a template has 0 coupons, then it can't be discounted by a RI, and the on-demand
-            // cost is returned.  E.g. Standard_A2m_v2.
-            netCost = getOnDemandTotalCost(costContext, smaTemplate);
-        } else if (discountedCoupons >= coupons) {
-            netCost = getDiscountedTotalCost(costContext, smaTemplate);
-        } else {
-            float discountPercentage = discountedCoupons / coupons;
-            netCost = (getDiscountedTotalCost(costContext, smaTemplate) * discountPercentage)
-                    + (getOnDemandTotalCost(costContext, smaTemplate) * (1 - discountPercentage));
-        }
-        return SMAUtils.round(netCost);
-    }
-
-    /**
      * Compute the savings obtained by matching the virtual machine with reservedInstance.
      *
      * @param vm virtual machine of interest.
-     * @param virtualMachineGroupMap  map from group name to virtualMachine Group
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @param coupons remaining coupons available in the RI.
      * @param reservedInstance the reserved instance for which we compute the saving.
-     * @return  the savings obtained by matching the virtual machine with reservedInstance.
+     * @return the savings obtained by matching the virtual machine with reservedInstance.
      */
     public float computeSaving(SMAVirtualMachine vm,
-            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-            float coupons, SMAReservedInstance reservedInstance) {
+            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap, float coupons,
+            SMAReservedInstance reservedInstance) {
         final List<SMAVirtualMachine> vmList;
         if (vm.getGroupSize() > 1) {
             vmList = virtualMachineGroupMap.get(vm.getGroupName()).getVirtualMachines();
@@ -292,8 +348,8 @@ public class SMACloudCostCalculator {
         SMATemplate riTemplate = reservedInstance.getNormalizedTemplate();
         float netSavingvm = 0;
         for (SMAVirtualMachine member : vmList) {
-            float onDemandCostvm =
-                    getNetCost(vm.getCostContext(), 0, member.getNaturalTemplate());
+            float onDemandCostvm = getNetCost(vm, member.getNaturalTemplate(), 0f,
+                    SMAUtils.UNKNOWN_OID);
             /*  ISF : VM with t3.large and a ISF RI in t2 family. VM can move to t2.large.
              *  t2.large need 10 coupons. But we have only 6 coupons.
              *  riTemplate.getFamily() returns t2.
@@ -307,19 +363,13 @@ public class SMACloudCostCalculator {
              *  afterMoveCost will be ondemandCost * 0 + discountedCost * 1 of the t2.large template.
              *  Note that for AWS the discountedCost will be 0; So afterMoveCost will be 0;
              */
-            float afterMoveCostvm = reservedInstance.isIsf()
-                    ? getNetCost(
-                    vm.getCostContext(),
-                    coupons / vm.getGroupSize(),
-                    member.getMinCostProviderPerFamily(
-                            riTemplate.getFamily()))
-                    : getNetCost(vm.getCostContext(),
-                            coupons / vm.getGroupSize(), riTemplate);
-
+            float afterMoveCostvm = reservedInstance.isIsf() ? getNetCost(vm,
+                    member.getMinCostProviderPerFamily(riTemplate.getFamily()),
+                    coupons / vm.getGroupSize(), reservedInstance.getOid()) : getNetCost(vm,
+                    riTemplate, coupons / vm.getGroupSize(), reservedInstance.getOid());
             netSavingvm += (onDemandCostvm - afterMoveCostvm);
         }
         return netSavingvm;
-
     }
 
     /**
@@ -327,14 +377,15 @@ public class SMACloudCostCalculator {
      *
      * @param vm1 first VM
      * @param vm2 second VM
-     * @param virtualMachineGroupMap  map from group name to virtualMachine Group
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @param coupons remaining coupons available in the RI.
      * @param reservedInstance the reserved instance for which we are comparing the cost.
-     * @return -1 if vm1 has more saving per coupon. 1 if vm2 has more saving per coupon. 0 otherwise.
+     * @return -1 if vm1 has more saving per coupon. 1 if vm2 has more saving per coupon. 0
+     *         otherwise.
      */
     public int compareCost(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
-            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-            float coupons, SMAReservedInstance reservedInstance) {
+            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap, float coupons,
+            SMAReservedInstance reservedInstance) {
         float netSavingVm1 = computeSaving(vm1, virtualMachineGroupMap, coupons, reservedInstance);
         float netSavingVm2 = computeSaving(vm2, virtualMachineGroupMap, coupons, reservedInstance);
 
@@ -342,8 +393,10 @@ public class SMACloudCostCalculator {
         float couponsVm1 = 0.0f;
         float couponsVm2 = 0.0f;
         if (reservedInstance.isIsf()) {
-            couponsVm1 = Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
-            couponsVm2 = Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
+            couponsVm1 = Math.min(coupons,
+                    vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
+            couponsVm2 = Math.min(coupons,
+                    vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
         } else {
             couponsVm1 = reservedInstance.getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
             couponsVm2 = reservedInstance.getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
@@ -364,5 +417,4 @@ public class SMACloudCostCalculator {
         }
         return 0;
     }
-
 }

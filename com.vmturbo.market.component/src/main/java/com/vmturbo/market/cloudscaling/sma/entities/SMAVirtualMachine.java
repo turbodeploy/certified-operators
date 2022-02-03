@@ -13,7 +13,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
@@ -48,6 +47,17 @@ public class SMAVirtualMachine {
      * Cloud Zone
      */
     private final long zoneId;
+
+    /*
+    * the region id of the VM
+     */
+    private final long regionId;
+
+    /*
+     * the account pricing data oid. This uniquiely detemines the price table to look for.
+     */
+    private final long accountPricingDataOid;
+
 
     /**
      * operating system license model, e.g. license included, bring your own license.
@@ -140,7 +150,9 @@ public class SMAVirtualMachine {
                              boolean scaleUp,
                              @Nonnull List<SMATemplate> groupProviders,
                              SMATemplate naturalTemplate,
-                             HashMap<String, SMATemplate> minCostProviderPerFamily) {
+                             HashMap<String, SMATemplate> minCostProviderPerFamily,
+                             final long regionId,
+                             final long accountPricingDataOid) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.groupName = groupName;
@@ -161,6 +173,8 @@ public class SMAVirtualMachine {
         this.minCostProviderPerFamily = minCostProviderPerFamily;
         this.naturalTemplate = naturalTemplate;
         this.scaleUp = scaleUp;
+        this.regionId = regionId;
+        this.accountPricingDataOid = accountPricingDataOid;
     }
 
     public void setVirtualMachineProviderInfo(SMAVirtualMachineProvider smaVirtualMachineProvider) {
@@ -188,14 +202,13 @@ public class SMAVirtualMachine {
         return (providers == null || providers.isEmpty());
     }
 
+    public long getAccountPricingDataOid() {
+        return accountPricingDataOid;
+    }
 
-
-
-
-
-
-
-
+    public long getRegionId() {
+        return regionId;
+    }
 
     public void setMinCostProviderPerFamily(final HashMap<String, SMATemplate> minCostProviderPerFamily) {
         this.minCostProviderPerFamily = minCostProviderPerFamily;
@@ -319,8 +332,8 @@ public class SMAVirtualMachine {
                 .append(", groupProviders=").append(groupProviders.size())
                 .append(", currentRICoverage=").append(currentRICoverage)
                 .append(", zone='").append(zoneId)
-                .append("', currentTemplate=").append(currentTemplate.toStringWithOutCost())
-                .append(", naturalTemplate=").append(naturalTemplate.toStringWithOutCost())
+                .append("', currentTemplate=").append(currentTemplate)
+                .append(", naturalTemplate=").append(naturalTemplate)
             .append("\'}");
         return buffer.toString();
     }
@@ -441,44 +454,5 @@ public class SMAVirtualMachine {
 
     public List<Long> getProvidersOid() {
         return providersOid;
-    }
-
-    public CostContext getCostContext() {
-        return new CostContext(businessAccountId,
-                osType,
-                operatingSystemLicenseModel);
-    }
-
-    /**
-     * Class that holds together all the parameters required for looking up costs.
-     */
-    public class CostContext {
-        private final long businessAccountId;
-        private final OSType osType;
-        private final LicenseModel operatingSystemLicenseModel;
-        public CostContext(long businessAccountId,
-                OSType osType,
-                LicenseModel operatingSystemLicenseModel) {
-            this.businessAccountId = businessAccountId;
-            this.osType = osType;
-            this.operatingSystemLicenseModel = operatingSystemLicenseModel;
-        }
-        long getBusinessAccount() {
-            return businessAccountId;
-        }
-
-        OSType getOsType() {
-            return osType;
-        }
-
-        LicenseModel getOsLicenseModel() {
-            return operatingSystemLicenseModel;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Business Account: %s, OS Type: %s, OS License Model: %s",
-                businessAccountId, osType, operatingSystemLicenseModel);
-        }
     }
 }

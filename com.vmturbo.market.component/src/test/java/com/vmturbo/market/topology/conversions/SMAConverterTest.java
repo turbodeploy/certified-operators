@@ -23,9 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
-import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
@@ -71,7 +69,7 @@ public class SMAConverterTest {
                 smaInput.getContexts().get(0));
         SMAOutput smaOutput = new SMAOutput(Collections.singletonList(new SMAOutputContext(
                 smaInput.getContexts().get(0).getContext(), expectedouput)));
-        StableMarriageAlgorithm.postProcessing(smaOutput.getContexts().get(0), smaInput.getCloudCostCalculator());
+        StableMarriageAlgorithm.postProcessing(smaOutput.getContexts().get(0), smaInput.getSmaCloudCostCalculator());
         smaConverter.setSmaOutput(smaOutput);
         computeTier1 = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)

@@ -24,7 +24,11 @@
                 "100003",
                 "100006"
             ],
-            "currentRIOID": "0"
+            "currentRIOID": "0",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         },
         {
             "oid": "2000010",
@@ -43,7 +47,11 @@
                 "100003",
                 "100006"
             ],
-            "currentRIOID": "0"
+            "currentRIOID": "0",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         },
         {
             "oid": "2000011",
@@ -62,7 +70,11 @@
                 "100003",
                 "100006"
             ],
-            "currentRIOID": "0"
+            "currentRIOID": "0",
+            "regionId":"31",
+            "operatingSystemLicenseModel":"LICENSE_INCLUDED",
+            "accountPricingDataOid":"10"
+
         }
     ],
     "reservedInstances": [

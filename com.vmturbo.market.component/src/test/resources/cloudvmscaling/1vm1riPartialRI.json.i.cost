@@ -1,0 +1,28 @@
+[
+	{
+		"costContext":{
+			"pricingContext":{
+				"regionId":"21",
+				"osType":"LINUX",
+				"operatingSystemLicenseModel":"LICENSE_INCLUDED",
+				"computeTierId":"100003",
+				"accountPricingDataOid":"10"
+			},
+			"coverage":0.0
+		},
+		"costValue":4.0
+	},
+	{
+		"costContext":{
+			"pricingContext":{
+				"regionId":"21",
+				"osType":"LINUX",
+				"operatingSystemLicenseModel":"LICENSE_INCLUDED",
+				"computeTierId":"100003",
+				"accountPricingDataOid":"10"
+			},
+			"coverage":3.9996
+		},
+		"costValue":0.0004
+	}
+]
