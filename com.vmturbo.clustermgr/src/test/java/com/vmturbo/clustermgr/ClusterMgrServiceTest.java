@@ -5,6 +5,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -253,6 +254,45 @@ public class ClusterMgrServiceTest {
         verify(consulServiceMock, times(1)).putValue(expectedKey, newValue);
         verify(consulServiceMock, times(1)).getValueAsString(expectedKey);
         verifyNoMoreInteractions(consulServiceMock);
+    }
+
+    /**
+     * Get local property should be routed to vmturbo/components/[component]/local/[propertyName].
+     */
+    @Test
+    public void testGetLocalProperty() {
+        String expectedValue = "1";
+        String expectedKey = "vmturbo/components/topology-processor/local/discoveryDumpsToHold.default";
+        when(consulServiceMock.getValueAsString(expectedKey)).thenReturn(Optional.ofNullable(expectedValue));
+        String actualValue = clusterMgrService.getLocalComponentProperty(
+                "topology-processor",
+                "discoveryDumpsToHold.default"
+        );
+
+        verify(consulServiceMock, times(1)).getValueAsString(expectedKey);
+
+        assertEquals(expectedValue, actualValue);
+    }
+
+    /**
+     * Put local property should be routed to vmturbo/components/[component]/local/[propertyName]
+     * and return the value from the same route.
+     */
+    @Test
+    public void testSetLocalProperty() {
+        String expectedValue = "1";
+        String expectedKey = "vmturbo/components/topology-processor/local/discoveryDumpsToHold.default";
+        when(consulServiceMock.getValueAsString(expectedKey)).thenReturn(Optional.ofNullable(expectedValue));
+        String actualValue = clusterMgrService.putComponentLocalProperty(
+                "topology-processor",
+                "discoveryDumpsToHold.default",
+                "1"
+        );
+
+        verify(consulServiceMock, times(1)).putValue(expectedKey, expectedValue);
+        verify(consulServiceMock, times(1)).getValueAsString(expectedKey);
+
+        assertEquals(expectedValue, actualValue);
     }
 
     private List<Value> getMockConsulValues(String... keyValuePairs) {
