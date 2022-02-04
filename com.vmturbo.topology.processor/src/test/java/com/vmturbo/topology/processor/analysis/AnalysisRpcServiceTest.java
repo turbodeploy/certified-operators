@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import io.grpc.stub.StreamObserver;
 
@@ -141,7 +142,7 @@ public class AnalysisRpcServiceTest {
         final TopologyPipelineRequest topologyPipelineRequest = mock(TopologyPipelineRequest.class);
         when(topologyPipelineRequest.getTopologyId()).thenReturn(retTopologyId);
         when(pipelineExecutorService.queuePlanPipeline(eq(topologyInfo), eq(Collections.emptyList()), any(),
-            any(StitchingJournalFactory.class)))
+                any(), any(StitchingJournalFactory.class)))
             .thenReturn(topologyPipelineRequest);
 
         // act
@@ -156,7 +157,7 @@ public class AnalysisRpcServiceTest {
                 .build(), responseObserver);
 
         verify(pipelineExecutorService).queuePlanPipeline(eq(topologyInfo), eq(Collections.emptyList()),
-            any(), any(StitchingJournalFactory.class));
+                any(), any(), any(StitchingJournalFactory.class));
 
         verify(responseObserver).onNext(StartAnalysisResponse.newBuilder()
             .setTopologyId(retTopologyId)
@@ -169,7 +170,7 @@ public class AnalysisRpcServiceTest {
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         final TopologyPipelineRequest topologyPipelineRequest = mock(TopologyPipelineRequest.class);
         when(pipelineExecutorService.queuePlanPipeline(any(), any(), any(),
-            any(StitchingJournalFactory.class))).thenReturn(topologyPipelineRequest);
+                any(), any(StitchingJournalFactory.class))).thenReturn(topologyPipelineRequest);
         // include wasted files (there are wasted files related targets)
         when(topologyHandler.includesWastedFiles()).thenReturn(true);
 
@@ -185,6 +186,7 @@ public class AnalysisRpcServiceTest {
         verify(pipelineExecutorService).queuePlanPipeline(responseCaptor.capture(),
             isA(List.class),
             isA(PlanScope.class),
+            isA(Map.class),
             isA(StitchingJournalFactory.class));
 
         // verify it includes wasted files analysis
@@ -199,7 +201,7 @@ public class AnalysisRpcServiceTest {
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         final TopologyPipelineRequest topologyPipelineRequest = mock(TopologyPipelineRequest.class);
         when(pipelineExecutorService.queuePlanPipeline(any(), any(), any(),
-            any(StitchingJournalFactory.class))).thenReturn(topologyPipelineRequest);
+                any(), any(StitchingJournalFactory.class))).thenReturn(topologyPipelineRequest);
         // include wasted files (there are wasted files related targets)
         when(topologyHandler.includesWastedFiles()).thenReturn(true);
 
@@ -215,6 +217,7 @@ public class AnalysisRpcServiceTest {
         verify(pipelineExecutorService).queuePlanPipeline(responseCaptor.capture(),
             isA(List.class),
             isA(PlanScope.class),
+            isA(Map.class),
             isA(StitchingJournalFactory.class));
 
         // verify it doesn't include wasted files analysis
