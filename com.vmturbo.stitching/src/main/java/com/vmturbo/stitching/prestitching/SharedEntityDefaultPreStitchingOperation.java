@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingScope;
@@ -31,7 +32,6 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.EntityScopeFilters;
 import com.vmturbo.stitching.utilities.MergeEntities;
-import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 
 /**
  * Default pre stitching operation for shared entities.
@@ -121,8 +121,8 @@ public class SharedEntityDefaultPreStitchingOperation implements PreStitchingOpe
         }
         resultBuilder.queueUpdateEntityAlone(destination,
                 dst -> mergeMessageBuilders(source.getEntityBuilder(), dst.getEntityBuilder()));
-        resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(source).onto(destination,
-                        MergePropertiesStrategy.KEEP_ONTO, mergeCommodities));
+        resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(source)
+                .onto(destination, MergePropertiesStrategy.MERGE_NOTHING, mergeCommodities));
     }
 
     /**

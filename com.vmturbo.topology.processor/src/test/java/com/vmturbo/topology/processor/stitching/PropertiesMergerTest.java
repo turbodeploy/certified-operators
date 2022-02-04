@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -10,7 +12,7 @@ import org.junit.Test;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
-import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 
 /**
  * Unit tests for {@link PropertiesMerger}.
@@ -21,7 +23,8 @@ public class PropertiesMergerTest {
     private static final String NEW_NAMESPACE = "newNamespace";
     private static final String PROPERTY_1 = "property1";
     private static final String PROPERTY_2 = "property2";
-    private static final String PROPERTY_3 = "property2";
+    private static final String PROPERTY_3 = "property3";
+    private static final String PROPERTY_4 = "property4";
     private static final String VALUE = "value";
     private static final String NEW_VALUE = "newValue";
 
@@ -47,46 +50,96 @@ public class PropertiesMergerTest {
                     .setNamespace(EXISTING_NAMESPACE)
                     .setName(PROPERTY_1)
                     .setValue(VALUE)
+                    .build())
+            .addEntityProperties(EntityProperty.newBuilder()
+                    .setNamespace(EXISTING_NAMESPACE)
+                    .setName(PROPERTY_4)
+                    .setValue(VALUE)
                     .build());
 
     /**
      * Test merging entity properties using
-     * {@link com.vmturbo.stitching.utilities.MergePropertiesStrategy#KEEP_ONTO} strategy.
+     * {@link com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy#MERGE_NOTHING}
+     * strategy.
      */
     @Test
-    public void testMergeKeepOnto() {
+    public void testMergeNothing() {
         final PropertiesMerger propertiesMerger = new PropertiesMerger(
-                MergePropertiesStrategy.KEEP_ONTO);
-        final Set<String> ontoPropertySet = propertiesMerger.ontoPropertySet(onto);
-        propertiesMerger.merge(from, onto, ontoPropertySet);
+                MergePropertiesStrategy.MERGE_NOTHING);
+        final Map<String, Integer> ontoPropertyMap = propertiesMerger.ontoPropertyMap(onto);
+        propertiesMerger.merge(from, onto, ontoPropertyMap);
 
-        // Resulting entity should preserve properties from "onto" DTO
-        Assert.assertEquals(1, onto.getEntityPropertiesCount());
-        final EntityProperty property = onto.getEntityProperties(0);
-        Assert.assertEquals(EXISTING_NAMESPACE, property.getNamespace());
-        Assert.assertEquals(PROPERTY_1, property.getName());
+        // Resulting entity should contain properties from both "onto" and "from" DTOs
+        final Set<String> resultingProperties = onto.getEntityPropertiesList()
+                .stream()
+                .map(property -> property.getNamespace() + property.getName())
+                .collect(Collectors.toSet());
+        final Set<String> expectedProperties = ImmutableSet.of(EXISTING_NAMESPACE + PROPERTY_1,
+                EXISTING_NAMESPACE + PROPERTY_4);
+        Assert.assertEquals(expectedProperties, resultingProperties);
     }
 
     /**
      * Test merging entity properties using
-     * {@link com.vmturbo.stitching.utilities.MergePropertiesStrategy#JOIN} strategy.
+     * {@link com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy#MERGE_IF_NOT_PRESENT}
+     * strategy.
      */
     @Test
-    public void testMergeJoin() {
+    public void testMergeIfNotPresent() {
         final PropertiesMerger propertiesMerger = new PropertiesMerger(
-                MergePropertiesStrategy.JOIN);
-        final Set<String> ontoPropertySet = propertiesMerger.ontoPropertySet(onto);
-        propertiesMerger.merge(from, onto, ontoPropertySet);
+                MergePropertiesStrategy.MERGE_IF_NOT_PRESENT);
+        final Map<String, Integer> ontoPropertyMap = propertiesMerger.ontoPropertyMap(onto);
+        propertiesMerger.merge(from, onto, ontoPropertyMap);
 
         // Resulting entity should contain properties from both "onto" and "from" DTOs
-        final Set<String> resultingProperties = onto.getEntityPropertiesList().stream()
+        final Set<String> resultingProperties = onto.getEntityPropertiesList()
+                .stream()
                 .map(property -> property.getNamespace() + property.getName())
                 .collect(Collectors.toSet());
-        final Set<String> expectedProperties = ImmutableSet.of(
-                EXISTING_NAMESPACE + PROPERTY_1,
-                EXISTING_NAMESPACE + PROPERTY_2,
-                NEW_NAMESPACE + PROPERTY_3
-        );
+        final Set<String> expectedProperties = ImmutableSet.of(EXISTING_NAMESPACE + PROPERTY_1,
+                EXISTING_NAMESPACE + PROPERTY_2, NEW_NAMESPACE + PROPERTY_3,
+                EXISTING_NAMESPACE + PROPERTY_4);
         Assert.assertEquals(expectedProperties, resultingProperties);
+
+        // Verify that the property value was NOT overridden
+        Optional<EntityProperty> property = onto.getEntityPropertiesList()
+                .stream()
+                .filter(p -> PROPERTY_1.equals(p.getName()))
+                .findFirst();
+        Assert.assertTrue(property.isPresent());
+        Assert.assertTrue(VALUE.equals(property.get()
+                .getValue()));
+    }
+
+    /**
+     * Test merging entity properties using
+     * {@link com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy#MERGE_AND_OVERWRITE}
+     * strategy.
+     */
+    @Test
+    public void testMergeAndOverwrite() {
+        final PropertiesMerger propertiesMerger = new PropertiesMerger(
+                MergePropertiesStrategy.MERGE_AND_OVERWRITE);
+        final Map<String, Integer> ontoPropertyMap = propertiesMerger.ontoPropertyMap(onto);
+        propertiesMerger.merge(from, onto, ontoPropertyMap);
+
+        // Resulting entity should contain properties from both "onto" and "from" DTOs
+        final Set<String> resultingProperties = onto.getEntityPropertiesList()
+                .stream()
+                .map(property -> property.getNamespace() + property.getName())
+                .collect(Collectors.toSet());
+        final Set<String> expectedProperties = ImmutableSet.of(EXISTING_NAMESPACE + PROPERTY_1,
+                EXISTING_NAMESPACE + PROPERTY_2, NEW_NAMESPACE + PROPERTY_3,
+                EXISTING_NAMESPACE + PROPERTY_4);
+        Assert.assertEquals(expectedProperties, resultingProperties);
+
+        // Verify that the property value was overridden
+        Optional<EntityProperty> property = onto.getEntityPropertiesList()
+                .stream()
+                .filter(p -> PROPERTY_1.equals(p.getName()))
+                .findFirst();
+        Assert.assertTrue(property.isPresent());
+        Assert.assertTrue(NEW_VALUE.equals(property.get()
+                .getValue()));
     }
 }

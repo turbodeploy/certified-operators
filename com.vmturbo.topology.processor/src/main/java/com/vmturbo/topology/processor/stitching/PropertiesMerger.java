@@ -1,15 +1,17 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
-import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 
 /**
  * Entity property merger. This class merges entity properties from source entity DTO to
@@ -32,40 +34,53 @@ public class PropertiesMerger {
      *
      * @param from Source entity DTO builder.
      * @param onto Destination entity DTO builder.
-     * @param ontoPropertySet The set of properties associated with the onto properties. Passed in as a parameter
-     *                        and updated so that we do not have to recreate potentially large sets from the
-     *                        onto entity's properties when performing repeated merges onto the same entity.
+     * @param ontoPropertyMap A map of property-to-index of the properties of the onto
+     *         entity. Passed in as a parameter and updated so that we do not have to create
+     *         potentially large maps from the onto entity's properties when performing repeated
+     *         merges onto the same entity.
      */
     public void merge(
             @Nonnull final EntityDTO.Builder from,
             @Nonnull final EntityDTO.Builder onto,
-            @Nonnull final Set<String> ontoPropertySet) {
-        if (strategy == MergePropertiesStrategy.JOIN) {
-            from.getEntityPropertiesList()
-                    // If property with this name already exists in the destination DTO then skip
-                    .forEach(property -> {
-                        final String propertyKey = createKey(property);
-                        if (!ontoPropertySet.contains(propertyKey)) {
-                            ontoPropertySet.add(propertyKey);
-                            onto.addEntityProperties(property);
-                        }
-                    });
+            @Nonnull final Map<String, Integer> ontoPropertyMap) {
+        switch (strategy) {
+            case MERGE_IF_NOT_PRESENT:
+                from.getEntityPropertiesList().forEach(property -> {
+                    final String propertyKey = createKey(property);
+                    if (!ontoPropertyMap.containsKey(propertyKey)) {
+                        ontoPropertyMap.put(propertyKey, onto.getEntityPropertiesList().size());
+                        onto.addEntityProperties(property);
+                    }
+                });
+                break;
+            case MERGE_AND_OVERWRITE:
+                from.getEntityPropertiesList().forEach(property -> {
+                    final String propertyKey = createKey(property);
+                    if (ontoPropertyMap.containsKey(propertyKey)) {
+                        onto.setEntityProperties(ontoPropertyMap.get(propertyKey), property);
+                    } else {
+                        ontoPropertyMap.put(propertyKey, onto.getEntityPropertiesList().size());
+                        onto.addEntityProperties(property);
+                    }
+                });
+                break;
+            default:
+                // no-op
+
         }
     }
 
     /**
-     * Construct the set of properties for the {@code onto} entity builder.
+     * Construct a map of property-to-index for the {@code onto} entity builder.
      *
      * @param onto The builder for the {@code onto} stitching entity.
-     * @return The set of unique properties from the entity.
+     * @return The map of unique properties to indexes from the entity.
      */
-    public Set<String> ontoPropertySet(@Nonnull final EntityDTO.Builder onto) {
-        return strategy == MergePropertiesStrategy.KEEP_ONTO
-                ? Collections.emptySet()
-                : onto.getEntityPropertiesList()
-                        .stream()
-                        .map(PropertiesMerger::createKey)
-                        .collect(Collectors.toSet());
+    public Map<String, Integer> ontoPropertyMap(@Nonnull final EntityDTO.Builder onto) {
+        return strategy == MergePropertiesStrategy.MERGE_NOTHING ? Collections.emptyMap()
+                : IntStream.range(0, onto.getEntityPropertiesList().size()).boxed().collect(
+                        Collectors.toMap(i -> createKey(onto.getEntityPropertiesList().get(i)),
+                                Function.identity()));
     }
 
     private static String createKey(@Nonnull final EntityProperty property) {

@@ -16,12 +16,12 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
@@ -203,14 +203,13 @@ public class StitchingOperationStore {
 
     @Nullable
     private static StitchingOperation<?, ?> createStitchingOperation(
-                    @Nonnull final TemplateDTO templateDTO,
-                    @Nonnull final Set<ProbeCategory> probeScope,
-                    @Nonnull ProbeCategory probeCategory) {
+            @Nonnull final TemplateDTO templateDTO,
+            @Nonnull final Set<ProbeCategory> probeScope,
+            @Nonnull ProbeCategory probeCategory) {
         final MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
         return new StringsToStringsDataDrivenStitchingOperation(
-                        new StringsToStringsStitchingMatchingMetaData(
-                                        templateDTO.getTemplateClass(), memd), probeScope,
-                probeCategory);
+                new StringsToStringsStitchingMatchingMetaData(templateDTO.getTemplateClass(), memd),
+                probeScope, probeCategory, memd.getMergePropertiesStrategy());
     }
 
     @VisibleForTesting

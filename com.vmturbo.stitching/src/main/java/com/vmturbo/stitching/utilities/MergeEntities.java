@@ -16,6 +16,7 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
@@ -58,13 +59,13 @@ public class MergeEntities {
         }
 
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity) {
-            return onto(mergeOntoEntity, MergePropertiesStrategy.KEEP_ONTO, true);
+            return onto(mergeOntoEntity, MergePropertiesStrategy.MERGE_NOTHING, true);
         }
 
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
                                          @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy) {
             return onto(mergeOntoEntity, mergeCommoditySoldStrategy,
-                    MergePropertiesStrategy.KEEP_ONTO, true);
+                    MergePropertiesStrategy.MERGE_NOTHING, true);
         }
 
         /**

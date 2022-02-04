@@ -5,12 +5,12 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.MergeEntities;
-import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 
 /**
  * Merge entities of a particular type with the same OID that are discovered by a given probe type.
@@ -33,15 +33,17 @@ public class SharedCloudEntityPreStitchingOperation extends
             boolean mergeProperties) {
         super(scopeGetter);
         this.mergePropertiesStrategy = mergeProperties
-                ? MergePropertiesStrategy.JOIN : MergePropertiesStrategy.KEEP_ONTO;
+                ? MergePropertiesStrategy.MERGE_IF_NOT_PRESENT : MergePropertiesStrategy.MERGE_NOTHING;
     }
 
     @Override
-    protected void mergeSharedEntities(@Nonnull List<StitchingEntity> sources,
+    protected void mergeSharedEntities(
+            @Nonnull List<StitchingEntity> sources,
             @Nonnull StitchingEntity destination,
             @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        resultBuilder.queueEntityMerger(MergeEntities.mergeEntities(sources).onto(destination,
-                // do not merge commodities for shared cloud entities since they are all the same
-                mergePropertiesStrategy, false));
+        resultBuilder.queueEntityMerger(MergeEntities.mergeEntities(sources)
+                .onto(destination,
+                        // do not merge commodities for shared cloud entities since they are all the same
+                        mergePropertiesStrategy, false));
     }
 }

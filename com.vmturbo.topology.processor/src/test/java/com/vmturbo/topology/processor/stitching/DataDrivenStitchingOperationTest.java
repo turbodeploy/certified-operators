@@ -25,6 +25,7 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScope;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScopeType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -60,7 +61,7 @@ public class DataDrivenStitchingOperationTest {
     private AbstractExternalSignatureCachingStitchingOperation createStitchingOperation(boolean useParentScope,
             @Nonnull Set<ProbeCategory> scope, @Nonnull ProbeCategory category) {
         return new DataDrivenStitchingOperation(new TestStitchingMatchingMetadata(useParentScope),
-                scope, category);
+                scope, category, MergePropertiesStrategy.MERGE_NOTHING);
     }
 
     /**

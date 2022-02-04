@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.mockito.Matchers.anySet;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,13 +47,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDetail;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
-import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.AddEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveEntityChange;
@@ -115,7 +115,7 @@ public class TopologyStitchingChangesTest {
     private final StitchingContext stitchingContext = mock(StitchingContext.class);
 
     private final PropertiesMerger defaultPropertiesMerger = new PropertiesMerger(
-            MergePropertiesStrategy.KEEP_ONTO);
+        MergePropertiesStrategy.MERGE_NOTHING);
 
     private final EntityDetailsMerger entityDetailsMerger = new EntityDetailsMerger();
 
@@ -285,7 +285,7 @@ public class TopologyStitchingChangesTest {
 
         new MergeEntitiesChange(stitchingContext, entity3, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO),
-            new PropertiesMerger(MergePropertiesStrategy.KEEP_ONTO),
+            new PropertiesMerger(MergePropertiesStrategy.MERGE_NOTHING),
             Collections.emptyList(), new EntityDetailsMerger()).applyChange(new StitchingJournal<>());
 
         verify(stitchingContext).removeEntity(entity3);
@@ -565,7 +565,7 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity2)).thenReturn(true);
         final CommoditySoldMerger commoditySoldMerger = mock(CommoditySoldMerger.class);
         final PropertiesMerger propertiesMerger = spy(new PropertiesMerger(
-                MergePropertiesStrategy.KEEP_ONTO));
+                MergePropertiesStrategy.MERGE_NOTHING));
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity1,
                 entity2, commoditySoldMerger, propertiesMerger, Collections.emptyList(),
                 entityDetailsMerger);
@@ -573,7 +573,7 @@ public class TopologyStitchingChangesTest {
 
         // Make sure that property merger was invoked
         Mockito.verify(propertiesMerger, Mockito.times(1))
-                .merge(eq(entity1.getEntityBuilder()), eq(entity2.getEntityBuilder()), anySet());
+                .merge(eq(entity1.getEntityBuilder()), eq(entity2.getEntityBuilder()), anyMap());
     }
 
     /**
