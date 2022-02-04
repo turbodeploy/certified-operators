@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
@@ -21,7 +22,6 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.MergeEntities;
-import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 
 /**
  * A stitching operation appropriate for use by Container targets.
@@ -124,7 +124,7 @@ public class IaasVMStitchingOperation extends
                     CopyCommodities.copyCommodities().from(containerVM).to(toUpdate);
                 });
         }
-        resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(containerVM).onto(hypervisorVM,
-                        MergePropertiesStrategy.KEEP_ONTO, mergeCommodities));
+        resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(containerVM)
+                .onto(hypervisorVM, MergePropertiesStrategy.MERGE_NOTHING, mergeCommodities));
     }
 }

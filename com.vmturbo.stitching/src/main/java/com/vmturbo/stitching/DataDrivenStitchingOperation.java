@@ -1,7 +1,6 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +26,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScopeType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
@@ -36,7 +36,6 @@ import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.MergeEntities;
-import com.vmturbo.stitching.utilities.MergePropertiesStrategy;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
 
 /**
@@ -70,6 +69,9 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     // Probe category of the probe that is associated with this stitching operation
     private final ProbeCategory probeCategory;
 
+    // Merge properties strategy for the stitching operation
+    private final MergePropertiesStrategy mergePropertiesStrategy;
+
     // A map of provider entity type to the entity type of the provider it is
     // replacing.  For example, in the case of a logical pool provider for a proxy Storage, it
     // replaces a provider of entity type disk array.
@@ -88,10 +90,12 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     public DataDrivenStitchingOperation(
                     @Nonnull StitchingMatchingMetaData<InternalSignatureT, ExternalSignatureT> matchingInfo,
                     @Nonnull final Set<ProbeCategory> categoriesToStitchWith,
-                    @Nonnull final ProbeCategory category) {
+                    @Nonnull final ProbeCategory category,
+                    @Nonnull final MergePropertiesStrategy mergePropertiesStrategy) {
         this.matchingInformation = Objects.requireNonNull(matchingInfo);
         this.categoriesToStitchWith = Objects.requireNonNull(categoriesToStitchWith);
         this.probeCategory = category;
+        this.mergePropertiesStrategy = mergePropertiesStrategy;
         initReplacementEntityMap();
     }
 
@@ -325,7 +329,7 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
         MergeEntities.MergeEntitiesDetails mergeEntitiesDetails =
                         MergeEntities.mergeEntity(internalEntity).onto(externalEntity,
                                         getMergeCommoditySoldStrategy(),
-                                        MergePropertiesStrategy.KEEP_ONTO,
+                                        this.mergePropertiesStrategy,
                                         MergeEntities.isMergeAllowedByStaleness(internalEntity, externalEntity));
         matchingInformation.getPropertiesToPatch().forEach(prop -> {
             mergeEntitiesDetails.addFieldMerger(EntityFieldMergers.getPropertyFieldMerger(prop));

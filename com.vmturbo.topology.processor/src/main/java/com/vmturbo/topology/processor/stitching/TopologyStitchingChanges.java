@@ -212,7 +212,7 @@ public class TopologyStitchingChanges {
                     .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().stream()
                         .map(StitchingEntity::getOid)
                         .collect(Collectors.toSet())));
-            final Set<String> ontoPropertySet = propertiesMerger.ontoPropertySet(onto.getEntityBuilder());
+            final Map<String, Integer> ontoPropertyMap = propertiesMerger.ontoPropertyMap(onto.getEntityBuilder());
 
             mergeFromEntities.forEach(mergeFromEntity -> {
                 Preconditions.checkArgument(mergeFromEntity instanceof TopologyStitchingEntity);
@@ -228,7 +228,7 @@ public class TopologyStitchingChanges {
                 }
                 final TopologyStitchingEntity from = (TopologyStitchingEntity)mergeFromEntity;
                 mergeEntity(from, onto, ontoEntityConnectedToIdsByType,
-                    ontoEntityConnectedFromIdsByType, ontoPropertySet, changeset);
+                    ontoEntityConnectedFromIdsByType, ontoPropertyMap, changeset);
             });
         }
 
@@ -238,14 +238,14 @@ public class TopologyStitchingChanges {
          * @param onto the entity to merge onto
          * @param ontoEntityConnectedTo connected to relationship data
          * @param ontoEntityConnectedFrom connected from relationship data
-         * @param ontoPropertySet The set of properties for the onto entity.
+         * @param ontoPropertyMap A map of property-to-index of the properties of the onto entity.
          * @param changeset The changeset to record the semantic differences before and after merge
          */
         private void mergeEntity(@Nonnull final TopologyStitchingEntity from,
                                  @Nonnull final TopologyStitchingEntity onto,
                                  @Nonnull final Map<ConnectionType, Set<Long>> ontoEntityConnectedTo,
                                  @Nonnull final Map<ConnectionType, Set<Long>> ontoEntityConnectedFrom,
-                                 @Nonnull final Set<String> ontoPropertySet,
+                                 @Nonnull final Map<String, Integer> ontoPropertyMap,
                                  @Nonnull final IJournalChangeset<StitchingEntity> changeset) {
             changeset.beforeChange(from);
             changeset.beforeChange(onto);
@@ -301,7 +301,7 @@ public class TopologyStitchingChanges {
             from.clearConnectedFrom(); // Clear connections to avoid re-iterating when we remove the from entity
 
             // Merge entity properties
-            propertiesMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder(), ontoPropertySet);
+            propertiesMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder(), ontoPropertyMap);
 
             // Merge entity details
             if (stitchingContext.getEntityDetailsEnabled()) {
