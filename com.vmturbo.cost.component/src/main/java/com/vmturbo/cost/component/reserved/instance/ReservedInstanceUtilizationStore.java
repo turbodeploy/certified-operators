@@ -170,10 +170,23 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
                     "Used coupons {} exceeds total coupons {} while creating Reserved Instance utilization record for RI {}.",
                     usedCoupons, riTotalCoupons, riId);
         }
+        String hourKey = ReservedInstanceUtil.createHourKey(curTime, riId,
+                riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
+                riBoughtInfo.getBusinessAccountId());
+
+        String dayKey = ReservedInstanceUtil.createDayKey(curTime, riId,
+                riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
+                riBoughtInfo.getBusinessAccountId());
+
+        String monthKey = ReservedInstanceUtil.createMonthKey(curTime, riId,
+                riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
+                riBoughtInfo.getBusinessAccountId());
+
         return context.newRecord(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST,
-                new ReservedInstanceUtilizationLatestRecord(curTime, riId, riSpecIdToRegionMap.get(riSpecId),
-                        riBoughtInfo.getAvailabilityZoneId(), riBoughtInfo.getBusinessAccountId(),
-                        riTotalCoupons, usedCoupons, null,null,null));
+                new ReservedInstanceUtilizationLatestRecord(curTime, riId,
+                        riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
+                        riBoughtInfo.getBusinessAccountId(), riTotalCoupons, usedCoupons, hourKey,
+                        dayKey, monthKey));
     }
 
     @Override
