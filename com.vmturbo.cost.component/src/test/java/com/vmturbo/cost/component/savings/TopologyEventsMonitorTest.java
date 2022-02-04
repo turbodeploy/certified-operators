@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.TopologyEventsMonitor.ChangeResult;
 import com.vmturbo.cost.component.savings.TopologyEventsMonitor.Config;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;

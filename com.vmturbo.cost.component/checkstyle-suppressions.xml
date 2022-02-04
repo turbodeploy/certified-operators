@@ -118,6 +118,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]AccountExpensesFilter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]BusinessAccountHelper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]CostFilter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]savings[/\\]SerializableSavingsEvent.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]resources[/\\]db[/\\]migration[/\\]V1_8__create_entity_cost_aggregation.sql"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]cca[/\\]SQLComputeTierAllocationStoreTest.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]dicount[/\\]SQLDiscountStoreTest.java"/>

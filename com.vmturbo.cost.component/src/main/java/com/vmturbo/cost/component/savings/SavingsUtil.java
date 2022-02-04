@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.ZoneId;
 
 import javax.annotation.Nonnull;
 
@@ -41,6 +42,17 @@ public class SavingsUtil {
     @Nonnull
     public static LocalDateTime getLocalDateTime(long timeMillis, final Clock clock) {
         return Instant.ofEpochMilli(timeMillis).atZone(clock.getZone()).toLocalDateTime();
+    }
+
+    /**
+     * Epoch millis to display timestamp.
+     *
+     * @param timeMillis Time since epoch in millis.
+     * @return LocalDateTime for display.
+     */
+    @Nonnull
+    public static LocalDateTime getLocalDateTime(long timeMillis) {
+        return Instant.ofEpochMilli(timeMillis).atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 
     /**

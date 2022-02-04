@@ -27,10 +27,7 @@ public interface TopologyEvent {
      *
      * @return the entity OID.  This can be absent in events where the OID is not necessary.
      */
-    @Value.Default
-    default Long getEntityOid() {
-        return 0L;
-    }
+    Long getEntityOid();
 
     /**
      * Topology event type.
@@ -38,6 +35,13 @@ public interface TopologyEvent {
      * @return the topology event type.
      */
     Integer getEventType();
+
+    /**
+     * Type of target entity for this action. E.g 60 for Volumes.
+     *
+     * @return Entity type.
+     */
+    Integer getEntityType();
 
     /**
      * Get provider OID, if changed.
@@ -59,6 +63,16 @@ public interface TopologyEvent {
      * @return true if present and the entity was removed.
      */
     Optional<Boolean> getEntityRemoved();
+
+    /**
+     * Checks if the event is valid.
+     *
+     * @return Confirms some required fields are present.
+     */
+    @Value.Derived
+    default boolean isValid() {
+        return getEntityOid() != 0L && getEventType() != 0;
+    }
 
     /**
      * Get power state.

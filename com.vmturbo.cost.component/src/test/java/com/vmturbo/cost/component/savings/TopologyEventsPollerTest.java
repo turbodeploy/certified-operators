@@ -44,9 +44,9 @@ import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.Topolo
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.cca.CCATopologyEventProvider;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.event.library.TopologyEventProvider.TopologyEventFilter;
 import com.vmturbo.topology.event.library.TopologyEvents;
@@ -210,6 +210,7 @@ public class TopologyEventsPollerTest {
         com.vmturbo.cost.component.savings.TopologyEvent.Builder temEvent =
                 new com.vmturbo.cost.component.savings.TopologyEvent.Builder()
                         .timestamp(eventTimestamp)
+                        .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .entityOid(entityId);
         if (TopologyEventType.STATE_CHANGE.equals(topologyEvent.getType())) {
             EntityState newState = eventInfo.getStateChange().getDestinationState();
