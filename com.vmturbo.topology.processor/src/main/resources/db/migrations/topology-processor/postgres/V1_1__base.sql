@@ -114,7 +114,7 @@ CREATE TABLE historical_utilization (
 
 -- support for stale oids
 CREATE TABLE recurrent_operations (
-  execution_time TIMESTAMP NOT NULL,
+  execution_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   operation_name VARCHAR(255),
   expiration_successful BOOLEAN NOT NULL DEFAULT FALSE,
   last_seen_update_successful BOOLEAN NOT NULL DEFAULT FALSE,

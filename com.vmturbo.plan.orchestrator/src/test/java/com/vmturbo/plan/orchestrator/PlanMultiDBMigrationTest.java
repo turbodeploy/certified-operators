@@ -9,7 +9,7 @@ import com.vmturbo.sql.utils.MultiDBMigrationTest;
  */
 public class PlanMultiDBMigrationTest extends MultiDBMigrationTest {
 
-    private static final int INITIAL_OFFSET = 24;
+    private static final int INITIAL_OFFSET = 25;
     private static final String DEFAULT_PATH = "src/main/resources/db/migration";
     private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/plan-orchestrator/mariadb";
     private static final String POSTGRES_PATH = "src/main/resources/db/migrations/plan-orchestrator/postgres";
