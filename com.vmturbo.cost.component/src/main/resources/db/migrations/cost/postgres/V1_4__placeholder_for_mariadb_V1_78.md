@@ -1,0 +1,5 @@
+# Placeholder for V1_78__fix_timestamp_columns_default_values.sql
+
+If a column is created with data type `timestamp NOT NULL`, with no default value and it is the first timestamp column of the table, MariaDB will automatically assign the `DEFAULT CURRENT_TIMESTAMP` and `ON UPDATE CURRENT_TIMESTAMP` attributes for this column ([reference](https://mariadb.com/kb/en/timestamp/#automatic-values)). The "on update" attribute can cause issues if the timestamp is updated unintentionally when the record is updated. Also, the "on update" behavior can not be easily replicated to Postgres, which leads to the two databases having different behavior. The `ON UPDATE CURRENT_TIMESTAMP` attribute can be removed by specifying a `DEFAULT` value, in this case `CURRENT_TIMESTAMP`.
+
+This migration is needed only for MariaDB, so this placeholder migration is added in Postgres to keep the migrations between the databases up to date.
