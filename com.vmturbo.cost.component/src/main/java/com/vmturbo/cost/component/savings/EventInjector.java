@@ -33,9 +33,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -49,11 +52,8 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent.Builder;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Support for injecting events into the event queue.  When enabled, this will run every 10 seconds
@@ -349,7 +349,7 @@ public class EventInjector implements Runnable {
              EntityEventsJournal entityEventsJournal, AtomicBoolean purgePreviousTestState) {
         logger.debug("Adding event: " + event);
         Long uuid = oidMap.getOrDefault(event.uuid, 0L);
-        Builder result = new SavingsEvent.Builder()
+        SavingsEvent.Builder result = new SavingsEvent.Builder()
                 .entityId(uuid)
                 .timestamp(event.timestamp)
                 .expirationTime(event.expirationTimestamp);
@@ -362,7 +362,11 @@ public class EventInjector implements Runnable {
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(uuid)
-                    .eventType(ActionEventType.RECOMMENDATION_ADDED)
+                    .eventType(ActionEvent.ActionEventType.RECOMMENDATION_ADDED)
+                    .description(StringUtils.EMPTY)
+                    .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                    .actionType(ActionType.SCALE_VALUE)
+                    .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("RECOMMENDATION_REMOVED".equals(event.eventType)) {
@@ -373,7 +377,11 @@ public class EventInjector implements Runnable {
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(uuid)
-                    .eventType(ActionEventType.RECOMMENDATION_REMOVED)
+                    .eventType(ActionEvent.ActionEventType.RECOMMENDATION_REMOVED)
+                    .description(StringUtils.EMPTY)
+                    .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                    .actionType(ActionType.SCALE_VALUE)
+                    .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(dummyPriceChange);
          } else if ("POWER_STATE".equals(event.eventType)) {
@@ -389,7 +397,11 @@ public class EventInjector implements Runnable {
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(uuid)
-                    .eventType(ActionEventType.SCALE_EXECUTION_SUCCESS)
+                    .eventType(ActionEvent.ActionEventType.SCALE_EXECUTION_SUCCESS)
+                    .description(StringUtils.EMPTY)
+                    .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                    .actionType(ActionType.SCALE_VALUE)
+                    .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("DELETE_EXECUTED".equals(event.eventType)) {
@@ -401,7 +413,11 @@ public class EventInjector implements Runnable {
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(uuid)
-                    .eventType(ActionEventType.DELETE_EXECUTION_SUCCESS)
+                    .eventType(ActionEvent.ActionEventType.DELETE_EXECUTION_SUCCESS)
+                    .description(StringUtils.EMPTY)
+                    .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                    .actionType(ActionType.SCALE_VALUE)
+                    .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("ENTITY_REMOVED".equals(event.eventType)) {

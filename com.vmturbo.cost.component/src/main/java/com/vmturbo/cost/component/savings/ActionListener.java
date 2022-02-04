@@ -70,9 +70,6 @@ import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -131,9 +128,9 @@ public class ActionListener implements ActionsListener {
     /**
      * Executable Action Types supported.
      */
-    private final Set<ActionEventType> supportedExecutableActionEventTypes = ImmutableSet
-                    .of(ActionEventType.DELETE_EXECUTION_SUCCESS,
-                        ActionEventType.SCALE_EXECUTION_SUCCESS);
+    private final Set<ActionEvent.ActionEventType> supportedExecutableActionEventTypes = ImmutableSet
+                    .of(ActionEvent.ActionEventType.DELETE_EXECUTION_SUCCESS,
+                        ActionEvent.ActionEventType.SCALE_EXECUTION_SUCCESS);
     /**
      * The current entity costs store.
      */
@@ -303,7 +300,7 @@ public class ActionListener implements ActionsListener {
             // The Savings Calculator preserves the recommendation prices, hence executions events don't
             // need to have a EntityPriceChange with before and after costs populated.
             long expirationTime = completionTime
-                    + (ActionEventType.DELETE_EXECUTION_SUCCESS
+                    + (ActionEvent.ActionEventType.DELETE_EXECUTION_SUCCESS
                     .equals(entityActionInfo.getActionEventType())
                     ? retentionConfig.getVolumeDeleteRetentionMs()
                     : retentionConfig.getActionRetentionMs());
@@ -493,7 +490,7 @@ public class ActionListener implements ActionsListener {
                     && (ActionState.READY.equals(actionState) || !recommendationExistsForActionId)) {
                 SavingsEvent pendingActionEvent = createActionEvent(entityId,
                         eventTime,
-                        ActionEventType.RECOMMENDATION_ADDED,
+                        ActionEvent.ActionEventType.RECOMMENDATION_ADDED,
                         newActionId,
                         actionPriceChange,
                         newActionInfo, Optional.empty());
@@ -540,7 +537,7 @@ public class ActionListener implements ActionsListener {
                     SavingsEvent staleActionEvent =
                                                   createActionEvent(entityId,
                                                             currentTime,
-                                                            ActionEventType.RECOMMENDATION_REMOVED,
+                                                            ActionEvent.ActionEventType.RECOMMENDATION_REMOVED,
                                                             staleActionId,
                                                             null,
                                                             staleActionInfo, Optional.empty());
@@ -635,7 +632,7 @@ public class ActionListener implements ActionsListener {
      * @return The SavingsEvent.
      */
     private static SavingsEvent
-            createActionEvent(Long entityId, Long timestamp, ActionEventType actionType,
+            createActionEvent(Long entityId, Long timestamp, ActionEvent.ActionEventType actionType,
                               long actionId, final EntityPriceChange priceChange,
                               final EntityActionInfo actionInfo, final Optional<Long> expiration) {
         final ActionEvent.Builder actionEventBuilder = new ActionEvent.Builder()
@@ -879,7 +876,7 @@ public class ActionListener implements ActionsListener {
                     SavingsEvent staleActionEvent =
                             createActionEvent(s.getEntityId(),
                                     eventTime,
-                                    ActionEventType.RECOMMENDATION_REMOVED,
+                                    ActionEvent.ActionEventType.RECOMMENDATION_REMOVED,
                                     dummyActionId,
                                     null,
                                     actionInfo, Optional.empty());
@@ -943,7 +940,7 @@ public class ActionListener implements ActionsListener {
         /**
          * The action type.
          */
-        private ActionEventType actionEventType;
+        private ActionEvent.ActionEventType actionEventType;
 
         /**
          * Action description text.
@@ -1017,7 +1014,7 @@ public class ActionListener implements ActionsListener {
             }
             ActionInfo actionInfo = action.getInfo();
             if (actionInfo.hasScale()) {
-                this.actionEventType = ActionEventType.SCALE_EXECUTION_SUCCESS;
+                this.actionEventType = ActionEvent.ActionEventType.SCALE_EXECUTION_SUCCESS;
                 final Scale scale = actionInfo.getScale();
                 if (scale.getChangesCount() > 0) {
                     final ChangeProvider changeProvider = scale.getChanges(0);
@@ -1033,7 +1030,7 @@ public class ActionListener implements ActionsListener {
                     this.destinationOid = scale.getPrimaryProvider().getId();
                 }
             } else if (actionInfo.hasDelete()) {
-                this.actionEventType = ActionEventType.DELETE_EXECUTION_SUCCESS;
+                this.actionEventType = ActionEvent.ActionEventType.DELETE_EXECUTION_SUCCESS;
                 final Delete delete = actionInfo.getDelete();
                 if (delete.hasSource()) {
                     // A delete is modeled as a resize to zero, so ensure that the destination
@@ -1130,7 +1127,7 @@ public class ActionListener implements ActionsListener {
          *
          * @return the action type.
          */
-        protected ActionEventType getActionEventType() {
+        protected ActionEvent.ActionEventType getActionEventType() {
             return actionEventType;
         }
 

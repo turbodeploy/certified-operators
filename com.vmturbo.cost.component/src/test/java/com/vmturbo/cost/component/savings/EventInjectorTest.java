@@ -19,7 +19,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
+import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
 
 /**

@@ -91,9 +91,6 @@ import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -221,7 +218,9 @@ public class ActionListenerTest {
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         actionsService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         settingsService = SettingServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        EntitySavingsRetentionConfig config = new EntitySavingsRetentionConfig(settingsService, 1L);
+        long eventsRetentionHours = 168;
+        EntitySavingsRetentionConfig config = new EntitySavingsRetentionConfig(settingsService, 1L,
+                eventsRetentionHours);
         // Initialize ActionListener with a one hour action lifetime.
         actionListener = new ActionListener(store, actionsService,
                                             entityCostStore, projectedEntityCostStore,
@@ -343,7 +342,7 @@ public class ActionListenerTest {
         store.addEvent(savingsEvent2);
         store.removeAllEvents().stream().forEach(se -> {
             assertEquals(se.getActionEvent().get().getEventType(),
-                         ActionEventType.SCALE_EXECUTION_SUCCESS);
+                         ActionEvent.ActionEventType.SCALE_EXECUTION_SUCCESS);
         });
 
         // Verify that only actions for entities in TopologyDTOUtil.WORKLOAD_TYPES and
@@ -551,7 +550,7 @@ public class ActionListenerTest {
         List<SavingsEvent> savingsEvents = store.removeAllEvents();
         savingsEvents.forEach(se ->
                 assertEquals(se.getActionEvent().get().getEventType(),
-                        ActionEventType.RECOMMENDATION_ADDED));
+                        ActionEvent.ActionEventType.RECOMMENDATION_ADDED));
 
         // Make fake cost response
         // First remove action no longer being generated from Market from costMap.
@@ -587,7 +586,7 @@ public class ActionListenerTest {
         savingsEvents = store.removeAllEvents();
         savingsEvents.stream().forEach(se -> {
             assertEquals(se.getActionEvent().get().getEventType(),
-                         ActionEventType.RECOMMENDATION_REMOVED);
+                         ActionEvent.ActionEventType.RECOMMENDATION_REMOVED);
         });
 
         // Test for changing costs of an existing action.
@@ -621,10 +620,10 @@ public class ActionListenerTest {
         int numRemoved = 0;
         for (SavingsEvent se : savingsEvents) {
             if (se.getActionEvent().get().getEventType()
-                            == ActionEventType.RECOMMENDATION_REMOVED) {
+                            == ActionEvent.ActionEventType.RECOMMENDATION_REMOVED) {
                 numRemoved++;
             } else if (se.getActionEvent().get().getEventType()
-                            == ActionEventType.RECOMMENDATION_ADDED) {
+                            == ActionEvent.ActionEventType.RECOMMENDATION_ADDED) {
                 numAdded++;
             }
         }
