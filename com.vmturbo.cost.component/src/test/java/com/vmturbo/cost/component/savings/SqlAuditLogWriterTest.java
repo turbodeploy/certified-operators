@@ -7,15 +7,13 @@ import static org.junit.Assert.assertTrue;
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.SqlAuditLogWriter.AuditLogEntry;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Tests for audit log writer.
@@ -40,8 +38,6 @@ public class SqlAuditLogWriterTest {
                 .topologyEvent(new TopologyEvent.Builder()
                         .eventType(eventType.getValue())
                         .timestamp(powerChangeTime)
-                        .entityOid(vmId)
-                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                         .poweredOn(true)
                         .build())
                 .build();
@@ -87,10 +83,6 @@ public class SqlAuditLogWriterTest {
                 .actionEvent(new ActionEvent.Builder()
                         .eventType(eventType)
                         .actionId(actionId)
-                        .description(StringUtils.EMPTY)
-                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
-                        .actionType(ActionType.SCALE_VALUE)
-                        .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
                         .build())
                 .build();
 

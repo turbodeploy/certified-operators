@@ -2,10 +2,10 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 
@@ -31,7 +31,6 @@ public class DataRetentionProcessor {
     /**
      * To delete audit data rows.
      */
-    @Nullable
     private final AuditLogWriter auditLogWriter;
 
     /**
@@ -56,29 +55,21 @@ public class DataRetentionProcessor {
     private final long runFrequencyHours;
 
     /**
-     * Events journal, if available (when events are persisted to DB).
-     */
-    @Nullable
-    private final EntityEventsJournal persistentEventsJournal;
-
-    /**
      * Constant for number of millis in hour.
      */
     private static final long millisInHour = TimeUnit.HOURS.toMillis(1);
 
     DataRetentionProcessor(@Nonnull final EntitySavingsStore savingsStore,
-                           @Nullable final AuditLogWriter auditLogWriter,
-                           @Nonnull final EntitySavingsRetentionConfig retentionConfig,
-                           @Nonnull final Clock clock,
-                           long runFrequencyHours,
-                           @Nullable final EntityEventsJournal savingsEventJournal) {
+            @Nonnull final AuditLogWriter auditLogWriter,
+            @Nonnull final EntitySavingsRetentionConfig retentionConfig,
+            @Nonnull final Clock clock,
+            long runFrequencyHours) {
         this.savingsStore = savingsStore;
         this.auditLogWriter = auditLogWriter;
         this.retentionConfig = retentionConfig;
         this.clock = clock;
         this.runFrequencyHours = runFrequencyHours;
         this.lastTimeRan = null;
-        this.persistentEventsJournal = savingsEventJournal;
     }
 
     /**
@@ -105,40 +96,31 @@ public class DataRetentionProcessor {
         final Stopwatch deletionWatch = Stopwatch.createStarted();
         logger.info("Starting Cloud Savings cleanup. Settings: {}. Frequency: {} hrs. Last ran: {}",
                 hourSettings, this.runFrequencyHours,
-                this.lastTimeRan == null ? "Never" : SavingsUtil.getLocalDateTime(this.lastTimeRan));
+                this.lastTimeRan == null ? "Never" : new Date(this.lastTimeRan));
         long timestamp;
         int rowsDeleted;
         // Delete audit records, but only if enabled.
-        if (auditLogWriter != null && auditLogWriter.isEnabled()) {
+        if (auditLogWriter.isEnabled()) {
             timestamp = currentTimeMillis - hourSettings.getAuditLogRetentionInHours() * millisInHour;
             rowsDeleted = auditLogWriter.deleteOlderThan(timestamp);
-            logger.info("Deleted {} audit records older than {}.", rowsDeleted,
-                    SavingsUtil.getLocalDateTime(timestamp));
-        }
-
-        // Delete event journal records if events are being persisted to DB.
-        if (persistentEventsJournal != null) {
-            timestamp = currentTimeMillis - hourSettings.getEventsRetentionInHours() * millisInHour;
-            rowsDeleted = persistentEventsJournal.purgeEventsOlderThan(timestamp);
-            logger.info("Deleted {} event records older than {}.", rowsDeleted,
-                    SavingsUtil.getLocalDateTime(timestamp));
+            logger.info("Deleted {} audit records older than {}.", rowsDeleted, new Date(timestamp));
         }
 
         // Delete stats records.
         timestamp = currentTimeMillis - hourSettings.getHourlyStatsRetentionInHours() * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanHourly(timestamp);
         logger.info("Deleted {} hourly stats records older than {}.", rowsDeleted,
-                SavingsUtil.getLocalDateTime(timestamp));
+                new Date(timestamp));
 
         timestamp = currentTimeMillis - hourSettings.getDailyStatsRetentionInHours() * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanDaily(timestamp);
         logger.info("Deleted {} daily stats records older than {}.", rowsDeleted,
-                SavingsUtil.getLocalDateTime(timestamp));
+                new Date(timestamp));
 
         timestamp = currentTimeMillis - hourSettings.getMonthlyStatsRetentionInHours() * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanMonthly(timestamp);
         logger.info("Deleted {} monthly stats records older than {}.", rowsDeleted,
-                SavingsUtil.getLocalDateTime(timestamp));
+                new Date(timestamp));
         this.lastTimeRan = currentTimeMillis;
 
         logger.info("Completed Cloud Savings cleanup in {} ms.",

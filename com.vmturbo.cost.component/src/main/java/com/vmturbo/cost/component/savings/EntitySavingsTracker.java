@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -114,14 +115,12 @@ public class EntitySavingsTracker {
 
         // There should not be any events before period start time left in the journal.
         // If for some reasons old events are left in the journal, remove them.
-        List<SavingsEvent> events = new ArrayList<>();
-        if (!entityEventsJournal.persistEvents()) {
-            events = entityEventsJournal.removeEventsBetween(0L,
-                    TimeUtil.localDateTimeToMilli(startTime, clock), uuids);
-            if (events.size() > 0) {
-                logger.warn("There are {} events in the events journal that have timestamps before period start time of {}.",
-                        events.size(), startTime);
-            }
+        List<SavingsEvent> events =
+                entityEventsJournal.removeEventsBetween(0L,
+                        TimeUtil.localDateTimeToMilli(startTime, clock), uuids);
+        if (events.size() > 0) {
+            logger.warn("There are {} events in the events journal that have timestamps before period start time of {}.",
+                    events.size(), startTime);
         }
 
         LocalDateTime periodStartTime = startTime;
@@ -132,13 +131,8 @@ public class EntitySavingsTracker {
                 final long endTimeMillis = TimeUtil.localDateTimeToMilli(periodEndTime, clock);
 
                 // Remove events from entity event journal.
-                if (entityEventsJournal.persistEvents()) {
-                    events = entityEventsJournal.getEventsBetween(startTimeMillis,
-                            endTimeMillis, uuids).collect(Collectors.toList());
-                } else {
-                    events = entityEventsJournal.removeEventsBetween(startTimeMillis,
-                            endTimeMillis, uuids);
-                }
+                events = entityEventsJournal.removeEventsBetween(startTimeMillis,
+                        endTimeMillis, uuids);
 
                 // Get all entity IDs from the events
                 Set<Long> entityIds = events.stream()
@@ -196,13 +190,11 @@ public class EntitySavingsTracker {
                 periodEndTime = periodEndTime.plusHours(1);
             }
         } catch (Exception e) {
-            if (!entityEventsJournal.persistEvents()) {
-                // Add events back to the events journal.
-                final Stopwatch eventsBackWatch = Stopwatch.createStarted();
-                entityEventsJournal.addEvents(events);
-                logger.info("Addition of {} processing events back took {} ms.",
-                        events.size(), eventsBackWatch.elapsed(TimeUnit.MILLISECONDS));
-            }
+            // Add events back to the events journal.
+            final Stopwatch eventsBackWatch = Stopwatch.createStarted();
+            entityEventsJournal.addEvents(events);
+            logger.info("Addition of {} processing events back took {} ms.",
+                    events.size(), eventsBackWatch.elapsed(TimeUnit.MILLISECONDS));
 
             // Catching any exceptions here. Not only catching EntitySavingsException because
             // we can get DataAccessException when a rollback happens in the transaction, which is

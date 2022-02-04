@@ -26,9 +26,9 @@ import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.Topolo
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.event.library.TopologyEventProvider;
 import com.vmturbo.topology.event.library.TopologyEventProvider.TopologyEventFilter;
 import com.vmturbo.topology.event.library.TopologyEvents;
@@ -209,7 +209,6 @@ public class TopologyEventsPoller {
         com.vmturbo.cost.component.savings.TopologyEvent.Builder temEvent =
                 new com.vmturbo.cost.component.savings.TopologyEvent.Builder()
                         .timestamp(eventTimestamp)
-                        .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .entityOid(entityId);
         /*
          * Note that TEP events support a single event type, but TEM events support multiple

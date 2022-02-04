@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.TopologyEvent.Builder;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -149,7 +150,6 @@ public class TopologyEventsMonitor {
             Builder topologyEvent = new Builder()
                     .eventType(EventType.PROVIDER_CHANGE.getValue())
                     .entityOid(monitoredEntity.getEntityId())
-                    .entityType(entityType)
                     .timestamp(topologyTimestamp);
             newProviderId.ifPresent(oid -> {
                 monitoredEntity.setProviderId(oid);
@@ -196,8 +196,8 @@ public class TopologyEventsMonitor {
      * Configuration for the TEM.  Specifies which entity types and which aspects to monitor.
      */
     static class Config {
-        private final boolean monitorProviderChange;
-        private final Set<Integer> monitoredCommodities;
+        private boolean monitorProviderChange;
+        private Set<Integer> monitoredCommodities;
 
         Config(boolean monitorProviderChange, @Nonnull Set<Integer> monitoredCommodities) {
             this.monitorProviderChange = monitorProviderChange;
