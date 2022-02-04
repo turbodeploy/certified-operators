@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
+import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,6 +88,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UserScopingStage;
 
 import common.HealthCheck.HealthState;
 
@@ -243,6 +245,9 @@ public class PlanPipelineFactory {
      * @param topologyInfo The source topology info values. This will be cloned and potentially
      *                     edited during pipeline execution.
      * @param changes The list of changes to apply.
+     * @param scope The scope of the Plan
+     * @param userScopeEntityTypes  A list of accessible entities by entity type for
+     *                              the User that requested the Plan.
      * @param journalFactory The journal factory to be used to create a journal to track changes made
      *                       during stitching.
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
@@ -252,6 +257,7 @@ public class PlanPipelineFactory {
         @Nonnull final TopologyInfo topologyInfo,
         @Nonnull final List<ScenarioChange> changes,
         @Nullable final PlanScope scope,
+        @Nullable final Map<Integer, EntityOids> userScopeEntityTypes,
         @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context = new TopologyPipelineContext(topologyInfo);
         // if the constructed topology is already in the cache from the realtime topology, just
@@ -296,6 +302,7 @@ public class PlanPipelineFactory {
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
                 .addStage(new PostScopingEditStage(postScopingTopologyEditor, changes))
+                .addStage(new UserScopingStage(userScopeEntityTypes))
                 .finalStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
                 .asStage("ScopingSegment"))
             .addStage(SegmentDefinition

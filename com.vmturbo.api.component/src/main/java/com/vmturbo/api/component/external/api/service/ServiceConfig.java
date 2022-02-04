@@ -472,8 +472,9 @@ public class ServiceConfig {
                 entitySettingQueryExecutor(),
                 licenseCheckClientConfig.licenseCheckClient(),
                 mapperConfig.entityAspectMapper(),
-                communicationConfig.getRealtimeTopologyContextId(),
-                costStatsQueryExecutor());
+                costStatsQueryExecutor(),
+                userSessionContext(),
+                communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean
