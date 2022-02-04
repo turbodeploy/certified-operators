@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -15,8 +17,10 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -47,6 +51,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
@@ -54,6 +59,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
@@ -727,9 +733,11 @@ public class ActionDescriptionBuilderTest {
                 .addTriggeringCommodities(CommodityType.newBuilder().setType(26).build()));
     }
 
-    private ActionInfo.Builder makeReconfigureInfo(long targetId) {
-        return ActionInfo.newBuilder().setReconfigure(Reconfigure.newBuilder()
-            .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
+    private ActionInfo.Builder makeReconfigureInfo(long targetId, SettingChange... changes) {
+        final Reconfigure.Builder reconfigureBuilder = Reconfigure.newBuilder()
+                        .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId));
+        Arrays.stream(changes).forEach(reconfigureBuilder::addSettingChange);
+        return ActionInfo.newBuilder().setReconfigure(reconfigureBuilder
             .setIsProvider(false)
             .build());
     }
@@ -1342,6 +1350,45 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureWithoutSourceRecommendation);
         assertEquals(description, "Reconfigure Virtual Machine vm1_test as it is unplaced");
+    }
+
+    /**
+     * Test the description of reconfigure action without source.
+     */
+    @Test
+    public void testBuildReconfigureActionSettingChange()
+                    throws UnsupportedActionException {
+        checkReconfigureSettingChanges(ImmutableList.of("Virtual Machine", "vm1_test", "1", "2"),
+                        createSettingChange(EntityAttribute.SOCKET));
+    }
+
+    @Nonnull
+    protected SettingChange createSettingChange(EntityAttribute attribute) {
+        return SettingChange.newBuilder().setEntityAttribute(attribute)
+                        .setCurrentValue(1).setNewValue(2).build();
+    }
+
+    /**
+     * Test the description of reconfigure action without source.
+     */
+    @Test
+    public void testBuildReconfigureActionSettingChanges() throws UnsupportedActionException {
+        checkReconfigureSettingChanges(
+                        ImmutableList.of("Virtual Machine", "vm1_test", "1", "2", "1", "2"),
+                        createSettingChange(EntityAttribute.SOCKET),
+                        createSettingChange(EntityAttribute.CORES_PER_SOCKET));
+    }
+
+    protected void checkReconfigureSettingChanges(List<String> expectedDescriptionParts,
+                    SettingChange... settingChanges) throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
+                        (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(),
+                                        VM1_DISPLAY_NAME, 0, 0)));
+        final ActionDTO.Action action = makeRec(makeReconfigureInfo(VM1_ID, settingChanges),
+                        SupportLevel.SUPPORTED).build();
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                        entitySettingsCache, action);
+        Assert.assertThat(description, Matchers.stringContainsInOrder(expectedDescriptionParts));
     }
 
     @Test
