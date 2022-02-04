@@ -131,7 +131,7 @@ public class DataRetentionProcessorTest extends MultiDbTestBase {
         statsSavingsStore = new SqlEntitySavingsStore(dsl, clock, 5);
         AuditLogWriter auditLogWriter = new SqlAuditLogWriter(dsl, clock, 5, true);
         retentionProcessor = new DataRetentionProcessor(statsSavingsStore, auditLogWriter,
-                retentionConfig, clock, 1);
+                retentionConfig, clock, 1, null);
     }
 
     /**
@@ -154,6 +154,7 @@ public class DataRetentionProcessorTest extends MultiDbTestBase {
 
         statsSavingsStore.addHourlyStats(ImmutableSet.of(stats1, stats2), dsl);
 
+        long eventsRetentionHours = 168;
         List<AggregatedSavingsStats> hourlyStats = fetchHourlyStats(timestampOld, timestampEnd);
         assertNotNull(hourlyStats);
         // Both timestampOld and timestampNew should be present initially.
@@ -162,7 +163,8 @@ public class DataRetentionProcessorTest extends MultiDbTestBase {
         // Delete anything older than 3 days, only newer stats is retained, older one is deleted.
         long daysBack = 3;
         DataRetentionSettings hourlySettings = new DataRetentionSettings(1L,
-                daysBack * 24L, 1L, 1L);
+                daysBack * 24L, 1L, 1L,
+                eventsRetentionHours);
         when(retentionConfig.fetchDataRetentionSettings()).thenReturn(hourlySettings);
 
 
@@ -177,7 +179,8 @@ public class DataRetentionProcessorTest extends MultiDbTestBase {
         // Delete anything older than 1 day, both stats should be gone now.
         daysBack = 1;
         hourlySettings = new DataRetentionSettings(1L,
-                daysBack * 24L, 1L, 1L);
+                daysBack * 24L, 1L, 1L,
+                eventsRetentionHours);
         when(retentionConfig.fetchDataRetentionSettings()).thenReturn(hourlySettings);
 
         retentionProcessor.process(true);

@@ -42,7 +42,6 @@ public class EntityStateTest {
 
         // Serialize EntityState object to JSON.
         String json = state.toJson();
-        System.out.println(json);
 
         // Deserialize from JSON to EntityState object.
         EntityState deserializedState = EntityState.fromJson(json);

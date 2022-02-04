@@ -37,6 +37,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.junit.Assert;
@@ -55,6 +56,8 @@ import org.mockito.stubbing.Answer;
 
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -62,10 +65,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
@@ -301,7 +303,12 @@ public class EntitySavingsTrackerTest extends MultiDbTestBase {
         return new SavingsEvent.Builder()
                 .actionEvent(new ActionEvent.Builder()
                         .actionId(actionId)
-                        .eventType(actionType).build())
+                        .eventType(actionType)
+                        .description(StringUtils.EMPTY)
+                        .entityType(EntityDTO.EntityType.VIRTUAL_MACHINE.getValue())
+                        .actionType(ActionType.SCALE_VALUE)
+                        .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
+                        .build())
                 .entityId(vmId)
                 .timestamp(timestamp)
                 .entityPriceChange(priceChange)
