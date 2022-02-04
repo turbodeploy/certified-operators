@@ -14,14 +14,15 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent.Builder;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * All tests related to events store.
@@ -49,6 +50,7 @@ public class EntityEventsJournalTest {
                         .entityOid(vmId)
                         .eventType(EventType.STATE_CHANGE.getValue())
                         .timestamp(timestamp)
+                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                         .poweredOn(newStateOn)
                         .build())
                 .entityId(vmId)
@@ -58,11 +60,12 @@ public class EntityEventsJournalTest {
 
     @Nonnull
     private static SavingsEvent getResourceDeletedEvent(long vmId, long timestamp) {
-        return new Builder()
+        return new SavingsEvent.Builder()
                 .topologyEvent(new TopologyEvent.Builder()
                         .entityOid(vmId)
                         .timestamp(timestamp)
                         .eventType(EventType.ENTITY_REMOVED.getValue())
+                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                         .build())
                 .entityId(vmId)
                 .timestamp(timestamp)
@@ -76,7 +79,12 @@ public class EntityEventsJournalTest {
         return new SavingsEvent.Builder()
                 .actionEvent(new ActionEvent.Builder()
                         .actionId(actionId)
-                        .eventType(actionType).build())
+                        .eventType(actionType)
+                        .description(StringUtils.EMPTY)
+                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                        .actionType(ActionType.SCALE_VALUE)
+                        .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
+                        .build())
                 .entityId(vmId)
                 .timestamp(timestamp)
                 .entityPriceChange(priceChange)

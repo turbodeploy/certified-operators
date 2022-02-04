@@ -147,6 +147,20 @@ public class EntitySavingsConfig {
     @Autowired
     private TopologyInfoTracker liveTopologyInfoTracker;
 
+    @Autowired
+    private SearchServiceBlockingStub searchServiceBlockingStub;
+
+    /**
+     * Default 45 day (1080 hours) retention for savings events in DB.
+     */
+    private static final long EVENT_RETENTION_DEFAULT_HOURS = 1080;
+
+    /**
+     * How long to retain savings events in DB - default 45 days.
+     */
+    @Value("${entitySavingsEventsRetentionHours:1080}")
+    private Long entitySavingsEventsRetentionHours;
+
     /**
      * How long (minutes) after the hour mark to run the periodic hourly processor task.
      */
@@ -190,8 +204,13 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntitySavingsRetentionConfig getEntitySavingsRetentionConfig() {
+        if (entitySavingsEventsRetentionHours < 0) {
+            logger.warn("Invalid entitySavingsEventsRetentionHours value {}, defaulting to {} hours.",
+                    entitySavingsEventsRetentionHours, EVENT_RETENTION_DEFAULT_HOURS);
+            entitySavingsEventsRetentionHours = EVENT_RETENTION_DEFAULT_HOURS;
+        }
         return new EntitySavingsRetentionConfig(settingServiceClient(),
-                entitySavingsAuditLogRetentionHours);
+                entitySavingsAuditLogRetentionHours, entitySavingsEventsRetentionHours);
     }
 
     /**
@@ -317,8 +336,11 @@ public class EntitySavingsConfig {
      */
     @Bean
     public DataRetentionProcessor dataRetentionProcessor() {
-        return new DataRetentionProcessor(entitySavingsStore(), auditLogWriter(),
-                getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours);
+        final EntityEventsJournal eventsJournal = entityEventsJournal();
+        return new DataRetentionProcessor(entitySavingsStore(),
+                eventsJournal.persistEvents() ? null : auditLogWriter(),
+                getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours,
+                eventsJournal.persistEvents() ? eventsJournal : null);
     }
 
     /**
@@ -364,9 +386,6 @@ public class EntitySavingsConfig {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
-    @Autowired
-    private SearchServiceBlockingStub searchServiceBlockingStub;
-
     /**
      * Gets access to events store.
      *
@@ -374,7 +393,16 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntityEventsJournal entityEventsJournal() {
-        return new InMemoryEntityEventsJournal(auditLogWriter());
+        try {
+            return FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()
+                    ? new SqlEntityEventsJournal(dbAccessConfig.dsl(), persistEntityCostChunkSize)
+                    : new InMemoryEntityEventsJournal(auditLogWriter());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create EntityEventsJournal bean", e);
+        }
     }
 
     /**

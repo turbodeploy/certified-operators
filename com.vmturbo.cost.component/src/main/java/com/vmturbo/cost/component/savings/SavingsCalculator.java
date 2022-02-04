@@ -14,14 +14,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.Algorithm.SavingsInvestments;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * This class implements the algorithm for calculating entity savings and investments.
@@ -220,8 +222,12 @@ class SavingsCalculator {
                 .build();
         SavingsEvent expiration = new SavingsEvent.Builder()
                 .actionEvent(new ActionEvent.Builder()
-                        .eventType(ActionEventType.ACTION_EXPIRED)
+                        .eventType(ActionEvent.ActionEventType.ACTION_EXPIRED)
                         .actionId(entityId)
+                        .description(StringUtils.EMPTY)
+                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                        .actionType(ActionType.SCALE_VALUE)
+                        .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
                         .build())
                 .entityPriceChange(entityPriceChange)
                 .entityId(entityId)
