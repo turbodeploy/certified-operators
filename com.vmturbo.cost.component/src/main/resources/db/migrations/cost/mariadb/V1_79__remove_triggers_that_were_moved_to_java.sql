@@ -1,0 +1,2 @@
+DROP TRIGGER IF EXISTS reserved_instance_utilization_keys;
+DROP TRIGGER IF EXISTS reserved_instance_coverage_keys;

@@ -128,11 +128,23 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
             @Nonnull final DSLContext context,
             @Nonnull final LocalDateTime currentTime,
             @Nonnull final ServiceEntityReservedInstanceCoverageRecord entityRiCoverage) {
+        String hourKey = ReservedInstanceUtil.createHourKey(currentTime, entityRiCoverage.getId(),
+                entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
+                entityRiCoverage.getBusinessAccountId());
+
+        String dayKey = ReservedInstanceUtil.createDayKey(currentTime, entityRiCoverage.getId(),
+                entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
+                entityRiCoverage.getBusinessAccountId());
+
+        String monthKey = ReservedInstanceUtil.createMonthKey(currentTime, entityRiCoverage.getId(),
+                entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
+                entityRiCoverage.getBusinessAccountId());
+
         return context.newRecord(Tables.RESERVED_INSTANCE_COVERAGE_LATEST,
                 new ReservedInstanceCoverageLatestRecord(currentTime, entityRiCoverage.getId(),
                         entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
                         entityRiCoverage.getBusinessAccountId(), entityRiCoverage.getTotalCoupons(),
-                        entityRiCoverage.getUsedCoupons(),null,null,null));
+                        entityRiCoverage.getUsedCoupons(),hourKey, dayKey, monthKey));
 
     }
 
