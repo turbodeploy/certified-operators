@@ -15,12 +15,14 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -28,7 +30,9 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -225,5 +229,44 @@ public class StitchingContextTest {
         stitchingContextBuilder.addEntity(e1_3_duplicate, ImmutableMap.of("1", e1_3_duplicate));
 
         assertEquals(5, stitchingContextBuilder.build().constructTopology().size());
+    }
+
+    /**
+     * Test that regardless of the order we add duplicates to the stitching context, we keep the one
+     * whose target has a smaller id.
+     */
+    @Test
+    public void testConstructTopologyChoosesSameDuplicate() {
+        final long newTargetId = 3L;
+        final StitchingContext.Builder localStitchingContextBuilder = StitchingContext.newBuilder(8, targetStore)
+                .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
+
+        // Create duplicate stitching entities with same OID as existing entity but different
+        // target IDs
+        final StitchingEntityData e1_3_duplicate = new StitchingTestUtils
+                .StitchingDataAllowingTargetChange(EntityDTO.newBuilder(
+                        e1_1.getEntityDtoBuilder().build()), newTargetId,  e1_1.getOid());
+        final StitchingEntityData e2_3_duplicate = new StitchingTestUtils
+                .StitchingDataAllowingTargetChange(EntityDTO.newBuilder(
+                        e2_1.getEntityDtoBuilder().build()), newTargetId, e2_1.getOid());
+        final Map<String, StitchingEntityData> target3Graph = topologyMapOf(e1_3_duplicate,
+                e2_3_duplicate);
+
+        // Try adding one duplicate entity from target 3 before the real entities and one
+        // duplicate from target after the real entities. Either way, duplicate OID resolution
+        // should discard the duplicates from target 3 and keep the duplicates from target 1.
+        localStitchingContextBuilder.addEntity(e1_3_duplicate, target3Graph);
+        localStitchingContextBuilder.addEntity(e1_1, target1Graph);
+        localStitchingContextBuilder.addEntity(e2_1, target1Graph);
+        localStitchingContextBuilder.addEntity(e2_3_duplicate, target3Graph);
+        Map<Long, TopologyEntityDTO.Builder> topologyGraph =
+                localStitchingContextBuilder.build().constructTopology();
+        assertEquals(2, topologyGraph.size());
+        assertTrue(topologyGraph.values().stream()
+                .map(TopologyEntityDTO.Builder::getOrigin)
+                .map(Origin::getDiscoveryOrigin)
+                .map(DiscoveryOrigin::getDiscoveredTargetDataMap)
+                .map(Map::keySet)
+                .noneMatch(set -> set.contains(newTargetId)));
     }
 }
