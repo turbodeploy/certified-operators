@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -358,6 +359,50 @@ public class StitchingContext {
         }
     }
 
+    private long getMinimumDiscoveringTargetId(TopologyEntityDTO.Builder builder) {
+        // We shouldn't get duplicate OIDs for non discovered entities, but just in case...
+        if (!builder.hasOrigin() || !builder.getOrigin().hasDiscoveryOrigin()) {
+            return Long.MAX_VALUE;
+        }
+        return builder.getOrigin()
+                .getDiscoveryOrigin()
+                .getDiscoveredTargetDataMap().keySet().stream()
+                .min(Comparator.naturalOrder())
+                .get();
+    }
+
+    /**
+     * Choose between two topology entities with the same OID. Choose the one with the
+     * discovering target with the smallest OID. If this comparison does not work or gives the
+     * same target id, choose by whichever entity has a display name that comes first
+     * lexicographically. If there still is no resolution, return the first parameter.
+     *
+     * @param oldValue first {@link TopologyEntityDTO.Builder} to compare
+     * @param newValue second {@link TopologyEntityDTO.Builder} to compare
+     * @return {@link TopologyEntityDTO.Builder} to keep between the two parameters
+     */
+    private TopologyEntityDTO.Builder selectBuilderToKeep(
+            @Nonnull TopologyEntityDTO.Builder oldValue,
+            @Nonnull TopologyEntityDTO.Builder newValue) {
+        int comparison = Comparator.comparingLong(
+                this::getMinimumDiscoveringTargetId)
+                .compare(oldValue, newValue);
+        if (comparison == 0) {
+            logger.error("Error comparing target IDs for "
+                            + "multiple entities with OID {}. Multiple "
+                            + "entities discovered by target {}.",
+                    oldValue.getOid(),
+                    getMinimumDiscoveringTargetId(oldValue));
+            comparison = oldValue.hasDisplayName()
+                    && newValue.hasDisplayName()
+                    ? oldValue.getDisplayName()
+                    .compareTo(newValue.getDisplayName())
+                    : 0;
+        }
+        return comparison <= 0 ? oldValue
+                : newValue;
+    }
+
     /**
      * After stitching, this should return a valid, well-formed topology.
      *
@@ -376,10 +421,13 @@ public class StitchingContext {
                                                             stitchingEntity.buildDiscoveryOrigin()));
                         };
         /**
-         * If this line throws an exception, it indicates an error in stitching. If stitching is
-         * successful it should merge down all entities with duplicate OIDs into a single entity.
+         * If we have multiple entities with the same OID at this point, it indicates an error in
+         * stitching. If stitching is successful it should merge down all entities with duplicate
+         * OIDs into a single entity.
          *
-         * If multiple entities have the same OID, we log it as an error and pick one to use at random.
+         * If multiple entities have the same OID, we log it as an error and pick one to use by
+         * keeping the entity with the smaller minimum discovering target ID. We do this so that
+         * we consistently choose the same entity to avoid flapping in the topology broadcast.
          */
         final Map<Long, Collection<TopologyEntityDTO.Builder>> duplicatedOids = new HashMap<>();
         final Map<Long, TopologyEntityDTO.Builder> result = stitchingGraph.entities()
@@ -394,13 +442,14 @@ public class StitchingContext {
                                                 duplicatedBuilders.add(oldValue);
                                             }
                                             duplicatedBuilders.add(newValue);
-                                            return oldValue;
+                                            return selectBuilderToKeep(oldValue, newValue);
                                         }
                         ));
         if (!duplicatedOids.isEmpty()) {
             final StringBuilder messageBuilder = new StringBuilder();
             messageBuilder.append(
-                            "First entity will be kept for the following OIDs with duplications:");
+                            "Entity with lowest discovering target ID will be kept for the "
+                                    + "following OIDs with duplications:");
             messageBuilder.append(System.lineSeparator());
             duplicatedOids.forEach((oid, builders) -> messageBuilder
                             .append(String.format("Oid '%s' assigned to '%s' entities.%n", oid,
