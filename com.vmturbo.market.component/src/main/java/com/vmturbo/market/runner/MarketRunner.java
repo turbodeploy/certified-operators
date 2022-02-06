@@ -304,9 +304,13 @@ public class MarketRunner {
             if (!FeatureFlags.DISABLE_ANALYSIS_TIMEOUT.isEnabled()) {
                 ScheduledExecutorService timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
                 logger.info("Scheduling forcestop for analysis {}", analysis.getTopologyId());
+                long contextId = analysis.getContextId();
+                long topologyId = analysis.getTopologyId();
                 timeoutScheduler.schedule(() -> {
                     try {
-                        stopRTAnalysis(analysis.getContextId(), analysis.getTopologyId());
+                        // avoid using reference to analysis here as it will result in retaining
+                        // reference to entire broadcasted topology till the timeout is triggered.
+                        stopRTAnalysis(contextId, topologyId);
                     } catch (InterruptedException e) {
                         logger.error("Could not send market notifications due to a potential timeout.", e);
                     }
