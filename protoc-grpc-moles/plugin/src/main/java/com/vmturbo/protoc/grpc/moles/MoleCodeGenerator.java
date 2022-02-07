@@ -32,7 +32,7 @@ public class MoleCodeGenerator extends ProtocPluginCodeGenerator {
      */
     @Override
     @Nonnull
-    protected String getPluginName() {
+    public String getPluginName() {
         return "protoc-grpc-moles";
     }
 

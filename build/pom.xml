@@ -85,6 +85,7 @@
 
         <jmockit.version>1.18</jmockit.version>
         <consul-client.version>1.4.0</consul-client.version>
+        <javapoet.version>1.13.0</javapoet.version>
         <gson.version>2.8.7</gson.version>
         <httpclient.version>4.5.13</httpclient.version>
         <httpclient.async.version>4.1.3</httpclient.async.version>
@@ -219,6 +220,14 @@
             <modules>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>protoc-pojo-gen</id>
+            <modules>
+                <module>../protoc-plugin-common</module>
+                <module>../protoc-pojo-gen</module>
             </modules>
         </profile>
 
@@ -1233,6 +1242,7 @@
                 <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
+                <module>../protoc-pojo-gen</module>
                 <module>../protoc-grpc-moles</module>
                 <module>../diags</module>
                 <module>../kafka</module>
@@ -1418,6 +1428,7 @@
                 <module>../com.vmturbo.components.baseimage</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
+                <module>../protoc-pojo-gen</module>
                 <module>../protoc-grpc-moles</module>
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
@@ -2136,6 +2147,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>protoc-spring-rest-plugin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>protoc-pojo-gen-plugin</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -2974,8 +2990,12 @@
                 <version>${consul-client.version}</version>
             </dependency>
 
-
-
+            <!-- Java code generation -->
+            <dependency>
+                <groupId>com.squareup</groupId>
+                <artifactId>javapoet</artifactId>
+                <version>${javapoet.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.mariadb.jdbc</groupId>
