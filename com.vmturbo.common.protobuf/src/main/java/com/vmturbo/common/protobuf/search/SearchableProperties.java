@@ -38,6 +38,8 @@ public class SearchableProperties {
 
     public static final String VM_INFO_NUM_CPUS = "numCpus";
 
+    public static final String VENDOR_TOOLS_INSTALLED = "vendorToolsInstalled";
+
     public static final String PM_INFO_REPO_DTO_PROPERTY_NAME = "physicalMachineInfoRepoDTO";
 
     public static final String PM_INFO_NUM_CPUS = "numCpus";

@@ -131,6 +131,7 @@ message TypeSpecificInfo {
             // to be changed according to policy requirements
             optional int32 sockets = 2 [default = 1];
         }
+        optional bool vendorToolsInstalled = 18 [default = false];
     }
 
     // Properties unique to a PhysicalMachine in the model

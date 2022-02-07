@@ -404,7 +404,13 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getPricingModel()),
                         DatabaseProps.class);
             }
-
+            case SearchableProperties.VENDOR_TOOLS_INSTALLED:
+                if (stringCriteria.getOptionsCount() == 1) {
+                    final boolean expectedValue = getExpectedValue(stringCriteria);
+                    return PropertyFilter.typeSpecificFilter(
+                                    vmProps -> vmProps.hasVendorToolsInstalled()
+                                         == expectedValue, VmProps.class);
+                }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);
@@ -601,6 +607,19 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         return createVmPropsIntegerFilter(filter, VmProps::getNumberOfSockets);
                     case SearchableProperties.VM_INFO_NUM_CPUS:
                         return createVmPropsIntegerFilter(filter, VmProps::getNumCpus);
+//                    case SearchableProperties.VENDOR_TOOLS_INSTALLED:
+//                        if(string)
+//                        return createVmPropsIntegerFilter(filter, VmProps::getNumCpus);
+
+//                    case SearchableProperties.HOT_ADD_MEMORY:
+//                        if (stringCriteria.getOptionsCount() == 1) {
+//                            final boolean expectedValue = getExpectedValue(stringCriteria);
+//                            return PropertyFilter.typeSpecificFilter(
+//                                            v -> v.isHotAddSupported(CommodityType.VMEM.getNumber())
+//                                                 == expectedValue, VmProps.class);
+//                        }
+
+
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                                 filter.getPropertyName() + " on " + propertyName);
@@ -753,7 +772,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                             try {
                                 return intPredicate(filter.getNumericFilter()).test(
                                                 propertyValueGetter.apply(vmProps));
-                            } catch (InvalidSearchFilterException e) {
+                             } catch (InvalidSearchFilterException e) {
                                 throw new IllegalArgumentException(e.getMessage());
                             }
                         }, VmProps.class);

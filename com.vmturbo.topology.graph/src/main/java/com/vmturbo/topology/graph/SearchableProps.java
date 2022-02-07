@@ -192,6 +192,13 @@ public interface SearchableProps {
          * @return the cores per socket ratio for the VM.
          */
         int getCoresPerSocket();
+
+        /**
+         * Get the status if tools is available for the VM
+         *
+         * @return The installation status of tool.
+         */
+        boolean hasVendorToolsInstalled();
     }
 
     /**
