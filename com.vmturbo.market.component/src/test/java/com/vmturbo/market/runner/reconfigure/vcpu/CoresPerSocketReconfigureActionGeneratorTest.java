@@ -75,8 +75,8 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
                 Collections.emptyList());
         //Generate actions only if the request cores per socket are different from current value.
         Assert.assertEquals(1, actions.size());
-        Assert.assertEquals(4, actions.get(0).getInfo().getReconfigure().getSettingChange().getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getSettingChange().getNewValue(), 0.0001);
+        Assert.assertEquals(4, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
         Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertTrue(actions.get(0).getExplanation().getReconfigure().getReasonSettingsList().containsAll(ImmutableList.of(1L, 2L)));
     }
@@ -102,8 +102,8 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
         List<Action> actions = generator.execute(settingPolicyService, topology, resizeActions);
         //Generate actions only if the VM doesn't have resize action on it.
         Assert.assertEquals(1, actions.size());
-        Assert.assertEquals(4, actions.get(0).getInfo().getReconfigure().getSettingChange().getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getSettingChange().getNewValue(), 0.0001);
+        Assert.assertEquals(4, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
         Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertTrue(actions.get(0).getExplanation().getReconfigure().getReasonSettingsList().containsAll(ImmutableList.of(1L, 2L)));
     }
