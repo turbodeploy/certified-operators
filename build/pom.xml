@@ -435,7 +435,6 @@
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-                <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.acims.component</module>
                 <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
@@ -564,13 +563,6 @@
             <modules>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-aix</id>
-            <modules>
-                <module>../com.vmturbo.mediation.aix.component</module>
             </modules>
         </profile>
 
@@ -1329,7 +1321,6 @@
                 <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Individual components -->
-                <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.acims.component</module>

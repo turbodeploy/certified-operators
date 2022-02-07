@@ -174,11 +174,6 @@ public enum Component {
     MEDIATION_ACTIONSCRIPT("actionscript", "com.vmturbo.mediation.actionscript.component"),
 
     /**
-     * AIX mediation.
-     */
-    MEDIATION_AIX("aix", "com.vmturbo.mediation.aix.component"),
-
-    /**
      * APM SNMP.
      */
     MEDIATION_APM_SNMP("apm-snmp", "com.vmturbo.mediation.apm.snmp.component"),
