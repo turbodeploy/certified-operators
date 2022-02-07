@@ -145,7 +145,8 @@ public class CloudCommitmentCoverageAllocator {
 
         return CloudCommitmentCoverageAllocation.from(
                 coverageJournal.getCoverages(),
-                coverageJournal.getCoverageFromJournalEntries());
+                coverageJournal.getCoverageFromJournalEntries(),
+                coverageJournal.getJournalEntries());
     }
 
     /**

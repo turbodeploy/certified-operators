@@ -7,6 +7,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -105,7 +106,8 @@ public class BuyRIImpactAnalysisTest {
                 ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
                         .put(1L, 5L, CloudCommitmentAmount.newBuilder().setCoupons(2.0).build())
                         .put(3L, 6L, CloudCommitmentAmount.newBuilder().setCoupons(4.0).build())
-                        .build());
+                        .build(),
+                Collections.emptyList());
         when(coverageAllocator.allocateCoverage()).thenReturn(coverageAllocation);
 
         // setup coverage topology

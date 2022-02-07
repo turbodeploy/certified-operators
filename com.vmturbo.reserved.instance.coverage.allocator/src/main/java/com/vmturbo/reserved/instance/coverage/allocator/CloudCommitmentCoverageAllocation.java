@@ -1,5 +1,8 @@
 package com.vmturbo.reserved.instance.coverage.allocator;
 
+import java.util.Collections;
+import java.util.List;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableTable;
@@ -9,6 +12,7 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal.CoverageJournalEntry;
 
 /**
  * The output of {@link CloudCommitmentCoverageAllocator}, containing cloud commitment coverage
@@ -24,7 +28,10 @@ public interface CloudCommitmentCoverageAllocation {
      * An empty allocation (both total coverage and allocated coverage are empty).
      */
     CloudCommitmentCoverageAllocation EMPTY_ALLOCATION =
-            CloudCommitmentCoverageAllocation.from(ImmutableTable.of(), ImmutableTable.of());
+            CloudCommitmentCoverageAllocation.from(
+                    ImmutableTable.of(),
+                    ImmutableTable.of(),
+                    Collections.emptyList());
 
     /**
      * The immutable total coverage table.
@@ -44,6 +51,13 @@ public interface CloudCommitmentCoverageAllocation {
     Table<Long, Long, CloudCommitmentAmount> allocatorCoverageTable();
 
     /**
+     * The immutable list of coverage journal entries, representing the individual steps resulting in {@link #allocatorCoverageTable()}.
+     * @return The immutable list of coverage journal entries.
+     */
+    @Nonnull
+    List<CoverageJournalEntry> coverageJournalEntries();
+
+    /**
      * Builds an instance of {@link CloudCommitmentCoverageAllocation} from {@code totalCoverage}
      * and {@code allocatorCoverage}. A copy of both coverage tables will be made, such that the
      * {@link CloudCommitmentCoverageAllocation} returned will be immutable and independent of
@@ -53,14 +67,17 @@ public interface CloudCommitmentCoverageAllocation {
      *                      of total coverage after {@link CloudCommitmentCoverageAllocator} analysis.
      * @param allocatorCoverage A {@link Table} containing {@literal <Entity OID, Commitment OID, Coverage Allocation Amount>}
      *                          of coverage added by {@link CloudCommitmentCoverageAllocator}.
+     * @param journalEntryList The coverage journal entry list.
      * @return A newly created instance of {@link CloudCommitmentCoverageAllocation}.
      */
     @Nonnull
     static CloudCommitmentCoverageAllocation from(
             @Nonnull Table<Long, Long, CloudCommitmentAmount> totalCoverage,
-            @Nonnull Table<Long, Long, CloudCommitmentAmount> allocatorCoverage) {
+            @Nonnull Table<Long, Long, CloudCommitmentAmount> allocatorCoverage,
+            @Nonnull List<CoverageJournalEntry> journalEntryList) {
         return CloudCommitmentCoverageAllocationTuple.of(
                 ImmutableTable.copyOf(totalCoverage),
-                ImmutableTable.copyOf(allocatorCoverage));
+                ImmutableTable.copyOf(allocatorCoverage),
+                journalEntryList);
     }
 }
