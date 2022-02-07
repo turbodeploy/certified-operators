@@ -144,7 +144,7 @@ public class DefaultChangeExplainer extends ChangeExplainer {
             @Nonnull Set<TopologyDTO.CommodityType> higherProjectedCapacityComms,
             CloudActionSavingsCalculator.CalculatedSavings savings,
             int actionTargetEntityType) {
-        if (lowerProjectedCapacityComms.isEmpty()) {
+        if (lowerProjectedCapacityComms.isEmpty() || !(savings.isSavings() || savings.isZeroSavings())) {
             return Optional.empty();
         }
         Efficiency.Builder efficiencyBuilder = Efficiency.newBuilder()
@@ -152,8 +152,7 @@ public class DefaultChangeExplainer extends ChangeExplainer {
         logger.debug("Underutilized Commodities from tracker for buyer:{}, seller: {} : [{}]",
                 actionTargetId, sellerId,
                 lowerProjectedCapacityComms.stream().map(AbstractMessage::toString).collect(Collectors.joining()));
-        if ((savings.isSavings() || savings.isZeroSavings())
-                && FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES.contains(actionTargetEntityType)) {
+        if (FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES.contains(actionTargetEntityType)) {
             // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
             // and there are some commodities which have higher projected capacities.
             efficiencyBuilder
