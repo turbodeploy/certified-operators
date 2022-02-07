@@ -54,6 +54,8 @@ public class FirstPassCoverageRule implements CoverageRule {
                 coverageJournal.getCoverages().columnMap();
 
         return commitmentAllocationTable.entrySet().stream()
+                .filter(commitmentAllocations ->
+                        coverageContext.cloudCommitmentOids().contains(commitmentAllocations.getKey()))
                 .flatMap(commitmentEntry -> streamCoverageGroupsForCommitment(
                         commitmentEntry.getKey(), commitmentEntry.getValue()));
     }
