@@ -3,18 +3,17 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
+        <artifactId>protoc-pojo-gen</artifactId>
         <version>8.4.6-SNAPSHOT</version>
-        <relativePath>../build/pom.xml</relativePath>
+        <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>protoc-plugin-common</artifactId>
+    <artifactId>protoc-pojo-gen-plugin</artifactId>
 
     <properties>
-        <google.java.format.version>1.1</google.java.format.version>
-        <google.common.protos.version>1.9.0</google.common.protos.version>
+        <checkstyle.path>${project.basedir}/../../build/checkstyle.xml</checkstyle.path>
     </properties>
 
     <build>
@@ -31,15 +30,16 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.google.api.grpc</groupId>
-            <artifactId>proto-google-common-protos</artifactId>
-            <version>${google.common.protos.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.google.protobuf</groupId>
-                    <artifactId>protobuf-java</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>protoc-plugin-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>ST4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup</groupId>
+            <artifactId>javapoet</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -69,34 +69,10 @@
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java-util</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.google.googlejavaformat</groupId>
-            <artifactId>google-java-format</artifactId>
-            <version>${google.java.format.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>ST4</artifactId>
-        </dependency>
 
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-netty</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-protobuf</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-stub</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -105,5 +81,6 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
 
 </project>
