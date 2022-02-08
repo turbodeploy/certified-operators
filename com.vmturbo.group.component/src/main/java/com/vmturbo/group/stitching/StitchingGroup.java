@@ -50,7 +50,7 @@ public class StitchingGroup {
      * @param newGroup whether this group is a new one ({@code true}) or it is an update of
      *         the existing group (otherwise)
      */
-    StitchingGroup(final long oid, final GroupDefinition groupDefinition, final String sourceId,
+    public StitchingGroup(final long oid, final GroupDefinition groupDefinition, final String sourceId,
                    boolean stitchAcrossTargets, final long targetId,
                    boolean newGroup, final @Nullable byte[] existingHash) {
         this.oid = oid;
