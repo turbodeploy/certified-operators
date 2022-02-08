@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.group.discovery;
 
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.CLUSTER_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.DISPLAY_NAME;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.GROUP_NAME;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_FILTER;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.RESOURCE_GROUP_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.RESOURCE_GROUP_DTO_WITHOUT_OWNER;
@@ -15,6 +16,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -906,4 +908,53 @@ public class DiscoveredGroupInterpreterTest {
         assertFalse(groupDefOpt.get().hasOwner());
     }
 
+    @Test
+    public void testGroupConverterNestedGroups() {
+        final EntityStore store = mock(EntityStore.class);
+        final String accountId = "account_id";
+        final Long accountOid = 1L;
+        final String nestedGroupId = "nested_group_id";
+        when(store.getTargetEntityIdMap(TARGET_ID))
+                .thenReturn(Optional.of(ImmutableMap.of(accountId, accountOid)));
+
+        final Entity entity = mock(Entity.class);
+        when(store.getEntity(accountOid))
+                .thenReturn(Optional.of(entity));
+        when(entity.getEntityType()).thenReturn(EntityType.BUSINESS_ACCOUNT);
+
+        final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+                propConverter);
+        final GroupDTO group = CommonDTO.GroupDTO.newBuilder()
+                .setGroupType(GroupType.BUSINESS_ACCOUNT_FOLDER)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT)
+                .setDisplayName(DISPLAY_NAME)
+                .setGroupName(GROUP_NAME)
+                .setMemberList(MembersList.newBuilder()
+                        .addMember(accountId)
+                        .addMember(nestedGroupId))
+                .build();
+        final GroupInterpretationContext context =
+                new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
+        InterpretedGroup interpretedGroup = converter.interpretGroup(group, context);
+        assertTrue(interpretedGroup.getGroupDefinition().isPresent());
+
+        final GroupDefinition groupDef = interpretedGroup.getGroupDefinition().get().build();
+        assertTrue(groupDef.hasStaticGroupMembers());
+        final List<StaticMembersByType> membersByTypeList =
+                groupDef.getStaticGroupMembers().getMembersByTypeList();
+        assertEquals(2, membersByTypeList.size());
+        for (final StaticMembersByType memberByType : membersByTypeList) {
+            if (memberByType.getType().hasEntity()) {
+                assertEquals(EntityType.BUSINESS_ACCOUNT_VALUE, memberByType.getType().getEntity());
+                assertThat(memberByType.getMembersList(), containsInAnyOrder(accountOid));
+            } else if (memberByType.getType().hasGroup()) {
+                assertEquals(GroupType.BUSINESS_ACCOUNT_FOLDER, memberByType.getType().getGroup());
+                assertThat(memberByType.getMemberLocalIdList(), containsInAnyOrder(nestedGroupId));
+            } else {
+                fail("Unexpected StaticMembersByType.memberType: "
+                        + memberByType.getType().getTypeCase());
+            }
+        }
+    }
 }
