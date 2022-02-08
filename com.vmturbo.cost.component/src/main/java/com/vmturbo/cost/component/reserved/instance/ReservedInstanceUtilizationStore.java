@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationByDayRecord;
@@ -170,17 +171,17 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
                     "Used coupons {} exceeds total coupons {} while creating Reserved Instance utilization record for RI {}.",
                     usedCoupons, riTotalCoupons, riId);
         }
-        String hourKey = ReservedInstanceUtil.createHourKey(curTime, riId,
+        String hourKey = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? ReservedInstanceUtil.createHourKey(curTime, riId,
                 riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
-                riBoughtInfo.getBusinessAccountId());
+                riBoughtInfo.getBusinessAccountId()) : null;
 
-        String dayKey = ReservedInstanceUtil.createDayKey(curTime, riId,
+        String dayKey = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? ReservedInstanceUtil.createDayKey(curTime, riId,
                 riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
-                riBoughtInfo.getBusinessAccountId());
+                riBoughtInfo.getBusinessAccountId()) : null;
 
-        String monthKey = ReservedInstanceUtil.createMonthKey(curTime, riId,
+        String monthKey = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? ReservedInstanceUtil.createMonthKey(curTime, riId,
                 riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
-                riBoughtInfo.getBusinessAccountId());
+                riBoughtInfo.getBusinessAccountId()) : null;
 
         return context.newRecord(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST,
                 new ReservedInstanceUtilizationLatestRecord(curTime, riId,
