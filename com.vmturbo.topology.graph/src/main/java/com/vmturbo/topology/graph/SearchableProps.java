@@ -194,7 +194,7 @@ public interface SearchableProps {
         int getCoresPerSocket();
 
         /**
-         * Get the status if tools is available for the VM
+         * Get the status if tools is available for the VM.
          *
          * @return The installation status of tool.
          */

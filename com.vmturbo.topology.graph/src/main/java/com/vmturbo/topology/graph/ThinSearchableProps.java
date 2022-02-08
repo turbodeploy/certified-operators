@@ -281,7 +281,10 @@ public class ThinSearchableProps implements SearchableProps {
             return coresPerSocket;
         }
 
-        @Override public boolean hasVendorToolsInstalled() { return vendorToolsInstalled; }
+        @Override
+        public boolean hasVendorToolsInstalled() {
+            return vendorToolsInstalled;
+        }
     }
 
     /**
