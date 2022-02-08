@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.logging;
 
 import java.io.FileNotFoundException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.PatternSyntaxException;
 
 import javax.annotation.Nonnull;
@@ -53,6 +54,25 @@ import com.vmturbo.api.validators.settings.OsMigrationManagerInputException;
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LogManager.getLogger("com.vmturbo.api.handler");
+
+    /**
+     * Getter for wasGrpcUnknownStatusError flag.
+     *
+     * @return true if GrpcUnknownStatusError happened
+     */
+    public boolean wasGrpcUnknownStatusError() {
+        return wasGrpcUnknownStatusError.get();
+    }
+
+    /**
+     * Reset wasGrpcUnknownStatusError to false.
+     */
+    public void resetGrpcUnknownStatusFlag() {
+        this.wasGrpcUnknownStatusError.set(false);
+    }
+
+    // boolean tracking if the last GRPC send was successful. Used as a simple health check.
+    private AtomicBoolean wasGrpcUnknownStatusError = new AtomicBoolean(false);
 
     public static void handleValidation(BindingResult result) {
         if (result.hasErrors()) {
@@ -249,6 +269,8 @@ public class GlobalExceptionHandler {
             return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
         } else if (ex.getStatus() != null && ex.getStatus().getCode() == Code.PERMISSION_DENIED) {
             return createErrorDTO(req, ex, HttpStatus.FORBIDDEN);
+        } else if (ex.getStatus() != null && ex.getStatus().getCode() == Code.UNKNOWN) {
+            wasGrpcUnknownStatusError.set(true);
         }
         return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
     }
