@@ -4,7 +4,6 @@ import java.sql.SQLException;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -20,11 +19,10 @@ import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceCont
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 
-import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.market.db.DbAccessConfig;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -72,7 +70,7 @@ public class MarketRpcConfig {
      */
     @Bean
     public InitialPlacementRpcService initialPlacementRpcService() {
-        return new InitialPlacementRpcService(getInitialPlacementFinder());
+        return new InitialPlacementRpcService(getInitialPlacementHandler());
     }
 
     @Bean
@@ -91,9 +89,9 @@ public class MarketRpcConfig {
     }
 
     @Bean
-    public InitialPlacementFinder getInitialPlacementFinder() {
+    public InitialPlacementHandler getInitialPlacementHandler() {
         try {
-            return new InitialPlacementFinder(dbAccessConfig.dsl(), getReservationService(),
+            return new InitialPlacementHandler(dbAccessConfig.dsl(), getReservationService(),
                     prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
@@ -119,7 +117,7 @@ public class MarketRpcConfig {
     @Bean
     public void constructEconomyCachesFromDB() {
         getExecutorService().submit(() -> {
-            getInitialPlacementFinder().restoreEconomyCaches(maxRequestReservationTimeoutInSeconds);
+            getInitialPlacementHandler().restoreEconomyCaches(maxRequestReservationTimeoutInSeconds);
         });
     }
 

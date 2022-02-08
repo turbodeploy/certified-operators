@@ -35,7 +35,7 @@ import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.diagnostics.IDiagnosticsCleaner;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
@@ -60,14 +60,14 @@ public interface AnalysisFactory {
      * @param topologyEntities The entities in the topology.
      * @param configCustomizer A {@link AnalysisConfigCustomizer} to tweak the configuration of
      *                         the analysis.
-     * @param initialPlacementFinder The class to perform fast reservation.
+     * @param initialPlacementHandler The class to perform fast reservation.
      * @return The {@link Analysis} object.
      */
     @Nonnull
     Analysis newAnalysis(@Nonnull TopologyInfo topologyInfo,
                          @Nonnull final Collection<TopologyEntityDTO> topologyEntities,
                          @Nonnull AnalysisConfigCustomizer configCustomizer,
-                         @Nonnull InitialPlacementFinder initialPlacementFinder);
+                         @Nonnull InitialPlacementHandler initialPlacementHandler);
 
     /**
      * A helper function to tweak the configuration of the analysis produced by the factory.
@@ -103,8 +103,6 @@ public interface AnalysisFactory {
         private final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory;
 
         private final NamespaceQuotaAnalysisFactory namespaceQuotaAnalysisFactory;
-
-        private final CloudCostDataProvider cloudCostDataProvider;
 
         private final AnalysisRICoverageListener listener;
 
@@ -216,7 +214,6 @@ public interface AnalysisFactory {
             this.marketMode = MarketMode.fromString(marketModeName);
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.fullPriceForQuote = fullPriceForQuote;
-            this.cloudCostDataProvider = cloudCostDataProvider;
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
             this.tierExcluderFactory = tierExcluderFactory;
@@ -247,7 +244,7 @@ public interface AnalysisFactory {
         public Analysis newAnalysis(@Nonnull final TopologyInfo topologyInfo,
                                     @Nonnull final Collection<TopologyEntityDTO> topologyEntities,
                                     @Nonnull final AnalysisConfigCustomizer configCustomizer,
-                                    @Nonnull final InitialPlacementFinder initialPlacementFinder) {
+                                    @Nonnull final InitialPlacementHandler initialPlacementHandler) {
             final Map<String, Setting> globalSettings = retrieveSettings();
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
                     alleviatePressureQuoteFactor : standardQuoteFactor;
@@ -263,7 +260,7 @@ public interface AnalysisFactory {
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisEngine,
                 buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory, tierExcluderFactory, listener,
-                consistentScalingHelperFactory, initialPlacementFinder, reversibilitySettingFetcherFactory,
+                consistentScalingHelperFactory, initialPlacementHandler, reversibilitySettingFetcherFactory,
                 migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
                 actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner,
                 analysisDiagsCollectorFactory);

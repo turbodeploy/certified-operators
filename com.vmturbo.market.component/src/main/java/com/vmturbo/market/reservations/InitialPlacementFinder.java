@@ -63,8 +63,7 @@ public class InitialPlacementFinder {
     // A map of reservation buyer oid to its placement result.
     @VisibleForTesting
     protected Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap<>();
-    // The lock to synchronize the change of reservation
-    private Object reservationLock = new Object();
+
     // The max number of retry if findInitialPlacement failed
     private static int maxRetry;
     // The max number of attempts to fit all buyers of a reservation within a certain grouping.
@@ -76,10 +75,9 @@ public class InitialPlacementFinder {
     /**
      * prefix for initial placement log messages.
      */
-    private final String logPrefix = "FindInitialPlacement: ";
+    protected final String logPrefix = "FindInitialPlacement: ";
 
     private final AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory;
-
 
     public EconomyCaches getEconomyCaches() {
         return economyCaches;
@@ -129,20 +127,18 @@ public class InitialPlacementFinder {
      * @param maxRequestTimeout the max retrying time that is allowed to query plan orchestrator.
      */
     public void restoreEconomyCaches(final long maxRequestTimeout) {
-        synchronized (reservationLock) {
-            // If the reservation feature is enabled, then load data from table.
-            if (shouldConstructEconomyCache()) {
-                // Load the BLOB persisted in table and build an economy with reservation buyers,
-                // hosts and storages.
-                economyCaches.loadHistoricalEconomyCache();
-                // Get the list reservation from plan orchestrator.
-                queryExistingReservations(maxRequestTimeout);
-                if (economyCaches.getState().isReservationReceived()
-                        && economyCaches.getState().isHistoricalCacheReceived()) {
-                    // Clear all previous reservations and apply the latest reservation buyers
-                    // coming from plan orchestrator.
-                    economyCaches.restoreHistoricalEconomyCache(buyerPlacements, existingReservations);
-                }
+        // If the reservation feature is enabled, then load data from table.
+        if (shouldConstructEconomyCache()) {
+            // Load the BLOB persisted in table and build an economy with reservation buyers,
+            // hosts and storages.
+            economyCaches.loadHistoricalEconomyCache();
+            // Get the list reservation from plan orchestrator.
+            queryExistingReservations(maxRequestTimeout);
+            if (economyCaches.getState().isReservationReceived()
+                    && economyCaches.getState().isHistoricalCacheReceived()) {
+                // Clear all previous reservations and apply the latest reservation buyers
+                // coming from plan orchestrator.
+                economyCaches.restoreHistoricalEconomyCache(buyerPlacements, existingReservations);
             }
         }
     }
@@ -166,20 +162,18 @@ public class InitialPlacementFinder {
      */
     public void updateCachedEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
             @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtime) {
-        synchronized (reservationLock) {
-            if (isRealtime) {
-                // Update the providers with the latest broadcast in real time economy cache,
-                // Apply all successfully placed reservations to the same providers that were
-                // recorded in buyerPlacements.
-                economyCaches.updateRealtimeCachedEconomy(originalEconomy, commTypeToSpecMap,
+        if (isRealtime) {
+            // Update the providers with the latest broadcast in real time economy cache,
+            // Apply all successfully placed reservations to the same providers that were
+            // recorded in buyerPlacements.
+            economyCaches.updateRealtimeCachedEconomy(originalEconomy, commTypeToSpecMap,
                         buyerPlacements, existingReservations);
-            } else {
-                // Update the providers with providers generated in headroom plan in historical economy
-                // cache. Rerun all successfully placed reservations and update the providers in
-                // buyerPlacements.
-                buyerPlacements = economyCaches.updateHistoricalCachedEconomy(originalEconomy,
-                        commTypeToSpecMap, buyerPlacements, existingReservations);
-            }
+        } else {
+            // Update the providers with providers generated in headroom plan in historical economy
+            // cache. Rerun all successfully placed reservations and update the providers in
+            // buyerPlacements.
+            economyCaches.updateHistoricalCachedEconomy(originalEconomy, commTypeToSpecMap,
+                    buyerPlacements, existingReservations, buyerPlacements);
         }
     }
 
@@ -192,45 +186,43 @@ public class InitialPlacementFinder {
      * @return true if removal from the cached economy completes.
      */
     public boolean buyersToBeDeleted(@Nonnull List<Long> deleteBuyerOids, boolean deployed) {
-        synchronized (reservationLock) {
-            if (deployed) {
-                updateDeployedReservations(deleteBuyerOids);
+        if (deployed) {
+            updateDeployedReservations(deleteBuyerOids);
+        }
+        logger.info(logPrefix + "Prepare to delete reservation entities {} from {} cached economies",
+                deleteBuyerOids, deployed ? "realtime" : "both");
+        Set<Long> reservationsToRemove = new HashSet<>();
+        for (Map.Entry<Long, InitialPlacementDTO> entry : existingReservations.entrySet()) {
+            Set<Long> existingBuyerOids = entry.getValue().getInitialPlacementBuyerList().stream()
+                    .map(InitialPlacementBuyer::getBuyerId).collect(Collectors.toSet());
+            existingBuyerOids.removeAll(deleteBuyerOids);
+            if (existingBuyerOids.isEmpty()) {
+                reservationsToRemove.add(entry.getKey());
             }
-            logger.info(logPrefix + "Prepare to delete reservation entities {} from {} cached economies",
-                    deleteBuyerOids, deployed ? "realtime" : "both");
-            Set<Long> reservationsToRemove = new HashSet<>();
-            for (Map.Entry<Long, InitialPlacementDTO> entry : existingReservations.entrySet()) {
-                Set<Long> existingBuyerOids = entry.getValue().getInitialPlacementBuyerList().stream()
-                        .map(InitialPlacementBuyer::getBuyerId).collect(Collectors.toSet());
-                existingBuyerOids.removeAll(deleteBuyerOids);
-                if (existingBuyerOids.isEmpty()) {
-                    reservationsToRemove.add(entry.getKey());
+        }
+        // Remove reservation buyers grouped by reservation oid one by one.
+        for (Long oid : reservationsToRemove) {
+            List<InitialPlacementBuyer> buyersToRemove = existingReservations.get(oid).getInitialPlacementBuyerList();
+            Set<Long> buyerOids = buyersToRemove.stream()
+                    .map(InitialPlacementBuyer::getBuyerId)
+                    .collect(Collectors.toSet());
+            try {
+                economyCaches.clearDeletedBuyersFromCache(buyerOids, deployed);
+                if (!deployed) {
+                    buyerPlacements.keySet().removeAll(buyerOids);
+                    existingReservations.remove(oid);
                 }
-            }
-            // Remove reservation buyers grouped by reservation oid one by one.
-            for (Long oid : reservationsToRemove) {
-                List<InitialPlacementBuyer> buyersToRemove = existingReservations.get(oid).getInitialPlacementBuyerList();
-                Set<Long> buyerOids = buyersToRemove.stream()
-                        .map(InitialPlacementBuyer::getBuyerId)
-                        .collect(Collectors.toSet());
-                try {
-                    economyCaches.clearDeletedBuyersFromCache(buyerOids, deployed);
-                    if (!deployed) {
-                        buyerPlacements.keySet().removeAll(buyerOids);
-                        existingReservations.remove(oid);
-                    }
-                    logger.info(logPrefix + "Reservation {} is successfully remove with {} entities.", oid,
-                            buyerOids.size());
-                } catch (Exception exception) {
-                    // In case any reservation trader failed to be cleared from economy, ask user wait for
-                    // both historical cache and realtime cache updated.
-                    economyCaches.getState().setHistoricalCacheReceived(false);
-                    economyCaches.getState().setRealtimeCacheReceived(false);
-                    logger.warn(logPrefix + "Setting economy caches state to NOT READY. Wait for 24 hours to run"
-                            + " other reservation requests.");
-                    logger.error(logPrefix + "Reservation {} can not be remove with {} entities due to {}.",
-                            oid, buyerOids.size(), exception);
-                }
+                logger.info(logPrefix + "Reservation {} is successfully remove with {} entities.", oid,
+                        buyerOids.size());
+            } catch (Exception exception) {
+                // In case any reservation trader failed to be cleared from economy, ask user wait for
+                // both historical cache and realtime cache updated.
+                economyCaches.getState().setHistoricalCacheReceived(false);
+                economyCaches.getState().setRealtimeCacheReceived(false);
+                logger.warn(logPrefix + "Setting economy caches state to NOT READY. Wait for 24 hours to run"
+                        + " other reservation requests.");
+                logger.error(logPrefix + "Reservation {} can not be remove with {} entities due to {}.",
+                        oid, buyerOids.size(), exception);
             }
         }
         return true;
@@ -281,26 +273,24 @@ public class InitialPlacementFinder {
         Map<Long, List<InitialPlacementDecision>> initialPlacements = new HashMap<>();
         // A map to keep track of reservation buyer's shopping list oid to its cluster mapping.
         Map<Long, CommodityType> slToClusterMap = new HashMap<>();
-        synchronized (reservationLock) {
-            if (!economyCaches.getState().isEconomyReady()) {
-                logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
-                return HashBasedTable.create();
-            }
-            // Find providers for buyers via running placements in economy caches. Keep track of
-            // placement results in buyerPlacements.
-            // Save the diagnostics if the debug is turned on.
-            try {
-                saveInitialPlacementDiags(request.getInitialPlacementList());
-            } catch (Exception e) {
-                logger.error("Error when attempting to save InitialPlacement diags", e);
-            }
-            for (InitialPlacementDTO buyersPerReservation
-                    : request.getInitialPlacementList()) {
-                findPlacement(buyersPerReservation, initialPlacements, slToClusterMap);
-            }
-            // process reservation result from sl to provider mapping
-            return buildReservationResponse(initialPlacements, slToClusterMap);
+        if (!economyCaches.getState().isEconomyReady()) {
+            logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
+            return HashBasedTable.create();
         }
+        // Find providers for buyers via running placements in economy caches. Keep track of
+        // placement results in buyerPlacements.
+        // Save the diagnostics if the debug is turned on.
+        try {
+            saveInitialPlacementDiags(request.getInitialPlacementList());
+        } catch (Exception e) {
+            logger.error("Error when attempting to save InitialPlacement diags", e);
+        }
+        for (InitialPlacementDTO buyersPerReservation
+                : request.getInitialPlacementList()) {
+            findPlacement(buyersPerReservation, initialPlacements, slToClusterMap);
+        }
+        // process reservation result from sl to provider mapping
+        return buildReservationResponse(initialPlacements, slToClusterMap);
     }
 
     /**
@@ -497,41 +487,37 @@ public class InitialPlacementFinder {
      * Populate the reservation buyers and keep them in existingReservations and buyerPlacements
      * maps.
      *
-     * @param initialPlacements a list of {@link FindInitialPlacement}s.
+     * @param initialPlacements a list of {@link InitialPlacementDTO}s.
      */
     private void populateExistingReservations(List<InitialPlacementDTO> initialPlacements) {
-        synchronized (reservationLock) {
-            // Populate existing reservation buyers received from PO into in memory data structures
-            initialPlacements.forEach(initialPlacement -> {
-                initialPlacement.getInitialPlacementBuyerList().forEach(buyer -> {
-                    List<InitialPlacementDecision> decisions = new ArrayList<>();
-                    buyer.getInitialPlacementCommoditiesBoughtFromProviderList().forEach(sl -> {
-                        long slOid = sl.getCommoditiesBoughtFromProviderId();
-                        Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
-                                ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
-                                : Optional.empty();
-                        decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>()));
-                    });
-                    buyerPlacements.put(buyer.getBuyerId(), decisions);
-                    if (!existingReservations.containsKey(initialPlacement.getId())) {
-                        existingReservations.put(buyer.getReservationId(), initialPlacement);
-                    }
+        // Populate existing reservation buyers received from PO into in memory data structures
+        initialPlacements.forEach(initialPlacement -> {
+            initialPlacement.getInitialPlacementBuyerList().forEach(buyer -> {
+                List<InitialPlacementDecision> decisions = new ArrayList<>();
+                buyer.getInitialPlacementCommoditiesBoughtFromProviderList().forEach(sl -> {
+                    long slOid = sl.getCommoditiesBoughtFromProviderId();
+                    Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
+                            ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
+                            : Optional.empty();
+                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>()));
                 });
+                buyerPlacements.put(buyer.getBuyerId(), decisions);
+                if (!existingReservations.containsKey(initialPlacement.getId())) {
+                    existingReservations.put(buyer.getReservationId(), initialPlacement);
+                }
             });
-            logger.info(logPrefix + "Existing reservations are: reservation ids {}", existingReservations.keySet());
-            // Set state to ready once reservations are received from PO and real time economy is ready.
-            economyCaches.getState().setReservationReceived(true);
-            logger.info(logPrefix + "Economy caches state is set to RESERVATION_RECEIVED");
-        }
+        });
+        logger.info(logPrefix + "Existing reservations are: reservation ids {}", existingReservations.keySet());
+        // Set state to ready once reservations are received from PO and real time economy is ready.
+        economyCaches.getState().setReservationReceived(true);
+        logger.info(logPrefix + "Economy caches state is set to RESERVATION_RECEIVED");
     }
 
     /**
      * Update the historicalCacheReceived flag to false.
      */
     public void resetHistoricalCacheReceived() {
-        synchronized (reservationLock) {
-            economyCaches.getState().setHistoricalCacheReceived(false);
-        }
+        economyCaches.getState().setHistoricalCacheReceived(false);
     }
 
     /**
