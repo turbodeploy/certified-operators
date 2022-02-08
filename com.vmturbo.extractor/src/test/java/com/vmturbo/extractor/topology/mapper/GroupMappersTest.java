@@ -3,7 +3,6 @@ package com.vmturbo.extractor.topology.mapper;
 import static com.vmturbo.extractor.util.GroupServiceTestUtil.groupList;
 import static com.vmturbo.extractor.util.GroupServiceTestUtil.makeGroup;
 import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType.BILLING_FAMILY;
-import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType.BUSINESS_ACCOUNT_FOLDER;
 import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER;
 import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER;
 import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType.NODE_POOL;
@@ -66,8 +65,7 @@ public class GroupMappersTest {
                 makeGroup(COMPUTE_HOST_CLUSTER, 400L),
                 makeGroup(COMPUTE_VIRTUAL_MACHINE_CLUSTER, 500L),
                 makeGroup(NODE_POOL, 600L),
-                makeGroup(STORAGE_CLUSTER, 100L),
-                makeGroup(BUSINESS_ACCOUNT_FOLDER, 800L));
+                makeGroup(STORAGE_CLUSTER, 100L));
         doReturn(getGroupsResponse).when(groupMole).getGroups(any(GetGroupsRequest.class));
         final Iterator<Grouping> groups = groupService.getGroups(GetGroupsRequest.newBuilder().build());
         // successively peel off each returned group and check that its type maps to the expected
@@ -81,7 +79,6 @@ public class GroupMappersTest {
         assertThat(getNextMappedTypeName(groups), is(EntityType.K8S_CLUSTER));
         assertThat(getNextMappedTypeName(groups), is(EntityType.NODE_POOL));
         assertThat(getNextMappedTypeName(groups), is(EntityType.STORAGE_CLUSTER));
-        assertThat(getNextMappedTypeName(groups), is(EntityType.BUSINESS_ACCOUNT));
         assertThat(groups.hasNext(), is(false));
         // make sure we've got all group types covered (add new groups above if not)
         assertThat(GroupType.values().length, is(getGroupsResponse.size()));

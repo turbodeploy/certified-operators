@@ -18,8 +18,7 @@ public class GroupMappers {
             GroupType.REGULAR, EntityType.GROUP,
             GroupType.RESOURCE, EntityType.RESOURCE_GROUP,
             GroupType.COMPUTE_HOST_CLUSTER, EntityType.COMPUTE_CLUSTER,
-            GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, EntityType.K8S_CLUSTER,
-            GroupType.BUSINESS_ACCOUNT_FOLDER, EntityType.BUSINESS_ACCOUNT
+            GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, EntityType.K8S_CLUSTER
     );
 
     /**
