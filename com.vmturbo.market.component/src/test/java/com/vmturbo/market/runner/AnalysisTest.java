@@ -90,6 +90,7 @@ import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -187,8 +188,7 @@ public class AnalysisTest {
             mock(BuyRIImpactAnalysisFactory.class);
     private BuyRIImpactAnalysis buyRIImpactAnalysis = mock(BuyRIImpactAnalysis.class);
 
-    private InitialPlacementFinder initialPlacementFinder =
-            mock(InitialPlacementFinder.class);
+    private InitialPlacementHandler initialPlacementHandler = mock(InitialPlacementHandler.class);
 
     private JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory =
             mock(JournalActionSavingsCalculatorFactory.class);
@@ -228,6 +228,9 @@ public class AnalysisTest {
         when(actionSavingsCalculatorFactory.newCalculator(anyMap(), any(), any(), anyMap(), anyMap(), anyMap()))
                 .thenReturn(savingsCalculator);
         when(savingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
+        InitialPlacementFinder placementFinder = mock(InitialPlacementFinder.class);
+        when(initialPlacementHandler.getPlacementFinder()).thenReturn(placementFinder);
+        when(placementFinder.shouldConstructEconomyCache()).thenReturn(false);
     }
 
     /**
@@ -289,7 +292,7 @@ public class AnalysisTest {
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, nsQuotaAnalysisFactory,
-            tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder,
+            tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementHandler,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
             new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                 externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),

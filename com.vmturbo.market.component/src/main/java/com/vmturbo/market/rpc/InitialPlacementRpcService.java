@@ -1,6 +1,7 @@
 package com.vmturbo.market.rpc;
 
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 import javax.annotation.Nonnull;
 
@@ -27,9 +28,9 @@ import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPla
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 
 /**
  * Implementation of gRpc service for Reservation.
@@ -43,22 +44,22 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     private final String logPrefix = "FindInitialPlacement: ";
 
 
-    private final InitialPlacementFinder initPlacementFinder;
+    private final InitialPlacementHandler initPlacementHandler;
 
     /**
      * The grpc call to handle fast reservation.
      *
-     * @param initialPlacementFinder {@link InitialPlacementFinder}
+     * @param initialPlacementHandler {@link InitialPlacementHandler}
      */
-    public InitialPlacementRpcService(@Nonnull final InitialPlacementFinder initialPlacementFinder) {
-        this.initPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
+    public InitialPlacementRpcService(@Nonnull final InitialPlacementHandler initialPlacementHandler) {
+        this.initPlacementHandler = Objects.requireNonNull(initialPlacementHandler);
     }
 
     @Override
     public void getProvidersOfExistingReservations(final GetProvidersOfExistingReservationsRequest request,
                                                            final StreamObserver<GetProvidersOfExistingReservationsResponse> responseObserver) {
         GetProvidersOfExistingReservationsResponse response =
-                initPlacementFinder.buildGetProvidersOfExistingReservationsResponse();
+                initPlacementHandler.getPlacementFinder().buildGetProvidersOfExistingReservationsResponse();
         try {
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -81,8 +82,14 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                     initialPlacement.getReservationGrouping(),
                     initialPlacement.getProvidersList().size());
         });
-        Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder
-                .findPlacement(request);
+        Table<Long, Long, InitialPlacementFinderResult> result = null;
+        try {
+            result = initPlacementHandler.findPlacement(request);
+        } catch (ExecutionException e) {
+            logger.error("Unable to findPlacement due to ExecutionException", e);
+        } catch (InterruptedException e) {
+            logger.error("Unable to findPlacement due to InterruptedException", e);
+        }
         FindInitialPlacementResponse.Builder response = FindInitialPlacementResponse.newBuilder();
         for (Table.Cell<Long, Long, InitialPlacementFinderResult> triplet : result.cellSet()) {
             InitialPlacementBuyerPlacementInfo.Builder builder = InitialPlacementBuyerPlacementInfo
@@ -130,7 +137,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                                             final StreamObserver<DeleteInitialPlacementBuyerResponse> responseObserver) {
         logger.info(logPrefix + "The number of workloads to delete is " + request.getBuyerIdList().size());
         boolean deployed = request.hasDeployed() && request.getDeployed();
-        boolean remove = initPlacementFinder.buyersToBeDeleted(request.getBuyerIdList(), deployed);
+        boolean remove = initPlacementHandler.buyersToBeDeleted(request.getBuyerIdList(), deployed);
         DeleteInitialPlacementBuyerResponse.Builder response = DeleteInitialPlacementBuyerResponse
                 .newBuilder().setResult(remove);
         try {
@@ -149,7 +156,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     public void updateHistoricalCachedEconomy(final UpdateHistoricalCachedEconomyRequest request,
                                       final StreamObserver<UpdateHistoricalCachedEconomyResponse> responseObserver) {
         logger.info(logPrefix + "Received a request to update historical cache from Plan Orchestrator");
-        initPlacementFinder.resetHistoricalCacheReceived();
+        initPlacementHandler.resetHistoricalCacheReceived();
         UpdateHistoricalCachedEconomyResponse.Builder response = UpdateHistoricalCachedEconomyResponse
                 .newBuilder();
         try {

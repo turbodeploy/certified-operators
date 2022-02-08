@@ -34,6 +34,7 @@ import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.After;
 import org.junit.Before;
@@ -65,7 +66,7 @@ import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
@@ -138,8 +139,8 @@ public class MarketRunnerTest {
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
 
-    private InitialPlacementFinder initialPlacementFinder =
-            mock(InitialPlacementFinder.class);
+    private InitialPlacementHandler initialPlacementHandler =
+            mock(InitialPlacementHandler.class);
 
     private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory =
             mock(ReversibilitySettingFetcherFactory.class);
@@ -152,7 +153,7 @@ public class MarketRunnerTest {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
         runner = new MarketRunner(threadPool, serverApi,
-                analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementFinder, 10000,
+                analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementHandler, 10000,
                 new ComponentRestartHelper(6));
 
         topologyContextId += 100;
@@ -197,7 +198,7 @@ public class MarketRunnerTest {
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                     wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
                     tierExcluderFactory, mock(AnalysisRICoverageListener.class),
-                    consistentScalingHelperFactory, initialPlacementFinder,
+                    consistentScalingHelperFactory, initialPlacementHandler,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                     new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                     externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),

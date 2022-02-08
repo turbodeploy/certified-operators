@@ -102,6 +102,7 @@ public class EconomyCachesTest {
     private EconomyCaches economyCaches = Mockito.spy(new EconomyCaches(dsl));
     private EconomyCachePersistence economyCachePersistenceSpy = Mockito.mock(
             EconomyCachePersistence.class);
+
     private static final BiMap<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = HashBiMap.create();
 
     /**
@@ -271,8 +272,10 @@ public class EconomyCachesTest {
         }};
         Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         Assert.assertFalse(economyCaches.getState().isEconomyReady());
-        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches.updateHistoricalCachedEconomy(economyWithCluster(
-                new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, buyerPlacements, existingReservations);
+        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
+                .updateHistoricalCachedEconomy(economyWithCluster(
+                        new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}),
+                        commTypeToSpecMap, buyerPlacements, existingReservations);
         Economy newEconomy = economyCaches.historicalCachedEconomy;
         Assert.assertTrue(newPlacements.get(buyerOid).stream().allMatch(i -> i.supplier.get() == pm2Oid));
         Assert.assertTrue(newEconomy.getTraders().size() == 5);
@@ -313,10 +316,12 @@ public class EconomyCachesTest {
         economyCaches.getState().setReservationReceived(true);
         economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap,
                 buyerPlacements, existingReservations);
-        Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
+        Mockito.doNothing().when(economyCachePersistenceSpy)
+                .saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         Assert.assertTrue(economyCaches.getState().isRealtimeCacheReceived());
-        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches.updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap,
-                buyerPlacements, existingReservations);
+        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
+                .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
+                        existingReservations);
         Assert.assertTrue(economyCaches.getState().isHistoricalCacheReceived());
         Economy newEconomy = economyCaches.historicalCachedEconomy;
         Assert.assertTrue(newPlacements.get(buyerOid).stream()
@@ -362,8 +367,9 @@ public class EconomyCachesTest {
                 buyerPlacements, existingReservations);
         Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         Assert.assertTrue(economyCaches.getState().isRealtimeCacheReceived());
-        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches.updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap,
-                buyerPlacements, existingReservations);
+        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
+                .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
+                        existingReservations);
         Assert.assertTrue(economyCaches.getState().isHistoricalCacheReceived());
         Economy newEconomy = economyCaches.historicalCachedEconomy;
         Assert.assertTrue(newPlacements.get(buyerOid).stream()
@@ -401,7 +407,7 @@ public class EconomyCachesTest {
         }};
         Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         // Add the existing reservation buyer to the simple economy and find placement for it.
-        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches.updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap,
+        economyCaches.updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap,
                 buyerPlacements, existingReservations);
         Economy newEconomy = economyCaches.historicalCachedEconomy;
         // Verify that economy now contains the buyer, and it is placed on pm1.
@@ -1087,11 +1093,10 @@ public class EconomyCachesTest {
         Mockito.doThrow(NullPointerException.class)
                 .when(spy)
                 .updateAccessCommoditiesInHistoricalEconomyCache(Mockito.any(), Mockito.any());
-
         spy.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap, new HashMap(),
                 new HashMap());
         Mockito.verify(spy).updateHistoricalCachedEconomy(Mockito.any(), Mockito.any(),
-                Mockito.any(), Mockito.any());
+                Mockito.any(), Mockito.any(), Mockito.any());
     }
 
     /**
@@ -1119,7 +1124,8 @@ public class EconomyCachesTest {
         economy.removeTrader(pm4);
         economy.getTopology().getModifiableTraderOids().remove(pm3Oid);
         economy.getTopology().getModifiableTraderOids().remove(pm4Oid);
-        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(), new HashMap<>());
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
         long buyer1Oid = 1234L;
         long buyer1SlOid = 1000L;
         double buyerMemUsed = 20;
@@ -1326,7 +1332,8 @@ public class EconomyCachesTest {
                         ImmutableList.of(455L));
         final long oid = 237612L;
         pm5.setOid(oid);
-        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(), new HashMap<>());
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
         Assert.assertEquals(1, economyCaches.historicalCachedEconomy.getTraders().stream()
                 .filter(t -> t.getOid() == oid).count());
     }

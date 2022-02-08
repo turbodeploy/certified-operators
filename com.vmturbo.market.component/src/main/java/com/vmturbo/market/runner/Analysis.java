@@ -86,6 +86,7 @@ import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsUtils;
 import com.vmturbo.market.diagnostics.IDiagnosticsCleaner;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis.BuyCommitmentImpactResult;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -292,7 +293,7 @@ public class Analysis {
 
     private final AnalysisRICoverageListener listener;
 
-    private final InitialPlacementFinder initialPlacementFinder;
+    private final InitialPlacementHandler initialPlacementHandler;
 
     private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
 
@@ -308,10 +309,6 @@ public class Analysis {
     private final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService;
 
     private final CommodityIdUpdater commodityIdUpdater;
-
-    // a set of on-prem application entity type
-    private static final Set<Integer> entityTypesToSkip =
-            new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
 
     // List of post processors to update corresponding projected topology entities after analysis.
     private static final List<ProjectedEntityPostProcessor> PROJECTED_ENTITY_POST_PROCESSORS =
@@ -343,7 +340,7 @@ public class Analysis {
      * @param tierExcluderFactory the tier excluder factory
      * @param listener that receives entity ri coverage information availability.
      * @param consistentScalingHelperFactory CSM helper factory
-     * @param initialPlacementFinder the class to perform fast reservation
+     * @param initialPlacementHandler the class to perform fast reservation
      * @param reversibilitySettingFetcherFactory factory for {@link ReversibilitySettingFetcher}.
      * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
      * @param commodityIdUpdater commodity id updater
@@ -362,7 +359,7 @@ public class Analysis {
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
-                    @Nonnull final InitialPlacementFinder initialPlacementFinder,
+                    @Nonnull final InitialPlacementHandler initialPlacementHandler,
                     @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                     @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
                     @Nonnull final CommodityIdUpdater commodityIdUpdater,
@@ -393,7 +390,7 @@ public class Analysis {
         this.tierExcluderFactory = tierExcluderFactory;
         this.listener = listener;
         this.consistentScalingHelperFactory = consistentScalingHelperFactory;
-        this.initialPlacementFinder = initialPlacementFinder;
+        this.initialPlacementHandler = initialPlacementHandler;
         this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
         this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
         this.commodityIdUpdater = commodityIdUpdater;
@@ -555,7 +552,6 @@ public class Analysis {
         DataMetricTimer processResultTime = null;
         AnalysisResults results = null;
         Map<Long, List<UnplacementReason.Builder>> unplacedReasonMap = new HashMap<>();
-        Map<Long, TraderTO> projTradersMap = null;
 
         // Don't generate actions associated with entities with these oids
         final Set<Long> suppressActionsForOids = new HashSet<>();
@@ -981,14 +977,14 @@ public class Analysis {
      */
     private void updateReservationEconomyCache(final @Nonnull UnmodifiableEconomy economy,
             final boolean isRealtime) {
-        if (!initialPlacementFinder.shouldConstructEconomyCache()) {
+        if (!initialPlacementHandler.getPlacementFinder().shouldConstructEconomyCache()) {
             return;
         }
         if (converter.getCommodityConverter() != null
                 && converter.getCommodityConverter().getCommTypeAllocator() != null) {
             Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = converter
                     .getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
-            initialPlacementFinder.updateCachedEconomy(economy, commTypeToSpecMap, isRealtime);
+            initialPlacementHandler.updateCachedEconomy(economy, commTypeToSpecMap, isRealtime);
         }
     }
 

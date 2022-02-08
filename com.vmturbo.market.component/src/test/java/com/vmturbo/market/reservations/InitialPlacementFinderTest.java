@@ -3,10 +3,12 @@ package com.vmturbo.market.reservations;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -39,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
@@ -75,6 +79,7 @@ public class InitialPlacementFinderTest {
     private static final BiMap<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = HashBiMap.create();
     private final  ReservationServiceMole testReservationService = spy(new ReservationServiceMole());
     private  ReservationServiceBlockingStub reservationServiceBlockingStub;
+    AnalysisDiagnosticsCollectorFactory diagsCollectorFactory = Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class);
 
     /**
      * The grpc server.
@@ -97,6 +102,7 @@ public class InitialPlacementFinderTest {
     public void before() {
         IdentityGenerator.initPrefix(0);
         reservationServiceBlockingStub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        when(diagsCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
     }
 
     /**
@@ -104,9 +110,9 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testConstructTraderTOs() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class), reservationServiceBlockingStub,
-true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
-        pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class), reservationServiceBlockingStub,
+true, 1, 5, diagsCollectorFactory);
+        handler.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
         TraderTO vmTO = (TraderTO)InitialPlacementUtils.constructTraderTO(
                 getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100), commTypeToSpecMap,
                 new HashMap()).get();
@@ -124,9 +130,9 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      */
     @Test
     public void testConstructTraderTOsWithException() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class), reservationServiceBlockingStub,
-                true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
-        pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+                reservationServiceBlockingStub, true, 1, 5, diagsCollectorFactory);
+        handler.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
         // Create Trader with invalid commodity Type 1000.
         Optional<TraderTO> vmTO = InitialPlacementUtils.constructTraderTO(
                 getTradersToPlace(vmID, pmSlOid, PM_TYPE, 1000, 100), commTypeToSpecMap,
@@ -140,14 +146,15 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      */
     @Test
     public void testBuyersToBeDeleted() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
         pf.existingReservations.put(1L, PlanUtils.setupInitialPlacement(new ArrayList(Arrays
-            .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 10))), 1L));
+                    .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 10))), 1L));
         pf.buyerPlacements.put(vmID, new ArrayList(Arrays.asList(new InitialPlacementDecision(pmSlOid,
-                Optional.of(pm1Oid), new ArrayList()))));
-        pf.buyersToBeDeleted(Arrays.asList(vmID), false);
+                    Optional.of(pm1Oid), new ArrayList()))));
+        handler.buyersToBeDeleted(Arrays.asList(vmID), false);
         assertTrue(pf.existingReservations.isEmpty());
         assertTrue(pf.buyerPlacements.isEmpty());
     }
@@ -157,20 +164,24 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      * PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
      * Expected: buyer has pm2 as the supplier, existingReservations contains the new reservation
      * and buyerPlacements keeps track of buyer oid and its placement decisions.
+     *
+     * @throws InterruptedException        if we're interrupted
+     * @throws ExecutionException          if failure in asynchronous updation
      */
     @Test
-    public void testFindPlacement() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+    public void testFindPlacement() throws ExecutionException, InterruptedException {
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
         // Create both economy caches using same economy.
         Economy originalEconomy = getOriginalEconomy();
         pf.economyCaches.getState().setReservationReceived(true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true).get();
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false).get();
         double used = 10;
         Table<Long, Long, InitialPlacementFinderResult> result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(Arrays
+            = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays
                 .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
                 MEM_TYPE, used)), 1L));
         for (Table.Cell<Long, Long, InitialPlacementFinderResult> cell : result.cellSet()) {
@@ -193,19 +204,23 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      * Test initial placement finder failed. The original economy has two hosts.
      * PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
      * Expected: reservation failed with a new reservation VM requesting 100 mem.
+     * @throws InterruptedException        if we're interrupted
+     * @throws ExecutionException          if failure in asynchronous updation
      */
     @Test
-    public void testInitialPlacementFinderResultWithFailureInfo() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+    public void testInitialPlacementFinderResultWithFailureInfo()
+            throws ExecutionException, InterruptedException {
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 0, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
         Economy originalEconomy = getOriginalEconomy();
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         pf.economyCaches.getState().setReservationReceived(true);
         InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
         Table<Long, Long, InitialPlacementFinderResult> result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(buyer), 1L));
+            = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(buyer), 1L));
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
         assertTrue(failureInfo.size() == 1);
         assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
@@ -219,19 +234,24 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      * PM1 mem used 110, capacity 100. PM2 mem used 120, capacity 100.
      * Expected: reservation failed with a new reservation VM requesting 100 mem.
      * Failure info  has maxquantity non negative
+     *
+     * @throws InterruptedException        if we're interrupted
+     * @throws ExecutionException          if failure in asynchronous updation
      */
     @Test
-    public void testInitialPlacementFinderResultWithFailureInfoOnOverFlowEconomy() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+    public void testInitialPlacementFinderResultWithFailureInfoOnOverFlowEconomy()
+            throws InterruptedException, ExecutionException {
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 0, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
         Economy originalEconomy = getOverflowEconomy();
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         pf.economyCaches.getState().setReservationReceived(true);
         InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
         Table<Long, Long, InitialPlacementFinderResult> result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(buyer), 1L));
+            = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(buyer), 1L));
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
         assertTrue(failureInfo.size() == 1);
         assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
@@ -363,17 +383,22 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      * Expected: new reservation with VM2 and VM3 has mem used 50 and 100 will fail, existingReservations
      * contains the new reservation and buyerPlacements keeps track of buyer oid and its placement
      * decisions with no supplier present in both VM2 and VM3.
+     *
+     * @throws InterruptedException        if we're interrupted
+     * @throws ExecutionException          if failure in asynchronous updation
      */
     @Test
-    public void testReservationPartialSuccess() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+    public void testReservationPartialSuccess() throws ExecutionException, InterruptedException {
+
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
         Economy originalEconomy = getOriginalEconomy();
         // Create both economy caches using same economy.
         pf.economyCaches.getState().setReservationReceived(true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         long vm2Oid = 10002L;
         long vm3Oid = 10003L;
         long vm2SlOid = 20002L;
@@ -386,7 +411,7 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
         vms.add(vm2);
         vms.add(vm3);
         Table<Long, Long, InitialPlacementFinderResult> result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(vms, 1L));
+            = handler.findPlacement(PlanUtils.setupReservationRequest(vms, 1L));
         for (Table.Cell<Long, Long, InitialPlacementFinderResult> cell : result.cellSet()) {
             assertTrue(cell.getRowKey() == vm2Oid || cell.getRowKey() == vm3Oid);
             assertTrue(cell.getColumnKey() == vm2SlOid || cell.getColumnKey() == vm3SlOid);
@@ -403,16 +428,20 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
 
     /**
      * Test reservation delayed deletion in the findPlacement.
+     *
+     * @throws InterruptedException        if we're interrupted
+     * @throws ExecutionException          if failure in asynchronous updation
      */
     @Test
-    public void testDelayedDeletion() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+    public void testDelayedDeletion() throws ExecutionException, InterruptedException {
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
         Economy originalEconomy = getOriginalEconomy();
         pf.economyCaches.getState().setReservationReceived(true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         // PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
         long vm2Oid = 10002L;
         long vm2SlOid = 20002L;
@@ -420,7 +449,7 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
         InitialPlacementBuyer vm2Buyer = getTradersToPlace(vm2Oid, vm2SlOid, PM_TYPE, MEM_TYPE, vm2Used)
                 .toBuilder().setReservationId(900002L).build();
         Table<Long, Long, InitialPlacementFinderResult> vm2Result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(vm2Buyer), 900002L));
+            = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(vm2Buyer), 900002L));
         assertTrue(vm2Result.get(vm2Oid, vm2SlOid).getProviderOid().get() == pm2Oid);
         /*
         Historical:
@@ -443,7 +472,7 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
         InitialPlacementBuyer vm3Buyer = getTradersToPlace(vm3Oid, vm3SlOid, PM_TYPE, MEM_TYPE, vm3Used)
                 .toBuilder().setReservationId(900003L).build();
         Table<Long, Long, InitialPlacementFinderResult> vm3Result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(vm3Buyer), 900003L));
+            = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(vm3Buyer), 900003L));
         assertTrue(vm3Result.get(vm3Oid, vm3SlOid).getProviderOid().get() == pm1Oid);
         /*
         Historical:
@@ -554,22 +583,26 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      * VM1 resides on PM1. PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
      * Expected: new reservation VM2 with mem used 20 selects PM2. PM2 new mem used is 40.
      * Then deleting VM2, a new reservation VM3 with mem used 10 selects PM2.
+     *
+     * @throws InterruptedException        if we're interrupted
+     * @throws ExecutionException          if failure in asynchronous updation
      */
     @Test
-    public void testReservationDeletionAndAdd() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+    public void testReservationDeletionAndAdd() throws ExecutionException, InterruptedException {
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
         Economy originalEconomy = getOriginalEconomy();
         pf.economyCaches.getState().setReservationReceived(true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
 
         long vm2Oid = 10002L;
         long vm2SlOid = 20002L;
         long vm2Used = 20;
         Table<Long, Long, InitialPlacementFinderResult> vm2Result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(
+            = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(
                 getTradersToPlace(vm2Oid, vm2SlOid, PM_TYPE, MEM_TYPE, vm2Used)), 1L));
         assertTrue(vm2Result.get(vm2Oid, vm2SlOid).getProviderOid().get() == pm2Oid);
         // delete the VM1 which stays on PM1, now the utilization of PM1 is lower
@@ -578,7 +611,7 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
         long vm3SlOid = 20003L;
         long vm3Used = 10;
         Table<Long, Long, InitialPlacementFinderResult> vm3Result
-            = pf.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(
+            = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays.asList(
                 getTradersToPlace(vm3Oid, vm3SlOid, PM_TYPE, MEM_TYPE, vm3Used)), 1L));
         assertTrue(vm3Result.get(vm3Oid, vm3SlOid).getProviderOid().get() == pm2Oid);
     }
@@ -589,9 +622,9 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
      */
     @Test
     public void testQueryExistingReservations() throws InterruptedException {
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory);
         InitialPlacementDTO initialPlacement = PlanUtils.setupInitialPlacement(new ArrayList(Arrays
             .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100))), 1L);
         GetExistingReservationsRequest request = GetExistingReservationsRequest
@@ -603,7 +636,7 @@ true, 1, 5, Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
             countDownLatch.countDown();
             return response;
         }).when(testReservationService).getExistingReservations(request);
-        pf.queryExistingReservations(120);
+        handler.getPlacementFinder().queryExistingReservations(120);
         countDownLatch.await();
 
         verify(testReservationService, times(1)).getExistingReservations(request);
