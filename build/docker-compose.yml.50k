@@ -513,13 +513,6 @@ services:
 #    mem_limit: 2500M
 #    depends_on: *clustermgrdep
 #
-#  mediation-aix:
-#    extends:
-#      file: prod-services.yml
-#      service: mediation-aix-prod
-#    mem_limit: 2500M
-#    depends_on: *clustermgrdep
-#
 #  mediation-horizon:
 #    extends:
 #      file: prod-services.yml
