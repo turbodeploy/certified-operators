@@ -1414,6 +1414,8 @@ public class HistorydbIO {
             return Optional.empty();
         }
         DSLContext connDsl = DSL.using(connection, dsl.dialect());
+        // generate a highly random name for the temp table, avoiding upper-case as a precuatoin
+        // in case names are rendered sometimes with quoting and sometimes without in SQL.
         final String tempTableName = String.format("tmp_%s",
                 java.util.UUID.randomUUID().toString().replace("-", ""));
         try {

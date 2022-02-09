@@ -51,7 +51,7 @@ public class AvailableTimestampsQueryTest extends QueryTestBase {
     public void testHourlyTimeFrame() {
         Query query = new AvailableTimestampsQuery(
                 TimeFrame.HOUR, HistoryVariety.ENTITY_STATS, 0, null, null, dsl).getQuery();
-        queryChecker.withConditions("available_timestamps.time_frame = 'HOUR'",
+        queryChecker.withConditions(true, "available_timestamps.time_frame = 'HOUR'",
                         "available_timestamps.history_variety = 'ENTITY_STATS'")
                 .check(query);
     }
@@ -63,7 +63,7 @@ public class AvailableTimestampsQueryTest extends QueryTestBase {
     public void testPriceDataVariety() {
         Query query = new AvailableTimestampsQuery(
                 TimeFrame.LATEST, HistoryVariety.PRICE_DATA, 0, null, null, dsl).getQuery();
-        queryChecker.withConditions("available_timestamps.time_frame = 'LATEST'",
+        queryChecker.withConditions(true, "available_timestamps.time_frame = 'LATEST'",
                         "available_timestamps.history_variety = 'PRICE_DATA'")
                 .check(query);
     }
@@ -97,7 +97,7 @@ public class AvailableTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableTimestampsQuery(
                 TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0,
                 Timestamp.valueOf("2019-01-02 03:04:05"), null, dsl).getQuery();
-        queryChecker.withMoreConditions(
+        queryChecker.withConditions(
                         "available_timestamps.time_stamp >= TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
@@ -110,7 +110,7 @@ public class AvailableTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableTimestampsQuery(
                 TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0,
                 null, Timestamp.valueOf("2019-01-02 03:04:05"), dsl).getQuery();
-        queryChecker.withMoreConditions(
+        queryChecker.withConditions(
                         "available_timestamps.time_stamp <= TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
@@ -124,7 +124,7 @@ public class AvailableTimestampsQueryTest extends QueryTestBase {
                 TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0,
                 Timestamp.valueOf("2019-01-01 03:04:05"), Timestamp.valueOf("2019-01-02 03:04:05"),
                 dsl).getQuery();
-        queryChecker.withMoreConditions(
+        queryChecker.withConditions(
                         "available_timestamps.time_stamp "
                                 + "BETWEEN TIMESTAMP '2019-01-01 03:04:05\\.0' "
                                 + "AND TIMESTAMP '2019-01-02 03:04:05\\.0'")

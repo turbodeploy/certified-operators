@@ -3,12 +3,14 @@ package com.vmturbo.history.db;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -57,8 +59,8 @@ public class QueryTestBase {
      * @param distinct true of DISTINCT keyword should be present
      * @param fields   fields expected in the SELECT list (may include computed fields)
      */
-    private void checkSelectFields(String sql, boolean distinct, String... fields) {
-        if (fields.length > 0) {
+    private void checkSelectFields(String sql, boolean distinct, List<String> fields) {
+        if (!fields.isEmpty()) {
             assertThat(sql, matchesPattern(makePattern(
                     singleton("SELECT"),
                     opt(distinct, "DISTINCT"),
@@ -72,11 +74,11 @@ public class QueryTestBase {
      * @param sql    SQL to be checked
      * @param tables expected tables, including joins
      */
-    private void checkTables(String sql, String... tables) {
-        if (tables.length > 0) {
-            assertThat(sql, matchesPattern(makePattern(singleton("FROM"), commas(tables))));
-        } else {
+    private void checkTables(String sql, List<String> tables) {
+        if (tables.isEmpty()) {
             assertThat(sql, not(matchesPattern(makePattern(singleton("FROM")))));
+        } else {
+            assertThat(sql, matchesPattern(makePattern(singleton("FROM"), commas(tables))));
         }
     }
 
@@ -92,17 +94,17 @@ public class QueryTestBase {
      * @param sql        SQL to be checked
      * @param conditions expected conditions, assumed
      */
-    private void checkConditions(String sql, String... conditions) {
-        if (conditions.length > 0) {
-            boolean paren = conditions.length > 1;
+    private void checkConditions(String sql, List<String> conditions) {
+        if (conditions.isEmpty()) {
+            assertThat(sql, not(matchesPattern(makePattern(singleton("WHERE")))));
+        } else {
+            boolean paren = conditions.size() > 1;
             String conjunction = String.join("\\s+AND\\s+", conditions);
             assertThat(sql, matchesPattern(makePattern(
                     singleton("WHERE"),
                     opt(paren, "\\("),
                     singleton(conjunction),
                     opt(paren, "\\)"))));
-        } else {
-            assertThat(sql, not(matchesPattern(makePattern(singleton("WHERE")))));
         }
     }
 
@@ -110,25 +112,26 @@ public class QueryTestBase {
      * Check that the ORDER BY fields are as expected in the query.
      *
      * @param sql        SQL to be checked
-     * @param sortFields expected sort fields in the ORDER BY clause, including ASC or DESC as appropriate.
+     * @param sortFields expected sort fields in the ORDER BY clause, including ASC or DESC as
+     *                   appropriate.
      */
-    private void checkOrderBy(String sql, String... sortFields) {
-        if (sortFields.length > 0) {
+    private void checkOrderBy(String sql, List<String> sortFields) {
+        if (sortFields.isEmpty()) {
+            assertThat(sql, not(matchesPattern(makePattern(singleton("ORDER BY")))));
+        } else {
             assertThat(sql, matchesPattern(makePattern(
                     singleton("ORDER BY"),
                     commas(sortFields))));
-        } else {
-            assertThat(sql, not(matchesPattern(makePattern(singleton("ORDER BY")))));
         }
     }
 
-    private void checkGroupBy(String sql, String... groupByFields) {
-        if (groupByFields.length > 0) {
+    private void checkGroupBy(String sql, List<String> groupByFields) {
+        if (groupByFields.isEmpty()) {
+            assertThat(sql, not(matchesPattern(makePattern(singleton("GROUP BY")))));
+        } else {
             assertThat(sql, matchesPattern(makePattern(
                     singleton("GROUP BY"),
                     commas(groupByFields))));
-        } else {
-            assertThat(sql, not(matchesPattern(makePattern(singleton("GROUP BY")))));
         }
     }
 
@@ -193,10 +196,9 @@ public class QueryTestBase {
         return enabled ? group : new String[0];
     }
 
-    private static String[] commas(String... strings) {
+    private static String[] commas(List<String> strings) {
         return new String[]{String.join(",\\s*", strings)};
     }
-
 
     /**
      * Create a {@link MatchesPattern} hamcrest matcher.
@@ -235,16 +237,17 @@ public class QueryTestBase {
     }
 
     /**
-     * A class that captures all the expected parts of an SQL query and then checks that they are all present.
+     * A class that captures all the expected parts of an SQL query and then checks that they are
+     * all present.
      */
     public class QueryChecker {
 
-        private String[] selectFields = new String[0];
+        private final List<String> selectFields = new ArrayList<>();
         private boolean distinct = false;
-        private String[] tables = new String[0];
-        private String[] conditions = new String[0];
-        private String[] sortFields = new String[0];
-        private String[] groupByFields = new String[0];
+        private final List<String> tables = new ArrayList<>();
+        private final List<String> conditions = new ArrayList<>();
+        private final List<String> sortFields = new ArrayList<>();
+        private final List<String> groupByFields = new ArrayList<>();
         private int limit = 0;
 
         /**
@@ -256,7 +259,21 @@ public class QueryTestBase {
          * @return this query checker
          */
         public QueryChecker withSelectFields(String... selectFields) {
-            this.selectFields = selectFields;
+            return withSelectFields(false, selectFields);
+        }
+
+        /**
+         * Set or add to the fields that should appear in the SELECT list.
+         *
+         * @param reset        true if these fields should replace existing fields
+         * @param selectFields select-list fields
+         * @return this query checker
+         */
+        public QueryChecker withSelectFields(boolean reset, String... selectFields) {
+            if (reset) {
+                this.selectFields.clear();
+            }
+            this.selectFields.addAll(Arrays.asList(selectFields));
             return this;
         }
 
@@ -272,8 +289,8 @@ public class QueryTestBase {
         }
 
         /**
-         * Specify tables expected in the query, including JOIN tables with aliases, join types and join conditions as
-         * needed.
+         * Specify tables expected in the query, including JOIN tables with aliases, join types and
+         * join conditions as needed.
          *
          * <p>This method replaces any previously specified tables.</p>
          *
@@ -281,15 +298,29 @@ public class QueryTestBase {
          * @return this query checker
          */
         public QueryChecker withTables(String... tables) {
-            this.tables = tables;
+            return withTables(false, tables);
+        }
+
+        /**
+         * Set or add to the tables that are involved in the query.
+         *
+         * @param reset  true if this list should replace existing tables
+         * @param tables tables to appear in the query
+         * @return this query checker
+         */
+        public QueryChecker withTables(boolean reset, String... tables) {
+            if (reset) {
+                this.tables.clear();
+            }
+            this.tables.addAll(Arrays.asList(tables));
             return this;
         }
 
         /**
          * Specify expected WHERE conditions for query.
          *
-         * <p>The conditions are presumed to form a top-level conjunction (AND expression. Any internal structure
-         * must be provided within a complex top-level condition.</p>
+         * <p>The conditions are presumed to form a top-level conjunction (AND expression. Any
+         * internal structure must be provided within a complex top-level condition.</p>
          *
          * <p>This method replaces any previously specified conditions.</p>
          *
@@ -297,18 +328,21 @@ public class QueryTestBase {
          * @return this query checker
          */
         public QueryChecker withConditions(String... conditions) {
-            this.conditions = conditions;
-            return this;
+            return this.withConditions(false, conditions);
         }
 
         /**
-         * Specify conditions to be added to the current list of expected WHERE conditions.
+         * Set or add to the conditions that should appear in the WHERE clause.
          *
-         * @param conditions conditions to be added
+         * @param reset      true if these should replace existing conditions
+         * @param conditions conditions to appear in WHERE clause
          * @return this query checker
          */
-        public QueryChecker withMoreConditions(String... conditions) {
-            this.conditions = ArrayUtils.addAll(this.conditions, conditions);
+        public QueryChecker withConditions(boolean reset, String... conditions) {
+            if (reset) {
+                this.conditions.clear();
+            }
+            this.conditions.addAll(Arrays.asList(conditions));
             return this;
         }
 
@@ -321,7 +355,21 @@ public class QueryTestBase {
          * @return this query checker
          */
         public QueryChecker withSortFields(String... sortFields) {
-            this.sortFields = sortFields;
+            return withSortFields(false, sortFields);
+        }
+
+        /**
+         * Set or add to the list of fields to appear in ORDER BY clause.
+         *
+         * @param reset      true if these fields should replace existing fields
+         * @param sortFields fields to appear in ORDER BY
+         * @return this query checker
+         */
+        public QueryChecker withSortFields(boolean reset, String... sortFields) {
+            if (reset) {
+                this.sortFields.clear();
+            }
+            this.sortFields.addAll(Arrays.asList(sortFields));
             return this;
         }
 
@@ -334,7 +382,18 @@ public class QueryTestBase {
          * @return this query checker
          */
         public QueryChecker withGroupByFields(String... groupByFields) {
-            this.groupByFields = groupByFields;
+            return withGroupByFields(false, groupByFields);
+        }
+
+        /**
+         * Set or add to fields to appear in GROUP BY clause.
+         *
+         * @param reset         true if these fields should replace existing fields
+         * @param groupByFields fields to appear in GROUP BY
+         * @return this query checker
+         */
+        public QueryChecker withGroupByFields(boolean reset, String... groupByFields) {
+            this.groupByFields.addAll(Arrays.asList(groupByFields));
             return this;
         }
 
