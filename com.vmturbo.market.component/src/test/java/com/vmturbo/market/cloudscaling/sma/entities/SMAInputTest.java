@@ -310,8 +310,8 @@ public class SMAInputTest {
         assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getGroupProviders().iterator().next());
         //natural template == current template, because VM is not movable
         assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getNaturalTemplate());
-        assertEquals(vm1.get().getCurrentTemplate().getCoupons(),
-                vm1.get().getCurrentRICoverage(), 0.001f);
+        assertEquals((float)vm1.get().getCurrentTemplate().getCommitmentAmount().getCoupons(),
+                vm1.get().getCurrentRICoverage().getCoupons(), 0.001f);
 
         //this VM is movable and should have provider templates
         final Optional<SMAVirtualMachine> vm2 = findVMByOid(smaContext, vm2Id);

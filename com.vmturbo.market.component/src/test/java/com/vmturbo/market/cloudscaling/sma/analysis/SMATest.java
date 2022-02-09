@@ -2,16 +2,13 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
@@ -220,7 +217,8 @@ public class SMATest {
             for (SMAMatch match2 : matches2) {
                 if (compareReservedInstance(match1.getReservedInstance(),
                         match2.getReservedInstance())
-                        && Math.abs(match1.getDiscountedCoupons() - match2.getDiscountedCoupons()) < SMAUtils.BIG_EPSILON
+                        && CommitmentAmountCalculator.isZero(CommitmentAmountCalculator.subtract(match1.getDiscountedCoupons(),
+                            match2.getDiscountedCoupons()), SMAUtils.BIG_EPSILON)
                         && (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid())
                         && (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
                     found = true;

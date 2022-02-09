@@ -61,6 +61,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
@@ -268,11 +269,11 @@ public class AnalysisDiagnosticsCollectorTest {
                 SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
                 float currentCost = cloudCostCalculator.getNetCost(
                         virtualMachine, virtualMachine.getCurrentTemplate(),
-                        virtualMachine.getCurrentRI() == null ? 0 : virtualMachine.getCurrentRICoverage(),
+                        virtualMachine.getCurrentRI() == null ? CommitmentAmountCalculator.ZERO_COVERAGE : virtualMachine.getCurrentRICoverage(),
                         virtualMachine.getCurrentRI() == null ? SMAUtils.UNKNOWN_OID : virtualMachine.getCurrentRI().getOid());
                 float projectedCost = cloudCostCalculator.getNetCost(
                         virtualMachine, smaMatch.getTemplate(),
-                        smaMatch.getReservedInstance() == null ? 0 : smaMatch.getDiscountedCoupons(),
+                        smaMatch.getReservedInstance() == null ? CommitmentAmountCalculator.ZERO_COVERAGE : smaMatch.getDiscountedCoupons(),
                         smaMatch.getReservedInstance() == null ? SMAUtils.UNKNOWN_OID : smaMatch.getReservedInstance().getOid());
                 if (currentCost - projectedCost > 0) {
                     saving += currentCost - projectedCost;
@@ -297,8 +298,8 @@ public class AnalysisDiagnosticsCollectorTest {
         for (SMAOutputContext outputContext : smaOutput.getContexts()) {
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
-                        || (Math.abs(match.getVirtualMachine().getCurrentRICoverage()
-                        - match.getDiscountedCoupons()) > SMAUtils.EPSILON)) {
+                        || !CommitmentAmountCalculator.isZero(CommitmentAmountCalculator.subtract(match.getVirtualMachine().getCurrentRICoverage(),
+                        match.getDiscountedCoupons()), SMAUtils.EPSILON)) {
                     actionCount++;
                 }
             }

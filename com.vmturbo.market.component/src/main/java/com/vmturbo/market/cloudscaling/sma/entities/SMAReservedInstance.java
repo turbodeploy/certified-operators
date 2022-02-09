@@ -9,6 +9,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.Pair;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
@@ -98,7 +99,7 @@ public class SMAReservedInstance {
     // map to keep track of RI Coverage for each group.
     // Saved to avoid recomputing everytime.
     // ASG Group Name x Pair<couponsCoveredOfASG, totalCouponsOfASG>
-    private HashMap<String, Pair<Float, Float>> riCoveragePerGroup;
+    private HashMap<String, Pair<CloudCommitmentAmount, CloudCommitmentAmount>> riCoveragePerGroup;
 
     // last discounted VM
     private SMAVirtualMachine lastDiscountedVM;
@@ -335,15 +336,15 @@ public class SMAReservedInstance {
      * @param virtualMachineGroup the vm group to be checked
      */
     public void updateRICoveragePerGroup(SMAVirtualMachineGroup virtualMachineGroup) {
-        float coverage = 0;
-        float total = 0;
+        CloudCommitmentAmount coverage = CommitmentAmountCalculator.ZERO_COVERAGE;
+        CloudCommitmentAmount total = CommitmentAmountCalculator.ZERO_COVERAGE;
         for (SMAVirtualMachine member : virtualMachineGroup.getVirtualMachines()) {
             if (isVMDiscountedByThisRI(member)) {
-                coverage = coverage + member.getCurrentRICoverage();
+                coverage = CommitmentAmountCalculator.sum(coverage, member.getCurrentRICoverage());
             }
-            total = total + member.getCurrentTemplate().getCoupons();
+            total = CommitmentAmountCalculator.sum(total, member.getCurrentTemplate().getCommitmentAmount());
         }
-        Pair<Float, Float> pair = new Pair<>(coverage, total);
+        Pair<CloudCommitmentAmount, CloudCommitmentAmount> pair = new Pair<>(coverage, total);
         riCoveragePerGroup.put(virtualMachineGroup.getName(), pair);
     }
 
@@ -356,12 +357,12 @@ public class SMAReservedInstance {
     public float getRICoverage(SMAVirtualMachine vm) {
         float riCoverage = 0;
         if (vm.getGroupSize() > 1) {
-            riCoverage = riCoveragePerGroup.get(vm.getGroupName()).first
-                    / riCoveragePerGroup.get(vm.getGroupName()).second;
+            riCoverage = CommitmentAmountCalculator.divide(riCoveragePerGroup.get(vm.getGroupName()).first
+                    , riCoveragePerGroup.get(vm.getGroupName()).second);
         } else {
             if (isVMDiscountedByThisRI(vm)) {
-                riCoverage = vm.getCurrentRICoverage()
-                        / vm.getCurrentTemplate().getCoupons();
+                riCoverage = CommitmentAmountCalculator.divide(vm.getCurrentRICoverage(),
+                        vm.getCurrentTemplate().getCommitmentAmount());
             } else {
                 return 0;
             }
@@ -379,7 +380,7 @@ public class SMAReservedInstance {
     public boolean isVMDiscountedByThisRI(SMAVirtualMachine vm) {
         return (vm.getCurrentRI() != null &&
             vm.getCurrentRI().getRiKeyOid() == getRiKeyOid()) &&
-            vm.getCurrentRICoverage() > SMAUtils.EPSILON;
+                CommitmentAmountCalculator.isPositive(vm.getCurrentRICoverage(), SMAUtils.EPSILON);
     }
 
     /**

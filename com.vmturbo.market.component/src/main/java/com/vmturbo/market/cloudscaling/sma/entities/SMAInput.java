@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
@@ -401,7 +402,7 @@ public class SMAInput {
             businessAccountId,
             null,
             new ArrayList<>(),
-            SMAUtils.NO_RI_COVERAGE,
+            CommitmentAmountCalculator.ZERO_COVERAGE,
             zoneId,
             SMAUtils.BOGUS_RI,
             osType,
@@ -481,10 +482,8 @@ public class SMAInput {
                     updateProvidersOfVirtualMachine(providers, vm.getCurrentTemplate(), vm);
             vm.setVirtualMachineProviderInfo(smaVirtualMachineProvider);
 
-            Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
+            Pair<SMAReservedInstance, CloudCommitmentAmount> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
             if (currentRICoverage != null) {
-                logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
-                        () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
                 vm.setCurrentRI(currentRICoverage.getFirst());
                 vm.setCurrentRICoverage(currentRICoverage.getSecond());
             }
@@ -765,7 +764,7 @@ public class SMAInput {
                 riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
 
         // adjust count of RI to reflect partial RI
-        final float count = (float)numberOfCoupons / template.getCoupons();
+        final float count = (float)(numberOfCoupons / template.getCommitmentAmount().getCoupons());
 
         final CloudCommitmentAmount commitmentAmount =
                 CloudCommitmentAmount.newBuilder().setCoupons(numberOfCoupons).build();
@@ -930,10 +929,10 @@ public class SMAInput {
      * @return Pair SMA RI to coupons covered.
      */
     @Nullable
-    private Pair<SMAReservedInstance, Float> computeVmCoverage(final Long vmOid,
+    private Pair<SMAReservedInstance, CloudCommitmentAmount> computeVmCoverage(final Long vmOid,
                                                                final CloudCostData cloudCostData,
                                                                final Map<Long, SMAReservedInstance> riBoughtOidToRI) {
-        Pair<SMAReservedInstance, Float> currentRICoverage = null;
+        Pair<SMAReservedInstance, CloudCommitmentAmount> currentRICoverage = null;
         Optional<EntityReservedInstanceCoverage> riCoverageOptional = cloudCostData.getFilteredRiCoverage(vmOid);
         if (riCoverageOptional.isPresent()) {
             EntityReservedInstanceCoverage riCoverage = riCoverageOptional.get();
@@ -948,7 +947,7 @@ public class SMAInput {
      * @return ReservedInstanceCoverage
      */
     @Nullable
-    private Pair<SMAReservedInstance, Float> computeVmCoverage(EntityReservedInstanceCoverage riCoverage,
+    private Pair<SMAReservedInstance, CloudCommitmentAmount> computeVmCoverage(EntityReservedInstanceCoverage riCoverage,
                                                                Map<Long, SMAReservedInstance> riBoughtOidToRI) {
         Map<Long, Double> riOidToCoupons = riCoverage.getCouponsCoveredByRiMap();
         float coverage = SMAUtils.NO_RI_COVERAGE;
@@ -965,7 +964,9 @@ public class SMAInput {
                 }
             }
         }
-        return new Pair(ri, coverage);
+        CloudCommitmentAmount commitmentAmount = CloudCommitmentAmount.newBuilder().setCoupons(
+                SMAUtils.round(coverage)).build();
+        return new Pair(ri, commitmentAmount);
     }
 
     /**
