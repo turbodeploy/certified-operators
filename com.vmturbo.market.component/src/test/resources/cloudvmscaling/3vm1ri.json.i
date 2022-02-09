@@ -85,6 +85,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 3
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -102,6 +105,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 3.3
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -119,6 +125,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 3.3000000000000001
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -132,7 +141,9 @@
             "oid": "100001",
             "name": "template1",
             "family": "family1",
-            "coupons": 3.0,
+            "commitmentAmount": {
+                "coupons": 3
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -166,7 +177,9 @@
             "oid": "100002",
             "name": "template2",
             "family": "family1",
-            "coupons": 3.3,
+            "commitmentAmount": {
+                "coupons": 3.3
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -188,7 +201,9 @@
             "oid": "100003",
             "name": "template3",
             "family": "family1",
-            "coupons": 3.3000000000000001,
+            "commitmentAmount": {
+                "coupons": 3.3000000000000001
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {

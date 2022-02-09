@@ -44,6 +44,9 @@
             "isf": false,
             "shared": false,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 8
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -63,6 +66,9 @@
             "isf": true,
             "shared": false,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 8
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -80,6 +86,9 @@
             "isf": true,
             "shared": false,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -93,7 +102,9 @@
             "oid": "100001",
             "name": "Standard_D1",
             "family": "D-series",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {
@@ -115,7 +126,9 @@
             "oid": "100002",
             "name": "Standard_D2",
             "family": "D-series",
-            "coupons": 2,
+            "commitmentAmount": {
+                "coupons": 2
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {
@@ -137,7 +150,9 @@
             "oid": "100003",
             "name": "Standard_D4",
             "family": "D-series",
-            "coupons": 8,
+            "commitmentAmount": {
+                "coupons": 8
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {

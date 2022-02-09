@@ -43,6 +43,9 @@
             "isf": false,
             "shared": false,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -56,7 +59,9 @@
             "oid": "100001",
             "name": "Standard_A1",
             "family": "",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {

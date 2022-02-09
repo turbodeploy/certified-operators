@@ -66,6 +66,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 16
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -79,7 +82,9 @@
             "oid": "100001",
             "name": "t2.large",
             "family": "t2",
-            "coupons": 16,
+            "commitmentAmount": {
+                "coupons": 16
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -101,7 +106,9 @@
             "oid": "100002",
             "name": "t2.xlarge",
             "family": "t2",
-            "coupons": 32,
+            "commitmentAmount": {
+                "coupons": 32
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -123,7 +130,9 @@
                      "oid": "100003",
                      "name": "t3.large",
                      "family": "t3",
-                     "coupons": 16,
+                     "commitmentAmount": {
+                "coupons": 16
+            },
                      "onDemandCosts": {
                          "10": {
                              "LINUX": {

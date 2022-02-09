@@ -71,8 +71,7 @@ public class StableMarriagePerContext {
          */
         Map<SMAReservedInstance, Float> remainingCoupons = new HashMap<>();
         for (SMAReservedInstance reservedInstance : reservedInstances) {
-            float coupons = (reservedInstance.getNormalizedTemplate().getCoupons()
-                    * reservedInstance.getNormalizedCount());
+            float coupons = (float)reservedInstance.getCommitmentAmount().getCoupons();
             if (coupons > SMAUtils.EPSILON) {
                 remainingCoupons.put(reservedInstance, coupons);
                 if (!freeRIs.contains(reservedInstance)) {

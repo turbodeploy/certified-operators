@@ -21,6 +21,7 @@ import com.google.common.base.Stopwatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriagePerContext.SortByRIOID;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
@@ -210,12 +211,15 @@ public class StableMarriageAlgorithm {
             }
             Collections.sort(members, new SortByRIOID());
             SMAReservedInstance representative = members.get(0);
-            float representativeTotalCount = 0;
+            double representativeTotalCoupons = 0;
             for (SMAReservedInstance ri : members) {
-                representativeTotalCount = representativeTotalCount + ri.getNormalizedCount();
-                ri.setNormalizedCount(0);
+                representativeTotalCoupons =
+                        representativeTotalCoupons + ri.getCommitmentAmount().getCoupons();
+                ri.setCommitmentAmount(SMAUtils.ZERO_COUPONS_COMMITMENT);
             }
-            representative.setNormalizedCount(representativeTotalCount);
+            representative.setCommitmentAmount(CloudCommitmentAmount.newBuilder()
+                    .setCoupons(representativeTotalCoupons)
+                    .build());
             reservedInstances.add(representative);
         }
     }

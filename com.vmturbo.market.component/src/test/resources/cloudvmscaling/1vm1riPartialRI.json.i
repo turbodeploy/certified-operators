@@ -40,6 +40,9 @@
             "isf": false,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 3.9996
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -53,7 +56,9 @@
             "oid": "100003",
             "name": "t3.small",
             "family": "t3",
-            "coupons": 4,
+            "commitmentAmount": {
+                "coupons": 4
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {

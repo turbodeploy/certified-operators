@@ -86,6 +86,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 36.0
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -99,7 +102,9 @@
             "oid": "100001",
             "name": "m5.nano",
             "family": "m5",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -121,7 +126,9 @@
             "oid": "100002",
             "name": "m5.small",
             "family": "m5",
-            "coupons": 8,
+            "commitmentAmount": {
+                "coupons": 8
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -143,7 +150,9 @@
             "oid": "100003",
             "name": "m5.large",
             "family": "m5",
-            "coupons": 32,
+            "commitmentAmount": {
+                "coupons": 32
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -165,7 +174,9 @@
             "oid": "100004",
             "name": "t3.small",
             "family": "t3",
-            "coupons": 8,
+            "commitmentAmount": {
+                "coupons": 8
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -187,7 +198,9 @@
             "oid": "100005",
             "name": "t2.large",
             "family": "t2",
-            "coupons": 32,
+            "commitmentAmount": {
+                "coupons": 32
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {

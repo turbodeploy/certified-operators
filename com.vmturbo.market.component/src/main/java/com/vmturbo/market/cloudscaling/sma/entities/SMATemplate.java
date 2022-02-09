@@ -4,17 +4,15 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+
 /**
  * SMA representation of a provide, either on-demand or discounted.
  * This is a template for a specific context.
  */
 public class SMATemplate {
 
-    private static final Logger logger = LogManager.getLogger();
     /*
      * Instance variables set in the contstructor.
      */
@@ -34,10 +32,7 @@ public class SMATemplate {
      */
     private final String family;
 
-    /*
-     * number of coupons
-     */
-    private final float coupons;
+    private final CloudCommitmentAmount commitmentAmount;
 
     /*
      * The compute tier in XL data structures.  Needed to compute costs.
@@ -57,7 +52,7 @@ public class SMATemplate {
      * @param oid the oid of the template. unique per context
      * @param name the template name
      * @param family the family the template belongs to.
-     * @param coupons the number of the coupons needed for SMA template.
+     * @param commitmentAmount the commitment amount
      * @param computeTier link back to XL data structures for compute tier.  Needed to compute cost.
      * @param scalingPenalty The scaling penalty from the compute tier info
      *                      that will be applied as a tie breaker.
@@ -65,14 +60,13 @@ public class SMATemplate {
     public SMATemplate(final long oid,
                        @Nonnull final String name,
                        @Nonnull final String family,
-                       final float coupons,
-                       TopologyEntityDTO computeTier,
-                       final float scalingPenalty
-                       ) {
+                       @Nonnull final CloudCommitmentAmount commitmentAmount,
+                       final TopologyEntityDTO computeTier,
+                       final float scalingPenalty) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null");
         this.family = Objects.requireNonNull(family, "family is null");
-        this.coupons = coupons;
+        this.commitmentAmount = commitmentAmount;
         this.computeTier = computeTier;
         this.scalingPenalty = scalingPenalty;
     }
@@ -96,7 +90,11 @@ public class SMATemplate {
     }
 
     public float getCoupons() {
-        return coupons;
+        return (float)commitmentAmount.getCoupons();
+    }
+
+    public CloudCommitmentAmount getCommitmentAmount() {
+        return commitmentAmount;
     }
 
     public TopologyEntityDTO getComputeTier() {
@@ -120,7 +118,7 @@ public class SMATemplate {
             "OID='" + oid + "'" +
             ", name='" + name + '\'' +
             ", family='" + family + '\'' +
-            ", coupons=" + coupons +
+            ", commitmentAmount=" + commitmentAmount +
             ", scalingPenalty=" + scalingPenalty
                 + '}';
     }
