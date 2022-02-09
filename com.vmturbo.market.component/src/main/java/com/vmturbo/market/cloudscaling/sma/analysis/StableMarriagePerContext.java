@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
@@ -69,10 +71,10 @@ public class StableMarriagePerContext {
         /*
          * Map that keeps track of all the unused coupons for RIs.
          */
-        Map<SMAReservedInstance, Float> remainingCoupons = new HashMap<>();
+        Map<SMAReservedInstance, CloudCommitmentAmount> remainingCoupons = new HashMap<>();
         for (SMAReservedInstance reservedInstance : reservedInstances) {
-            float coupons = (float)reservedInstance.getCommitmentAmount().getCoupons();
-            if (coupons > SMAUtils.EPSILON) {
+            CloudCommitmentAmount coupons = reservedInstance.getCommitmentAmount();
+            if (CommitmentAmountCalculator.isPositive(coupons, SMAUtils.EPSILON)) {
                 remainingCoupons.put(reservedInstance, coupons);
                 if (!freeRIs.contains(reservedInstance)) {
                     freeRIs.add(reservedInstance);
@@ -111,7 +113,7 @@ public class StableMarriagePerContext {
         List<SMAVirtualMachine> virtualMachinesWithoutMatching = virtualMachines.stream().filter(vm -> !set.contains(vm)).collect(Collectors.toList());
         for (SMAVirtualMachine smaVirtualMachine : virtualMachinesWithoutMatching) {
             matches.add(new SMAMatch(smaVirtualMachine, smaVirtualMachine.getNaturalTemplate(),
-                    null, 0));
+                    null, CommitmentAmountCalculator.ZERO_COVERAGE));
         }
 
         // generate the SMAOutputContext
@@ -154,19 +156,19 @@ public class StableMarriagePerContext {
         for (SMAVirtualMachineGroup smaVirtualMachineGroup : virtualMachineGroupMap.values()) {
             SMAVirtualMachine groupLeader = smaVirtualMachineGroup.getGroupLeader();
             SMAMatch leaderEngagement = currentEngagements.get(groupLeader);
-            float totalGroupCouponsRemaining = 0;
-            float groupMemberRequiredCoupons = 0;
+            CloudCommitmentAmount totalGroupCouponsRemaining = CommitmentAmountCalculator.ZERO_COVERAGE;
+            CloudCommitmentAmount groupMemberRequiredCoupons = CommitmentAmountCalculator.ZERO_COVERAGE;
             if (leaderEngagement != null) {
                 totalGroupCouponsRemaining = leaderEngagement.getDiscountedCoupons();
-                groupMemberRequiredCoupons = leaderEngagement.getTemplate().getCoupons();
+                groupMemberRequiredCoupons = leaderEngagement.getTemplate().getCommitmentAmount();
             }
             for (SMAVirtualMachine groupMember : smaVirtualMachineGroup.getVirtualMachines()) {
                 /*
                  * if there is an engagement create engagement for all the group members.
                  */
                 if (leaderEngagement != null) {
-                    if (totalGroupCouponsRemaining > SMAUtils.EPSILON) {
-                        float couponsAllocated = Math.min(groupMemberRequiredCoupons, totalGroupCouponsRemaining);
+                    if (CommitmentAmountCalculator.isPositive(totalGroupCouponsRemaining, SMAUtils.EPSILON)) {
+                        CloudCommitmentAmount couponsAllocated = CommitmentAmountCalculator.min(groupMemberRequiredCoupons, totalGroupCouponsRemaining);
                         if (groupMember != groupLeader) {
                             matches.add(new SMAMatch(groupMember, leaderEngagement.getTemplate(),
                                     leaderEngagement.getReservedInstance(),
@@ -175,12 +177,12 @@ public class StableMarriagePerContext {
                             leaderEngagement.setDiscountedCoupons(
                                     couponsAllocated);
                         }
-                        totalGroupCouponsRemaining = totalGroupCouponsRemaining -
-                                couponsAllocated;
+                        totalGroupCouponsRemaining = CommitmentAmountCalculator.subtract(totalGroupCouponsRemaining,
+                                couponsAllocated);
                     } else {
                         matches.add(new SMAMatch(groupMember, leaderEngagement.getTemplate(),
                                 null,
-                                0f));
+                                CommitmentAmountCalculator.ZERO_COVERAGE));
                     }
                 }
             }
@@ -199,7 +201,7 @@ public class StableMarriagePerContext {
      */
     public static void
     createRIToVMsMap(List<SMAVirtualMachine> virtualMachines,
-                     Map<SMAReservedInstance, Float> remainingCoupons,
+                     Map<SMAReservedInstance, CloudCommitmentAmount> remainingCoupons,
                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                      Map<String, List<SMATemplate>> familyNameToTemplates,
                      boolean reduceDependency,
@@ -262,7 +264,7 @@ public class StableMarriagePerContext {
      * @param reduceDependency if true will reduce relinquishing
      */
     private static void sortAndUpdateVMList(List<SMAVirtualMachine> virtualMachineList,
-                                            Float riCoupons, SMAReservedInstance ri,
+            CloudCommitmentAmount riCoupons, SMAReservedInstance ri,
                                             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                                             boolean reduceDependency,
                                             SMACloudCostCalculator cloudCostCalculator) {
@@ -349,9 +351,9 @@ public class StableMarriagePerContext {
             // pick the RI which has lower ondemand cost.
 
             float newTemplateTotalCost =
-                cloudCostCalculator.getNetCost(vm, newTemplate, 0, SMAUtils.UNKNOWN_OID);
+                cloudCostCalculator.getNetCost(vm, newTemplate, CommitmentAmountCalculator.ZERO_COVERAGE, SMAUtils.UNKNOWN_OID);
             float oldTemplateTotalCost =
-                cloudCostCalculator.getNetCost(vm, oldTemplate, 0, SMAUtils.UNKNOWN_OID);
+                cloudCostCalculator.getNetCost(vm, oldTemplate, CommitmentAmountCalculator.ZERO_COVERAGE, SMAUtils.UNKNOWN_OID);
 
             if (SMAUtils.round(newTemplateTotalCost - oldTemplateTotalCost)
                     > SMAUtils.EPSILON) {
@@ -436,10 +438,11 @@ public class StableMarriagePerContext {
                                                      SMACloudCostCalculator cloudCostCalculator) {
         SMAVirtualMachine virtualMachine = newEngagement.getVirtualMachine();
         float costImprovement = costImprovement(virtualMachine,
-                newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
+                CommitmentAmountCalculator.multiplyAmount(newEngagement.getDiscountedCoupons(), 1.0f/(float)virtualMachine.getGroupSize()),
                 newEngagement.getTemplate(),
                 (oldEngagement == null) ?
-                        0 : oldEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
+                        CommitmentAmountCalculator.ZERO_COVERAGE :
+                        CommitmentAmountCalculator.multiplyAmount(oldEngagement.getDiscountedCoupons(), 1.0f/(float)virtualMachine.getGroupSize()),
                 (oldEngagement == null) ?
                         virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate(), cloudCostCalculator,
                 (oldEngagement == null) ? SMAUtils.UNKNOWN_OID : oldEngagement.getReservedInstance().getOid(),
@@ -473,31 +476,34 @@ public class StableMarriagePerContext {
      */
 
     public static void runSMA(Deque<SMAReservedInstance> freeRIs,
-                              Map<SMAReservedInstance, Float> remainingCoupons,
+                              Map<SMAReservedInstance, CloudCommitmentAmount> remainingCoupons,
                               Map<SMAVirtualMachine, SMAMatch> currentEngagements,
                               Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                               boolean reduceDependency,
                               SMACloudCostCalculator smaCloudCostCalculator) {
         while (!freeRIs.isEmpty()) {
             SMAReservedInstance currentRI = freeRIs.poll();
-            float currentRICoupons = (currentRI == null) ? 0f : remainingCoupons.get(currentRI);
+            CloudCommitmentAmount currentRICoupons = (currentRI == null) ? CommitmentAmountCalculator.ZERO_COVERAGE : remainingCoupons.get(currentRI);
 
             // if the last matched VM was only partially filled allocated the coupons to that VM first.
             SMAVirtualMachine lastDiscountedVM = currentRI.getLastDiscountedVM();
-            if (lastDiscountedVM != null && currentRICoupons > SMAUtils.EPSILON) {
+            if (lastDiscountedVM != null && CommitmentAmountCalculator.isPositive(currentRICoupons, SMAUtils.EPSILON)) {
                 SMAMatch lastMatch = currentEngagements.get(lastDiscountedVM);
                 if (lastMatch != null && lastMatch.getReservedInstance() == currentRI) {
-                    float totalCouponsReq = lastMatch.getTemplate().getCoupons() * lastDiscountedVM.getGroupSize();
-                    float additionalCouponReq = totalCouponsReq - lastMatch.getDiscountedCoupons();
-                    float allocatableCoupons = Math.min(currentRICoupons, additionalCouponReq);
-                    if (allocatableCoupons > SMAUtils.EPSILON) {
-                        currentRICoupons = currentRICoupons - allocatableCoupons;
+                    CloudCommitmentAmount totalCouponsReq = CommitmentAmountCalculator.multiplyAmount(lastMatch.getTemplate().getCommitmentAmount(),
+                            lastDiscountedVM.getGroupSize());
+                    CloudCommitmentAmount additionalCouponReq =
+                            CommitmentAmountCalculator.subtract(totalCouponsReq, lastMatch.getDiscountedCoupons());
+                    CloudCommitmentAmount allocatableCoupons = CommitmentAmountCalculator.min(currentRICoupons, additionalCouponReq);
+                    if (CommitmentAmountCalculator.isPositive(allocatableCoupons, SMAUtils.EPSILON)) {
+                        currentRICoupons = CommitmentAmountCalculator.subtract(currentRICoupons,allocatableCoupons);
                         remainingCoupons.put(currentRI, currentRICoupons);
-                        lastMatch.setDiscountedCoupons(lastMatch.getDiscountedCoupons() + allocatableCoupons);
+                        lastMatch.setDiscountedCoupons(CommitmentAmountCalculator.sum(
+                                lastMatch.getDiscountedCoupons(), allocatableCoupons));
                     }
                 }
             }
-            if (currentRICoupons > SMAUtils.EPSILON && !currentRI.isDiscountableVMsEmpty()) {
+            if (CommitmentAmountCalculator.isPositive(currentRICoupons, SMAUtils.EPSILON) && !currentRI.isDiscountableVMsEmpty()) {
                 SMAVirtualMachine currentVM = currentRI
                         .findBestDiscountableVM();
                 if (currentVM == null) {
@@ -521,8 +527,9 @@ public class StableMarriagePerContext {
                     }
                 }
                 // the number of coupons the VM will require if it has to be fully discounted.
-                float currentVMCouponRequest = destinationTemplate.getCoupons() * groupSize;
-                if (currentVMCouponRequest < SMAUtils.BIG_EPSILON) {
+                CloudCommitmentAmount currentVMCouponRequest = CommitmentAmountCalculator.multiplyAmount(
+                        destinationTemplate.getCommitmentAmount(),groupSize);
+                if (!CommitmentAmountCalculator.isPositive(currentVMCouponRequest, SMAUtils.EPSILON)) {
                     logger.error("SMA currentVMCouponRequest can't be zero " +
                             "destinationTemplate={} groupSize={} ", destinationTemplate, groupSize);
                     continue;
@@ -530,7 +537,7 @@ public class StableMarriagePerContext {
                 /* discounted coupons are the actual coupons used in this engagement.
                  * it will be the minimum of what is required and what is available.
                  */
-                float discountedCoupons = Math.min(currentVMCouponRequest,
+                CloudCommitmentAmount discountedCoupons = CommitmentAmountCalculator.min(currentVMCouponRequest,
                         currentRICoupons);
                 SMAMatch oldEngagement = currentEngagements.get(currentVM);
                 if (!freeRIs.contains(currentRI)) {
@@ -546,7 +553,8 @@ public class StableMarriagePerContext {
                         currentEngagements.put(currentVM, newEngagement);
                         currentRI.setLastDiscountedVM(currentVM);
                         // update remaining coupons
-                        float currentRIRemainingCoupons = currentRICoupons - discountedCoupons;
+                        CloudCommitmentAmount currentRIRemainingCoupons =
+                                CommitmentAmountCalculator.subtract(currentRICoupons, discountedCoupons);
                         remainingCoupons.put(currentRI, currentRIRemainingCoupons);
                     } else {
                         // engagement already exists. swap engagement
@@ -555,17 +563,19 @@ public class StableMarriagePerContext {
                         currentEngagements.remove(currentVM);
                         currentEngagements.put(currentVM, newEngagement);
                         // update remaining coupons of oldRI and currentRI
-                        float currentLeftOverCoupons = currentRICoupons - discountedCoupons;
+                        CloudCommitmentAmount currentLeftOverCoupons =
+                                CommitmentAmountCalculator.subtract(currentRICoupons, discountedCoupons);
                         remainingCoupons.put(currentRI, currentLeftOverCoupons);
-                        float oldEngagementCoupons = oldEngagement.getDiscountedCoupons();
-                        remainingCoupons.put(oldRI, remainingCoupons.get(oldRI) + oldEngagementCoupons);
+                        CloudCommitmentAmount oldEngagementCoupons = oldEngagement.getDiscountedCoupons();
+                        remainingCoupons.put(oldRI,
+                                CommitmentAmountCalculator.sum(remainingCoupons.get(oldRI), oldEngagementCoupons));
                         oldRI.restoreSkippedVMs();
                         currentRI.setLastDiscountedVM(currentVM);
                         if (!freeRIs.contains(oldRI)) {
                             freeRIs.add(oldRI);
                         }
                     }
-                } else if (currentRICoupons < currentVMCouponRequest - SMAUtils.EPSILON) {
+                } else if (CommitmentAmountCalculator.isStrictSuperSet(currentVMCouponRequest, currentRICoupons, SMAUtils.EPSILON)) {//currentVMCouponRequest - currentRICoupons > EPSILON
                     currentRI.addToSkippedVMs(currentVM);
                 }
 
@@ -577,7 +587,6 @@ public class StableMarriagePerContext {
     /**
      * compare the net cost based on available coupons, the template On-demand, discounted cost.
      *
-     * @param costContext     instance containing all the parameters for cost lookup
      * @param currentCoupons  current available coupons
      * @param currentTemplate the current template
      * @param oldCoupons      old available coupons
@@ -586,8 +595,8 @@ public class StableMarriagePerContext {
      */
 
     public static float costImprovement(SMAVirtualMachine virtualMachine,
-                                        float currentCoupons, SMATemplate currentTemplate,
-                                        float oldCoupons, SMATemplate oldTemplate, SMACloudCostCalculator cloudCostCalculator,
+            CloudCommitmentAmount currentCoupons, SMATemplate currentTemplate,
+            CloudCommitmentAmount oldCoupons, SMATemplate oldTemplate, SMACloudCostCalculator cloudCostCalculator,
                                         long oldRI, long newRI) {
         float oldCost = cloudCostCalculator.getNetCost(virtualMachine,oldTemplate,oldCoupons,oldRI);
         float newCost = cloudCostCalculator.getNetCost(virtualMachine, currentTemplate, currentCoupons, newRI);
@@ -636,7 +645,7 @@ public class StableMarriagePerContext {
      */
     public static class RIPreference implements Comparator<SMAVirtualMachine> {
         // number of coupons remaining for the reservedInstance
-        private float coupons;
+        private CloudCommitmentAmount coupons;
         // the reserved instance of interest.
         private SMAReservedInstance reservedInstance;
         // map containing ASG information.
@@ -655,7 +664,7 @@ public class StableMarriagePerContext {
          * @param virtualMachineGroupMap map containing ASG information.
          * @param reduceDependency if true will reduce relinquishing
          */
-        public RIPreference(float coupons, SMAReservedInstance reservedInstance,
+        public RIPreference(CloudCommitmentAmount coupons, SMAReservedInstance reservedInstance,
                             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                             boolean reduceDependency, SMACloudCostCalculator cloudCostCalculator) {
             this.coupons = coupons;

@@ -15,7 +15,7 @@
             "osType": "WINDOWS",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,

@@ -12,7 +12,9 @@ import com.google.gson.Gson;
 
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAMatchTestTrim;
@@ -62,8 +64,9 @@ public class JsonToSMAInputTranslator {
             SMATemplate smaTemplate = inputContext.getTemplates().stream()
                     .filter(a -> a.getOid() == smaMatchTestTrim.getTemplateOid())
                     .findFirst().get();
-            float discountedCoupons = smaMatchTestTrim.getReservedInstanceOid() == null ? 0f
-                    : smaMatchTestTrim.getDiscountedCoupons();
+            CloudCommitmentAmount discountedCoupons = smaMatchTestTrim.getReservedInstanceOid() == null ?
+                    CommitmentAmountCalculator.ZERO_COVERAGE
+                    : CloudCommitmentAmount.newBuilder().setCoupons(smaMatchTestTrim.getDiscountedCoupons()).build();
             smaMatches.add(new SMAMatch(smaVirtualMachine, smaTemplate,
                     smaReservedInstance, discountedCoupons));
         }

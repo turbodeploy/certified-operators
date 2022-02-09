@@ -7,7 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -135,10 +137,11 @@ public class SMACloudCostCalculator {
      * @return cost if moved to computeTierId with the specified coverage.
      */
     public float getNetCost(SMAVirtualMachine virtualMachine, SMATemplate smaTemplate,
-            float coverageAvailable, Long riId) {
+            CloudCommitmentAmount coverageAvailable, Long riId) {
         Long computeTierId = smaTemplate.getOid();
-        float riCoverage = coverageAvailable < smaTemplate.getCoupons() ? coverageAvailable
-                : smaTemplate.getCoupons();
+        // TODO this has to be more generic to deal with GCP
+        float riCoverage = (float)(CommitmentAmountCalculator.isStrictSuperSet(coverageAvailable, smaTemplate.getCommitmentAmount(), SMAUtils.EPSILON)
+                ? smaTemplate.getCommitmentAmount().getCoupons() : coverageAvailable.getCoupons());
         PricingContext pricingContext = new PricingContext(virtualMachine.getRegionId(),
                 virtualMachine.getOsType(), virtualMachine.getOsLicenseModel(), computeTierId,
                 virtualMachine.getAccountPricingDataOid());
@@ -200,7 +203,7 @@ public class SMACloudCostCalculator {
             // getOnDemandTotalCost returns Float.MAX_VALUE if there is no cost data.
             if (currentTemplate != null && providers.stream().anyMatch(
                     p -> p.getOid() == currentTemplate.getOid()) && (getNetCost(virtualMachine,
-                    currentTemplate, 0, SMAUtils.UNKNOWN_OID) == Float.MAX_VALUE)) {
+                    currentTemplate, CommitmentAmountCalculator.ZERO_COVERAGE, SMAUtils.UNKNOWN_OID) == Float.MAX_VALUE)) {
                 smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(
                         Arrays.asList(currentTemplate), virtualMachine, currentTemplate);
             } else {
@@ -209,7 +212,7 @@ public class SMACloudCostCalculator {
                 // If the natural template is giving infinite quote then stay in the current template.
                 if (smaVirtualMachineProvider.getNaturalTemplate() != null) {
                     float naturalTemplateNetCost = getNetCost(virtualMachine,
-                            smaVirtualMachineProvider.getNaturalTemplate(), 0,
+                            smaVirtualMachineProvider.getNaturalTemplate(), CommitmentAmountCalculator.ZERO_COVERAGE,
                             SMAUtils.UNKNOWN_OID);
                     if (naturalTemplateNetCost == Float.MAX_VALUE) {
                         smaVirtualMachineProvider = updateGroupProvidersOfVirtualMachine(
@@ -269,13 +272,13 @@ public class SMACloudCostCalculator {
         */
 
         for (SMATemplate template : groupProviders) {
-            float onDemandTotalCost = getNetCost(virtualMachine, template, 0, SMAUtils.UNKNOWN_OID);
+            float onDemandTotalCost = getNetCost(virtualMachine, template, CommitmentAmountCalculator.ZERO_COVERAGE, SMAUtils.UNKNOWN_OID);
             float onDemandTotalCostWithPenalty = onDemandTotalCost + template.getScalingPenalty();
             if (!naturalOptional.isPresent()) {
                 naturalOptional = Optional.of(template);
             } else {
                 float naturalOnDemandTotalCost = getNetCost(virtualMachine, naturalOptional.get(),
-                        0, SMAUtils.UNKNOWN_OID);
+                        CommitmentAmountCalculator.ZERO_COVERAGE, SMAUtils.UNKNOWN_OID);
                 float naturalOnDemandTotalCostWithPenalty =
                         naturalOnDemandTotalCost + naturalOptional.get().getScalingPenalty();
                 if (onDemandTotalCost - naturalOnDemandTotalCost < (-1 * SMAUtils.EPSILON)) {
@@ -298,7 +301,7 @@ public class SMACloudCostCalculator {
                 minCostProviderPerFamily.put(template.getFamily(), template);
             } else {
                 float minCostProviderOnDemandTotalCost = getNetCost(virtualMachine,
-                        minCostProviderPerFamily.get(template.getFamily()), 0,
+                        minCostProviderPerFamily.get(template.getFamily()), CommitmentAmountCalculator.ZERO_COVERAGE,
                         SMAUtils.UNKNOWN_OID);
                 float minCostProviderOnDemandTotalCostWithPenalty =
                         minCostProviderOnDemandTotalCost + minCostProviderPerFamily.get(
@@ -337,7 +340,7 @@ public class SMACloudCostCalculator {
      * @return the savings obtained by matching the virtual machine with reservedInstance.
      */
     public float computeSaving(SMAVirtualMachine vm,
-            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap, float coupons,
+            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap, CloudCommitmentAmount coupons,
             SMAReservedInstance reservedInstance) {
         final List<SMAVirtualMachine> vmList;
         if (vm.getGroupSize() > 1) {
@@ -348,7 +351,7 @@ public class SMACloudCostCalculator {
         SMATemplate riTemplate = reservedInstance.getNormalizedTemplate();
         float netSavingvm = 0;
         for (SMAVirtualMachine member : vmList) {
-            float onDemandCostvm = getNetCost(vm, member.getNaturalTemplate(), 0f,
+            float onDemandCostvm = getNetCost(vm, member.getNaturalTemplate(), CommitmentAmountCalculator.ZERO_COVERAGE,
                     SMAUtils.UNKNOWN_OID);
             /*  ISF : VM with t3.large and a ISF RI in t2 family. VM can move to t2.large.
              *  t2.large need 10 coupons. But we have only 6 coupons.
@@ -365,8 +368,8 @@ public class SMACloudCostCalculator {
              */
             float afterMoveCostvm = reservedInstance.isIsf() ? getNetCost(vm,
                     member.getMinCostProviderPerFamily(riTemplate.getFamily()),
-                    coupons / vm.getGroupSize(), reservedInstance.getOid()) : getNetCost(vm,
-                    riTemplate, coupons / vm.getGroupSize(), reservedInstance.getOid());
+                    CommitmentAmountCalculator.multiplyAmount(coupons, 1.0f / vm.getGroupSize()), reservedInstance.getOid()) : getNetCost(vm,
+                    riTemplate, CommitmentAmountCalculator.multiplyAmount(coupons, 1.0f / vm.getGroupSize()), reservedInstance.getOid());
             netSavingvm += (onDemandCostvm - afterMoveCostvm);
         }
         return netSavingvm;
@@ -384,26 +387,30 @@ public class SMACloudCostCalculator {
      *         otherwise.
      */
     public int compareCost(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
-            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap, float coupons,
+            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap, CloudCommitmentAmount coupons,
             SMAReservedInstance reservedInstance) {
         float netSavingVm1 = computeSaving(vm1, virtualMachineGroupMap, coupons, reservedInstance);
         float netSavingVm2 = computeSaving(vm2, virtualMachineGroupMap, coupons, reservedInstance);
 
         String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
-        float couponsVm1 = 0.0f;
-        float couponsVm2 = 0.0f;
+        CloudCommitmentAmount couponsVm1 = CommitmentAmountCalculator.ZERO_COVERAGE;
+        CloudCommitmentAmount couponsVm2 = CommitmentAmountCalculator.ZERO_COVERAGE;
         if (reservedInstance.isIsf()) {
-            couponsVm1 = Math.min(coupons,
-                    vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
-            couponsVm2 = Math.min(coupons,
-                    vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
+            couponsVm1 =
+                    CommitmentAmountCalculator.min(coupons,
+                            CommitmentAmountCalculator.multiplyAmount(vm1.getMinCostProviderPerFamily(riFamily).getCommitmentAmount(),
+                                    vm1.getGroupSize()));
+            couponsVm2 = CommitmentAmountCalculator.min(coupons,
+                    CommitmentAmountCalculator.multiplyAmount(vm2.getMinCostProviderPerFamily(riFamily).getCommitmentAmount(), vm2.getGroupSize()));
         } else {
-            couponsVm1 = reservedInstance.getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
-            couponsVm2 = reservedInstance.getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
+            couponsVm1 = CommitmentAmountCalculator.multiplyAmount(reservedInstance.getNormalizedTemplate().getCommitmentAmount(),
+                    vm1.getGroupSize());
+            couponsVm2 = CommitmentAmountCalculator.multiplyAmount(reservedInstance.getNormalizedTemplate().getCommitmentAmount(),
+                    vm2.getGroupSize());
         }
 
-        float netSavingVm1PerCoupon = netSavingVm1 / couponsVm1;
-        float netSavingVm2PerCoupon = netSavingVm2 / couponsVm2;
+        float netSavingVm1PerCoupon = netSavingVm1 / (float)couponsVm1.getCoupons();
+        float netSavingVm2PerCoupon = netSavingVm2 / (float)couponsVm2.getCoupons();
 
         netSavingVm1PerCoupon = SMAUtils.round(netSavingVm1PerCoupon);
         netSavingVm2PerCoupon = SMAUtils.round(netSavingVm2PerCoupon);

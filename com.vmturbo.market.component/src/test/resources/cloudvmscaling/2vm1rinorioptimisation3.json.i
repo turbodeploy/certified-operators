@@ -15,7 +15,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 2.8,
+            "currentRICoverage": {"coupons": 2.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,

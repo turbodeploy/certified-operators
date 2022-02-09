@@ -21,6 +21,7 @@ import com.google.common.base.Stopwatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriagePerContext.SortByRIOID;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
@@ -67,8 +68,9 @@ public class StableMarriageAlgorithm {
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
-                        || (Math.abs(match.getVirtualMachine().getCurrentRICoverage()
-                        - match.getDiscountedCoupons()) > SMAUtils.EPSILON)) {
+                        || !CommitmentAmountCalculator.isZero(CommitmentAmountCalculator
+                        .subtract(match.getVirtualMachine().getCurrentRICoverage(),
+                        match.getDiscountedCoupons()), SMAUtils.EPSILON)) {
                     actionCount++;
                 }
             }
@@ -180,7 +182,8 @@ public class StableMarriageAlgorithm {
             List<SMATemplate> templatesInFamily = entry.getValue();
             SMATemplate smallestTemplateInFamily = templatesInFamily.get(0);
             for (SMATemplate template : templatesInFamily) {
-                if (smallestTemplateInFamily.getCoupons() > template.getCoupons() + SMAUtils.BIG_EPSILON) {
+                if (CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(smallestTemplateInFamily.getCommitmentAmount(),
+                        template.getCommitmentAmount()), SMAUtils.EPSILON)) {
                     smallestTemplateInFamily = template;
                 }
             }
@@ -326,42 +329,46 @@ public class StableMarriageAlgorithm {
                 // coupons required for the scaled down template. It is legit to lose coupons
                 // if the vm scales down and is 100% covered. For eg a vm in t2.large with 10/16
                 // coverage can go to t2.medium and have 8/8 coverage.
-                float coupons_required = Math.min(outgoingCouponMatch.getVirtualMachine()
-                        .getCurrentRICoverage(), outgoingCouponMatch.getTemplate().getCoupons())
-                        - outgoingCouponMatch.getDiscountedCoupons();
+                CloudCommitmentAmount couponsRequired = CommitmentAmountCalculator.subtract(CommitmentAmountCalculator.min(outgoingCouponMatch.getVirtualMachine()
+                        .getCurrentRICoverage(), outgoingCouponMatch.getTemplate().getCommitmentAmount()),
+                        outgoingCouponMatch.getDiscountedCoupons());
                 for (SMAMatch incomingCouponMatch : matchesWithIncomingCoupons.get(riKeyId)) {
-                    float coupons_grabbed;
+                    CloudCommitmentAmount couponsGrabbed;
                     if (incomingCouponMatch.getVirtualMachine().getCurrentRI() == null
                             || incomingCouponMatch.getVirtualMachine().getCurrentRI()
                             .getRiKeyOid() != riKeyId) {
                         // If the VM is not previously covered
                         // by this ri then all coupons can be taken.
-                        coupons_grabbed = Math.min(coupons_required, incomingCouponMatch.getDiscountedCoupons());
+                        couponsGrabbed = CommitmentAmountCalculator.min(couponsRequired, incomingCouponMatch.getDiscountedCoupons());
                     } else {
                         // If the VM is previously covered by the same RI
                         // then we can take upto the coupons which was previously covered.
                         // Since covered by same RI incomingCouponMatch is
                         // discounted more than previously discounted.
-                        coupons_grabbed = Math.min(coupons_required,
-                                incomingCouponMatch.getDiscountedCoupons()
-                                        - incomingCouponMatch.getVirtualMachine()
-                                        .getCurrentRICoverage());
+                        couponsGrabbed = CommitmentAmountCalculator.min(couponsRequired,
+                                CommitmentAmountCalculator.subtract(incomingCouponMatch.getDiscountedCoupons(),
+                                        incomingCouponMatch.getVirtualMachine()
+                                        .getCurrentRICoverage()));
                     }
-                    if (coupons_grabbed > SMAUtils.EPSILON) {
+                    if (CommitmentAmountCalculator.isPositive(couponsGrabbed, SMAUtils.EPSILON)) {
                         actionNegated = true;
-                        coupons_required = coupons_required - coupons_grabbed;
-                        incomingCouponMatch.setDiscountedCoupons(incomingCouponMatch.getDiscountedCoupons()
-                                - coupons_grabbed);
+                        couponsRequired = CommitmentAmountCalculator.subtract(couponsRequired,
+                                couponsGrabbed);
+                        incomingCouponMatch.setDiscountedCoupons(
+                                CommitmentAmountCalculator.subtract(incomingCouponMatch.getDiscountedCoupons(),
+                                        couponsGrabbed));
                     }
-                    if (coupons_required < SMAUtils.EPSILON) {
+                    if (!CommitmentAmountCalculator.isPositive(couponsRequired, SMAUtils.EPSILON)) {
                         break;
                     }
                 }
-                // adjust the outgoingCouponMatch based on the coupons_required. Ideally coupons_required
+                // adjust the outgoingCouponMatch based on the couponsRequired. Ideally couponsRequired
                 // should be 0 and the VM should retain all the coupons it already had. If not it will
                 // retain coupons to be 100% covered if it had scaled down.
-                outgoingCouponMatch.setDiscountedCoupons(Math.min(outgoingCouponMatch.getVirtualMachine()
-                        .getCurrentRICoverage(), outgoingCouponMatch.getTemplate().getCoupons()) - coupons_required);
+                outgoingCouponMatch.setDiscountedCoupons(CommitmentAmountCalculator.min(
+                        outgoingCouponMatch.getVirtualMachine().getCurrentRICoverage(),
+                        CommitmentAmountCalculator.subtract(outgoingCouponMatch.getTemplate().getCommitmentAmount() ,
+                                couponsRequired)));
                 outgoingCouponMatch.setReservedInstance(outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRI());
             }
@@ -382,7 +389,7 @@ public class StableMarriageAlgorithm {
         // get all the matches that involve RIs. Group together the ASG.
         Map<String, Set<SMAMatch>> matchByASG = new HashMap<>();
         Set<SMAMatch> nonASGMatch = new HashSet();
-        Map<Long, Float> leftoverCoupons = new HashMap<>();
+        Map<Long, CloudCommitmentAmount> leftoverCoupons = new HashMap<>();
         Map<Long, SMAReservedInstance> riKeyOidToSMAReservedInstance = new HashMap<>();
         for (SMAMatch smaMatch : outputContext.getMatches()) {
             String groupName = smaMatch.getVirtualMachine().getGroupName();
@@ -402,20 +409,21 @@ public class StableMarriageAlgorithm {
         for (SMAMatch smaMatch : nonASGMatch) {
             if (smaMatch.getReservedInstance() != null) {
                 float saving = cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(),
-                        smaMatch.getVirtualMachine().getNaturalTemplate(), 0, -1l)
+                        smaMatch.getVirtualMachine().getNaturalTemplate(), CommitmentAmountCalculator.ZERO_COVERAGE, -1l)
                         - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(),smaMatch.getTemplate(),
                         smaMatch.getDiscountedCoupons(), smaMatch.getReservedInstance().getOid()) ;
                 if (saving <  -1 * SMAUtils.EPSILON || (saving <  SMAUtils.EPSILON &&
                         smaMatch.getVirtualMachine().getCurrentTemplate().getOid() != smaMatch.getTemplate().getOid())) {
-                    float current_leftover = leftoverCoupons.getOrDefault(smaMatch
-                            .getReservedInstance().getRiKeyOid(),0f);
-                    current_leftover += smaMatch.getDiscountedCoupons();
+                    CloudCommitmentAmount current_leftover = leftoverCoupons.getOrDefault(smaMatch
+                            .getReservedInstance().getRiKeyOid(),CommitmentAmountCalculator.ZERO_COVERAGE);
+                    current_leftover = CommitmentAmountCalculator.sum(current_leftover,
+                            smaMatch.getDiscountedCoupons());
                     leftoverCoupons.put(smaMatch.getReservedInstance().getRiKeyOid(),
                             current_leftover);
                     riKeyOidToSMAReservedInstance.put(smaMatch.getReservedInstance().getRiKeyOid(),
                             smaMatch.getReservedInstance());
                     smaMatch.setReservedInstance(null);
-                    smaMatch.setDiscountedCoupons(0);
+                    smaMatch.setDiscountedCoupons(CommitmentAmountCalculator.ZERO_COVERAGE);
                     smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
                 }
             }
@@ -439,7 +447,7 @@ public class StableMarriageAlgorithm {
                 }
                 for (SMAMatch smaMatch : smaMatches) {
                     saving += cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(),
-                            smaMatch.getVirtualMachine().getNaturalTemplate(), 0 , -1l)
+                            smaMatch.getVirtualMachine().getNaturalTemplate(), CommitmentAmountCalculator.ZERO_COVERAGE, SMAUtils.UNKNOWN_OID)
                             - cloudCostCalculator.getNetCost(smaMatch.getVirtualMachine(), smaMatch.getTemplate(),
                             smaMatch.getDiscountedCoupons(), matchWithCoverage.get().getReservedInstance().getOid()) ;
                 }
@@ -450,13 +458,14 @@ public class StableMarriageAlgorithm {
                     riKeyOidToSMAReservedInstance.put(coveredRI.getRiKeyOid(),
                             coveredRI);
                     for (SMAMatch smaMatch : smaMatches) {
-                        float current_leftover = leftoverCoupons.getOrDefault(coveredRI
-                                .getRiKeyOid(),0f);
-                        current_leftover += smaMatch.getDiscountedCoupons();
+                        CloudCommitmentAmount current_leftover = leftoverCoupons.getOrDefault(coveredRI
+                                .getRiKeyOid(),CommitmentAmountCalculator.ZERO_COVERAGE);
+                        current_leftover = CommitmentAmountCalculator.sum(current_leftover,
+                                smaMatch.getDiscountedCoupons());
                         leftoverCoupons.put(coveredRI.getRiKeyOid(),
                                 current_leftover);
                         smaMatch.setReservedInstance(null);
-                        smaMatch.setDiscountedCoupons(0);
+                        smaMatch.setDiscountedCoupons(CommitmentAmountCalculator.ZERO_COVERAGE);
                         smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
                     }
                 }
@@ -471,22 +480,22 @@ public class StableMarriageAlgorithm {
      * @param leftoverCoupons map from Ri to coupons that are left after moveUncoveredVMBackToNaturalTemplate
      */
     private static void allocateLeftOverCoupons(SMAOutputContext outputContext,
-                                                Map<Long, Float> leftoverCoupons,
+                                                Map<Long, CloudCommitmentAmount> leftoverCoupons,
                                                 Map<Long, SMAReservedInstance> riKeyOidToSMAReservedInstance) {
         // first allocate coupons to the VMs which are already partially covered by this RI. Thus we dont
         // generate a new action.
         for (SMAMatch smaMatch : outputContext.getMatches()) {
             if (smaMatch.getReservedInstance() != null) {
-                float current_coupons = smaMatch.getDiscountedCoupons();
-                float coupons_required = smaMatch.getTemplate().getCoupons()
-                        - smaMatch.getDiscountedCoupons();
-                float coupons_leftover = leftoverCoupons.getOrDefault(smaMatch
-                        .getReservedInstance().getRiKeyOid(), 0f);
-                if (coupons_required > SMAUtils.EPSILON && coupons_leftover > SMAUtils.EPSILON) {
-                    float coupons_swapped = Math.min(coupons_required, coupons_leftover);
-                    smaMatch.setDiscountedCoupons(current_coupons + coupons_swapped);
+                CloudCommitmentAmount currentCoupons = smaMatch.getDiscountedCoupons();
+                CloudCommitmentAmount couponsRequired = CommitmentAmountCalculator.subtract(smaMatch.getTemplate().getCommitmentAmount(),
+                        smaMatch.getDiscountedCoupons());
+                CloudCommitmentAmount couponsLeftover = leftoverCoupons.getOrDefault(smaMatch
+                        .getReservedInstance().getRiKeyOid(), CommitmentAmountCalculator.ZERO_COVERAGE);
+                if (CommitmentAmountCalculator.isPositive(couponsRequired, SMAUtils.EPSILON) && CommitmentAmountCalculator.isPositive(couponsLeftover, SMAUtils.EPSILON)) {
+                    CloudCommitmentAmount coupons_swapped = CommitmentAmountCalculator.min(couponsRequired, couponsLeftover);
+                    smaMatch.setDiscountedCoupons(CommitmentAmountCalculator.sum(currentCoupons, coupons_swapped));
                     leftoverCoupons.put(smaMatch.getReservedInstance().getRiKeyOid(),
-                            coupons_leftover - coupons_swapped);
+                            CommitmentAmountCalculator.subtract(couponsLeftover, coupons_swapped));
                 }
             }
         }
@@ -494,18 +503,19 @@ public class StableMarriageAlgorithm {
         // This will be ok since we are anyway recommending the VM to be moved to this RI.
         for (SMAMatch smaMatch : outputContext.getMatches()) {
             if (smaMatch.getReservedInstance() == null) {
-                float coupons_required = smaMatch.getTemplate().getCoupons();
+                CloudCommitmentAmount coupons_required = smaMatch.getTemplate().getCommitmentAmount();
                 Optional<SMAReservedInstance> riWithCouponsLeft = findDiscountableRI(smaMatch,
                         riKeyOidToSMAReservedInstance, leftoverCoupons);
-                float coupons_leftover = riWithCouponsLeft.isPresent()
+                CloudCommitmentAmount couponsLeftover = riWithCouponsLeft.isPresent()
                         ? leftoverCoupons.get(riWithCouponsLeft.get().getRiKeyOid())
-                        : 0f;
-                if (coupons_required > SMAUtils.EPSILON && coupons_leftover > SMAUtils.EPSILON) {
-                        float coupons_swapped = Math.min(coupons_required, coupons_leftover);
+                        : CommitmentAmountCalculator.ZERO_COVERAGE;
+                if (CommitmentAmountCalculator.isPositive(coupons_required, SMAUtils.EPSILON)
+                        && CommitmentAmountCalculator.isPositive(couponsLeftover, SMAUtils.EPSILON)) {
+                        CloudCommitmentAmount coupons_swapped = CommitmentAmountCalculator.min(coupons_required, couponsLeftover);
                         smaMatch.setDiscountedCoupons(coupons_swapped);
                         smaMatch.setReservedInstance(riWithCouponsLeft.get());
                         leftoverCoupons.put(riWithCouponsLeft.get().getRiKeyOid(),
-                                coupons_leftover - coupons_swapped);
+                                CommitmentAmountCalculator.subtract(couponsLeftover, coupons_swapped));
                 }
             }
         }
@@ -520,9 +530,9 @@ public class StableMarriageAlgorithm {
      */
     private static Optional<SMAReservedInstance> findDiscountableRI(SMAMatch smaMatch,
                                            Map<Long, SMAReservedInstance> riKeyOidToSMAReservedInstance,
-                                           Map<Long, Float> leftoverCoupons) {
+                                           Map<Long, CloudCommitmentAmount> leftoverCoupons) {
         for (SMAReservedInstance reservedInstance : riKeyOidToSMAReservedInstance.values()) {
-            if (leftoverCoupons.get(reservedInstance.getRiKeyOid()) < SMAUtils.EPSILON) {
+            if (!CommitmentAmountCalculator.isPositive(leftoverCoupons.get(reservedInstance.getRiKeyOid()), SMAUtils.EPSILON)) {
                 continue;
             }
             if (reservedInstance.isIsf()) {
@@ -558,8 +568,8 @@ public class StableMarriageAlgorithm {
                 .equals(smaMatch.getTemplate().getFamily()))) // same family for ISF.
                 && (projectedRI == null // lost coverage. vm did not use up any other RI.
                 || ((sourceRI.getRiKeyOid() == projectedRI.getRiKeyOid())
-                && (virtualMachine.getCurrentRICoverage()
-                - smaMatch.getDiscountedCoupons() > SMAUtils.BIG_EPSILON)) //same RI lesser coupons
+                && (CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(virtualMachine.getCurrentRICoverage(),
+                    smaMatch.getDiscountedCoupons()), SMAUtils.EPSILON))) //same RI lesser coupons
         ));
     }
 
@@ -577,8 +587,9 @@ public class StableMarriageAlgorithm {
         return (projectedRI != null
                 && (sourceRI == null //a vm which had 0 coverage now has some coverage.
                 || sourceRI.getRiKeyOid() != projectedRI.getRiKeyOid() //a vm covered by another RI.
-                || (smaMatch.getDiscountedCoupons()
-                - virtualMachine.getCurrentRICoverage() > SMAUtils.EPSILON) //gained coverage from same RI.
+                || CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(
+                        smaMatch.getDiscountedCoupons(),
+                virtualMachine.getCurrentRICoverage()), SMAUtils.EPSILON) //gained coverage from same RI.
         ));
     }
 }

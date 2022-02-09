@@ -93,7 +93,7 @@
     "virtualMachines": [
         {
             "businessAccountId": "10",
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "currentRIOID": "0",
             "currentTemplateOid": "100002",
             "groupName": "",
@@ -115,7 +115,7 @@
         },
         {
             "businessAccountId": "10",
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "currentRIOID": "0",
             "currentTemplateOid": "100001",
             "groupName": "",

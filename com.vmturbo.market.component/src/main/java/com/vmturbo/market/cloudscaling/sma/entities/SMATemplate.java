@@ -89,10 +89,6 @@ public class SMATemplate {
         return family;
     }
 
-    public float getCoupons() {
-        return (float)commitmentAmount.getCoupons();
-    }
-
     public CloudCommitmentAmount getCommitmentAmount() {
         return commitmentAmount;
     }
