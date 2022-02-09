@@ -475,10 +475,6 @@
             <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-testing</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
         </dependency>
