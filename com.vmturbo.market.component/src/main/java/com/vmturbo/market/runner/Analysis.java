@@ -880,14 +880,12 @@ public class Analysis {
                         }
                     });
 
-                    NamespaceQuotaAnalysisResult namespaceQuotaAnalysisResult = null;
-                    if (FeatureFlags.NAMESPACE_QUOTA_RESIZING.isEnabled()) {
-                        try (TracingScope ignored = Tracing.trace("namespace_quota_resizing_analysis")) {
-                            namespaceQuotaAnalysisResult =
-                                    namespaceQuotaAnalysisEngine.execute(topologyDTOs, projectedEntities, actions);
-                            actionPlanBuilder.addAllAction(
-                                    namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions());
-                        }
+                    NamespaceQuotaAnalysisResult namespaceQuotaAnalysisResult;
+                    try (TracingScope ignored = Tracing.trace("namespace_quota_resizing_analysis")) {
+                        namespaceQuotaAnalysisResult =
+                                namespaceQuotaAnalysisEngine.execute(topologyDTOs, projectedEntities, actions);
+                        actionPlanBuilder.addAllAction(
+                                namespaceQuotaAnalysisResult.getNamespaceQuotaResizeActions());
                     }
 
                     // add Buy RI impact analysis actions

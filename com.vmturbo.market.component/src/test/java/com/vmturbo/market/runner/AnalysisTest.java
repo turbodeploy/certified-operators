@@ -205,8 +205,7 @@ public class AnalysisTest {
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
      */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-        FeatureFlags.NAMESPACE_QUOTA_RESIZING);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Before
     public void before() {
@@ -763,13 +762,10 @@ public class AnalysisTest {
     }
 
     /**
-     * Test {@link Analysis#execute} with "namespaceQuotaResizing" feature flag enabled and
-     * corresponding namespace resize action will be generated.
+     * Test {@link Analysis#execute} where corresponding namespace resize action will be generated.
      */
     @Test
-    public void testExecuteWithNamespaceQuotaResizingEnabled() {
-        featureFlagTestRule.enable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
-
+    public void testExecuteWithNamespaceQuotaResizing() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
             SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
@@ -779,26 +775,6 @@ public class AnalysisTest {
         analysis.execute();
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
-        featureFlagTestRule.reset();
-    }
-    /**
-     * Test {@link Analysis#execute} with "namespaceQuotaResizing" feature flag disabled and
-     * namespaceQuotaAnalysisEngine won't be triggered which leads to no namespace resize action.
-     */
-    @Test
-    public void testExecuteWithNamespaceQuotaResizingDisabled() {
-        featureFlagTestRule.disable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
-
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-            SuspensionsThrottlingConfig.DEFAULT,
-            Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
-            .setIncludeVDC(true)
-            .build();
-        final Analysis analysis = getAnalysis(analysisConfig);
-        analysis.execute();
-        assertTrue(analysis.getActionPlan().isPresent());
-        assertFalse(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
-        featureFlagTestRule.reset();
     }
 
     /**

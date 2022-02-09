@@ -58,7 +58,6 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -74,7 +73,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
@@ -112,7 +110,6 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.SerializationDTOs.TraderDiagsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test which restores analysis diags.
@@ -139,12 +136,6 @@ public class AnalysisDiagnosticsCollectorTest {
     //Change this to the location of unzipped SMA diags.
     private final String unzippedSMADiagsLocation = "target/test-classes/cloudvmscaling/smaDiags";
     private final String unzippedInitialPlacementDiagsLocation = "";
-
-    /**
-     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
-     */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
 
     /**
      * Initializes traderTOs to empty list.
