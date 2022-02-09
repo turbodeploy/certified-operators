@@ -13,7 +13,6 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -185,7 +184,7 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         Set<EntityState> stateSetToUpdate = new HashSet<>();
         stateSetToUpdate.add(createState(11L));
         EntityState entity3 = createState(3L);
-        entity3.setActionList(Arrays.asList(1d, 2d, 3d, 4d, 5d));
+        entity3.setDeltaList(SavingsCalculatorTest.makeDeltaList(1d, 2d, 3d, 4d, 5d));
         stateSetToUpdate.add(entity3);
         store.updateEntityStates(stateSetToUpdate.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
                 cloudTopology, dsl, uuids);
@@ -193,7 +192,7 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         stateMap = store.getEntityStates(entitiesUpdated);
         assertEquals(2, stateMap.size());
         assertNotNull(stateMap.get(3L));
-        assertEquals(5, stateMap.get(3L).getActionList().size());
+        assertEquals(5, stateMap.get(3L).getDeltaList().size());
         assertNotNull(stateMap.get(11L));
 
         // get all states
@@ -294,7 +293,7 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
      */
     private EntityState createState(Long entityId) {
         EntityState state = new EntityState(entityId, SavingsUtil.EMPTY_PRICE_CHANGE);
-        state.setActionList(Arrays.asList(1d, 2d, 3d));
+        state.setDeltaList(SavingsCalculatorTest.makeDeltaList(1d, 2d, 3d));
         return state;
     }
 
