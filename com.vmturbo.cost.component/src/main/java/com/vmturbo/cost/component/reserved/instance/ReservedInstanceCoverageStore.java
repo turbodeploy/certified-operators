@@ -146,7 +146,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
                 new ReservedInstanceCoverageLatestRecord(currentTime, entityRiCoverage.getId(),
                         entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
                         entityRiCoverage.getBusinessAccountId(), entityRiCoverage.getTotalCoupons(),
-                        entityRiCoverage.getUsedCoupons(),hourKey, dayKey, monthKey));
+                        entityRiCoverage.getUsedCoupons(), hourKey, dayKey, monthKey));
 
     }
 
