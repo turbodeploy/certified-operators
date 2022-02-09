@@ -169,6 +169,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 4
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -182,7 +185,9 @@
             "oid": "100001",
             "name": "t3.nano",
             "family": "t3",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -204,7 +209,9 @@
             "oid": "100002",
             "name": "t3.micro",
             "family": "t3",
-            "coupons": 2,
+            "commitmentAmount": {
+                "coupons": 2
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -226,7 +233,9 @@
             "oid": "100003",
             "name": "t3.small",
             "family": "t3",
-            "coupons": 4,
+            "commitmentAmount": {
+                "coupons": 4
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -248,7 +257,9 @@
             "oid": "100004",
             "name": "t3a.nano",
             "family": "t3a",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -270,7 +281,9 @@
             "oid": "100005",
             "name": "t3a.micro",
             "family": "t3a",
-            "coupons": 2,
+            "commitmentAmount": {
+                "coupons": 2
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -292,7 +305,9 @@
             "oid": "100006",
             "name": "t3a.small",
             "family": "t3a",
-            "coupons": 4,
+            "commitmentAmount": {
+                "coupons": 4
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {

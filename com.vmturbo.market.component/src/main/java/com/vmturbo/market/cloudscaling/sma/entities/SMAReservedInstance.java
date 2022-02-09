@@ -1,17 +1,15 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.Pair;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
 /**
@@ -20,14 +18,6 @@ import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
 public class SMAReservedInstance {
 
-    /**
-     * static empty deque.
-     */
-    private static final Deque<SMAVirtualMachine> EMPTY_DEQUE = new LinkedList<>();
-
-    /*
-     * Set by the constructor
-     */
     /*
      * identifier of RIBought. Unique identifier.
      */
@@ -105,11 +95,6 @@ public class SMAReservedInstance {
      */
     private final long zoneId;
 
-    /*
-     * Total count is the count after we normalize the RI and combine the RIs.
-     */
-    private float normalizedCount;
-
     // map to keep track of RI Coverage for each group.
     // Saved to avoid recomputing everytime.
     // ASG Group Name x Pair<couponsCoveredOfASG, totalCouponsOfASG>
@@ -117,6 +102,8 @@ public class SMAReservedInstance {
 
     // last discounted VM
     private SMAVirtualMachine lastDiscountedVM;
+
+    private CloudCommitmentAmount commitmentAmount;
 
     /**
      * SMA Reserved Instance.
@@ -133,6 +120,7 @@ public class SMAReservedInstance {
      * @param shared           true if RI is scoped to AWS billing family or Azure EA.
      *                         Otherwise, scoped to business account (only Azure)
      * @param platformFlexible true if RI is instance size flexible
+     * @param commitmentAmount the commitment amount
      */
     public SMAReservedInstance(final long oid,
                                final long riKeyOid,
@@ -144,7 +132,8 @@ public class SMAReservedInstance {
                                final float count,
                                final boolean isf,
                                final boolean shared,
-                               final boolean platformFlexible) {
+                               final boolean platformFlexible,
+                               @Nonnull final CloudCommitmentAmount commitmentAmount) {
         this.oid = oid;
         this.riKeyOid = riKeyOid;
         this.name = Objects.requireNonNull(name, "name is null!");
@@ -153,7 +142,6 @@ public class SMAReservedInstance {
         this.template = Objects.requireNonNull(template, "template is null!");
         this.normalizedTemplate = template;
         this.zoneId = zone;
-        this.normalizedCount = count;
         this.count = count;
         this.isf = isf;
         this.shared = shared;
@@ -162,6 +150,7 @@ public class SMAReservedInstance {
         lastDiscountedVM = null;
         riCoveragePerGroup = new HashMap<>();
         skippedVMs = new LinkedList<>();
+        this.commitmentAmount = commitmentAmount;
     }
 
     /**
@@ -182,7 +171,8 @@ public class SMAReservedInstance {
                 ri.getCount(),
                 ri.isIsf(),
                 ri.isShared(),
-                ri.isPlatformFlexible());
+                ri.isPlatformFlexible(),
+                ri.getCommitmentAmount());
     }
 
     /*
@@ -223,16 +213,8 @@ public class SMAReservedInstance {
         return zoneId;
     }
 
-    public float getNormalizedCount() {
-        return normalizedCount;
-    }
-
     public float getCount() {
         return count;
-    }
-
-    public void setNormalizedCount(final float normalizedCount) {
-        this.normalizedCount = normalizedCount;
     }
 
     public boolean isIsf() {
@@ -274,9 +256,6 @@ public class SMAReservedInstance {
      */
     public void normalizeTemplate(SMATemplate newTemplate) {
         if (isIsf()) {
-            SMATemplate oldTemplate = getNormalizedTemplate();
-            float countMultiplier = oldTemplate.getCoupons() / newTemplate.getCoupons();
-            setNormalizedCount(getCount() * countMultiplier);
             setNormalizedTemplate(newTemplate);
         }
     }
@@ -412,6 +391,14 @@ public class SMAReservedInstance {
         return applicableBusinessAccounts;
     }
 
+    public CloudCommitmentAmount getCommitmentAmount() {
+        return commitmentAmount;
+    }
+
+    public void setCommitmentAmount(@Nonnull final CloudCommitmentAmount commitmentAmount) {
+        this.commitmentAmount = commitmentAmount;
+    }
+
     /**
      * Determine if two RIs are equivalent.  They are equivalent if they have same oid.
      *
@@ -452,11 +439,11 @@ public class SMAReservedInstance {
                 ", name='" + name + "'" +
                 ", businessAccount='" + businessAccountId + "'" +
                 ", zone='" + zoneId + "'" +
-                ", normalizedCount=" + normalizedCount +
                 ", isf=" + isf +
                 ", platformFlexible=" + platformFlexible +
                 ", shared=" + shared +
                 ", normalizedTemplate=" + normalizedTemplate +
+                ", commitmentAmount=" + commitmentAmount +
                 '}';
     }
 

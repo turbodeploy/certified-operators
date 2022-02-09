@@ -43,6 +43,9 @@
             "isf": false,
             "shared": false,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -60,6 +63,9 @@
             "isf": false,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -73,7 +79,9 @@
             "oid": "100001",
             "name": "Standard_D1",
             "family": "D-series",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {

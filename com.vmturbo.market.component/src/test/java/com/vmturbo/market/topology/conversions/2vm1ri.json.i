@@ -11,6 +11,9 @@
             "applicableBusinessAccounts": [],
             "businessAccountId": "10",
             "count": 1.0,
+            "commitmentAmount": {
+                "coupons": 3
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "isf": false,
@@ -27,7 +30,9 @@
     ],
     "templates": [
         {
-            "coupons": 3,
+            "commitmentAmount": {
+                "coupons": 3
+            },
             "discountedCosts": {
                 "10": {
                     "LINUX": {
@@ -61,7 +66,9 @@
             }
         },
         {
-            "coupons": 3,
+            "commitmentAmount": {
+                "coupons": 3
+            },
             "discountedCosts": {
                 "10": {
                     "LINUX": {

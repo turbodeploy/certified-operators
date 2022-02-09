@@ -59,6 +59,9 @@
             "isf": false,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 6.0
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -72,7 +75,9 @@
             "oid": "100001",
             "name": "template1",
             "family": "family1",
-            "coupons": 3,
+            "commitmentAmount": {
+                "coupons": 3
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
