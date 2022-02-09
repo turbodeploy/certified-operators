@@ -50,6 +50,7 @@ public class EntitySavingsTopologyMonitor implements  LiveCloudTopologyListener 
         } catch (com.vmturbo.cost.component.savings.EntitySavingsException e) {
             logger.error("Error processing topology update for topology ID {}: {}",
                     topologyInfo.getTopologyId(), e);
+            return;
         }
         entityStateStream.forEach(state -> {
             EntityState entityState = (EntityState)state;
