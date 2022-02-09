@@ -22,7 +22,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
     private QueryChecker queryChecker;
 
     /**
-     * Test setup.
+     * Setup a query checker with defaults that apply to most tests.
      */
     @Before
     public void before() {
@@ -53,9 +53,9 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
     public void testHourlyTimeFrame() {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.HOUR, null, null, 0,
                 null, null, false).getQuery();
-        queryChecker.withTables("market_stats_by_hour")
-                .withSelectFields("market_stats_by_hour.snapshot_time")
-                .withSortFields("market_stats_by_hour.snapshot_time")
+        queryChecker.withTables(true, "market_stats_by_hour")
+                .withSelectFields(true, "market_stats_by_hour.snapshot_time")
+                .withSortFields(true, "market_stats_by_hour.snapshot_time")
                 .check(query);
     }
 
@@ -67,9 +67,9 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 PHYSICAL_MACHINE_ENTITY_TYPE, null, 0,
                 null, null, false).getQuery();
-        queryChecker.withTables("pm_stats_latest")
-                .withSelectFields("pm_stats_latest.snapshot_time")
-                .withSortFields("pm_stats_latest.snapshot_time")
+        queryChecker.withTables(true, "pm_stats_latest")
+                .withSelectFields(true, "pm_stats_latest.snapshot_time")
+                .withSortFields(true, "pm_stats_latest.snapshot_time")
                 .check(query);
     }
 
@@ -81,10 +81,10 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 EntityType.named(StringConstants.CLUSTER).get(), null, 0,
                 null, null, false).getQuery();
-        queryChecker.withTables("cluster_stats_latest")
-            .withSelectFields("cluster_stats_latest.recorded_on")
-            .withSortFields("cluster_stats_latest.recorded_on")
-            .check(query);
+        queryChecker.withTables(true, "cluster_stats_latest")
+                .withSelectFields(true, "cluster_stats_latest.recorded_on")
+                .withSortFields(true, "cluster_stats_latest.recorded_on")
+                .check(query);
     }
 
     /**
@@ -95,11 +95,11 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 EntityType.named(StringConstants.CLUSTER).get(), "123", 0,
                 null, null, false).getQuery();
-        queryChecker.withTables("cluster_stats_latest")
-            .withSelectFields("cluster_stats_latest.recorded_on")
-            .withSortFields("cluster_stats_latest.recorded_on")
-            .withConditions("cluster_stats_latest.internal_name = '123'")
-            .check(query);
+        queryChecker.withTables(true, "cluster_stats_latest")
+                .withSelectFields(true, "cluster_stats_latest.recorded_on")
+                .withSortFields(true, "cluster_stats_latest.recorded_on")
+                .withConditions(true, "cluster_stats_latest.internal_name = '123'")
+                .check(query);
     }
 
     /**
@@ -111,11 +111,11 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
                 PHYSICAL_MACHINE_ENTITY_TYPE, "xyzzy", 0, null, null, false).getQuery();
         queryChecker
                 // TODO reinstate check for index hint when the hint is back in
-//                .withTables("pm_stats_latest FORCE INDEX \\(uuid\\)")
-                .withTables("pm_stats_latest")
-                .withSelectFields("pm_stats_latest.snapshot_time")
-                .withConditions("pm_stats_latest.uuid = 'xyzzy'")
-                .withSortFields("pm_stats_latest.snapshot_time")
+                //                .withTables("pm_stats_latest FORCE INDEX \\(uuid\\)")
+                .withTables(true, "pm_stats_latest")
+                .withSelectFields(true, "pm_stats_latest.snapshot_time")
+                .withConditions(true, "pm_stats_latest.uuid = 'xyzzy'")
+                .withSortFields(true, "pm_stats_latest.snapshot_time")
                 .check(query);
     }
 
@@ -127,7 +127,8 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 null, null, false, "p1", "p2").getQuery();
-        queryChecker.withConditions("market_stats_latest.property_type IN \\(\\s*'p1', \\s*'p2'\\s*\\)")
+        queryChecker.withConditions(true,
+                        "market_stats_latest.property_type IN \\(\\s*'p1', \\s*'p2'\\s*\\)")
                 .check(query);
     }
 
@@ -139,7 +140,8 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 null, null, true, "p1", "p2").getQuery();
-        queryChecker.withConditions("market_stats_latest.property_type NOT IN \\(\\s*'p1', \\s*'p2'\\s*\\)")
+        queryChecker.withConditions(true,
+                        "market_stats_latest.property_type NOT IN \\(\\s*'p1', \\s*'p2'\\s*\\)")
                 .check(query);
     }
 
@@ -151,7 +153,8 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 Timestamp.valueOf("2019-01-02 03:04:05"), null, false).getQuery();
-        queryChecker.withConditions("market_stats_latest.snapshot_time >= TIMESTAMP '2019-01-02 03:04:05\\.0'")
+        queryChecker.withConditions(true,
+                        "market_stats_latest.snapshot_time >= TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
 
@@ -163,7 +166,8 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(dsl, TimeFrame.LATEST,
                 null, null, 0,
                 null, Timestamp.valueOf("2019-01-02 03:04:05"), false).getQuery();
-        queryChecker.withConditions("market_stats_latest.snapshot_time <= TIMESTAMP '2019-01-02 03:04:05\\.0'")
+        queryChecker.withConditions(true,
+                        "market_stats_latest.snapshot_time <= TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
 
@@ -177,7 +181,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
                 Timestamp.valueOf("2019-01-01 03:04:05"), Timestamp.valueOf("2019-01-02 03:04:05"),
                 false).getQuery();
         queryChecker
-                .withConditions("market_stats_latest.snapshot_time "
+                .withConditions(true, "market_stats_latest.snapshot_time "
                         + "BETWEEN TIMESTAMP '2019-01-01 03:04:05\\.0' "
                         + "AND TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);

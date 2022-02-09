@@ -3,6 +3,12 @@ package com.vmturbo.history.db.queries;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_BY_MONTH;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 import com.google.common.collect.Lists;
 
 import org.jooq.ResultQuery;
@@ -42,13 +48,43 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
      */
     @Test
     public void testPmStatsQuery() {
-        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(PM_STATS_BY_MONTH, Lists.newArrayList("CPU"), 90, dsl).getQuery();
+        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(PM_STATS_BY_MONTH,
+                Lists.newArrayList("CPU"), 90, dsl).getQuery();
         getQueryChecker(PM_STATS_BY_MONTH).check(query);
     }
 
+    /**
+     * Test that query is properly constructed if the UUID list is too small for a temp table.
+     */
+    @Test
+    public void testWithUuidListNoTempTable() {
+        List<Long> uuids = Arrays.asList(1L, 2L, 3L);
+        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH,
+                Lists.newArrayList("CPU"), 90,
+                true, uuids, Optional.empty(), dsl).getQuery();
+        getQueryChecker(VM_STATS_BY_MONTH, true, uuids, null).check(query);
+    }
+
+    /**
+     * Test that the query is constructed correctly if a temp table is used.
+     */
+    @Test
+    public void testWithUuidListAndTempTable() {
+        List<Long> uuids = Arrays.asList(1L, 2L, 3L);
+        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH,
+                Lists.newArrayList("CPU"), 90,
+                true, uuids, Optional.of("tmp_12345"), dsl).getQuery();
+        getQueryChecker(VM_STATS_BY_MONTH, true, uuids, "tmp_12345").check(query);
+    }
+
     private QueryChecker getQueryChecker(Table<?> table) {
+        return getQueryChecker(table, false, Collections.emptyList(), null);
+    }
+
+    private QueryChecker getQueryChecker(Table<?> table, boolean boughtCommodities,
+            List<Long> uuids, String tempTableName) {
         final String tableName = table.getName();
-        return new QueryChecker()
+        QueryChecker checker = new QueryChecker()
                 .withDistinct(false)
                 .withSelectFields(
                         tableName + ".uuid",
@@ -59,12 +95,28 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
                 .withConditions(
                         tableName + ".snapshot_time >= TIMESTAMP '.*'",
                         tableName + ".property_type IN (.*)",
-                        tableName + ".property_subtype = 'used'",
-                        tableName + ".relation = 0")
+                        tableName + ".property_subtype = 'used'")
                 .withGroupByFields(
                         tableName + ".uuid",
                         tableName + ".property_type",
                         tableName + ".commodity_key")
                 .withLimit(0);
+        if (boughtCommodities) {
+            checker = checker.withSelectFields(tableName + ".producer_uuid")
+                    .withConditions(tableName + ".relation = 1")
+                    .withGroupByFields(tableName + ".producer_uuid");
+        } else {
+            checker = checker.withConditions(tableName + ".relation = 0");
+        }
+        if (tempTableName != null) {
+            checker = checker.withTables(tempTableName)
+                    .withConditions(tableName + ".uuid = " + tempTableName + ".target_object_uuid");
+        } else if (!uuids.isEmpty()) {
+            checker = checker.withConditions(
+                    String.format("%s.uuid\\s+IN\\s+\\(%s\\s+\\)", tableName,
+                            uuids.stream().map(uuid -> "\\s*'" + uuid + "'")
+                                    .collect(Collectors.joining(", "))));
+        }
+        return checker;
     }
 }
