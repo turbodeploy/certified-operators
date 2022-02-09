@@ -316,7 +316,7 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.communication.matrix</artifactId>
-            <version>${version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
