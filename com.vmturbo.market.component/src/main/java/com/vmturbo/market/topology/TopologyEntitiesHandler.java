@@ -514,18 +514,15 @@ public class TopologyEntitiesHandler {
         for (Map.Entry<Integer, RawMaterialInfo> entry : RawMaterialsMap.rawMaterialsMap.entrySet()) {
             topology.getModifiableRawCommodityMap().put(entry.getKey(), new RawMaterials(entry.getValue()));
         }
-        // If enableNamespaceQuotaResizing flag is true, update modifiableRawCommodityMap by setting
-        // hasConstraint as false based on rawMaterialsMapWithSoftConstraints.
-        if (FeatureFlags.NAMESPACE_QUOTA_RESIZING.isEnabled()) {
-            for (Map.Entry<Integer, Integer> entry : RawMaterialsMap.rawMaterialsMapWithSoftConstraints.entrySet()) {
-                RawMaterials rawMaterials = topology.getModifiableRawCommodityMap().get(entry.getKey());
-                if (rawMaterials == null) {
-                    continue;
-                }
-                for (RawMaterialMetadata rawMaterialMetadata : rawMaterials.getMaterials()) {
-                    if (rawMaterialMetadata.getMaterial() == entry.getValue()) {
-                        rawMaterialMetadata.setHardConstraint(false);
-                    }
+        // Update modifiableRawCommodityMap by setting hasConstraint as false based on rawMaterialsMapWithSoftConstraints.
+        for (Map.Entry<Integer, Integer> entry : RawMaterialsMap.rawMaterialsMapWithSoftConstraints.entrySet()) {
+            RawMaterials rawMaterials = topology.getModifiableRawCommodityMap().get(entry.getKey());
+            if (rawMaterials == null) {
+                continue;
+            }
+            for (RawMaterialMetadata rawMaterialMetadata : rawMaterials.getMaterials()) {
+                if (rawMaterialMetadata.getMaterial() == entry.getValue()) {
+                    rawMaterialMetadata.setHardConstraint(false);
                 }
             }
         }
