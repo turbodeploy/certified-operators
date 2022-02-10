@@ -43,6 +43,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.component.external.api.mapper.UserMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -56,6 +58,7 @@ import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.auditing.AuditAction;
@@ -97,7 +100,7 @@ public class UsersService implements IUsersService {
     private static final String NOT_ASSIGNED = "Not assigned";
     private static final String PERMISSION_CHANGED = "Permission changed, current role is %s, scope is %s";
     private final Set<String> invalidScopes = new HashSet<>();
-
+    private final UuidMapper uuidMapper;
     /**
      * The logger.
      */
@@ -160,6 +163,7 @@ public class UsersService implements IUsersService {
     public UsersService(final @Nonnull String authHost,
                         final int authPort,
                         final @Nullable String authRoute,
+                        final @Nonnull UuidMapper uuidMapper,
                         final @Nonnull RestTemplate restTemplate,
                         final @Nonnull String samlRegistrationID,
                         final boolean samlEnabled,
@@ -176,6 +180,7 @@ public class UsersService implements IUsersService {
         restTemplate_ = Objects.requireNonNull(restTemplate);
         this.groupsService = groupsService;
         this.widgetsetsService = widgetsetsService;
+        this.uuidMapper = Objects.requireNonNull(uuidMapper);
         // users cannot be created with the following group scopes
         this.invalidScopes.add(ApiEntityType.BUSINESS_ACCOUNT.displayName());
         this.invalidScopes.add(ApiEntityType.REGION.displayName());
@@ -226,7 +231,7 @@ public class UsersService implements IUsersService {
         HttpHeaders headers = composeHttpHeaders();
         HttpEntity<List> entity = new HttpEntity<>(headers);
         ResponseEntity<List> result = restTemplate_.exchange(request, HttpMethod.GET, entity,
-                                                             List.class);
+                List.class);
 
         // assemble a list of auth users to convert
         List<AuthUserDTO> authUserDTOS = new ArrayList<>();
@@ -487,7 +492,6 @@ public class UsersService implements IUsersService {
         user.setType(inputDto.getType());
         return user;
     }
-
 
     /**
      * Edits user information.
@@ -952,8 +956,7 @@ public class UsersService implements IUsersService {
             String request = baseRequest().path("/users/ad/groups").build().toUriString();
             final String details = String.format("Changed external group: %s with role: %s",
                     adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
-            AuditLog.newEntry(AuditAction.CHANGE_GROUP,
-                    details, true)
+            AuditLog.newEntry(AuditAction.CHANGE_GROUP, details, true)
                     .targetName("EXTERNAL GROUP")
                     .audit();
             return convertGroupInfoFromAuth(
@@ -1184,6 +1187,34 @@ public class UsersService implements IUsersService {
         }
         if (StringUtils.isBlank(apiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for active directory group.");
+        }
+        if (UserScopeUtils.containsSharedRole(Collections.singletonList(apiDTO.getRoleName()))) {
+            if (apiDTO.getScope().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "No valid scope specified. Shared active directory groups require a valid scope.");
+            }
+            //Scope is not empty. Check that this scope consists of valid groups.
+            for (GroupApiDTO scope : apiDTO.getScope()) {
+                ApiId id;
+                try {
+                    //Check that UUID is not null or empty
+                    if (StringUtils.isBlank(scope.getUuid())) {
+                        throw new IllegalArgumentException(
+                                "Invalid scope Uuid specified for active directory group.");
+                    }
+                    //UUID mapper validates if it corresponds to an object
+                    id = uuidMapper.fromUuid(scope.getUuid());
+                } catch (OperationFailedException e) {
+                    //This may happen if invalid UUID's were passed to UUID mapper
+                    throw new IllegalArgumentException(
+                            "Invalid scope Uuid specified for active directory group.", e);
+                }
+                //Check that id is group.
+                if (!id.isGroup()) {
+                    throw new IllegalArgumentException(
+                            "Invalid scope Uuid specified for active directory group.");
+                }
+            }
         }
     }
 
