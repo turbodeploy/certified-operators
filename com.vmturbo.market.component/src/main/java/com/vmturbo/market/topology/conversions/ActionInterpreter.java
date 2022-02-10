@@ -67,6 +67,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -1641,5 +1643,29 @@ public class ActionInterpreter {
         } else {
             return Lists.newArrayList();
         }
+    }
+
+    /**
+     * Given a VM and topology, return the CPU threads of its projected host.
+     * @param topology topologies
+     * @param entity the entity resides on PM
+     * @return The CPU threads of PM that hosts the entity, if present
+     */
+     public static Optional<Integer> getCPUThreadsFromPM(@Nonnull final Map<Long, ProjectedTopologyEntity> topology,
+            TopologyEntityDTO entity) {
+        Optional<Integer> cpuThreadsOfHost = entity.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(comm -> comm.hasProviderEntityType()
+                        && comm.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .map(comm -> topology.get(comm.getProviderId()))
+                .filter(Objects::nonNull)
+                .map(ProjectedTopologyEntity::getEntity)
+                .filter(TopologyEntityDTO::hasTypeSpecificInfo)
+                .map(TopologyEntityDTO::getTypeSpecificInfo)
+                .filter(TypeSpecificInfo::hasPhysicalMachine)
+                .map(TypeSpecificInfo::getPhysicalMachine)
+                .filter(PhysicalMachineInfo::hasNumCpuThreads)
+                .map(PhysicalMachineInfo::getNumCpuThreads)
+                .findFirst();
+        return cpuThreadsOfHost;
     }
 }
