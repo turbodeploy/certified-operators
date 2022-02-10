@@ -419,6 +419,101 @@ public class RemoteProbeStoreTest {
     }
 
     /**
+     * Test adding probes of the same type but with different versions.
+     * If a probe of the same type already exists and has newer version than the
+     * connecting probe, skip updating the probe info.
+     * Connecting Version          Should Update
+     * 8.4.1                       Yes
+     * 8.4.6                       Yes
+     * 8.4.3                       No
+     * latest.1                    Yes
+     * latest.2                    Yes
+     * xyz                         Yes
+     * 8.4.7                       Yes
+     * <empty>                     No
+     * @throws Exception ProbeException
+     */
+    @Test
+    public void testUpdateProbeInfoWhenNeeded() throws Exception {
+        ProbeStoreListener listener = mock(ProbeStoreListener.class);
+        store.addListener(listener);
+        final String tgtIdField = "tgt";
+        final ProbeInfo probe_8_4_1 = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .setVersion("8.4.1")
+                .build();
+        final ProbeInfo probe_8_4_6 = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .setVersion("8.4.6")
+                .build();
+        final ProbeInfo probe8_4_3 = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .setVersion("8.4.3")
+                .build();
+        final ProbeInfo probe_latest_1 = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .setVersion("latest")
+                .build();
+        final ProbeInfo probe_latest_2 = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .setVersion("latest")
+                .build();
+        final ProbeInfo probe_xyz = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .setVersion("xyz")
+                .build();
+        final ProbeInfo probe_8_4_7 = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .setVersion("8.4.7")
+                .build();
+        final ProbeInfo probe_empty = ProbeInfo.newBuilder(Probes.defaultProbe)
+                .addTargetIdentifierField(tgtIdField)
+                .build();
+        final long probeId = 1234L;
+        Mockito.when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(probeId);
+        // 8.4.1
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_8_4_1 =
+                createTransport();
+        store.registerNewProbe(probe_8_4_1, containerInfo, transport_8_4_1);
+        assertEquals(probe_8_4_1, store.getProbe(probeId).get());
+        // 8.4.6
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_8_4_6 =
+                createTransport();
+        store.registerNewProbe(probe_8_4_6, containerInfo, transport_8_4_6);
+        assertEquals(probe_8_4_6, store.getProbe(probeId).get());
+        // 8.4.3
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_8_4_3 =
+                createTransport();
+        store.registerNewProbe(probe8_4_3, containerInfo, transport_8_4_3);
+        assertEquals(probe_8_4_6, store.getProbe(probeId).get());
+        // latest.1
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_latest_1 =
+                createTransport();
+        store.registerNewProbe(probe_latest_1, containerInfo, transport_latest_1);
+        assertEquals(probe_latest_1, store.getProbe(probeId).get());
+        // latest.2
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_latest_2 =
+                createTransport();
+        store.registerNewProbe(probe_latest_2, containerInfo, transport_latest_2);
+        assertEquals(probe_latest_2, store.getProbe(probeId).get());
+        // xyz
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_xyz =
+                createTransport();
+        store.registerNewProbe(probe_xyz, containerInfo, transport_xyz);
+        assertEquals(probe_xyz, store.getProbe(probeId).get());
+        // 8.4.7
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_8_4_7 =
+                createTransport();
+        store.registerNewProbe(probe_8_4_7, containerInfo, transport_8_4_7);
+        assertEquals(probe_8_4_7, store.getProbe(probeId).get());
+        // Empty
+        final ITransport<MediationServerMessage, MediationClientMessage> transport_empty =
+                createTransport();
+        store.registerNewProbe(probe_empty, containerInfo, transport_empty);
+        assertEquals(probe_8_4_7, store.getProbe(probeId).get());
+    }
+
+    /**
      * Tests adding a probe with updated registration information of the same probe type, after the previous
      * transport has gone away. The new registration information should replace the old. This simulates the
      * case where a user upgrades their probe version in a backward-compatible way.
