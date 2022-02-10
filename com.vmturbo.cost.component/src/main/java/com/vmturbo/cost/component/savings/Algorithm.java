@@ -1,12 +1,14 @@
 package com.vmturbo.cost.component.savings;
 
 import java.util.Deque;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.math.DoubleMath;
+import com.google.gson.annotations.SerializedName;
 
 /**
  * Algorithm interface.
@@ -15,10 +17,11 @@ public interface Algorithm {
     /**
      * Add an action delta (price change) to the active action list.
      *
+     * @param timestamp timestamp of the action related to the delta.
      * @param delta amount of the price change.
      * @param expirationTimestamp time when the action will expire.
      */
-    void addAction(double delta, long expirationTimestamp);
+    void addAction(long timestamp, double delta, long expirationTimestamp);
 
     /**
      * Remove an action delta (price change) from the active action list. This must be the first
@@ -119,18 +122,11 @@ public interface Algorithm {
     long getPowerFactor();
 
     /**
-     * Return the action/delta list.
+     * Return the delta list.
      *
-     * @return the action list
+     * @return the delta list
      */
-    List<Double> getActionList();
-
-    /**
-     * Return the expiration times list.
-     *
-     * @return the expiration times list
-     */
-    List<Long> getExpirationList();
+    Deque<Delta> getDeltaList();
 
     /**
      * Get the next action expiration time.
@@ -237,17 +233,45 @@ public interface Algorithm {
      */
     class Delta {
         /**
+         * Time in milliseconds when the delta was created.
+         */
+        @SerializedName("t")
+        public long timestamp;
+
+        /**
          * Difference in cost. Negative is savings, positive is investment.
          */
+        @SerializedName("d")
         public double delta;
+
         /**
          * Time in milliseconds when the delta expires.
          */
+        @SerializedName("e")
         public long expiration;
 
-        Delta(double delta, long expiration) {
+        /**
+         * Helper class to describe an action delta.
+         *
+         * @param timestamp timestamp that the delta was realized
+         * @param delta cost difference
+         * @param expiration timestamp that the delta will expire
+         */
+        Delta(long timestamp, double delta, long expiration) {
+            this.timestamp = timestamp;
             this.delta = delta;
-            this.expiration  = expiration;
+            this.expiration = expiration;
+        }
+
+        /**
+         * Compare two deltas.
+         *
+         * @param other Delta to compare this with
+         * @return true if the deltas are equal
+         */
+        public boolean equals(Delta other) {
+            return this.timestamp == other.timestamp && DoubleMath.fuzzyEquals(this.delta, other.delta, .0001d)
+                    && this.expiration == other.expiration;
         }
     }
 }
