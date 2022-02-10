@@ -40,7 +40,7 @@
         <guava.version>28.2-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
-        <grpc.version>1.37.0</grpc.version>
+        <grpc.version>1.44.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
         <protobuf.version>3.19.3</protobuf.version>
@@ -136,7 +136,7 @@
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.2.6</arangodb.driver.version>
-        <kafka.version>2.8.1</kafka.version>
+        <kafka.version>3.1.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
         <failsafe.version>3.0.0-M4</failsafe.version>
@@ -3053,7 +3053,7 @@
             <!-- START gRPC dependencies. -->
             <dependency>
                 <groupId>io.grpc</groupId>
-                <artifactId>grpc-netty</artifactId>
+                <artifactId>grpc-netty-shaded</artifactId>
                 <version>${grpc.version}</version>
             </dependency>
             <dependency>
