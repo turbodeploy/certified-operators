@@ -1082,7 +1082,6 @@ public class ActionDescriptionBuilder {
 
     /**
      * Returns description with account name for the action.
-     * Added as part of OM-79975
      *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains
      *         entities
