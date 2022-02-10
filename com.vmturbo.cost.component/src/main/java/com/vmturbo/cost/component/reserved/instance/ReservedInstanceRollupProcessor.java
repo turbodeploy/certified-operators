@@ -30,13 +30,15 @@ public class ReservedInstanceRollupProcessor {
      */
     private final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore;
 
-    private final RollupTimesStore rollupTimesStore;
+    private final RollupTimesStore rollupUtilizationTimesStore;
+    private final RollupTimesStore rollupCoverageTimesStore;
 
     /**
      * UTC clock from config.
      */
     private final Clock clock;
     private final IngestedTopologyStore ingestedTopologyStore;
+    private final ReservedInstanceCoverageStore reservedInstanceCoverageStore;
 
     /**
      * Info about last rollup times read from DB.
@@ -46,15 +48,20 @@ public class ReservedInstanceRollupProcessor {
     /**
      * Creates a new instance. Initialized from config.
      * @param reservedInstanceUtilizationStore DB store.
-     * @param rollupTimesStore Last rollup times store.
+     * @param reservedInstanceCoverageStore DB store.
+     * @param rollupUtilizationTimesStore Last rollup times store for RI utilization.
+     * @param rollupCoverageTimesStore Last rollup times stores for RI coverage.
      * @param ingestedTopologyStore store for tracking topologies
      * @param clock UTC clock.
      */
     public ReservedInstanceRollupProcessor(@Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
-            @Nonnull final RollupTimesStore rollupTimesStore,
+            @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
+            @Nonnull final RollupTimesStore rollupUtilizationTimesStore, RollupTimesStore rollupCoverageTimesStore,
             IngestedTopologyStore ingestedTopologyStore, @Nonnull final Clock clock) {
         this.reservedInstanceUtilizationStore = reservedInstanceUtilizationStore;
-        this.rollupTimesStore = rollupTimesStore;
+        this.reservedInstanceCoverageStore = reservedInstanceCoverageStore;
+        this.rollupUtilizationTimesStore = rollupUtilizationTimesStore;
+        this.rollupCoverageTimesStore = rollupCoverageTimesStore;
         this.ingestedTopologyStore = ingestedTopologyStore;
         this.clock = clock;
     }
@@ -68,7 +75,7 @@ public class ReservedInstanceRollupProcessor {
         // Check last time reserved instances updated metadata.
         if (lastRollupTimes == null) {
             logger.trace("Reading first time rollup last times from DB...");
-            lastRollupTimes = rollupTimesStore.getLastRollupTimes();
+            lastRollupTimes = rollupUtilizationTimesStore.getLastRollupTimes();
             logger.trace("Last times: {}", lastRollupTimes);
         }
 
@@ -95,7 +102,8 @@ public class ReservedInstanceRollupProcessor {
 
         lastRollupTimes.setLastTimeUpdated(Instant.now(clock).toEpochMilli());
 
-        rollupTimesStore.setLastRollupTimes(lastRollupTimes);
+        rollupCoverageTimesStore.setLastRollupTimes(lastRollupTimes);
+        rollupUtilizationTimesStore.setLastRollupTimes(lastRollupTimes);
 
 
     }
@@ -103,6 +111,7 @@ public class ReservedInstanceRollupProcessor {
     private void extracted(final List<LocalDateTime> creationTimeList,
             final RollupDurationType type) {
         if (!creationTimeList.isEmpty()) {
+            reservedInstanceCoverageStore.performRollup(type, creationTimeList);
             reservedInstanceUtilizationStore.performRollup(type, creationTimeList);
             long localDateMilli = localDateTimeToMilli(Collections.max(creationTimeList));
             switch (type) {
@@ -132,7 +141,7 @@ public class ReservedInstanceRollupProcessor {
     public void execute() {
         try {
             process();
-            logger.info("Executing rollup for reserved instance utilization tables");
+            logger.info("Executing rollup for reserved instance coverage and utilization tables");
         } catch (Throwable e) {
             logger.error("Exception was thrown in ReservedInstanceRollupProcessor:", e);
         }

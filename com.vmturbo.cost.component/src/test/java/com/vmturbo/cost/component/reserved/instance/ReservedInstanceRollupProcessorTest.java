@@ -47,7 +47,9 @@ public class ReservedInstanceRollupProcessorTest extends MultiDbTestBase {
 
     private final DSLContext dsl;
 
-    private final RollupTimesStore rollupTimesStore = Mockito.mock(RollupTimesStore.class);
+    private final RollupTimesStore rollupUtilizationTimesStore = Mockito.mock(RollupTimesStore.class);
+
+    private final RollupTimesStore rollupCoverageTimesStore = Mockito.mock(RollupTimesStore.class);
 
     private final IngestedTopologyStore ingestedTopologyStore =
         Mockito.mock(IngestedTopologyStore.class);
@@ -56,6 +58,9 @@ public class ReservedInstanceRollupProcessorTest extends MultiDbTestBase {
 
     private ReservedInstanceUtilizationStore reservedInstanceUtilizationStore =
         mock(ReservedInstanceUtilizationStore.class);
+
+    private ReservedInstanceCoverageStore reservedInstanceCoverageStore =
+            mock(ReservedInstanceCoverageStore.class);
 
     private final Clock clock = Clock.systemUTC();
 
@@ -90,7 +95,9 @@ public class ReservedInstanceRollupProcessorTest extends MultiDbTestBase {
     @Before
     public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
         reservedInstanceRollupProcessor = new ReservedInstanceRollupProcessor(
-            reservedInstanceUtilizationStore, rollupTimesStore, ingestedTopologyStore, clock);
+                reservedInstanceUtilizationStore, reservedInstanceCoverageStore,
+                rollupUtilizationTimesStore, rollupCoverageTimesStore, ingestedTopologyStore,
+                clock);
     }
 
     /**
@@ -103,7 +110,7 @@ public class ReservedInstanceRollupProcessorTest extends MultiDbTestBase {
         long yesterdayMs = yesterday.toEpochSecond(ZoneOffset.UTC);
         LastRollupTimes lastRollupTimes = new LastRollupTimes(yesterdayMs, yesterdayMs,
             yesterdayMs, yesterdayMs);
-        Mockito.when(rollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
+        Mockito.when(rollupUtilizationTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimes);
         Mockito.when(ingestedTopologyStore.getCreationTimeSinceLastTopologyRollup(Optional.of(yesterdayMs)))
             .thenReturn(Collections.singletonList(today));
         reservedInstanceRollupProcessor.execute();
@@ -115,7 +122,14 @@ public class ReservedInstanceRollupProcessorTest extends MultiDbTestBase {
         Mockito.verify(reservedInstanceUtilizationStore, Mockito.times(1))
             .performRollup(RollupDurationType.MONTHLY, Collections.singletonList(today));
 
-        Mockito.verify(rollupTimesStore, Mockito.times(1))
-            .setLastRollupTimes(lastRollupTimes);
+        Mockito.verify(reservedInstanceCoverageStore, Mockito.times(1))
+                .performRollup(RollupDurationType.DAILY, Collections.singletonList(today));
+        Mockito.verify(reservedInstanceCoverageStore, Mockito.times(1))
+                .performRollup(RollupDurationType.HOURLY, Collections.singletonList(today));
+        Mockito.verify(reservedInstanceCoverageStore, Mockito.times(1))
+                .performRollup(RollupDurationType.MONTHLY, Collections.singletonList(today));
+
+        Mockito.verify(rollupUtilizationTimesStore, Mockito.times(1))
+                .setLastRollupTimes(lastRollupTimes);
     }
 }
