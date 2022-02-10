@@ -373,8 +373,9 @@ public class ReservedInstanceUtilizationStoreTest extends MultiDbTestBase {
      */
     @Test
     public void rollupToHourlyDailyAndMonthly() {
-        LocalDateTime originalTime = LocalDateTime.now();
-        originalTime = originalTime.truncatedTo(ChronoUnit.SECONDS);
+        // make sure to use a time that has the following properties: 1) adding a minute doesn't increase the hour.
+        // 2) Adding an hour doesn't increase by one day 3) Adding one day doesn't increase by one the month
+        LocalDateTime originalTime = LocalDateTime.parse("2022-02-09T01:01:01");
         List<LocalDateTime> times = Arrays.asList(originalTime, originalTime.plus(1,
             ChronoUnit.MINUTES), originalTime.plus(1, ChronoUnit.HOURS), originalTime.plus(1, ChronoUnit.DAYS));
         List<Double> couponValues = Arrays.asList(1d, 2d, 3d, 4d);
@@ -385,6 +386,7 @@ public class ReservedInstanceUtilizationStoreTest extends MultiDbTestBase {
         int expectedDaily = 1;
         int expectedMonthly = 1;
         Double currentAvg = couponValues.get(0);
+
         for (int i = 0; i < times.size(); i += 1) {
             LocalDateTime time = times.get(i);
             Double couponValue = couponValues.get(i);
