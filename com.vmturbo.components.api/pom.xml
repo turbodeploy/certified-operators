@@ -196,7 +196,7 @@
         <!-- START gRPC dependencies. -->
         <dependency>
             <groupId>io.grpc</groupId>
-            <artifactId>grpc-netty-shaded</artifactId>
+            <artifactId>grpc-netty</artifactId>
         </dependency>
         <dependency>
             <groupId>io.grpc</groupId>
@@ -211,10 +211,7 @@
             <artifactId>grpc-stub</artifactId>
         </dependency>
         <!-- END gRPC dependencies. -->
-        <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
-        </dependency>
+
         <dependency>
             <groupId>io.opentracing</groupId>
             <artifactId>opentracing-api</artifactId>
