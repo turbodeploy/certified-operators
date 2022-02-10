@@ -26,6 +26,8 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private Integer numCpus;
     // The total number of CPU sockets on the host
     private Integer numCpuSockets;
+    // The total number of CPU threads on the host
+    private Integer numCpuThreads;
     // The timezone of this host
     private String timezone;
     // The core speed in MHz
@@ -51,6 +53,10 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         if (physicalMachineInfo.hasNumCpuSockets()) {
             setNumCpuSockets(physicalMachineInfo.getNumCpuSockets());
+        }
+
+        if (physicalMachineInfo.hasNumCpuThreads()) {
+            setNumCpuThreads(physicalMachineInfo.getNumCpuThreads());
         }
 
         if (physicalMachineInfo.hasTimezone()) {
@@ -83,6 +89,9 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getNumCpuSockets() != null) {
             physicalMachineInfoBuilder.setNumCpuSockets(getNumCpuSockets());
+        }
+        if (getNumCpuThreads() != null) {
+            physicalMachineInfoBuilder.setNumCpuThreads(getNumCpuThreads());
         }
         if (getNumCpus() != null) {
             physicalMachineInfoBuilder.setNumCpus(getNumCpus());
@@ -139,6 +148,12 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.numCpuSockets = numCpuSockets;
     }
 
+    public Integer getNumCpuThreads() { return numCpuThreads; }
+
+    public void setNumCpuThreads(final Integer numCpuThreads) {
+        this.numCpuThreads = numCpuThreads;
+    }
+
     public String getTimezone() {
         return timezone;
     }
@@ -170,21 +185,22 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         final PhysicalMachineInfoRepoDTO that = (PhysicalMachineInfoRepoDTO) o;
         return Objects.equals(cpuModel, that.cpuModel) && Objects.equals(vendor, that.vendor)
                 && Objects.equals(model, that.model) && Objects.equals(numCpus, that.numCpus)
-                && Objects.equals(numCpuSockets, that.numCpuSockets) && Objects.equals(timezone,
+                && Objects.equals(numCpuSockets, that.numCpuSockets)
+                && Objects.equals(numCpuThreads, that.numCpuThreads) && Objects.equals(timezone,
                 that.timezone) && Objects.equals(cpuCoreMHz, that.cpuCoreMHz) && Objects.equals(
                 dedicatedFailover, that.dedicatedFailover);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cpuModel, vendor, model, numCpus, numCpuSockets, timezone, cpuCoreMHz, dedicatedFailover);
+        return Objects.hash(cpuModel, vendor, model, numCpus, numCpuSockets, numCpuThreads, timezone, cpuCoreMHz, dedicatedFailover);
     }
 
     @Override
     public String toString() {
         return "PhysicalMachineInfoRepoDTO{" + "cpuModel='" + cpuModel + '\'' + ", vendor='"
                 + vendor + '\'' + ", model='" + model + '\'' + ", numCpus=" + numCpus
-                + ", numCpuSockets=" + numCpuSockets + ", timezone='" + timezone + '\''
+                + ", numCpuSockets=" + numCpuSockets + ", numCpuThreads=" + numCpuThreads + ", timezone='" + timezone + '\''
                 + ", cpuCoreMHz='" + cpuCoreMHz + '\'' + ", dedicatedFailover='" + dedicatedFailover
                 + '\'' + '}';
     }
