@@ -4,8 +4,6 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-
 /**
  * Persists audit event logs for diagnostics and drill-down.
  */

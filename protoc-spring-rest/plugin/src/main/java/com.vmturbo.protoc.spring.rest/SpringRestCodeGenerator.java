@@ -35,7 +35,7 @@ class SpringRestCodeGenerator extends ProtocPluginCodeGenerator {
      */
     @Override
     @Nonnull
-    protected String getPluginName() {
+    public String getPluginName() {
         return "protoc-spring-rest";
     }
 

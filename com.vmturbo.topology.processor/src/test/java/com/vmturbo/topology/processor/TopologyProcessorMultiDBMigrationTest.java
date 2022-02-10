@@ -9,7 +9,7 @@ import com.vmturbo.sql.utils.MultiDBMigrationTest;
  */
 public class TopologyProcessorMultiDBMigrationTest extends MultiDBMigrationTest {
 
-    private static final int INITIAL_OFFSET = 13;
+    private static final int INITIAL_OFFSET = 14;
     private static final String DEFAULT_PATH = "src/main/resources/db/migration";
     private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/topology-processor/mariadb";
     private static final String POSTGRES_PATH = "src/main/resources/db/migrations/topology-processor/postgres";

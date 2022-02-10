@@ -388,7 +388,6 @@ public class ReservedInstanceCoverageUpdate {
             final long topologyId,
             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
 
-
         final List<EntityRICoverageUpload> entityRICoverageList =
                 Optional.ofNullable(riCoverageEntityCache.getIfPresent(topologyId))
                         // If no uploads are cached for the specific topology ID, we carry forward
@@ -396,7 +395,7 @@ public class ReservedInstanceCoverageUpdate {
                         // analysis). It is assumed coverage updates are only processed for the
                         // realtime topology.
                         .orElseGet(() -> {
-                                logger.debug("Resolving coverage uploads from DB (TopologyId={})",
+                                logger.info("Resolving coverage uploads from DB (TopologyId={})",
                                         topologyId);
                                 return entityReservedInstanceMappingStore.getRICoverageByEntity()
                                         .entrySet()

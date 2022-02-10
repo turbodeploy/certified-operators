@@ -47,7 +47,7 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.matrix.component.TheMatrix;
@@ -90,14 +90,14 @@ public class MarketRunner {
             .build()
             .register();
 
-    private final InitialPlacementFinder initialPlacementFinder;
+    private final InitialPlacementHandler initialPlacementHandler;
 
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
                         @Nonnull final MarketNotificationSender serverApi,
                         @Nonnull final AnalysisFactory analysisFactory,
                         @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
                         final TopologyProcessingGate topologyProcessingGate,
-                        @Nonnull final InitialPlacementFinder initialPlacementFinder,
+                        @Nonnull final InitialPlacementHandler initialPlacementHandler,
                         final long rtAnalysisTimeoutSecs,
                         @Nonnull final ComponentRestartHelper componentRestartHelper) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
@@ -105,7 +105,7 @@ public class MarketRunner {
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
         this.analysisFactory = Objects.requireNonNull(analysisFactory);
         this.topologyProcessingGate = Objects.requireNonNull(topologyProcessingGate);
-        this.initialPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
+        this.initialPlacementHandler = Objects.requireNonNull(initialPlacementHandler);
         this.rtAnalysisTimeoutSecs = rtAnalysisTimeoutSecs;
         this.componentRestartHelper = componentRestartHelper;
     }
@@ -173,7 +173,7 @@ public class MarketRunner {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setDiscountedComputeCostFactor(discountedComputeCostFactor),
-                        initialPlacementFinder);
+                        initialPlacementHandler);
 
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
                 Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()
@@ -304,9 +304,13 @@ public class MarketRunner {
             if (!FeatureFlags.DISABLE_ANALYSIS_TIMEOUT.isEnabled()) {
                 ScheduledExecutorService timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
                 logger.info("Scheduling forcestop for analysis {}", analysis.getTopologyId());
+                long contextId = analysis.getContextId();
+                long topologyId = analysis.getTopologyId();
                 timeoutScheduler.schedule(() -> {
                     try {
-                        stopRTAnalysis(analysis.getContextId(), analysis.getTopologyId());
+                        // avoid using reference to analysis here as it will result in retaining
+                        // reference to entire broadcasted topology till the timeout is triggered.
+                        stopRTAnalysis(contextId, topologyId);
                     } catch (InterruptedException e) {
                         logger.error("Could not send market notifications due to a potential timeout.", e);
                     }

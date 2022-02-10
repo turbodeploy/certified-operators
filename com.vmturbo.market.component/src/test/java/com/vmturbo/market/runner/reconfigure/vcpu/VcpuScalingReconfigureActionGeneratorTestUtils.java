@@ -2,10 +2,17 @@ package com.vmturbo.market.runner.reconfigure.vcpu;
 
 import java.util.List;
 
+import javax.annotation.Nonnull;
+
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
+
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
@@ -84,5 +91,13 @@ public class VcpuScalingReconfigureActionGeneratorTestUtils {
                 .setDeprecatedImportance(-1.0d)
                 .build();
         return resizeAction;
+    }
+
+    @Nonnull
+    protected ActionDTO.Reconfigure.SettingChange getFirstSettingChangeOfTheFirstAction(@Nonnull List<Action> actions) {
+        Assert.assertThat(actions.isEmpty(), CoreMatchers.is(false));
+        final Reconfigure reconfigure = actions.get(0).getInfo().getReconfigure();
+        Assert.assertThat(reconfigure.getSettingChangeCount(), CoreMatchers.is(1));
+        return reconfigure.getSettingChange(0);
     }
 }

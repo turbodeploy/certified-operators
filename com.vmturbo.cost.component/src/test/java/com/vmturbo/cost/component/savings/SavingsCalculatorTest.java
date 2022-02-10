@@ -25,6 +25,7 @@ import com.google.common.math.DoubleMath;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -35,12 +36,13 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
@@ -586,6 +588,8 @@ public class SavingsCalculatorTest {
                 .topologyEvent(new TopologyEvent.Builder()
                         .timestamp(0L)
                         .eventType(EventType.PROVIDER_CHANGE.getValue())
+                        .entityOid(101L)
+                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                         .build())
                 .build();
         entityStates = runProviderChangeScenario(ImmutableList.of(savingsEvent));
@@ -633,8 +637,11 @@ public class SavingsCalculatorTest {
         return createSavingsEvent(timestamp, sourceCost, destCost)
                 .actionEvent(new ActionEvent.Builder()
                         .eventType(eventType)
-                        .entityType(10)
                         .actionId(actionId++)
+                        .description(StringUtils.EMPTY)
+                        .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                        .actionType(ActionType.SCALE_VALUE)
+                        .actionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE)
                         .build())
                 .build();
     }
@@ -642,6 +649,8 @@ public class SavingsCalculatorTest {
     private SavingsEvent createProviderChange(long timestamp, Double sourceCost, Double destCost) {
         TopologyEvent.Builder event = new TopologyEvent.Builder()
                 .timestamp(timestamp)
+                .entityOid(101L)
+                .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                 .eventType(EventType.PROVIDER_CHANGE.getValue());
         if (destCost != null) {
             event.providerOid(Objects.hash(destCost));

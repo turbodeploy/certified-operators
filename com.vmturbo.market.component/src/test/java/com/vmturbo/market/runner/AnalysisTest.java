@@ -90,6 +90,7 @@ import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -187,8 +188,7 @@ public class AnalysisTest {
             mock(BuyRIImpactAnalysisFactory.class);
     private BuyRIImpactAnalysis buyRIImpactAnalysis = mock(BuyRIImpactAnalysis.class);
 
-    private InitialPlacementFinder initialPlacementFinder =
-            mock(InitialPlacementFinder.class);
+    private InitialPlacementHandler initialPlacementHandler = mock(InitialPlacementHandler.class);
 
     private JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory =
             mock(JournalActionSavingsCalculatorFactory.class);
@@ -205,8 +205,7 @@ public class AnalysisTest {
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
      */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-        FeatureFlags.NAMESPACE_QUOTA_RESIZING);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Before
     public void before() {
@@ -228,6 +227,9 @@ public class AnalysisTest {
         when(actionSavingsCalculatorFactory.newCalculator(anyMap(), any(), any(), anyMap(), anyMap(), anyMap()))
                 .thenReturn(savingsCalculator);
         when(savingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
+        InitialPlacementFinder placementFinder = mock(InitialPlacementFinder.class);
+        when(initialPlacementHandler.getPlacementFinder()).thenReturn(placementFinder);
+        when(placementFinder.shouldConstructEconomyCache()).thenReturn(false);
     }
 
     /**
@@ -289,7 +291,7 @@ public class AnalysisTest {
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, nsQuotaAnalysisFactory,
-            tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder,
+            tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementHandler,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
             new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                 externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
@@ -760,13 +762,10 @@ public class AnalysisTest {
     }
 
     /**
-     * Test {@link Analysis#execute} with "namespaceQuotaResizing" feature flag enabled and
-     * corresponding namespace resize action will be generated.
+     * Test {@link Analysis#execute} where corresponding namespace resize action will be generated.
      */
     @Test
-    public void testExecuteWithNamespaceQuotaResizingEnabled() {
-        featureFlagTestRule.enable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
-
+    public void testExecuteWithNamespaceQuotaResizing() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
             SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
@@ -776,26 +775,6 @@ public class AnalysisTest {
         analysis.execute();
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
-        featureFlagTestRule.reset();
-    }
-    /**
-     * Test {@link Analysis#execute} with "namespaceQuotaResizing" feature flag disabled and
-     * namespaceQuotaAnalysisEngine won't be triggered which leads to no namespace resize action.
-     */
-    @Test
-    public void testExecuteWithNamespaceQuotaResizingDisabled() {
-        featureFlagTestRule.disable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
-
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-            SuspensionsThrottlingConfig.DEFAULT,
-            Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
-            .setIncludeVDC(true)
-            .build();
-        final Analysis analysis = getAnalysis(analysisConfig);
-        analysis.execute();
-        assertTrue(analysis.getActionPlan().isPresent());
-        assertFalse(analysis.getActionPlan().get().getActionList().contains(namespaceResizeAction));
-        featureFlagTestRule.reset();
     }
 
     /**

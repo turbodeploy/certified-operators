@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -160,21 +161,6 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         return oldestEventTime;
     }
 
-    @Nullable
-    public Long getNewestEventTime() {
-        Long newestEventTime = null;
-        journalLock.readLock().lock();
-        try {
-            if (!events.isEmpty()) {
-                // Get the least time that is greater than 0.
-                newestEventTime = events.keySet().last();
-            }
-        } finally {
-            journalLock.readLock().unlock();
-        }
-        return newestEventTime;
-    }
-
     @Override
     public int size() {
         int size = 0;
@@ -185,5 +171,17 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
             journalLock.readLock().unlock();
         }
         return size;
+    }
+
+    @Override
+    public Stream<SavingsEvent> getEventsBetween(long startTime, long endTime) {
+        // No op. Not used.
+        return Stream.empty();
+    }
+
+    @Override
+    public int purgeEventsOlderThan(long eventTime) {
+        // No op. Not used.
+        return 0;
     }
 }

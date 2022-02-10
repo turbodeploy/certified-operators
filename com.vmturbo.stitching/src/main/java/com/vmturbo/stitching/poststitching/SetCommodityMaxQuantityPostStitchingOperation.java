@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -297,6 +298,16 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         this.backgroundStatsLoadingExecutor = backgroundStatsLoadingExecutor;
     }
 
+    @VisibleForTesting
+    boolean getInitialMaxQueryCompleted() {
+        return initialMaxQueryCompleted;
+    }
+
+    @VisibleForTesting
+    boolean getMaxValuesBackgroundTaskScheduled() {
+        return maxValuesBackgroundTaskScheduled;
+    }
+
     private void setStatsDaysRetentionSettingInSeconds() {
         Iterator<SettingProto.Setting> settingIterator = statsHistoryClient
                 .getStatsDataRetentionSettings(GetStatsDataRetentionSettingsRequest.getDefaultInstance());
@@ -339,7 +350,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         boolean isMaxQueryComplete = initialMaxQueryCompleted;
         Set<TopologyEntity> entitySet = entities.collect(Collectors.toSet());
         updateEntityOids(entitySet);
-        if (!maxValuesBackgroundTaskScheduled) {
+        boolean canLoadMaxValues = !FeatureFlags.DISABLE_MAX_QUERY.isEnabled();
+        if (!maxValuesBackgroundTaskScheduled && canLoadMaxValues) {
             backgroundStatsLoadingExecutor
                     .scheduleWithFixedDelay(
                             new LoadMaxValuesFromDBTask(),
@@ -389,7 +401,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                 commoditiesCount++;
             }
             // We refer to local variable isMaxQueryComplete stored at beginning of the stage instead of the member
-            // initialMaxQueryCompleted directly because the max query can complete when in the middle of the this stage
+            // initialMaxQueryCompleted directly because the max query can complete when in the middle of this stage
             // in broadcast. And if that happens we can end up in a situation where some entities are eligible for resize,
             // while some are not - which can lead to incorrect resizing on-prem.
             if (!isMaxQueryComplete && broadcastCount < numBroadcastsToWaitForMaxQueryCompletion) {

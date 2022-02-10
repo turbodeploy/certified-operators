@@ -66,7 +66,7 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -141,8 +141,7 @@ public class AnalysisDebuggingTest {
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
 
-    private InitialPlacementFinder initialPlacementFinder =
-            mock(InitialPlacementFinder.class);
+    private InitialPlacementHandler initialPlacementHandler = mock(InitialPlacementHandler.class);
 
     private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory =
             mock(ReversibilitySettingFetcherFactory.class);
@@ -309,7 +308,7 @@ public class AnalysisDebuggingTest {
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                 wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory, tierExcluderFactory,
-                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder,
+                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementHandler,
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                         new CommodityIdUpdater(), actionSavingsCalculatorFactory, mock(
                 ExternalReconfigureActionEngine.class), new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),

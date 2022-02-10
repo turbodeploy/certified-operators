@@ -12,8 +12,11 @@ import com.google.gson.Gson;
 
 import org.mockito.Mockito;
 
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAMatchTestTrim;
 import com.vmturbo.market.cloudscaling.sma.entities.CloudCostContextEntry;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
@@ -29,6 +32,8 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
  * Read in Json and generate SMA data structures.
  */
 public class JsonToSMAInputTranslator {
+
+    private static final Gson GSON = ComponentGsonFactory.createGson();
 
     /**
      * construct the expected output from json file.
@@ -59,8 +64,9 @@ public class JsonToSMAInputTranslator {
             SMATemplate smaTemplate = inputContext.getTemplates().stream()
                     .filter(a -> a.getOid() == smaMatchTestTrim.getTemplateOid())
                     .findFirst().get();
-            float discountedCoupons = smaMatchTestTrim.getReservedInstanceOid() == null ? 0f
-                    : smaMatchTestTrim.getDiscountedCoupons();
+            CloudCommitmentAmount discountedCoupons = smaMatchTestTrim.getReservedInstanceOid() == null ?
+                    CommitmentAmountCalculator.ZERO_COVERAGE
+                    : CloudCommitmentAmount.newBuilder().setCoupons(smaMatchTestTrim.getDiscountedCoupons()).build();
             smaMatches.add(new SMAMatch(smaVirtualMachine, smaTemplate,
                     smaReservedInstance, discountedCoupons));
         }
@@ -82,7 +88,7 @@ public class JsonToSMAInputTranslator {
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
-        SMAInputContext smaInputContext = new Gson().fromJson(br, SMAInputContext.class);
+        SMAInputContext smaInputContext = GSON.fromJson(br, SMAInputContext.class);
         if (smaInputContext.getSmaConfig() == null) {
             smaInputContext.setSmaConfig(new SMAConfig());
         }
@@ -91,7 +97,7 @@ public class JsonToSMAInputTranslator {
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
-        CloudCostContextEntry[] cloudCostContextEntries = new Gson().fromJson(br, CloudCostContextEntry[].class);
+        CloudCostContextEntry[] cloudCostContextEntries = GSON.fromJson(br, CloudCostContextEntry[].class);
         for(CloudCostContextEntry entry : cloudCostContextEntries) {
             cloudCostCalculator.getCloudCostLookUp().put(entry.getCostContext(), entry.getCostValue());
         }

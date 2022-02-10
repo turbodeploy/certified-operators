@@ -213,7 +213,7 @@ public class MarketRunnerConfig {
             analysisFactory(),
             marketRpcConfig.marketDebugRpcService(),
             analysisGate(),
-            marketRpcConfig.getInitialPlacementFinder(),
+            marketRpcConfig.getInitialPlacementHandler(),
             rtAnalysisTimeoutSecs,
             new ComponentRestartHelper(pipelineFailureHours));
     }

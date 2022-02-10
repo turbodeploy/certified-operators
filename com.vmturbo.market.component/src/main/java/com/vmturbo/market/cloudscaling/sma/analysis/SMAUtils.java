@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
@@ -69,6 +70,12 @@ public class SMAUtils {
             OSType.LINUX_WITH_SQL_WEB);
 
     /**
+     * Zero coupons cloud commitment amount.
+     */
+    public static CloudCommitmentAmount ZERO_COUPONS_COMMITMENT =
+            CloudCommitmentAmount.newBuilder().setCoupons(0).build();
+
+    /**
      * When there is no RI coverage.
      */
     public static final float NO_RI_COVERAGE = 0;
@@ -98,7 +105,7 @@ public class SMAUtils {
      * Placeholder for invalid SMATemplate.
      */
     public static final SMATemplate BOGUS_TEMPLATE = new SMATemplate(-1, "SMATemplate placeholder",
-        "xxx", 0, null, 0F);
+        "xxx", ZERO_COUPONS_COMMITMENT, null, 0F);
 
     /**
      * if Azure, then OS type agnostic and use UNKNOWN_OS.
@@ -109,6 +116,7 @@ public class SMAUtils {
      * Placeholder for an invalid RI.
      */
     public static final SMAReservedInstance BOGUS_RI = null;
+
     /**
      * Ensures there are only 4 significant decimal places.  Round up if needed.
      * @param value float value
@@ -117,5 +125,4 @@ public class SMAUtils {
     public static float format4Digits(float value) {
         return ((int)((value + 0.00005) * 10000)) / (float)10000.0f;
     }
-
 }

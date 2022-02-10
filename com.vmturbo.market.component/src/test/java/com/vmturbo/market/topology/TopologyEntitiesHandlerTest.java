@@ -172,8 +172,7 @@ public class TopologyEntitiesHandlerTest {
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
      */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-        FeatureFlags.NAMESPACE_QUOTA_RESIZING);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Before
     public void setup() {
@@ -1349,12 +1348,10 @@ public class TopologyEntitiesHandlerTest {
 
     /**
      * Testing that the rawMaterial map gets populated with corresponding isHardConstraint updated to
-     * false when feature flag NAMESPACE_QUOTA_RESIZING is nabled.
+     * false.
      */
     @Test
-    public void testPopulateRawMaterialsMapWithNamespaceQuotaResizingEnabled() {
-        featureFlagTestRule.enable(FeatureFlags.NAMESPACE_QUOTA_RESIZING);
-
+    public void testPopulateRawMaterialsMapWithSoftConstraint() {
         Topology topology = new Topology();
         TopologyEntitiesHandler.populateRawMaterialsMap(topology);
         Economy e = (Economy)topology.getEconomy();
@@ -1366,7 +1363,6 @@ public class TopologyEntitiesHandlerTest {
             .findAny();
         assertTrue(rawMaterialMetadata.isPresent());
         assertFalse(rawMaterialMetadata.get().isHardConstraint());
-        featureFlagTestRule.reset();
     }
 
     /**

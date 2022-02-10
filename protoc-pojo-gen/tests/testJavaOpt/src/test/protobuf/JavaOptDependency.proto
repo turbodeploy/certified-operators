@@ -1,0 +1,147 @@
+syntax = "proto2";
+package testPkg2;
+
+option java_package = "com.vmturbo.protoc.pojo.gen.testjavaopt2";
+option java_outer_classname = "BarClassDTO";
+
+// This class represents a bar!
+message Bar {
+    // This is a bar!
+    // And it has more than one line.
+    optional int64 bar = 1;
+
+    message OtherMessage {
+        optional int32 my_int = 1;
+    }
+
+    message BlahDTO {
+        optional string str = 1;
+
+        optional InsideBlah inside_blah = 2;
+
+        message InsideBlah {
+            optional int32 inner_int = 1;
+        }
+    }
+
+    // Map!
+    map<string, OtherMessage> my_map = 2;
+
+    // A plant
+    optional Plant garden_plant = 3;
+
+    // Required!
+    // Duh.
+    required float required_float = 4;
+
+    optional string some_string = 5;
+
+    optional bool my_boolean = 6;
+
+    optional OtherMessage my_other_message = 7;
+
+    optional double my_double_with_default = 8 [default = 0.24];
+
+    // A plant
+    optional Plant default_potato = 9 [default = POTATO];
+
+    // Repeated primitive!
+    repeated int32 repeated_int = 10;
+
+    // Repeated string!
+    repeated string repeated_string = 11;
+
+    // Repeated message!
+    repeated BlahDTO repeated_blah = 12;
+
+    // Repeated bool!
+    repeated bool repeated_bool = 13;
+
+    // primitives map
+    map<int32, bool> primitives_map = 14;
+
+    // Repeated enum!
+    repeated Plant repeated_enum = 15;
+
+    // Enum map!
+    map<int32, EnumForMap> enum_map = 16;
+
+    // This are annoying names.
+    optional bool default = 17;
+    optional bool interface = 18;
+    optional bool abstract = 19;
+
+    // Example might be $3.50 or tree-fitty.
+    optional double current = 20;
+
+    // some bytes :)
+    optional bytes my_bytes = 21;
+
+    optional bytes bytes_with_default = 22 [default = "foobar"];
+
+    // Some repeated bytes!
+    repeated bytes repeated_bytes = 23;
+    map<int32, bytes> byte_map = 24;
+
+    // Some oneof comments
+    oneof my_one_of {
+        // The other message variant
+        OtherMessage other_message = 100;
+
+        // This is
+        // the
+        // blah
+        // variant.
+        BlahDTO blah = 101;
+
+        int32 int_variant = 102;
+
+        string string_variant = 103 [default = "foo"];
+
+        bool bool_variant = 140 [default = true];
+
+        string no_default_string = 104;
+
+        double double_variant = 105;
+
+        float float_variant = 106;
+
+        int64 long_variant = 107;
+
+        bytes bytes_variant_with_defualt = 108 [default = "bytes_variant"];
+
+        bytes bytes_variant = 109;
+    }
+
+    // These are the comments for your oneof
+    oneof your_one_of {
+        OtherMessage your_message = 200;
+
+        // your plant!
+        Plant your_plant = 201 [default = MAPLE];
+
+        Plant third_plant = 202;
+    }
+
+    enum Plant {
+        CHRISTMAS_CACTUS = 6;
+        OAK = 2;
+        POTATO = 3;
+        MAPLE = 4;
+        BUSH = 5;
+    }
+
+    enum EnumForMap {
+        Foo = 0;
+        Bar = 1;
+        Baz = 2;
+    }
+}
+
+message FooDTO {
+    optional int32 foo_int = 1;
+
+    message InsideFoo {
+        optional int32 inner = 1;
+    }
+}

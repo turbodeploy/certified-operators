@@ -8,6 +8,7 @@ import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_A
 
 import java.text.MessageFormat;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +93,7 @@ public class ActionDescriptionBuilder {
     // Cloud native entities with CPU values in millicores.
     private static final Set<Integer> CLOUD_NATIVE_ENTITIES = ImmutableSet.of(EntityType.CONTAINER_VALUE,
         EntityType.CONTAINER_SPEC_VALUE, EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE);
+    private static final String COMMA_SPACE = ", ";
 
     // Static patterns used for dynamically-constructed message contents.
     //
@@ -127,7 +129,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES("Reconfigure {0} to provide {1} from {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
-        ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} for {1} from {2} to {3}"),
+        ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} changing {1}"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE("Scale {0} {1} for {2} from {3} to {4}"),
@@ -426,14 +428,21 @@ public class ActionDescriptionBuilder {
                                                 .map(ReasonCommodity::getCommodityType)
                                                 .collect(Collectors.toList()))));
             }
-        } else if (reconfigure.hasSettingChange()) {
-            SettingChange change = reconfigure.getSettingChange();
-            String settingChange = StringUtils.capitalize(change.getEntityAttribute().name()
-                    .replace("_", " ").toLowerCase());
-            return getDescriptionWithAccountName(entitiesSnapshot, entityId,
-                    ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
-                            settingChange, beautifyEntityTypeAndName(targetEntityDTO.get()),
-                            change.getCurrentValue(), change.getNewValue()));
+        } else if (reconfigure.getSettingChangeCount() > 0) {
+            final StringBuilder changesBuilder = new StringBuilder();
+            final Iterator<SettingChange> it = reconfigure.getSettingChangeList().iterator();
+            while (it.hasNext()) {
+                final SettingChange change = it.next();
+                final String attributeName =
+                                change.getEntityAttribute().name().replace("_", " ").toLowerCase();
+                changesBuilder.append(MessageFormat.format("{0} from {1} to {2}", attributeName,
+                                change.getCurrentValue(), change.getNewValue()));
+                if (it.hasNext()) {
+                    changesBuilder.append(COMMA_SPACE);
+                }
+            }
+            return getDescriptionWithAccountName(entitiesSnapshot, entityId,ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
+                            beautifyEntityTypeAndName(targetEntityDTO.get()), changesBuilder.toString()));
 
         } else {
             return getDescriptionWithAccountName(entitiesSnapshot, entityId,
@@ -585,7 +594,7 @@ public class ActionDescriptionBuilder {
                                 .map(ActionDTOUtil::beautifyEntityTypeAndName)
                                 .collect(Collectors.toList());
                 if (!resources.isEmpty()) {
-                    resource = resources.stream().sorted().collect(Collectors.joining(", ")) + OF;
+                    resource = resources.stream().sorted().collect(Collectors.joining(COMMA_SPACE)) + OF;
                 }
             }
             String actionMessage = ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,
@@ -633,7 +642,7 @@ public class ActionDescriptionBuilder {
             @Nonnull ActionPartialEntity targetEntityDTO,
             @Nonnull ActionPartialEntity newEntityDTO) {
         final StringBuilder commodityMessageBuilder = new StringBuilder();
-        final String messageSeparator = ", ";
+        final String messageSeparator = COMMA_SPACE;
         resizeInfoList.forEach(resizeInfo -> {
             final CommodityType resizeInfoCommodityType = CommodityType
                     .forNumber(resizeInfo.getCommodityType().getType());

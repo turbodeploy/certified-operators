@@ -1933,13 +1933,20 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
             logger.debug("The following {} groups will not be updated as they are not changed: {}",
                     unchangedGroups::size, unchangedGroups::toString);
+
+            final MemberLocalIdResolver memberLocalIdResolver = new MemberLocalIdResolver(stitchingResult);
+            final List<DiscoveredGroup> resolvedGroupsToAdd = memberLocalIdResolver
+                    .resolveNestedGroupsLocalIds(groupsToAdd);
+            final List<DiscoveredGroup> resolvedGroupsToUpdate = memberLocalIdResolver
+                    .resolveNestedGroupsLocalIds(groupsToUpdate);
+
             // First, we need to remove setting policies and placement policies for the groups
             // that are removed. After the groups are removed themselves, a link between groups
             // and policies will be lost
             stores.getPlacementPolicyStore()
                     .deletePoliciesForGroupBeingRemoved(stitchingResult.getGroupsToDelete());
             stores.getGroupStore()
-                    .updateDiscoveredGroups(groupsToAdd, groupsToUpdate,
+                    .updateDiscoveredGroups(resolvedGroupsToAdd, resolvedGroupsToUpdate,
                             stitchingResult.getGroupsToDelete());
             final Table<Long, String, Long> allGroupsMap = createGroupIdTable(stitchingResult);
 

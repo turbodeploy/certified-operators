@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -32,6 +31,10 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -45,10 +48,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Compute
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
@@ -401,7 +402,7 @@ public class SMAInput {
             businessAccountId,
             null,
             new ArrayList<>(),
-            SMAUtils.NO_RI_COVERAGE,
+            CommitmentAmountCalculator.ZERO_COVERAGE,
             zoneId,
             SMAUtils.BOGUS_RI,
             osType,
@@ -481,10 +482,8 @@ public class SMAInput {
                     updateProvidersOfVirtualMachine(providers, vm.getCurrentTemplate(), vm);
             vm.setVirtualMachineProviderInfo(smaVirtualMachineProvider);
 
-            Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
+            Pair<SMAReservedInstance, CloudCommitmentAmount> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
             if (currentRICoverage != null) {
-                logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
-                        () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
                 vm.setCurrentRI(currentRICoverage.getFirst());
                 vm.setCurrentRICoverage(currentRICoverage.getSecond());
             }
@@ -624,7 +623,9 @@ public class SMAInput {
         }
         ComputeTierInfo computeTierInfo = computeTier.getTypeSpecificInfo().getComputeTier();
         String family = computeTierInfo.getFamily();
-        float coupons = (float)computeTierInfo.getNumCoupons();
+        final CloudCommitmentAmount cloudCommitmentAmount = CloudCommitmentAmount.newBuilder()
+                .setCoupons(computeTierInfo.getNumCoupons())
+                .build();
         final float penalty =
                 (computeTierInfo.hasScalePenalty()) ? computeTierInfo.getScalePenalty().getPenalty() : 0F;
 
@@ -638,7 +639,7 @@ public class SMAInput {
             Set<SMAContext> contexts = regionIdToOsTypeToContexts.get(regionId, osType);
             if (CollectionUtils.isEmpty(contexts)) {
                 logger.trace("processComputeTier: not in a context ID={} name={} regionId={} osType={}",
-                    () -> oid, () -> name, () -> regionId, () -> osType.name(), () -> regionId);
+                    () -> oid, () -> name, () -> regionId, () -> osType.name());
                 continue;
             }
             logger.trace("processComputeTier: in {} contexts: ID={} name={} regionId={} osType={}",
@@ -654,7 +655,8 @@ public class SMAInput {
                 /*
                  * For each osType create template with osType specific cost.
                  */
-                SMATemplate template = new SMATemplate(oid, name, family, coupons, computeTier, penalty);
+                final SMATemplate template = new SMATemplate(oid, name, family,
+                        cloudCommitmentAmount, computeTier, penalty);
                 logger.trace("processComputeTier: new {} in {}", template, context);
                 Set<SMATemplate> templates = smaContextToTemplates.getOrDefault(context, new HashSet<>());
                 templates.add(template);
@@ -758,12 +760,17 @@ public class SMAInput {
         Set<Long> scopedAccountsIds = shared ? Collections.emptySet() : ImmutableSet.copyOf(
                 riBoughtInfo.getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList());
 
+        final double numberOfCoupons =
+                riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
+
         // adjust count of RI to reflect partial RI
-        final float count = (float)riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons()
-                / template.getCoupons();
+        final float count = (float)(numberOfCoupons / template.getCommitmentAmount().getCoupons());
+
+        final CloudCommitmentAmount commitmentAmount =
+                CloudCommitmentAmount.newBuilder().setCoupons(numberOfCoupons).build();
 
         // Unfortunately, the probe returns ISF=true for metal templates.
-        SMAReservedInstance ri = new SMAReservedInstance(riBoughtId,
+        final SMAReservedInstance ri = new SMAReservedInstance(riBoughtId,
             riKeyId,
             name,
             businessAccountId,
@@ -773,7 +780,8 @@ public class SMAInput {
             count,
             riSpecInfo.getSizeFlexible(),
             shared,
-            riSpecInfo.getPlatformFlexible());
+            riSpecInfo.getPlatformFlexible(),
+            commitmentAmount);
         if (ri == null) {
             logger.error("processRI: regionId={} new SMA_RI FAILED: oid={} name={} accountId={} template={} zondId={} OS={} tenancy={} count={}",
                 regionId, riBoughtId, name, businessAccountId, templateName, zoneId, osType.name(),
@@ -905,7 +913,7 @@ public class SMAInput {
         Optional<GroupAndMembers> optional = cloudTopology.getBillingFamilyForEntity(oid);
         if (!optional.isPresent()) {
             // if ID  is a master account, expect accountOpt to be empty
-            logger.trace("getBillingFamilyId{}: can't find billing family ID for {} OID={}", msg, oid);
+            logger.trace("getBillingFamilyId: can't find billing family ID for {} OID={}", msg, oid);
         } else {
             GroupAndMembers groupAndMembers = optional.get();
             billingFamilyId = groupAndMembers.group().getId();
@@ -920,11 +928,11 @@ public class SMAInput {
      * @param riBoughtOidToRI map from RI bought OID to SMA RI
      * @return Pair SMA RI to coupons covered.
      */
-    @Nonnull
-    private Pair<SMAReservedInstance, Float> computeVmCoverage(final Long vmOid,
+    @Nullable
+    private Pair<SMAReservedInstance, CloudCommitmentAmount> computeVmCoverage(final Long vmOid,
                                                                final CloudCostData cloudCostData,
                                                                final Map<Long, SMAReservedInstance> riBoughtOidToRI) {
-        Pair<SMAReservedInstance, Float> currentRICoverage = null;
+        Pair<SMAReservedInstance, CloudCommitmentAmount> currentRICoverage = null;
         Optional<EntityReservedInstanceCoverage> riCoverageOptional = cloudCostData.getFilteredRiCoverage(vmOid);
         if (riCoverageOptional.isPresent()) {
             EntityReservedInstanceCoverage riCoverage = riCoverageOptional.get();
@@ -939,7 +947,7 @@ public class SMAInput {
      * @return ReservedInstanceCoverage
      */
     @Nullable
-    private Pair<SMAReservedInstance, Float> computeVmCoverage(EntityReservedInstanceCoverage riCoverage,
+    private Pair<SMAReservedInstance, CloudCommitmentAmount> computeVmCoverage(EntityReservedInstanceCoverage riCoverage,
                                                                Map<Long, SMAReservedInstance> riBoughtOidToRI) {
         Map<Long, Double> riOidToCoupons = riCoverage.getCouponsCoveredByRiMap();
         float coverage = SMAUtils.NO_RI_COVERAGE;
@@ -956,7 +964,9 @@ public class SMAInput {
                 }
             }
         }
-        return new Pair(ri, coverage);
+        CloudCommitmentAmount commitmentAmount = CloudCommitmentAmount.newBuilder().setCoupons(
+                SMAUtils.round(coverage)).build();
+        return new Pair(ri, commitmentAmount);
     }
 
     /**

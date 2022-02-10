@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.poststitching;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -52,6 +54,7 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests for SetCommodityMaxQuantityPostStitchingOperation.
@@ -73,6 +76,12 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
      */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsHistoryServiceMole);
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Setup the test.
@@ -201,7 +210,7 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
 
     /**
      * Do 4 broadcasts. Don't run the background task.
-     * For 3 broadcasts, the resizable flags should be false. For the 4th broadcast, the resizable falgs should be
+     * For 3 broadcasts, the resizable flags should be false. For the 4th broadcast, the resizable flags should be
      * true even if background task did not complete.
      */
     @Test
@@ -231,6 +240,49 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         broadcast(entities);
         assertEquals(true, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
                 && vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+    }
+
+    /**
+     * Set DISABLE_MAX_QUERY to true.
+     * Stop the background task from running, and InitialMaxQueryCompleted &
+     * MaxValuesBackgroundTaskScheduled from being set to true.
+     * Do 4 broadcasts. For 3 broadcasts, the resizable flags should be false.
+     * For the 4th broadcast, the resizable flags should be
+     * true even if background task did not complete.
+     * InitialMaxQueryCompleted & MaxValuesBackgroundTaskScheduled should still be false.
+     */
+    @Test
+    public void testMultipleBroadcastsWithDisableMaxQueryEnabled() {
+        featureFlagTestRule.enable(FeatureFlags.DISABLE_MAX_QUERY);
+
+        // First do a broadcast so that we have oids which we want to query for
+        TopologyEntity vm1 = topologyEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 100)));
+        List<TopologyEntity> entities = ImmutableList.of(vm1);
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+
+        // Do second broadcast. Start with analysis flags as true
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+
+        // Do third broadcast. Start with analysis flags as true
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+
+        // Do fourth broadcast. Start with analysis flags as true. This time, the analysis flags will remain true.
+        setAnalysisFlags(entities);
+        broadcast(entities);
+        assertEquals(true, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+
+        assertFalse(setMaxOperation.getInitialMaxQueryCompleted());
+        assertFalse(setMaxOperation.getMaxValuesBackgroundTaskScheduled());
     }
 
     /**

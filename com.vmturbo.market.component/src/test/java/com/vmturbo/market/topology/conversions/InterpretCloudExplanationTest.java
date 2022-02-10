@@ -600,4 +600,65 @@ public class InterpretCloudExplanationTest {
         assertFalse(efficiency.getIsWastedCost());
         assertEquals(0, efficiency.getScaleUpCommodityCount());
     }
+
+    /**
+     * An VM has under-utilized commodities, and No savings.
+     * It does not have congested commodity nor RI coverage increase.
+     * VM is a part of consistent Scaling Group.
+     */
+    @Test
+    public void testInterpretComplianceWithUnderUtilizedCommodity() {
+        // Congested / Under-utilized commodities
+        Set<CommodityTypeWithLookup> underUtilizedCommodities = ImmutableSet.of(VMEMWithLookup);
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
+
+        // Savings
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.builder()
+                .savingsPerHour(Trax.trax(-10.0))
+                .build());
+
+        // No RI Coverage
+        when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
+        projectedRiCoverage.put(VM1_OID, null);
+
+        Builder vmemSoldCommodity = CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(VMEM_VALUE));
+        Map<Long, ProjectedTopologyEntity> projectedTopologyMap = new HashMap<>();
+        Map<Long, TopologyEntityDTO> originalTopologyMap = new HashMap<>();
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(VM1_OID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(vmemSoldCommodity.setCapacity(100L)
+                        .build())
+                .build();
+        originalTopologyMap.put(VM1_OID, topologyEntityDTO);
+        topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(VM1_OID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(vmemSoldCommodity.setCapacity(10L)
+                        .build())
+                .build();
+        ProjectedTopologyEntity projectedTopology = ProjectedTopologyEntity.newBuilder()
+                .setEntity(topologyEntityDTO)
+                .build();
+        projectedTopologyMap.put(VM1_OID, projectedTopology);
+        ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
+                cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker,
+                riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
+
+        MoveTO csgMoveTO = move.getMove().toBuilder().setScalingGroupId("testScalingGroup").build();
+
+        doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(csgMoveTO, projectedTopologyMap, originalCloudTopology);
+
+        // repopulate the originalTopologyMap with EnvironmentType
+        TopologyEntityDTO clonedEntityDTO = TopologyEntityDTO.newBuilder(topologyEntityDTO)
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).build();
+        originalTopologyMap.put(VM1_OID, clonedEntityDTO);
+        // populate actions
+        List<Action> actions = ai.interpretAction(move.toBuilder().setMove(csgMoveTO).build(), projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
+        // assert that we have an compliance explanation for cloud entity
+        assertTrue(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getCompliance().getIsCsgCompliance());
+    }
+
 }

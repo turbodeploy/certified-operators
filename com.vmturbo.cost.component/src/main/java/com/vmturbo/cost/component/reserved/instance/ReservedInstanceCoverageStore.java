@@ -29,6 +29,7 @@ import org.jooq.impl.TableImpl;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageByDayRecord;
@@ -128,11 +129,24 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
             @Nonnull final DSLContext context,
             @Nonnull final LocalDateTime currentTime,
             @Nonnull final ServiceEntityReservedInstanceCoverageRecord entityRiCoverage) {
+
+        String hourKey = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? ReservedInstanceUtil.createHourKey(currentTime, entityRiCoverage.getId(),
+                entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
+                entityRiCoverage.getBusinessAccountId()) : null;
+
+        String dayKey = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? ReservedInstanceUtil.createDayKey(currentTime, entityRiCoverage.getId(),
+                entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
+                entityRiCoverage.getBusinessAccountId()) : null;
+
+        String monthKey = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() ? ReservedInstanceUtil.createMonthKey(currentTime, entityRiCoverage.getId(),
+                entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
+                entityRiCoverage.getBusinessAccountId()) : null;
+
         return context.newRecord(Tables.RESERVED_INSTANCE_COVERAGE_LATEST,
                 new ReservedInstanceCoverageLatestRecord(currentTime, entityRiCoverage.getId(),
                         entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
                         entityRiCoverage.getBusinessAccountId(), entityRiCoverage.getTotalCoupons(),
-                        entityRiCoverage.getUsedCoupons(),null,null,null));
+                        entityRiCoverage.getUsedCoupons(), hourKey, dayKey, monthKey));
 
     }
 

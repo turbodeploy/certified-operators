@@ -15,7 +15,7 @@
             "osType": "WINDOWS",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -44,6 +44,9 @@
             "isf": false,
             "shared": false,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -63,6 +66,9 @@
             "isf": false,
             "shared": false,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -76,7 +82,9 @@
             "oid": "100001",
             "name": "Standard_A1",
             "family": "",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {
@@ -98,7 +106,9 @@
             "oid": "100002",
             "name": "Standard_A1_v2",
             "family": "",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {

@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.junit.Before;
 import org.junit.Rule;
@@ -51,6 +52,7 @@ import com.vmturbo.cost.component.db.tables.EntitySavingsByDay;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByMonth;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
+import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RolledUpTable;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
@@ -669,5 +671,45 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         record.setResourceGroupOid(resourceGroupOid);
         record.setCreationTime(LocalDateTime.now());
         return record;
+    }
+
+    /**
+     * Tests duplicate row insertion into hourly stats table. If duplicate, then the value is
+     * updated.
+     *
+     * @throws EntitySavingsException Thrown on DB error.
+     */
+    @Test
+    public void duplicateRowsUpdateHourly() throws EntitySavingsException {
+        final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
+        int multiple = 10;
+        EntitySavingsStatsType statsType = EntitySavingsStatsType.REALIZED_SAVINGS;
+
+        // hourlyStats is a set, so we cannot expect a reliable ordering. That is why the
+        // addHourlyStats() is being called 3 times below.
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple, ImmutableSet.of(statsType));
+        store.addHourlyStats(hourlyStats, dsl);
+        hourlyStats.clear();
+
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple * 2, ImmutableSet.of(statsType));
+        store.addHourlyStats(hourlyStats, dsl);
+        hourlyStats.clear();
+
+        int finalMultiple = multiple * 3;
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, finalMultiple, ImmutableSet.of(statsType));
+        store.addHourlyStats(hourlyStats, dsl);
+        hourlyStats.clear();
+
+        final Result<EntitySavingsByHourRecord> records = dsl.selectFrom(
+                EntitySavingsByHour.ENTITY_SAVINGS_BY_HOUR)
+                .fetch();
+        double expectedValue = getDummyValue(statsType, finalMultiple, vm1Id);
+        assertEquals(1, records.size());
+
+        // Before the onDuplicateKeyUpdate() fix, this will give the test failure error message:
+        // expected:<0.3> but was:<0.1>
+        // Because 1st record with value 0.1 got inserted, and then we ignore 0.2 and 0.3 insertion
+        // attempts (because of onDuplicateKeyIgnore()).
+        assertEquals(expectedValue, records.iterator().next().getStatsValue(), 0.00001d);
     }
 }

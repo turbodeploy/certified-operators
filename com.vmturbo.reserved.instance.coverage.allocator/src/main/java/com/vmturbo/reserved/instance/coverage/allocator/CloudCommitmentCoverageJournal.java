@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Verify;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
@@ -356,6 +357,20 @@ public class CloudCommitmentCoverageJournal {
                             Cell::getRowKey,
                             Cell::getColumnKey,
                             coverageCell -> coverageCell.getValue().getCommitmentAmount()));
+        } finally {
+            coveragesLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * An immutable list of the {@link CoverageJournalEntry} instance added to this journal.
+     * @return The coverage journal entries added to this journal.
+     */
+    @Nonnull
+    public List<CoverageJournalEntry> getJournalEntries() {
+        coveragesLock.readLock().lock();
+        try {
+            return ImmutableList.copyOf(journalEntries);
         } finally {
             coveragesLock.readLock().unlock();
         }

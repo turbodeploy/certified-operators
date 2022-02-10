@@ -567,11 +567,6 @@ public class VoltronConfiguration {
         MEDIATION_ACTIONSCRIPT(Component.MEDIATION_ACTIONSCRIPT),
 
         /**
-         * AIX.
-         */
-        MEDIATION_AIX(Component.MEDIATION_AIX),
-
-        /**
          * APM SNMP.
          */
         MEDIATION_APM_SNMP(Component.MEDIATION_APM_SNMP),

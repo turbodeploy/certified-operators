@@ -105,6 +105,7 @@ import com.vmturbo.api.utils.ParamStrings.MarketOperations;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
@@ -269,6 +270,8 @@ public class MarketsService implements IMarketsService {
 
     private final CostStatsQueryExecutor costStatsQueryExecutor;
 
+    private final UserSessionContext userSessionContext;
+
     /**
      * Entity types which support being shown as unplaced in plan result.
      */
@@ -308,8 +311,9 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                           @Nonnull final LicenseCheckClient licenseCheckClient,
                           @Nonnull final EntityAspectMapper entityAspectMapper,
-                          final long realtimeTopologyContextId,
-                          @Nonnull final CostStatsQueryExecutor costStatsQueryExecutor) {
+                          @Nonnull final CostStatsQueryExecutor costStatsQueryExecutor,
+                          @Nonnull final UserSessionContext userSessionContext,
+                          final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.policiesService = Objects.requireNonNull(policiesService);
@@ -344,6 +348,7 @@ public class MarketsService implements IMarketsService {
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.costStatsQueryExecutor = Objects.requireNonNull(costStatsQueryExecutor);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -949,6 +954,10 @@ public class MarketsService implements IMarketsService {
             throw new IllegalArgumentException("Invalid market id: " + marketUuid);
         }
 
+        // Get the accessible scope for the User
+        Collection<Long> userScopeGroupIds = userSessionContext.isUserScoped() ?
+                userSessionContext.getUserAccessScope().getScopeGroupIds() : Collections.emptyList();
+
         Scenario existingScenario = getScenario(scenarioId);
         // Scenario scope validation.
         if (!existingScenario.hasScenarioInfo() || !existingScenario.getScenarioInfo().hasScope()
@@ -1022,6 +1031,7 @@ public class MarketsService implements IMarketsService {
                 // for realtime market create a new plan; topologyId is not set, defaulting to "0"
                 planInstance = planRpcService.createPlan(CreatePlanRequest.newBuilder()
                         .setScenarioId(scenarioId)
+                        .addAllUserScopeGroupsOids(userScopeGroupIds)
                         .build());
             } else {
                 // plan market: create new plan where source topology is the prev projected topology

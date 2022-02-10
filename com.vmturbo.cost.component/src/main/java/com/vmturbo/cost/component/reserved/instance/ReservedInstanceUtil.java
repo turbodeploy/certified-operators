@@ -5,18 +5,27 @@ import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
 import static org.jooq.impl.DSL.sum;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+import javax.xml.bind.DatatypeConverter;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Table;
@@ -31,6 +40,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
  * contains some help functions which used by reserved instance logic.
  */
 public class ReservedInstanceUtil {
+
+    private static final Logger logger = LogManager.getLogger();
+
     private static final int PROJECTED_STATS_TIME_IN_FUTURE_HOURS = 1;
 
     public static final String SNAPSHOT_TIME = "snapshot_time";
@@ -82,6 +94,21 @@ public class ReservedInstanceUtil {
     public static final String AVAILABILITY_ZONE_ID = "availability_zone_id";
 
     public static final String BUSINESS_ACCOUNT_ID = "business_account_id";
+
+    // format used to create keys (concatenate 5 string values)
+    private static final String KEY_FORMAT = "%s%s%s%s%s";
+    private static final DateTimeFormatter yearMonthDayFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd 00:00:00");
+    private static final DateTimeFormatter yearMonthDayHourFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:00:00");;
+    private static MessageDigest md;
+
+    static {
+        try {
+            md = MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+            // MD5 is a supported algorithm for all java versions, this catch block should never be hit.
+            logger.error("Failed to set MD5 algorithm for MessageDigest object.", e);
+        }
+    }
 
     /**
      * Get a list of table fields for plan reserved instance utilization and coverage stats query.
@@ -234,5 +261,103 @@ public class ReservedInstanceUtil {
                 .setMin(usedCoupons));
         statsRecord.setSnapshotDate(snapshotTime);
         return statsRecord.build();
+    }
+
+    /**
+     * Create hour key for the table 'reserved_instance_utilization_latest'.
+     *
+     * @param localDateTime the time of last update
+     * @param id the id of reserved instance
+     * @param regionId the region id of reserved instance
+     * @param availabilityZone the availability zone id of reserved instance
+     * @param businessAccountId the business account id of reserved instance.
+     * @return the month key
+     */
+    @Nonnull
+    public static String createHourKey(LocalDateTime localDateTime, Long id, Long regionId,
+            Long availabilityZone, Long businessAccountId) {
+        return toMD5HexString(
+                createKeyWithDateFormat(yearMonthDayHourFormat, localDateTime, id, regionId,
+                        availabilityZone, businessAccountId));
+    }
+
+    /**
+     * Create day key for the table 'reserved_instance_utilization_latest'.
+     *
+     * @param localDateTime the time of last update
+     * @param id the id of reserved instance
+     * @param regionId the region id of reserved instance
+     * @param availabilityZone the availability zone id of reserved instance
+     * @param businessAccountId the business account id of reserved instance.
+     * @return the day key
+     */
+    @Nonnull
+    public static String createDayKey(LocalDateTime localDateTime, Long id, Long regionId,
+            Long availabilityZone, Long businessAccountId) {
+        return toMD5HexString(
+                createKeyWithDateFormat(yearMonthDayFormat, localDateTime, id, regionId,
+                        availabilityZone, businessAccountId));
+    }
+
+    /**
+     * Create month key for the table 'reserved_instance_utilization_latest'.
+     *
+     * @param localDateTime the time of last update
+     * @param id the id of reserved instance
+     * @param regionId the region id of reserved instance
+     * @param availabilityZone the availability zone id of reserved instance
+     * @param businessAccountId the business account id of reserved instance.
+     * @return the month key
+     */
+    @Nonnull
+    public static String createMonthKey(LocalDateTime localDateTime, Long id, Long regionId,
+            Long availabilityZone, Long businessAccountId) {
+        // end of current month used to create month key
+        LocalDateTime endOfMonth = localDateTime.withDayOfMonth(
+                localDateTime.toLocalDate().lengthOfMonth());
+        // date.withDayOfMonth(date.lengthOfMonth());
+        return toMD5HexString(createKeyWithDateFormat(yearMonthDayFormat, endOfMonth, id, regionId,
+                availabilityZone, businessAccountId));
+    }
+
+    /**
+     * The table 'reserved_instance_utilization_latest' has three fields representing as keys:
+     * 'hour_key', 'day_key', and 'month_key'. This function helps create the keys to be inserted
+     * in the record.
+     *
+     * @param dateFormat the date formatter
+     * @param localDateTime the time of last update
+     * @param id the id of reserved instance
+     * @param regionId the region id of reserved instance
+     * @param availabilityZone the availability zone id of reserved instance
+     * @param businessAccountId the business account id of reserved instance.
+     * @return a concatenation of the fields (no delimitation, nulls are replaced with "-"
+     */
+    @Nonnull
+    private static String createKeyWithDateFormat(DateTimeFormatter dateFormat,
+            LocalDateTime localDateTime, Long id, Long regionId, Long availabilityZone,
+            Long businessAccountId) {
+        String strLocalDateTime = localDateTime == null ? "-" : dateFormat.format(localDateTime);
+        String strId = id == null ? "-" : String.valueOf(id);
+        String strRegionId = regionId == null ? "-" : String.valueOf(regionId);
+        String strAvailabilityZone = availabilityZone == null ? "-" : String.valueOf(
+                availabilityZone);
+        String strBusinessAccountId = businessAccountId == null ? "-" : String.valueOf(
+                businessAccountId);
+        return String.format(KEY_FORMAT, strLocalDateTime, strId, strRegionId, strAvailabilityZone,
+                strBusinessAccountId);
+    }
+
+    /**
+     * Perform MD5 hash and encode as hex string.
+     *
+     * @param string the string.
+     * @return encoded md5 hex string.
+     */
+    @Nonnull
+    private static String toMD5HexString(@Nonnull final String string) {
+        // by default char values are upper case (A,B,C...), perform 'toLowerCase()'
+        // to match with mariadb MD5() behaviour.
+        return DatatypeConverter.printHexBinary(md.digest(string.getBytes())).toLowerCase();
     }
 }

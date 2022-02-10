@@ -4,6 +4,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+
 /**
  * Stable Marriage Algorithm representation of a SMAOutput.
  * Specifies for a VM the target template and if there is any RI coverage.
@@ -24,7 +26,7 @@ public class SMAMatch {
     /**
      * Discounted Coupons.
      */
-    private float discountedCoupons;
+    private CloudCommitmentAmount discountedCoupons;
 
     /**
      * Constructor when the VM is matched to a single reserved instance.
@@ -37,7 +39,7 @@ public class SMAMatch {
     public SMAMatch(@Nonnull final SMAVirtualMachine virtualMachine,
                     @Nonnull final SMATemplate template,
                     final SMAReservedInstance reservedInstance,
-                    final float discountedCoupons) {
+                    final CloudCommitmentAmount discountedCoupons) {
         this.virtualMachine = Objects.requireNonNull(virtualMachine, "virtualMachine is null!");
         this.template = Objects.requireNonNull(template, "template is null!");
         this.discountedCoupons = discountedCoupons;
@@ -77,11 +79,11 @@ public class SMAMatch {
         return reservedInstance;
     }
 
-    public float getDiscountedCoupons() {
+    public CloudCommitmentAmount getDiscountedCoupons() {
         return discountedCoupons;
     }
 
-    public void setDiscountedCoupons(final float discountedCoupons) {
+    public void setDiscountedCoupons(final CloudCommitmentAmount discountedCoupons) {
         this.discountedCoupons = discountedCoupons;
     }
 
@@ -92,8 +94,7 @@ public class SMAMatch {
             .append(" name=").append(virtualMachine.getName())
             .append(" currentTemplate=").append(virtualMachine.getCurrentTemplate().getName())
             .append(" naturalTemplate=").append(virtualMachine.getNaturalTemplate().getName())
-            .append(" projectedTemplate=").append(template.getName())
-            .append(" coupons=").append(template.getCoupons());
+            .append(" projectedTemplate=").append(template.getName());
         if (reservedInstance != null) {
                 buffer.append( " RI OID=").append(reservedInstance.getOid())
                     .append(" template=").append(reservedInstance.getTemplate().getName())

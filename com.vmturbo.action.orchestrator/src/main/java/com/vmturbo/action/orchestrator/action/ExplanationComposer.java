@@ -1022,7 +1022,7 @@ public class ExplanationComposer {
             @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             final boolean keepItShort) {
         if (keepItShort) {
-            return action.getInfo().getReconfigure().hasSettingChange() ?
+            return action.getInfo().getReconfigure().getSettingChangeCount() > 0 ?
                     RECONFIGURE_SETTING_CHANGE_CATEGORY : RECONFIGURE_EXPLANATION_CATEGORY;
         }
 

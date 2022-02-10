@@ -137,7 +137,7 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
                 ActionEntity.newBuilder()
                         .setId(entity.getOid())
                         .setType(entity.getEntityType())
-                        .setEnvironmentType(entity.getEnvironmentType())).setSettingChange(
+                        .setEnvironmentType(entity.getEnvironmentType())).addSettingChange(
                 SettingChange.newBuilder()
                         .setCurrentValue(currentValue)
                         .setNewValue(newValue)

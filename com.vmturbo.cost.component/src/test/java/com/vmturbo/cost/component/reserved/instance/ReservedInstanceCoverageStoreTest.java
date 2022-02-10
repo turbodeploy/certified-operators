@@ -36,12 +36,6 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
-/**
- * TODO GARY: SQL exception while executing the query insert into reserved_instance_coverage_latest (snapshot_time, entity_id, region_id, availability_zone_id, business_account_id, total_coupons, used_coupons, hour_key, day_key, month_key) values (cast(? as timestamp), ?, ?, ?, ?, ?, ?, ?, ?, ?):
- * java.sql.BatchUpdateException: Batch entry 0 insert into reserved_instance_coverage_latest (snapshot_time, entity_id, region_id, availability_zone_id, business_account_id, total_coupons, used_coupons, hour_key, day_key, month_key) values (cast('2022-01-11 16:23:24.527-05'::timestamp as timestamp), 123, 101, 100, 12345, 100.0, 10.0, NULL, NULL, NULL) was aborted: ERROR: null value in column "hour_key" violates not-null constraint
- *   Detail: Failing row contains (2022-01-11 16:23:24.527, 123, 101, 100, 12345, 100, 10, null, null, null).  Call getNextException to see other errors in the batch.
- *   Need to fix `CREATE TRIGGER reserved_instance_utilization_keys BEFORE INSERT ON reserved_instance_utilization_latest`, see OM-77148
- */
 @RunWith(Parameterized.class)
 public class ReservedInstanceCoverageStoreTest extends MultiDbTestBase {
     /**
@@ -51,7 +45,7 @@ public class ReservedInstanceCoverageStoreTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.DBENDPOINT_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
