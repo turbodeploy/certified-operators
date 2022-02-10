@@ -1,11 +1,9 @@
 package com.vmturbo.reserved.instance.coverage.allocator.topology;
 
-import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology.CloudCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -14,16 +12,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
  * Factory class for creating instances of {@link CoverageTopology}.
  */
 public class CoverageTopologyFactory {
-
-    private final CloudCommitmentTopologyFactory<TopologyEntityDTO> commitmentTopologyFactory;
-
-    /**
-     * Constructs a new coverage topology.
-     * @param commitmentTopologyFactory The commitment topology factory.
-     */
-    public CoverageTopologyFactory(@Nonnull CloudCommitmentTopologyFactory<TopologyEntityDTO> commitmentTopologyFactory) {
-        this.commitmentTopologyFactory = Objects.requireNonNull(commitmentTopologyFactory);
-    }
 
     /**
      * Creates a new instance of {@link CoverageTopology}.
@@ -39,7 +27,6 @@ public class CoverageTopologyFactory {
             @Nonnull Set<CloudCommitmentAggregate> commitmentAggregates) {
         return new DelegatingCoverageTopology(
                 cloudTopology,
-                commitmentTopologyFactory.createTopology(cloudTopology),
                 commitmentAggregates);
     }
 }

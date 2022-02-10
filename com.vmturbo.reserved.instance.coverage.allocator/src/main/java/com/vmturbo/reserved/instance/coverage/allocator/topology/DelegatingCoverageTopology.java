@@ -13,7 +13,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.topology.CloudTopology;
@@ -32,8 +31,6 @@ public class DelegatingCoverageTopology implements CoverageTopology {
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
-    private final CloudCommitmentTopology commitmentTopology;
-
     private final Map<Long, CloudCommitmentAggregate> commitmentAggregatesMap;
 
     private final Map<Long, CloudAggregationInfo> aggregationInfoMap = new ConcurrentHashMap<>();
@@ -45,15 +42,12 @@ public class DelegatingCoverageTopology implements CoverageTopology {
     /**
      * Construct a new instance of {@link CoverageTopology}.
      * @param cloudTopology The {@link CloudTopology} to wrap
-     * @param commitmentTopology The cloud commitment topology.
      * @param commitmentAggregates The set of cloud commitment aggregates included within the topology.
      */
     public DelegatingCoverageTopology(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                      @Nonnull CloudCommitmentTopology commitmentTopology,
                                       @Nonnull Set<CloudCommitmentAggregate> commitmentAggregates) {
 
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
-        this.commitmentTopology = Objects.requireNonNull(commitmentTopology);
         this.commitmentAggregatesMap = commitmentAggregates.stream()
                 .collect(ImmutableMap.toImmutableMap(
                         CloudCommitmentAggregate::aggregateId,
@@ -111,9 +105,15 @@ public class DelegatingCoverageTopology implements CoverageTopology {
      */
     @Override
     public double getCoverageCapacityForEntity(final long entityOid,
-                                               @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
+                                                              @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
 
-        return commitmentTopology.getCoverageCapacityForEntity(entityOid, coverageTypeInfo);
+        switch (coverageTypeInfo.getCoverageType()) {
+            case COUPONS:
+                return cloudTopology.getRICoverageCapacityForEntity(entityOid);
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Cloud commitment type %s is not supported", coverageTypeInfo));
+        }
     }
 
     /**

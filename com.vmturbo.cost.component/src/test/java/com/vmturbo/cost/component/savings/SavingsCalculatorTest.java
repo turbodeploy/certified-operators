@@ -5,14 +5,11 @@ import static org.mockito.Mockito.mock;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -22,7 +19,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.math.DoubleMath;
@@ -44,7 +40,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.Algorithm.Delta;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
@@ -55,11 +50,6 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
  */
 @RunWith(Parameterized.class)
 public class SavingsCalculatorTest {
-    /**
-     * Duration in ms for action expirations.
-     */
-    private static final long EXPIRATION_DURATION = TimeUnit.DAYS.toMillis(365L);
-
     /**
      * Parameterized test data.
      *
@@ -121,8 +111,7 @@ public class SavingsCalculatorTest {
         // Verify the results
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(compareActions(ImmutableList.of(2d, 2d, -2d, 6d, -4d, -6d, 4d, -8d, 6d, -4d, 10d, -8d),
-                entityState.getDeltaList()));
+        Assert.assertEquals(ImmutableList.of(2d, 2d, -2d, 6d, -4d, -6d, 4d, -8d, 6d, -4d, 10d, -8d), entityState.getActionList());
         Assert.assertFalse(entityState.isDeletePending());
         Assert.assertTrue(DoubleMath.fuzzyEquals(4.6666d, entityState.getRealizedSavings(), .0001d));
         Assert.assertTrue(DoubleMath.fuzzyEquals(4.1333d, entityState.getRealizedInvestments(), .0001d));
@@ -180,7 +169,7 @@ public class SavingsCalculatorTest {
             // Verify the results for this period
             Assert.assertEquals(results[period].numStates, entityStates.size());
             EntityState entityState = entityStates.values().iterator().next();
-            Assert.assertTrue(compareActions(results[period].actions, entityState.getDeltaList()));
+            Assert.assertEquals(results[period].actions, entityState.getActionList());
             Assert.assertEquals(results[period].deletePending, entityState.isDeletePending());
             Assert.assertEquals(results[period].rs, entityState.getRealizedSavings());
             Assert.assertEquals(results[period].ri, entityState.getRealizedInvestments());
@@ -224,7 +213,7 @@ public class SavingsCalculatorTest {
             // Verify the results for this period
             Assert.assertEquals("period " + period, results[period].numStates, entityStates.size());
             EntityState entityState = entityStates.values().iterator().next();
-            Assert.assertTrue("period " + period, compareActions(results[period].actions, entityState.getDeltaList()));
+            Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
             Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
             Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
             Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
@@ -307,55 +296,11 @@ public class SavingsCalculatorTest {
             }
             Assert.assertTrue("period " + period, entityStates.containsKey(2116L));
             EntityState entityState = entityStates.get(2116L);
-            Assert.assertTrue("period " + period, compareActions(results[period].actions, entityState.getDeltaList()));
+            Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
             Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
             Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
             Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
         }
-    }
-
-    /**
-     * Compare the action deltas against a list of expected delta amounts.
-     *
-     * @param actions list of delta amounts
-     * @param deltaList the delta list from the entity state
-     * @return whether the deltas match.  This test ignores the timestamps in the Deltas.
-     */
-    private boolean compareActions(List<Double> actions, Deque<Delta> deltaList) {
-        if (actions.size() != deltaList.size()) {
-            return false;
-        }
-        Iterator<Double> actionIterator = actions.iterator();
-        for (Delta delta : deltaList) {
-            if (!DoubleMath.fuzzyEquals(delta.delta, actionIterator.next(), .0001d)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Compare the action deltas against a list of expected deltas.
-     *
-     * @param list1 first list of deltas
-     * @param list2 second list of deltas
-     * @return whether the deltas match.  All fields in the delta lists are considered in
-     *          the comparison.
-     */
-    @VisibleForTesting
-    public static boolean compareActions(Deque<Delta> list1, Deque<Delta> list2) {
-        if (list1.size() != list2.size()) {
-            return false;
-        }
-        // Non-destructive iteration over the Deques.
-        Iterator<Delta> firstDelta = list1.iterator();
-        Iterator<Delta> secondDelta = list2.iterator();
-        while (firstDelta.hasNext()) {
-            if (!firstDelta.next().equals(secondDelta.next())) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
@@ -391,7 +336,7 @@ public class SavingsCalculatorTest {
             // Verify the results for this period
             Assert.assertEquals("period " + period, results[period].numStates, entityStates.size());
             EntityState entityState = entityStates.values().iterator().next();
-            Assert.assertTrue("period " + period, compareActions(results[period].actions, entityState.getDeltaList()));
+            Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
             Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
             Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
             Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
@@ -430,7 +375,7 @@ public class SavingsCalculatorTest {
             // Verify the results for this period
             Assert.assertEquals("period " + period, results[period].numStates, entityStates.size());
             EntityState entityState = entityStates.values().iterator().next();
-            Assert.assertTrue("period " + period, compareActions(results[period].actions, entityState.getDeltaList()));
+            Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
             Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
             Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
             Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
@@ -454,7 +399,7 @@ public class SavingsCalculatorTest {
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(compareActions(ImmutableList.of(2d), entityState.getDeltaList()));
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
         Assert.assertFalse(entityState.getCurrentRecommendation().active());
     }
 
@@ -475,7 +420,7 @@ public class SavingsCalculatorTest {
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(compareActions(ImmutableList.of(2d), entityState.getDeltaList()));
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
         Assert.assertFalse(entityState.getCurrentRecommendation().active());
     }
 
@@ -500,7 +445,7 @@ public class SavingsCalculatorTest {
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(entityState.getDeltaList().isEmpty());
+        Assert.assertTrue(entityState.getActionList().isEmpty());
         Assert.assertFalse(entityState.getCurrentRecommendation().active());
     }
 
@@ -529,7 +474,7 @@ public class SavingsCalculatorTest {
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(entityState.getDeltaList().isEmpty());
+        Assert.assertTrue(entityState.getActionList().isEmpty());
         Assert.assertTrue(entityState.getCurrentRecommendation().active());
     }
 
@@ -555,7 +500,7 @@ public class SavingsCalculatorTest {
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertEquals(ImmutableList.of(2d), entityState.getDeltaList());
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
         Assert.assertTrue(entityState.getCurrentRecommendation().active());
     }
 
@@ -566,20 +511,17 @@ public class SavingsCalculatorTest {
     @Test
     public void testNullDestProviderOid() {
         // Create events for scenario.
-        final long scaleTimestamp = 1L;
         List<SavingsEvent> savingsEvents = ImmutableList.of(
                 createActionEvent(0L, ActionEventType.RECOMMENDATION_ADDED, 3d, 5d),
-                createActionEvent(scaleTimestamp, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
+                createActionEvent(1L, ActionEventType.SCALE_EXECUTION_SUCCESS, 3d, 5d),
                 createProviderChange(2L, 5d, null));
-        Deque<Delta> expectedDeltas = new ArrayDeque<>();
-        expectedDeltas.add(new Delta(scaleTimestamp, 2d, scaleTimestamp + EXPIRATION_DURATION));
         // Run the scenario.
         Map<Long, EntityState> entityStates = runProviderChangeScenario(savingsEvents);
 
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(compareActions(expectedDeltas, entityState.getDeltaList()));
+        Assert.assertEquals(ImmutableList.of(2d), entityState.getActionList());
         Assert.assertFalse(entityState.getCurrentRecommendation().active());
     }
 
@@ -605,7 +547,7 @@ public class SavingsCalculatorTest {
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(entityState.getDeltaList().isEmpty());
+        Assert.assertTrue(entityState.getActionList().isEmpty());
         Assert.assertFalse(entityState.getCurrentRecommendation().active());
     }
 
@@ -624,7 +566,7 @@ public class SavingsCalculatorTest {
         // Verify the results.
         Assert.assertEquals(1, entityStates.size());
         EntityState entityState = entityStates.values().iterator().next();
-        Assert.assertTrue(entityState.getDeltaList().isEmpty());
+        Assert.assertTrue(entityState.getActionList().isEmpty());
         Assert.assertTrue(entityState.getCurrentRecommendation().active());
     }
 
@@ -674,7 +616,7 @@ public class SavingsCalculatorTest {
         return new SavingsEvent.Builder()
                 .entityId(2116L)
                 .timestamp(timestamp)
-                .expirationTime(timestamp + EXPIRATION_DURATION)
+                .expirationTime(timestamp + TimeUnit.DAYS.toMillis(365L))
                 .entityPriceChange(new EntityPriceChange.Builder()
                         .sourceCost(sourceCost)
                         .destinationCost(destCost)
@@ -751,18 +693,6 @@ public class SavingsCalculatorTest {
                 .collect(Collectors.toMap(Function.identity(), Long::valueOf));
         events.forEach(event -> EventInjector.addEvent(event, oidMap, entityEventsJournal,
                 purgePreviousTestState));
-    }
-
-    /**
-     * Create a list of deltas.
-     *
-     * @param deltas list of change amounts
-     * @return list of Delta objects created from the given change amounts.
-     */
-    public static Deque<Delta> makeDeltaList(double... deltas) {
-        Deque<Delta> result = new ArrayDeque<>();
-        Arrays.stream(deltas).forEach(delta -> result.addLast(new Delta(0L, delta, 0L)));
-        return result;
     }
 
     /**

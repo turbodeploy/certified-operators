@@ -62,6 +62,14 @@ class AwsAllocationTopologyTest {
                     .setComputeTier(ComputeTierInfo.newBuilder()
                             .setFamily("familyA")
                             .setNumCoupons(1)))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            // The presence of the target ID is necessary for testing, but will
+                            // be mocked through ThinTargetCache
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO COMPUTER_TIER_MEDIUM = TopologyEntityDTO.newBuilder()
@@ -73,6 +81,12 @@ class AwsAllocationTopologyTest {
                     .setComputeTier(ComputeTierInfo.newBuilder()
                             .setFamily("familyA")
                             .setNumCoupons(2)))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO AVAILIBILITY_ZONE_A = TopologyEntityDTO.newBuilder()
@@ -80,6 +94,12 @@ class AwsAllocationTopologyTest {
             .setDisplayName("AVAILIBILITY_ZONE_A")
             .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
             .setEnvironmentType(EnvironmentType.CLOUD)
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO AVAILIBILITY_ZONE_B = TopologyEntityDTO.newBuilder()
@@ -87,6 +107,12 @@ class AwsAllocationTopologyTest {
             .setDisplayName("availability_zone_B")
             .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
             .setEnvironmentType(EnvironmentType.CLOUD)
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
@@ -102,6 +128,12 @@ class AwsAllocationTopologyTest {
                     .setConnectedEntityId(AVAILIBILITY_ZONE_B.getOid())
                     .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
                     .setConnectionType(ConnectionType.OWNS_CONNECTION))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO VIRTUAL_MACHINE_SMALL_A = TopologyEntityDTO.newBuilder()
@@ -122,6 +154,12 @@ class AwsAllocationTopologyTest {
                     .setConnectedEntityId(AVAILIBILITY_ZONE_A.getOid())
                     .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
+                            .build())
+                    .build())
             .build();
 
 
@@ -137,6 +175,12 @@ class AwsAllocationTopologyTest {
                     .setConnectedEntityId(VIRTUAL_MACHINE_SMALL_A.getOid())
                     .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setConnectionType(ConnectionType.OWNS_CONNECTION))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
+                            .build())
+                    .build())
             .build();
 
     protected static final ReservedInstanceSpec RI_SPEC_SMALL_REGIONAL = ReservedInstanceSpec.newBuilder()

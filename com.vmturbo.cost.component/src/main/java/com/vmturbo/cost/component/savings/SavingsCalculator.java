@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,7 +22,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
-import com.vmturbo.cost.component.savings.Algorithm.Delta;
 import com.vmturbo.cost.component.savings.Algorithm.SavingsInvestments;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
@@ -84,7 +84,8 @@ class SavingsCalculator {
             entityStates.put(entityOid, entityState);
         }
         entityState.setPowerFactor(algorithmState.getPowerFactor());
-        entityState.setDeltaList(algorithmState.getDeltaList());
+        entityState.setActionList(algorithmState.getActionList());
+        entityState.setExpirationList(algorithmState.getExpirationList());
         entityState.setLastExecutedAction(algorithmState.getLastExecutedAction());
         entityState.setNextExpirationTime(algorithmState.getNextExpirationTime());
         entityState.setCurrentRecommendation(algorithmState.getCurrentRecommendation());
@@ -188,9 +189,11 @@ class SavingsCalculator {
             PriorityQueue<SavingsEvent> events, long periodEndTime) {
         for (EntityState entityState : forcedEntityStates) {
             long entityId = entityState.getEntityId();
-            for (Delta delta : entityState.getDeltaList()) {
-                if (delta.expiration <= periodEndTime) {
-                    events.offer(createActionExpiredEvent(entityId, delta));
+            Iterator<Double> deltas = entityState.getActionList().iterator();
+            for (Long expirationTime : entityState.getExpirationList()) {
+                Double delta = deltas.next();
+                if (expirationTime <= periodEndTime) {
+                    events.offer(createActionExpiredEvent(entityId, expirationTime, delta));
                 }
             }
         }
@@ -206,13 +209,14 @@ class SavingsCalculator {
      * delta in the EntityPriceChange to be correct.
      *
      * @param entityId entity Id to create the event for
+     * @param expirationTime when the action expires
      * @param delta cost difference.
      * @return a SavingsEvent for the action expiration
      */
-    private SavingsEvent createActionExpiredEvent(long entityId, Delta delta) {
+    private SavingsEvent createActionExpiredEvent(long entityId, Long expirationTime, Double delta) {
         EntityPriceChange entityPriceChange = new EntityPriceChange.Builder()
                 .sourceCost(0)
-                .destinationCost(delta.delta)
+                .destinationCost(delta)
                 .sourceOid(0L)
                 .destinationOid(0L)
                 .build();
@@ -227,8 +231,8 @@ class SavingsCalculator {
                         .build())
                 .entityPriceChange(entityPriceChange)
                 .entityId(entityId)
-                .timestamp(delta.expiration)
-                .expirationTime(delta.expiration)
+                .timestamp(expirationTime)
+                .expirationTime(expirationTime)
                 .build();
         return expiration;
     }
@@ -455,11 +459,9 @@ class SavingsCalculator {
         if (currentProvider == null) {
             return null;
         }
-        // We currently only support VM provider changes, so the provider ID is required in the event.
-        if (!event.getProviderOid().isPresent()) {
+        if (!event.getProviderOid().isPresent()) {  // BCTODO it's okay to not have a provider ID change.  Commodities might have changed.
             logger.warn("Dropping provider ID change for {} at {} - ID missing in topology event",
                     entityId, timestamp);
-            return null;
         }
         Long newProviderId = event.getProviderOid().get();
 
@@ -545,13 +547,11 @@ class SavingsCalculator {
                     .build());
         }
 
-        algorithmState.addAction(timestamp, currentRecommendation.getDelta(),
-                expirationTimestamp.get());
+        algorithmState.addAction(currentRecommendation.getDelta(), expirationTimestamp.get());
         // If this action will expire in this same period, insert its expiration event now.
         return expirationTimestamp.get() < periodEndtime
-                        ? createActionExpiredEvent(entityId,
-                                new Delta(timestamp, currentRecommendation.getDelta(),
-                                        expirationTimestamp.get()))
+                        ? createActionExpiredEvent(entityId, expirationTimestamp.get(),
+                                                   currentRecommendation.getDelta())
                         : null;
     }
 }

@@ -1,9 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,13 +12,11 @@ import javax.annotation.Nullable;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.annotations.SerializedName;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
-import com.vmturbo.cost.component.savings.Algorithm.Delta;
 import com.vmturbo.cost.component.savings.TopologyEventsMonitor.ChangeResult;
 
 /**
@@ -31,7 +27,7 @@ public class EntityState implements MonitoredEntity {
     /**
      * Logger.
      */
-    private static final transient Logger logger = LogManager.getLogger();
+    private final transient Logger logger = LogManager.getLogger();
 
     /**
      * Used to JSONify fields.
@@ -41,7 +37,6 @@ public class EntityState implements MonitoredEntity {
     /**
      * OID of entity.
      */
-    @SerializedName(value = "id", alternate = "entityId")
     private final long entityId;
 
     /**
@@ -62,83 +57,61 @@ public class EntityState implements MonitoredEntity {
     /**
      * Power state of the entity. 1 is powered on; 0 is powered off.
      */
-    @SerializedName(value = "pf", alternate = "powerFactor")
     private long powerFactor;
 
     /**
      * Last time we detected an on -> off power transition, for debouncing power events.
      */
-    @SerializedName(value = "pot", alternate = "lastPowerOffTransition")
     private Long lastPowerOffTransition;
 
     /**
      * Contains current cost info in the recommendation active for an entity.
      */
-    @SerializedName(value = "cr", alternate = "currentRecommendation")
     private EntityPriceChange currentRecommendation;
 
     /**
-     * List of Deltas to apply.
-     */
-    @SerializedName(value = "dl", alternate = "deltaList")
-    private Deque<Delta> deltaList;
-
-    /**
      * List of values reflecting the impact of actions.
-     *
-     * @deprecated This list is now included in the deltaList above.
      */
-    @Deprecated
     private List<Double> actionList;
-
-    /**
-     * List of expiration times for the actions in the action list.
-     *
-     * @deprecated This list is now included in the deltaList above.
-     */
-    @Deprecated
-    private List<Long> expirationList;
 
     /**
      * Last executed action information.
      */
-    @SerializedName(value = "la", alternate = "lastExecutedAction")
     private @Nonnull Optional<ActionEntry> lastExecutedAction;
 
     /**
      * Realized savings.
      */
-    @SerializedName(value = "rs", alternate = "realizedSavings")
     private Double realizedSavings;
 
     /**
      * Realized investments.
      */
-    @SerializedName(value = "ri", alternate = "realizedInvestments")
     private Double realizedInvestments;
 
     /**
      * Missed savings.
      */
-    @SerializedName(value = "ms", alternate = "missedSavings")
     private Double missedSavings;
 
     /**
      * Missed investments.
      */
-    @SerializedName(value = "mi", alternate = "missedInvestments")
     private Double missedInvestments;
+
+    /**
+     * List of expiration times for the actions in the action list.
+     */
+    private List<Long> expirationList;
 
     /**
      * Current commodity usage.
      */
-    @SerializedName(value = "cu", alternate = "commodityUsage")
     private Map<Integer, Double> commodityUsage;
 
     /**
      * Current provider ID.
      */
-    @SerializedName(value = "pi", alternate = "providerId")
     private Long providerId;
 
     /**
@@ -162,8 +135,10 @@ public class EntityState implements MonitoredEntity {
         this.lastPowerOffTransition = 0L;
         this.currentRecommendation = currentRecommendation;
 
-        // Initialize the current delta list. Not scaled by period length.
-        this.deltaList = new ArrayDeque<>();
+        // Initialize the current action list and their expiration times. Not scaled by
+        // period length.
+        this.actionList = new ArrayList<>();
+        this.expirationList = new ArrayList<>();
         this.lastExecutedAction = Optional.empty();
         this.commodityUsage = new HashMap<>();
         this.providerId = 0L;
@@ -197,6 +172,15 @@ public class EntityState implements MonitoredEntity {
 
     public void setDeletePending(boolean active) {
         this.deletePending = active;
+    }
+
+    @Nonnull
+    public List<Double> getActionList() {
+        return actionList;
+    }
+
+    public void setActionList(final List<Double> actionList) {
+        this.actionList = actionList;
     }
 
     public Double getRealizedSavings() {
@@ -240,20 +224,20 @@ public class EntityState implements MonitoredEntity {
     }
 
     /**
-     * Return the current delta list.
+     * Return the current expiration list.
      *
-     * @return the delta list
+     * @return the expiration list
      */
     @Nonnull
-    public Deque<Delta> getDeltaList() {
-        if (deltaList == null) {
-            deltaList = new ArrayDeque<>();
+    public List<Long> getExpirationList() {
+        if (expirationList == null) {
+            expirationList = new ArrayList<>();
         }
-        return deltaList;
+        return expirationList;
     }
 
-    public void setDeltaList(@Nonnull final Deque<Delta> deltaList) {
-        this.deltaList = deltaList;
+    public void setExpirationList(@Nonnull final List<Long> expirationList) {
+        this.expirationList = expirationList;
     }
 
     public void setNextExpirationTime(long expirationTime) {
@@ -288,27 +272,6 @@ public class EntityState implements MonitoredEntity {
         }
         if (entityState.getLastPowerOffTransition() == null) {
             entityState.setLastPowerOffTransition(0L);
-        }
-        // Migrate old actionList and expirationList fields into the new deltaList. If for some
-        // reason, the deltaList exists as well as the older fields, ignore the older fields.
-        if (entityState.actionList != null || entityState.expirationList != null) {
-            Deque<Delta> deltaList = new ArrayDeque<>();
-            if (entityState.actionList == null || entityState.expirationList == null
-                    || entityState.actionList.size() != entityState.expirationList.size()
-                    || entityState.deltaList != null) {
-                // The old action and expiration lists are not in sync, so drop them.
-                logger.warn("Action and expiration lists for {} are mismatched: dropping "
-                        + " realized state", entityState.entityId);
-            } else {
-                Iterator<Long> expirations = entityState.expirationList.iterator();
-                for (Double action : entityState.actionList) {
-                    deltaList.add(new Delta(0L, action, expirations.next()));
-                }
-                // Null the unused fields out so that they are not included in the JSON output.
-                entityState.actionList = null;
-                entityState.expirationList = null;
-            }
-            entityState.setDeltaList(deltaList);
         }
         return entityState;
     }

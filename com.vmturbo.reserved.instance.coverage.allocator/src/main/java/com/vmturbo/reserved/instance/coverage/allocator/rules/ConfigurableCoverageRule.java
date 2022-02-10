@@ -196,7 +196,7 @@ public class ConfigurableCoverageRule implements CoverageRule {
                                                    @Nonnull CoverageRuleConfig ruleConfig) {
 
             final CloudCommitmentFilter cloudCommitmentFilter = cloudCommitmentFilterFactory.createFilter(
-                    ruleConfig.commitmentSelectionCriteria());
+                    ruleConfig.commitmentSelectionConfig());
             final CommitmentMatcher commitmentMatcher = computeCommitmentMatcherFactory.newMatcher(
                     ruleConfig.commitmentMatcherConfig());
 

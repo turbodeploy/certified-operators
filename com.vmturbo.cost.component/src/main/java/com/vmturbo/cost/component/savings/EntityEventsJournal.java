@@ -52,7 +52,7 @@ interface EntityEventsJournal {
     @Nonnull
     default Stream<SavingsEvent> getEventsBetween(long startTime, long endTime, @Nonnull final Set<Long> entityOids) {
         return getEventsBetween(startTime, endTime)
-                .filter(event -> entityOids.isEmpty() || entityOids.contains(event.getEntityId()));
+                .filter(event -> !entityOids.isEmpty() && entityOids.contains(event.getEntityId()));
     }
 
     /**
