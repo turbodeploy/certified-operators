@@ -5,11 +5,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -30,11 +27,13 @@ public class Algorithm2 implements Algorithm {
     // Matching lists that hold the price change (delta) of a tracked action and that action's
     // expiration time.  These are queues so that we can easily pop the expired deltas/timestamps
     // off of the lists.
-    private Deque<Delta> actionList;
+    private Deque<Delta> deltaList;
     private final SavingsInvestments periodicRealized;
     private final SavingsInvestments periodicMissed;
     private boolean deletePending;
     private Optional<ActionEntry> lastExecutedAction;
+    // Note: The providerId is currently not stored.  It is derived from the current recommendation
+    //       or the last executed action.  This will change in the future.
     private Map<Integer, Double> commodityUsage;
 
     /**
@@ -48,7 +47,7 @@ public class Algorithm2 implements Algorithm {
         this.deletePending = false;
         this.segmentStart = segmentStart;
         this.powerFactor = 1;
-        this.actionList = new ArrayDeque<>();
+        this.deltaList = new ArrayDeque<>();
         this.savings = 0d;
         this.investment = 0d;
 
@@ -91,7 +90,7 @@ public class Algorithm2 implements Algorithm {
      * @param action action to add
      */
     public void addAction(Delta action) {
-        actionList.add(action);
+        deltaList.add(action);
         if (action.expiration < nextExpirationTime) {
             // This action now expires the earliest, so update it.
             nextExpirationTime = action.expiration;
@@ -102,11 +101,12 @@ public class Algorithm2 implements Algorithm {
     /**
      * Add an action delta (price change) to the active action list.
      *
+     * @param timestamp timestamp of the action related to the delta.
      * @param delta amount of the price change.
      * @param expirationTimestamp time when the action will expire.
      */
-    public void addAction(double delta, long expirationTimestamp) {
-        addAction(new Delta(delta, expirationTimestamp));
+    public void addAction(long timestamp, double delta, long expirationTimestamp) {
+        addAction(new Delta(timestamp, delta, expirationTimestamp));
     }
 
     /**
@@ -122,8 +122,20 @@ public class Algorithm2 implements Algorithm {
     }
 
     /**
+     * Remove all actions on or after the indicated time from the active delta list.
+     *
+     * @param timestamp timestamp
+     */
+    public void removeActionsOnOrAfter(long timestamp) {
+        Deque<Delta> oldActionList = clearActionState();
+        oldActionList.stream()
+                .filter(delta -> delta.timestamp < timestamp)
+                .forEach(this::addAction);
+    }
+
+    /**
      * Apply a price change to the current savings and investment values.  The result cannot pass
-     * through zero.  If that happens, the result is clipped to zero.  A positive delta represents
+     * through zero.  If that happens, the result is clamped to zero.  A positive delta represents
      * an investment and a negative delta represents savings.
      *
      * @param delta amount to apply.
@@ -292,10 +304,10 @@ public class Algorithm2 implements Algorithm {
      * @param entityState entity state being tracked
      */
     public void initState(long timestamp, EntityState entityState) {
-        // Backward compatibility.  Older entity states do not contain an expiration list.  In this
-        // case, all existing entities will immediately expire.
-        final List<Long> currentExpirationList = entityState.getExpirationList();
-        final List<Double> currentActionList = entityState.getActionList();
+        final Deque<Delta> currentDeltaList = entityState.getDeltaList();
+        // Backward compatibility.  Older entity states do not contain a delta list. In this case,
+        // take the action and expiration lists and build a Delta from them. Initialize the
+        // timestamp to 0 so that they cannot be rewound.
         currentRecommendation = entityState.getCurrentRecommendation();
         if (currentRecommendation == null) {
             // For backward compatibility, where the current recommendation was nullable, we need to
@@ -304,13 +316,8 @@ public class Algorithm2 implements Algorithm {
         }
         powerFactor = entityState.getPowerFactor();
 
-        // Populate the action and expiration lists.  We use two iterators in order to
-        // handle any difference in the list sizes (should never happen).
-        Iterator<Long> expirations = currentExpirationList.iterator();
-        Iterator<Double> deltas = currentActionList.iterator();
-        while (expirations.hasNext() && deltas.hasNext()) {
-            addAction(deltas.next(), expirations.next());
-        }
+        // Populate the delta list while applying Algorithm-2.
+        currentDeltaList.forEach(this::addAction);
         // When reading entity state that existed before action revert was implemented, the last
         // executed action will be null.  The existing logic expects an optional, but
         // getLastExecutedAction can return null, Optional.of, or Optional.empty.
@@ -322,21 +329,12 @@ public class Algorithm2 implements Algorithm {
     }
 
     /**
-     * Return the action/delta list.
+     * Return the delta list.
      *
-     * @return the action list
+     * @return the delta list
      */
-    public List<Double> getActionList() {
-        return actionList.stream().map(delta -> delta.delta).collect(Collectors.toList());
-    }
-
-    /**
-     * Return the expiration times list.
-     *
-     * @return the expiration times list
-     */
-    public List<Long> getExpirationList() {
-        return actionList.stream().map(delta -> delta.expiration).collect(Collectors.toList());
+    public Deque<Delta> getDeltaList() {
+        return deltaList;
     }
 
     /**
@@ -357,11 +355,11 @@ public class Algorithm2 implements Algorithm {
      */
     @Nonnull
     public Deque<Delta> clearActionState() {
-        if (actionList == null) {
-            actionList = new ArrayDeque<>();
+        if (deltaList == null) {
+            deltaList = new ArrayDeque<>();
         }
-        final Deque<Delta> oldActionList = actionList;
-        actionList = new ArrayDeque<>();
+        final Deque<Delta> oldActionList = deltaList;
+        deltaList = new ArrayDeque<>();
         this.savings = 0d;
         this.investment = 0d;
         nextExpirationTime = LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC)
