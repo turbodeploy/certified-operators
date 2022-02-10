@@ -3,13 +3,16 @@ package com.vmturbo.cloud.common.commitment;
 import static com.vmturbo.cloud.common.commitment.CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BinaryOperator;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
@@ -106,6 +109,34 @@ public class CommitmentAmountCalculator {
                                 .setCoupons(amountA.getCoupons() + amountB.getCoupons())
                                 .build()
                         : amountA;
+            case COMMODITIES_BOUGHT:
+                final Map<CommodityType, Double> commodityMapA = amountA.getCommoditiesBought()
+                        .getCommodityList()
+                        .stream()
+                        .collect(ImmutableMap.toImmutableMap(
+                                CommittedCommodityBought::getCommodityType,
+                                CommittedCommodityBought::getCapacity));
+
+                final Map<CommodityType, Double> commodityMapB = amountB.getCommoditiesBought()
+                        .getCommodityList()
+                        .stream()
+                        .collect(ImmutableMap.toImmutableMap(
+                                CommittedCommodityBought::getCommodityType,
+                                CommittedCommodityBought::getCapacity));
+
+                final List<CommittedCommodityBought> aggregateCommBought =
+                        Sets.union(commodityMapA.keySet(), commodityMapB.keySet()).stream()
+                                .map(commType -> CommittedCommodityBought.newBuilder()
+                                        .setCommodityType(commType)
+                                        .setCapacity(commodityMapA.getOrDefault(commType, 0.0)
+                                                + commodityMapB.getOrDefault(commType, 0.0))
+                                        .build())
+                                .collect(ImmutableList.toImmutableList());
+
+                return CloudCommitmentAmount.newBuilder()
+                        .setCommoditiesBought(CommittedCommoditiesBought.newBuilder()
+                                .addAllCommodity(aggregateCommBought))
+                        .build();
             case VALUE_NOT_SET:
                 return amountB;
             default:
