@@ -180,6 +180,8 @@ public class ActionDescriptionBuilderTest {
     private static final String VSTORAGE_KEY = "1";
     private static final long NAMESPACE_ID = 601L;
     private static final String NAMESPACE_DISPLAY_NAME = "namespace_test";
+    private static final long BUSINESS_ACCOUNT_OID = 88L;
+    private static final String BUSINESS_ACCOUNT_NAME = "Development";
 
     /**
      * ID of Azure VM being used for cloud->cloud migration.
@@ -1022,8 +1024,46 @@ public class ActionDescriptionBuilderTest {
                 EntityType.PHYSICAL_MACHINE.getNumber(),
                 PM_DESTINATION_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
+                moveRecommendation);
+        assertEquals(description,
+                "Move Virtual Machine vm1_test from pm_source_test to pm_destination_test in Development");
+    }
+
+    /**
+     * Test that description is accurate for a move action with no account name.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildMoveActionDescriptionWithNoAccountName() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
+                .thenReturn((createEntity(PM_SOURCE_ID,
+                        EntityType.PHYSICAL_MACHINE.getNumber(),
+                        PM_SOURCE_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(PM_DESTINATION_ID)))
+                .thenReturn((createEntity(PM_DESTINATION_ID,
+                        EntityType.PHYSICAL_MACHINE.getNumber(),
+                        PM_DESTINATION_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
-            entitySettingsCache, moveRecommendation);
+                entitySettingsCache, moveRecommendation);
         assertEquals(description, "Move Virtual Machine vm1_test from pm_source_test to pm_destination_test");
     }
 
@@ -1050,6 +1090,46 @@ public class ActionDescriptionBuilderTest {
                         EntityType.STORAGE_TIER.getNumber(),
                         ST_DESTINATION_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudVolumeScaleProviderChangeRecommendation);
+        Assert.assertEquals(
+                "Scale Volume vm1_test from storage_source_test to storage_destination_test in Development",
+                description);
+    }
+
+    /**
+     * Test that for an action involving a volume moving from one storage tier to another,
+     * with no account name the description is accurate.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildCloudVolumeScaleActionWithProviderChangeDescriptionWithNoAccountName() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
+                .thenReturn((createEntity(VV_ID,
+                        EntityType.VIRTUAL_VOLUME.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
+                .thenReturn((createEntity(ST_SOURCE_ID,
+                        EntityType.STORAGE_TIER.getNumber(),
+                        ST_SOURCE_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(ST_DESTINATION_ID)))
+                .thenReturn((createEntity(ST_DESTINATION_ID,
+                        EntityType.STORAGE_TIER.getNumber(),
+                        ST_DESTINATION_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleProviderChangeRecommendation);
         Assert.assertEquals("Scale Volume vm1_test from storage_source_test to storage_destination_test", description);
@@ -1071,6 +1151,9 @@ public class ActionDescriptionBuilderTest {
                 .thenReturn((createEntity(DB_DESTINATION_ID,
                         EntityType.DATABASE_TIER.getNumber(),
                         DB_DESTINATION_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(DB_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudDBScaleProviderChangeRecommendation);
@@ -1098,6 +1181,43 @@ public class ActionDescriptionBuilderTest {
                 .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME,
                         0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
+        Assert.assertEquals(
+                "Scale up IOPS for Volume vm1_test on GP2 from 100 IOPS to 200 IOPS in Development",
+                description);
+    }
+
+    /**
+     * Test that for an action involving a cloud volume commodity scaling from one capacity to another,
+     * the description is accurate and includes provider name and no account name.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildCloudVolumeScaleActionWithCommodityChangeDescriptionWithProviderIdWithNoAccountName()
+            throws UnsupportedActionException {
+        ActionPartialEntity volumeOptEntity = ActionPartialEntity.newBuilder()
+                .setOid(VV_ID)
+                .setEntityType(EntityType.VIRTUAL_VOLUME.getNumber())
+                .setDisplayName(VM1_DISPLAY_NAME)
+                .setPrimaryProviderId(VV_TIER_ID)
+                .build();
+
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID))).thenReturn(Optional.of(volumeOptEntity));
+        when(entitySettingsCache.getEntityFromOid(eq(VV_TIER_ID)))
+                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME,
+                        0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
         Assert.assertEquals("Scale up IOPS for Volume vm1_test on GP2 from 100 IOPS to 200 IOPS", description);
@@ -1121,6 +1241,40 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VV_TIER_ID)))
                 .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME,
                         0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
+        Assert.assertEquals("Scale up IOPS for Volume vm1_test from 100 IOPS to 200 IOPS in Development", description);
+    }
+
+    /**
+     * Test that for an action involving a cloud volume commodity scaling from one capacity to another,
+     * without the account name, the description is accurate.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildCloudVolumeScaleActionWithCommodityChangeDescriptionWithoutProviderIdWithNoAccountName()
+            throws UnsupportedActionException {
+        ActionPartialEntity volumeOptEntity = ActionPartialEntity.newBuilder()
+                .setOid(VV_ID)
+                .setEntityType(EntityType.VIRTUAL_VOLUME.getNumber())
+                .setDisplayName(VM1_DISPLAY_NAME)
+                .build();
+
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID))).thenReturn(Optional.of(volumeOptEntity));
+        when(entitySettingsCache.getEntityFromOid(eq(VV_TIER_ID)))
+                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME,
+                        0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
@@ -1149,6 +1303,9 @@ public class ActionDescriptionBuilderTest {
                         EntityType.DATABASE_TIER.getNumber(),
                         DB_DESTINATION_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(DB_ID)))
+                .thenReturn(Optional.empty());
+
         Builder action = makeScaleInfoWithProviderChangeOnly(DB_ID, DB_SOURCE_ID,
                 EntityType.DATABASE_TIER.getNumber(),
                 DB_DESTINATION_ID,
@@ -1175,6 +1332,9 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(DB_SOURCE_ID)))
                 .thenReturn((createEntity(DB_SOURCE_ID, EntityType.DATABASE_SERVER_TIER.getNumber(), DB_SOURCE_DISPLAY_NAME,
                         0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(DB_ID)))
+                .thenReturn(Optional.empty());
 
         final ResizeInfo.Builder iopsResize = ResizeInfo.newBuilder()
                 .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
@@ -1204,17 +1364,49 @@ public class ActionDescriptionBuilderTest {
      */
     @Test
     public void cloudMigrationMoveDescriptions() throws UnsupportedActionException {
+        when(entitySettingsCache.getOwnerAccountOfEntity(AZURE_VM_ID))
+                .thenReturn(Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+        when(entitySettingsCache.getOwnerAccountOfEntity(CLOUD_VOLUME_RESOURCE_ID))
+                .thenReturn(Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(ON_PREM_VM_ID)))
+                .thenReturn(Optional.empty());
+        when(entitySettingsCache.getOwnerAccountOfEntity(CLOUD_VOLUME_RESOURCE_ID))
+                .thenReturn(Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+        when(entitySettingsCache.getOwnerAccountOfEntity(VM1_ID))
+                .thenReturn(Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+        when(entitySettingsCache.getOwnerAccountOfEntity(AWS_VM_ID))
+                .thenReturn(Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
         // Cloud->Cloud compute move.
         String actualDescription = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudToCloudComputeMove);
-        String expectedDescription = String.format("Move Virtual Machine %s from %s to %s",
+        String expectedDescription = String.format("Move Virtual Machine %s from %s to %s in Development",
                 AZURE_VM_NAME, AZURE_REGION_NAME, AWS_REGION_NAME);
         assertEquals(expectedDescription, actualDescription);
 
         // Cloud->Cloud storage move.
         actualDescription = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudToCloudStorageMove);
-        expectedDescription = String.format("Move Volume %s from %s to %s",
+        expectedDescription = String.format("Move Volume %s from %s to %s in Development",
                 CLOUD_VOLUME_RESOURCE_NAME, AZURE_REGION_NAME, AWS_REGION_NAME);
         assertEquals(expectedDescription, actualDescription);
 
@@ -1236,7 +1428,7 @@ public class ActionDescriptionBuilderTest {
         // AWS zone to Azure region compute move.
         actualDescription = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, zoneToRegionComputeMove);
-        expectedDescription = String.format("Move Virtual Machine %s from %s to %s",
+        expectedDescription = String.format("Move Virtual Machine %s from %s to %s in Development",
                 AWS_VM_NAME, AWS_ZONE_NAME, AZURE_REGION_NAME);
         assertEquals(expectedDescription, actualDescription);
 
@@ -1248,7 +1440,7 @@ public class ActionDescriptionBuilderTest {
                 COMPUTE_TIER_DESTINATION_DISPLAY_NAME);
         actualDescription = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, scaleTypeRecommendation);
-        expectedDescription = String.format("Scale Virtual Machine %s from %s to %s",
+        expectedDescription = String.format("Scale Virtual Machine %s from %s to %s in Development",
                 AWS_VM_NAME, COMPUTE_TIER_SOURCE_DISPLAY_NAME, COMPUTE_TIER_DESTINATION_DISPLAY_NAME);
         assertEquals(expectedDescription, actualDescription);
     }
@@ -1288,6 +1480,9 @@ public class ActionDescriptionBuilderTest {
                 EntityType.COMPUTE_TIER.getNumber(),
                 COMPUTE_TIER_DESTINATION_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, scaleRecommendation);
         assertEquals("Scale Virtual Machine vm1_test from tier_t1 to tier_t2", description);
@@ -1309,10 +1504,43 @@ public class ActionDescriptionBuilderTest {
                 EntityType.PHYSICAL_MACHINE.getNumber(),
                 PM_SOURCE_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureReasonCommoditiesRecommendation);
         assertEquals(description, "Reconfigure Virtual Machine vm1_test to provide "
-            + "Ballooning, CPU Allocation");
+            + "Ballooning, CPU Allocation in Development");
+    }
+
+    /**
+     * Test the description of reconfigure action with reason commodities.
+     * and without an account number
+     */
+    @Test
+    public void testBuildReconfigureActionReasonCommoditiesDescriptionWthNoAccountName()
+            throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
+                .thenReturn((createEntity(PM_SOURCE_ID,
+                        EntityType.PHYSICAL_MACHINE.getNumber(),
+                        PM_SOURCE_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, reconfigureReasonCommoditiesRecommendation);
+        assertEquals(description, "Reconfigure Virtual Machine vm1_test to provide "
+                + "Ballooning, CPU Allocation");
     }
 
     /**
@@ -1331,8 +1559,39 @@ public class ActionDescriptionBuilderTest {
                 EntityType.PHYSICAL_MACHINE.getNumber(),
                 PM_SOURCE_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureReasonSettingsRecommendation);
+        assertEquals(description, "Reconfigure Virtual Machine vm1_test in Development");
+    }
+
+    /**
+     * Test the description of reconfigure action with reason settings and no account name.
+     */
+    @Test
+    public void testBuildReconfigureActionReasonSettingsDescriptionWithNoAccountName()
+            throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
+                .thenReturn((createEntity(PM_SOURCE_ID,
+                        EntityType.PHYSICAL_MACHINE.getNumber(),
+                        PM_SOURCE_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, reconfigureReasonSettingsRecommendation);
         assertEquals(description, "Reconfigure Virtual Machine vm1_test");
     }
 
@@ -1347,8 +1606,35 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureWithoutSourceRecommendation);
+        assertEquals(description,
+                "Reconfigure Virtual Machine vm1_test as it is unplaced in Development");
+    }
+
+    /**
+     * Test the description of reconfigure action without source and account name.
+     */
+    @Test
+    public void testBuildReconfigureActionWithoutSourceDescriptionAndAccountName()
+            throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, reconfigureWithoutSourceRecommendation);
         assertEquals(description, "Reconfigure Virtual Machine vm1_test as it is unplaced");
     }
 
@@ -1384,6 +1670,8 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
                         (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(),
                                         VM1_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
         final ActionDTO.Action action = makeRec(makeReconfigureInfo(VM1_ID, settingChanges),
                         SupportLevel.SUPPORTED).build();
         String description = ActionDescriptionBuilder.buildActionDescription(
@@ -1398,8 +1686,37 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
         String description = ActionDescriptionBuilder.buildActionDescription(
                                                      entitySettingsCache, resizeRecommendation);
+
+        assertEquals(description,
+                "Resize up VCPU for Virtual Machine vm1_test from 10 to 20 cores in Development");
+    }
+
+    /**
+     * Test the description of resize action without account name.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildResizeActionDescriptionWithNoAccountName() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, resizeRecommendation);
 
         assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20 cores");
     }
@@ -1410,6 +1727,9 @@ public class ActionDescriptionBuilderTest {
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeMemRecommendation);
@@ -1423,6 +1743,9 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
                 (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(), VM1_DISPLAY_NAME, 0,
                         14 * Units.MBYTE)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
                 makeRec(makeResizeVmemInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build());
@@ -1438,6 +1761,9 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
                 (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(), VM1_DISPLAY_NAME, 12 * 2600,
                         0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
                 makeRec(makeResizeVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build());
@@ -1464,6 +1790,9 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
                 .thenReturn(Optional.of(vm));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVStorageRecommendation);
 
@@ -1480,6 +1809,9 @@ public class ActionDescriptionBuilderTest {
                 .thenReturn((createEntity(VM1_ID,
                         EntityType.VIRTUAL_MACHINE.getNumber(),
                         VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeMemReservationRecommendation);
@@ -1498,6 +1830,9 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuRecommendationForVM);
 
@@ -1514,6 +1849,8 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
                         (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(),
                                         VM1_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
         resizeVcpuRecommendationForVM =
                         makeRec(makeResizeInfo(VM1_ID, CommodityDTO.CommodityType.VCPU_VALUE, null,
                                         8, 16, 1, 2), SupportLevel.SUPPORTED).build();
@@ -1534,6 +1871,9 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuReservationRecommendationForVM);
 
@@ -1552,6 +1892,9 @@ public class ActionDescriptionBuilderTest {
                 EntityType.CONTAINER.getNumber(),
                 CONTAINER1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(CONTAINER1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuRecommendationForContainer);
 
@@ -1569,6 +1912,9 @@ public class ActionDescriptionBuilderTest {
             .thenReturn((createEntity(CONTAINER1_ID,
                 EntityType.CONTAINER.getNumber(),
                 CONTAINER1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(CONTAINER1_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuReservationRecommendationForContainer);
@@ -1590,6 +1936,9 @@ public class ActionDescriptionBuilderTest {
                 EntityType.CONTAINER.getNumber(),
                 CONTAINER1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(CONTAINER1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVemRequestRecommendationForContainer);
 
@@ -1609,6 +1958,9 @@ public class ActionDescriptionBuilderTest {
                 .thenReturn((createEntity(NAMESPACE_ID,
                     EntityType.NAMESPACE_VALUE,
                     NAMESPACE_DISPLAY_NAME, 0, 0)));
+
+            when(entitySettingsCache.getOwnerAccountOfEntity(eq(NAMESPACE_ID)))
+                .thenReturn(Optional.empty());
 
             String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeVcpuLimitQuotaRecommendationForNamespace);
@@ -1630,6 +1982,9 @@ public class ActionDescriptionBuilderTest {
                 EntityType.NAMESPACE_VALUE,
                 NAMESPACE_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(NAMESPACE_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVmemLimitQuotaRecommendationForNamespace);
 
@@ -1646,6 +2001,8 @@ public class ActionDescriptionBuilderTest {
         final long dbsId = 19L;
         when(entitySettingsCache.getEntityFromOid(eq(dbsId))).thenReturn(
                 createEntity(dbsId, EntityType.DATABASE_SERVER_VALUE, "sqlServer1", 0, 0));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(dbsId)))
+                .thenReturn(Optional.empty());
         ActionDTO.Action resizeDBMem = makeRec(makeResizeInfo(dbsId,
                 CommodityDTO.CommodityType.DB_MEM_VALUE, 15857614.848f, 6159335.424f),
                 SupportLevel.SUPPORTED).build();
@@ -1669,6 +2026,8 @@ public class ActionDescriptionBuilderTest {
         .thenReturn((createEntity(VSAN_PM_ID,
             EntityType.PHYSICAL_MACHINE.getNumber(),
             VSAN_PM_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VSAN_STORAGE_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageUp);
@@ -1692,6 +2051,9 @@ public class ActionDescriptionBuilderTest {
             EntityType.PHYSICAL_MACHINE.getNumber(),
             VSAN_PM_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VSAN_STORAGE_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageDown);
 
@@ -1706,8 +2068,35 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deactivateRecommendation);
+
+        assertEquals(description, "Suspend Virtual Machine vm1_test in Development");
+    }
+
+    /**
+     * Test Deactivate action description without account name.
+     * @throws UnsupportedActionException unsupported error
+     */
+    @Test
+    public void testBuildDeactivateActionDescriptionWithNoAccountName() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, deactivateRecommendation);
 
         assertEquals(description, "Suspend Virtual Machine vm1_test");
     }
@@ -1719,8 +2108,36 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, activateRecommendation);
+
+        assertEquals(description,
+                "Start Virtual Machine vm1_test due to increased demand for resources in Development");
+    }
+
+    /**
+     * Test Activate action description without account name.
+     * @throws UnsupportedActionException unsupported error
+     */
+    @Test
+    public void testBuildActivateActionDescriptionWithNoAccountName() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, activateRecommendation);
 
         assertEquals(description, "Start Virtual Machine vm1_test due to increased demand for resources");
     }
@@ -1735,8 +2152,36 @@ public class ActionDescriptionBuilderTest {
                 EntityType.STORAGE.getNumber(),
                 ST_SOURCE_DISPLAY_NAME, 0, 0));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(ST_SOURCE_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, provisionBySupplyRecommendation);
+
+        assertEquals("Provision Storage similar to storage_source_test in Development",
+                description);
+    }
+
+    /**
+     * Test ProvisionBySupply action description with no account number.
+     * @throws UnsupportedActionException unsupported error
+     */
+    @Test
+    public void testBuildProvisionBySupplyActionDescriptionWithNoAccountNumber() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
+                .thenReturn(createEntity(ST_SOURCE_ID,
+                        EntityType.STORAGE.getNumber(),
+                        ST_SOURCE_DISPLAY_NAME, 0, 0));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(ST_SOURCE_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, provisionBySupplyRecommendation);
 
         assertEquals("Provision Storage similar to storage_source_test", description);
     }
@@ -1755,12 +2200,16 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_MACHINE.getNumber(),
                 VM1_DISPLAY_NAME, 0, 0));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(PM_SOURCE_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, provisionByDemandRecommendation);
 
         assertEquals(description,
-            "Provision Physical Machine similar to pm_source_test with scaled up Mem due to vm1_test");
+                "Provision Physical Machine similar to pm_source_test with scaled up Mem due to vm1_test");
     }
+
 
     /**
      * Test the construction of description for host provision action when vSAN scaling is the reason.
@@ -1785,6 +2234,9 @@ public class ActionDescriptionBuilderTest {
             .thenReturn((createEntity(VSAN_STORAGE_ID, EntityType.STORAGE_VALUE,
                             VSAN_STORAGE_DISPLAY_NAME, 0, 0)));
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, provisionBySupplyRecommendation);
         String expected = new StringBuilder("Provision Host similar to ")
@@ -1803,6 +2255,9 @@ public class ActionDescriptionBuilderTest {
             .thenReturn(createEntity(SWITCH1_ID,
                 EntityType.SWITCH.getNumber(),
                 SWITCH1_DISPLAY_NAME, 0, 0));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(SWITCH1_ID)))
+                .thenReturn(Optional.empty());
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizePortChannelRecommendation);
@@ -2057,6 +2512,12 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC2_ID)))
                 .thenReturn((createEntity(CONTAINER_SPEC2_ID,
                         EntityType.CONTAINER_SPEC_VALUE, SPEC2_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(CONTROLLER1_ID))).thenReturn(
+                Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(BUSINESS_ACCOUNT_OID)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(BUSINESS_ACCOUNT_NAME)
+                        .build()));
 
         final String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, atomicAction.build());
@@ -2065,6 +2526,74 @@ public class ActionDescriptionBuilderTest {
                         && description.contains("VMem Request")
                         && description.contains("VCPU Limit")
                         && description.contains("VMem Limit"));
+        assertTrue(description.endsWith("Workload Controller controller1_test in Development"));
+    }
+
+    /**
+     * Test atomic resize description with no account number.
+     *
+     * @throws UnsupportedActionException  In case of unsupported action type.
+     */
+    @Test
+    public void testAtomicResizeDescriptionWithNoAccountNumber() throws UnsupportedActionException {
+        final ActionDTO.Action.Builder atomicAction = ActionDTO.Action.newBuilder()
+                .setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setAtomicResize(AtomicResize.newBuilder()
+                                .setExecutionTarget(ActionEntity.newBuilder()
+                                        .setId(CONTROLLER1_ID)
+                                        .setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC1_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123).setNewCapacity(456))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC1_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890).setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC2_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890).setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC2_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_REQUEST_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123).setNewCapacity(456))))
+                .setExplanation(Explanation.newBuilder()
+                        .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                                .setMergeGroupId("bar")));
+
+        when(entitySettingsCache.getEntityFromOid(eq(CONTROLLER1_ID)))
+                .thenReturn((createEntity(CONTROLLER1_ID,
+                        EntityType.WORKLOAD_CONTROLLER_VALUE, CONTROLLER1_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC1_ID)))
+                .thenReturn((createEntity(CONTAINER_SPEC1_ID,
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC1_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC2_ID)))
+                .thenReturn((createEntity(CONTAINER_SPEC2_ID,
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC2_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(CONTROLLER1_ID)))
+                .thenReturn(Optional.empty());
+
+        final String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, atomicAction.build());
+        assertTrue(description.startsWith("Resize"));
+        assertTrue(description.contains("VCPU Request")
+                && description.contains("VMem Request")
+                && description.contains("VCPU Limit")
+                && description.contains("VMem Limit"));
         assertTrue(description.endsWith("Workload Controller controller1_test"));
     }
 }
