@@ -67,7 +67,7 @@ public class SupplementalCoverageAnalysisConfig {
      */
     @Bean
     public CoverageTopologyFactory coverageTopologyFactory() {
-        return new CoverageTopologyFactory();
+        return new CoverageTopologyFactory(new TopologyEntityCommitmentTopologyFactory());
     }
 
     /**
