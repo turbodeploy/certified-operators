@@ -41,6 +41,7 @@ import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.api.impl.ProbeRegistrationRESTApi.ProbeRegistrationDescription;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
+import com.vmturbo.topology.processor.probes.ProbeVersionFactory.ProbeVersionCompareResult;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.Target;
 
@@ -198,35 +199,14 @@ public class RemoteProbeStore implements ProbeStore {
                 throw new ProbeException(
                         "Failed to get ID for probe configuration received from " + transport, e);
             }
-
+            // If we successfully got an ID it means we passed the compatibility check.
             logger.debug("Adding endpoint to probe type map: " + transport + " "
                     + probeInfo.getProbeType());
             probeExists = probes.containsKey(probeId);
-            try {
-                // Store the probeInfo in Consul
-                storeProbeInfo(probeId, probeInfo);
-            } catch (InvalidProtocolBufferException e) {
-                logger.error("Invalid probeInfo {}", probeInfo);
-                throw new ProbeException(
-                        "Failed to persist probe info in Consul. Probe ID: " + probeId);
-            }
-
-            try {
-                keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId),
-                        JsonFormat.printer().print(probeInfo));
-            } catch (InvalidProtocolBufferException e) {
-                logger.error("Invalid probeInfo {}", probeInfo);
-                throw new ProbeException(
-                        "Failed to persist probe info in Consul. Probe ID: " + probeId);
-            }
-
+            // Update probe info in consul as well as updating stitching operations and action
+            // merge policy depending on the version of the connecting probe
+            updateProbeInfoIfNeeded(probeId, probeInfo);
             probes.put(probeId, transport);
-            // If we successfully got an ID it means we passed the compatibility check.
-            probeInfos.put(probeId, probeInfo);
-            stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
-            // Save the action merge policies
-            actionMergeSpecsRepository.setPoliciesForProbe(probeId, probeInfo);
-
             // Store the probe registration
             final long probeRegistrationId = identityProvider_.getProbeRegistrationId(probeInfo, transport);
             final ProbeRegistrationDescription probeRegistration = buildProbeRegistrationDescription(
@@ -251,6 +231,53 @@ public class RemoteProbeStore implements ProbeStore {
         listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
 
         return probeExists;
+    }
+
+    /**
+     * Update {@link ProbeInfo} in Consul, and also update stitching operations and action merge
+     * policies. This is done if:
+     * - the probe of the same type does not exist in the probeInfos map, or
+     * - the comparison between the version of the existing probe and the connecting probe cannot
+     *   be made, or
+     * - the version of the existing probe is no greater than that of the connecting probe,
+     * The purpose of this logic is to make the probe info update operation deterministic for
+     * multiple remote probes that have the same probe type but different versions. We want to make
+     * sure that the registered probe info in Consul as well as the stitching operations and action
+     * merge policies of a particular probe type is always the newest. Currently, this only applies
+     * to Kubernetes probes.
+     *
+     * @param probeId the probe ID
+     * @param probeInfo the {@link ProbeInfo} of the connecting probe
+     * @throws ProbeException probe exception
+     */
+    @GuardedBy("dataLock")
+    private void updateProbeInfoIfNeeded(final long probeId,
+                                         @Nonnull final ProbeInfo probeInfo)
+            throws ProbeException {
+        if (probeInfos.containsKey(probeId)
+                && ProbeVersionFactory.compareProbeVersion(probeInfos.get(probeId).getVersion(),
+                        probeInfo.getVersion()).equals(ProbeVersionCompareResult.GREATER)) {
+            logger.info("The probe with type {} is already registered. It has a version [{}] "
+                                + "which is newer than the connecting probe's version [{}]. "
+                                + "Skip updating the probe info from the connecting probe.",
+                        probeInfo.getProbeType(), probeInfos.get(probeId).getVersion(),
+                        probeInfo.getVersion());
+            return;
+        }
+        try {
+            // Store the probeInfo in Consul
+            storeProbeInfo(probeId, probeInfo);
+        } catch (InvalidProtocolBufferException e) {
+            logger.error("Invalid probeInfo {}", probeInfo);
+            throw new ProbeException(
+                    "Failed to persist probe info in Consul. Probe ID: " + probeId);
+        }
+        // Update the stitching operations store
+        stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
+        // Save the action merge policies
+        actionMergeSpecsRepository.setPoliciesForProbe(probeId, probeInfo);
+        // Update the probeInfos map
+        probeInfos.put(probeId, probeInfo);
     }
 
     /**
