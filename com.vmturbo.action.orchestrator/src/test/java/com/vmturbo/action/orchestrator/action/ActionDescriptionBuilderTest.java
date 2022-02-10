@@ -1670,6 +1670,8 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
                         (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(),
                                         VM1_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
         final ActionDTO.Action action = makeRec(makeReconfigureInfo(VM1_ID, settingChanges),
                         SupportLevel.SUPPORTED).build();
         String description = ActionDescriptionBuilder.buildActionDescription(

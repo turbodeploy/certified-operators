@@ -441,8 +441,10 @@ public class ActionDescriptionBuilder {
                     changesBuilder.append(COMMA_SPACE);
                 }
             }
-            return getDescriptionWithAccountName(entitiesSnapshot, entityId,ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
-                            beautifyEntityTypeAndName(targetEntityDTO.get()), changesBuilder.toString()));
+            return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                    ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
+                            beautifyEntityTypeAndName(targetEntityDTO.get()),
+                            changesBuilder.toString()));
 
         } else {
             return getDescriptionWithAccountName(entitiesSnapshot, entityId,
