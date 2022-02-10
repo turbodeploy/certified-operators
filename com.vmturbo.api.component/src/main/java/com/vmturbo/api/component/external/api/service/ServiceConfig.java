@@ -32,6 +32,7 @@ import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.mapper.TargetDetailsMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.service.util.SearchServiceFilterResolver;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
@@ -792,6 +793,7 @@ public class ServiceConfig {
         return new UsersService(authConfig.getAuthHost(),
             authConfig.getAuthPort(),
             authConfig.getAuthRoute(),
+            mapperConfig.uuidMapper(),
             communicationConfig.serviceRestTemplate(),
             samlRegistrationId,
             samlEnabled,
