@@ -75,6 +75,24 @@ public class RollupConfig {
     }
 
     /**
+     * Reserved Instance Coverage Time Store.
+     *
+     * @return the store
+     */
+    @Bean
+    @Conditional(ConditionalDbConfig.DbEndpointCondition.class)
+    public RollupTimesStore reservedInstanceCoverageRollupTimesStore() {
+        try {
+            return new RollupTimesStore(dbAccessConfig.dsl(), RolledUpTable.RESERVED_INSTANCE_COVERAGE);
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create reservedInstanceCoverageRollupTimesStore", e);
+        }
+    }
+
+    /**
      * Reserved Instance Utilization Time Store.
      *
      * @return the store

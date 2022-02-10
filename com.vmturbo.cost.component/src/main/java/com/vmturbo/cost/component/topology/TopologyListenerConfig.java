@@ -419,7 +419,9 @@ public class TopologyListenerConfig {
     public ReservedInstanceRollupProcessor reservedInstanceRollupProcessor() {
         ReservedInstanceRollupProcessor reservedInstanceRollupProcessor = new ReservedInstanceRollupProcessor(
             reservedInstanceConfig.reservedInstanceUtilizationStore(),
+            reservedInstanceConfig.reservedInstanceCoverageStore(),
             rollupConfig.reservedInstanceUtilizationRollupTimesStore(),
+            rollupConfig.reservedInstanceCoverageRollupTimesStore(),
             ingestedTopologyStore(), costComponentGlobalConfig.clock());
         rIUtilizationScheduledExecutor().scheduleAtFixedRate(
             reservedInstanceRollupProcessor::execute, 0, 60, TimeUnit.MINUTES);
@@ -437,7 +439,7 @@ public class TopologyListenerConfig {
     @Bean(destroyMethod = "shutdownNow")
     public ScheduledExecutorService rIUtilizationScheduledExecutor() {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
-            "Ri-Utilization-Rollup").build();
+            "Ri-Coverage-Utilization-Rollup").build();
         return Executors.newScheduledThreadPool(1, threadFactory);
     }
 }
