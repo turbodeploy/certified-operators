@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableSet;
 import io.jsonwebtoken.lang.Collections;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -42,7 +41,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
@@ -50,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -128,6 +127,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to {1} {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES("Reconfigure {0} to provide {1} from {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
+        ACTION_DESCRIPTION_RECONFIGURE_TAINT_COMMODITIES("Reconfigure {0} to apply tolerations"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} changing {1}"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
@@ -392,6 +392,7 @@ public class ActionDescriptionBuilder {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getReconfigureActionDescription", "entityId", entityId);
             return "";
         }
+        final ReconfigureExplanation explanation = recommendation.getExplanation().getReconfigure();
         if (reconfigure.hasSource() || reconfigure.getIsProvider()) {
             long sourceId = reconfigure.getSource().getId();
             Optional<ActionPartialEntity> currentEntityDTO = entitiesSnapshot.getEntityFromOid(
@@ -400,33 +401,35 @@ public class ActionDescriptionBuilder {
                 logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getReconfigureActionDescription", "sourceId", sourceId);
                 return "";
             }
-            Explanation explanation = recommendation.getExplanation();
-            if (!explanation.getReconfigure().getReasonSettingsList().isEmpty()) {
+            if (!explanation.getReasonSettingsList().isEmpty()) {
                 return getDescriptionWithAccountName(entitiesSnapshot, entityId,
                         ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS.format(
                                 beautifyEntityTypeAndName(targetEntityDTO.get())));
             } else {
+                final List<TopologyDTO.CommodityType> reconfigureCommodities = explanation
+                        .getReconfigureCommodityList()
+                        .stream()
+                        .map(ReasonCommodity::getCommodityType)
+                        .collect(Collectors.toList());
                 if (currentEntityDTO.isPresent() && reconfigure.getIsProvider()) {
                     return getDescriptionWithAccountName(entitiesSnapshot, entityId,
                             ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES.format(
                                     beautifyEntityTypeAndName(targetEntityDTO.get()),
-                                    beautifyCommodityTypes(explanation.getReconfigure()
-                                            .getReconfigureCommodityList()
-                                            .stream()
-                                            .map(ReasonCommodity::getCommodityType)
-                                            .collect(Collectors.toList())),
+                                    beautifyCommodityTypes(reconfigureCommodities),
                                     beautifyEntityTypeAndName(currentEntityDTO.get())));
+                }
+                final Set<String> taintReasons = ExplanationComposer
+                        .getTaintReasons(explanation.getReconfigureCommodityList());
+                if (!taintReasons.isEmpty()) {
+                    return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_TAINT_COMMODITIES
+                            .format(beautifyEntityTypeAndName(targetEntityDTO.get()));
                 }
                 return getDescriptionWithAccountName(entitiesSnapshot, entityId,
                         ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(
                                 beautifyEntityTypeAndName(targetEntityDTO.get()),
                                 ((reconfigure.getIsProvider() && !reconfigure.getIsAddition())
-                                        ? "remove" : "provide"), beautifyCommodityTypes(
-                                        explanation.getReconfigure()
-                                                .getReconfigureCommodityList()
-                                                .stream()
-                                                .map(ReasonCommodity::getCommodityType)
-                                                .collect(Collectors.toList()))));
+                                        ? "remove" : "provide"),
+                                beautifyCommodityTypes(reconfigureCommodities)));
             }
         } else if (reconfigure.getSettingChangeCount() > 0) {
             final StringBuilder changesBuilder = new StringBuilder();
