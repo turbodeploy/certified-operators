@@ -2,6 +2,10 @@ package com.vmturbo.cost.component.savings;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -13,10 +17,19 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.cost.component.savings.SerializableSavingsEvent.SerializableActionEvent;
 import com.vmturbo.cost.component.savings.SerializableSavingsEvent.SerializableEntityPriceChange;
 import com.vmturbo.cost.component.savings.SerializableSavingsEvent.SerializableTopologyEvent;
+import com.vmturbo.cost.component.savings.tem.DatabaseProviderInfo;
+import com.vmturbo.cost.component.savings.tem.DatabaseServerProviderInfo;
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.tem.ProviderInfoSerializer;
+import com.vmturbo.cost.component.savings.tem.VirtualMachineProviderInfo;
+import com.vmturbo.cost.component.savings.tem.VolumeProviderInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 
 public class SerializableSavingsEventTest {
     private final Gson gson = new GsonBuilder()
             .registerTypeAdapterFactory(new GsonAdaptersSerializableSavingsEvent())
+            .registerTypeAdapter(ProviderInfo.class, new ProviderInfoSerializer())
             .create();
 
     @Test
@@ -58,17 +71,28 @@ Serialized String will look like this:
     }
 
     @Test
-    public void serializeTopologyEvent() {
+    public void serializeTopologyEvents() {
+        Map<Integer, Double> volCommodityMap = ImmutableMap.of(
+                CommodityType.STORAGE_AMOUNT_VALUE, 100d,
+                CommodityType.IO_THROUGHPUT_VALUE, 200d,
+                CommodityType.STORAGE_ACCESS_VALUE, 300d);
+        Map<Integer, Double> dbCommodityMap = ImmutableMap.of(
+                CommodityType.STORAGE_AMOUNT_VALUE, 100d);
+        List<ProviderInfo> providerInfoList = Arrays.asList(
+                new VirtualMachineProviderInfo(1000L),
+                new VolumeProviderInfo(1001L, volCommodityMap),
+                new DatabaseProviderInfo(1002L, dbCommodityMap),
+                new DatabaseServerProviderInfo(1002L, dbCommodityMap, DeploymentType.SINGLE_AZ)
+        );
+        providerInfoList.forEach(this::serializeTopologyEvent);
+    }
+
+    public void serializeTopologyEvent(ProviderInfo providerInfo) {
         final SerializableSavingsEvent event = new SerializableSavingsEvent.Builder()
                 .expirationTime(101L)
                 .topologyEvent(new SerializableTopologyEvent.Builder()
-                        .providerOid(778177499166655L)
-                        .commodityUsage(ImmutableMap.of(
-                                64, 500.000000d,
-                                39, 61440.000000d,
-                                8, 65536.000000
-                        ))
                         .entityRemoved(false)
+                        .providerInfo(providerInfo)
                         .build())
                 .entityPriceChange(new SerializableEntityPriceChange.Builder()
                         .sourceCost(0.026999998745852953d)

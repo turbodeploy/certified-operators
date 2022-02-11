@@ -4,11 +4,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.tem.ProviderInfoFactory;
 
 /**
  * Implementation of algorithm-2.
@@ -34,7 +35,7 @@ public class Algorithm2 implements Algorithm {
     private Optional<ActionEntry> lastExecutedAction;
     // Note: The providerId is currently not stored.  It is derived from the current recommendation
     //       or the last executed action.  This will change in the future.
-    private Map<Integer, Double> commodityUsage;
+    private ProviderInfo providerInfo;
 
     /**
      * Constructor for the algorithm state.  This implements Algorithm-2.
@@ -56,7 +57,7 @@ public class Algorithm2 implements Algorithm {
         this.periodicRealized = new SavingsInvestments();
         this.periodicMissed = new SavingsInvestments();
         this.lastExecutedAction = Optional.empty();
-        this.commodityUsage = new HashMap<>();
+        this.providerInfo = ProviderInfoFactory.getUnknownProvider();
     }
 
     /**
@@ -325,7 +326,7 @@ public class Algorithm2 implements Algorithm {
         if (lastExecutedAction == null) {
             lastExecutedAction = Optional.empty();
         }
-        commodityUsage = entityState.getCommodityUsage();
+        providerInfo = entityState.getProviderInfo();
     }
 
     /**
@@ -375,19 +376,22 @@ public class Algorithm2 implements Algorithm {
     public void removeLastAction() {
         Deque<Delta> oldActionList = clearActionState();  // clear the action list and other state
         oldActionList.pollLast();                         // remove the last action
-        oldActionList.stream().forEach(this::addAction);  // readd all but the last action to recalculate
+        oldActionList.stream().forEach(this::addAction);  // read all but the last action to recalculate
     }
 
     /**
-     * Map from commodity type to the commodity's usage.
+     * Get providerInfo.
      *
-     * @return commodity usage map.  If there is no commodity information available, an empty
-     *         map will be returned.
+     * @return provider info
      */
     @Nonnull
+    public ProviderInfo getProviderInfo() {
+        return providerInfo;
+    }
+
     @Override
-    public Map<Integer, Double> getCommodityUsage() {
-        return commodityUsage;
+    public void setProviderInfo(ProviderInfo providerInfo) {
+        this.providerInfo = providerInfo;
     }
 
     /**

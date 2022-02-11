@@ -2,14 +2,13 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Map;
-
-import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.cost.component.savings.Algorithm.Delta;
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.tem.VirtualMachineProviderInfo;
 
 /**
  * Entity state tests.
@@ -42,8 +41,8 @@ public class EntityStateTest {
         state.setMissedSavings(missedSavings);
         final Double missedInvestments = 30d;
         state.setMissedInvestments(missedInvestments);
-        final Map<Integer, Double> commodityUsage = ImmutableMap.of(1, 100d, 2, 200d);
-        state.setCommodityUsage(commodityUsage);
+        final ProviderInfo providerInfo = new VirtualMachineProviderInfo(1000L);
+        state.setProviderInfo(providerInfo);
 
         // Serialize EntityState object to JSON.
         String json = state.toJson();
@@ -75,7 +74,7 @@ public class EntityStateTest {
         Assert.assertEquals(realizedInvestments, deserializedState.getRealizedInvestments());
         Assert.assertEquals(missedSavings, deserializedState.getMissedSavings());
         Assert.assertEquals(missedInvestments, deserializedState.getMissedInvestments());
-        Assert.assertEquals(commodityUsage, deserializedState.getCommodityUsage());
+        Assert.assertEquals(providerInfo, deserializedState.getProviderInfo());
     }
 
     /**
