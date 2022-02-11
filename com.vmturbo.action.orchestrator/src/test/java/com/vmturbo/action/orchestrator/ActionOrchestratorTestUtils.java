@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -124,6 +125,47 @@ public class ActionOrchestratorTestUtils {
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
         return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator,
                 IdentityGenerator.next());
+    }
+
+    /**
+     * Create provision action.
+     *
+     * @param actionId     Given action ID.
+     * @param targetEntityId Target entity ID.
+     * @return {@link Action} with provision info.
+     */
+    @Nonnull
+    public static Action createProvisionAction(final long actionId, final long targetEntityId,
+                                               final int targetEntityType) {
+        return new Action(createProvisionRecommendation(actionId, targetEntityId, targetEntityType),
+                2, actionModeCalculator, targetEntityType);
+    }
+
+    /**
+     * Create atomicResize action.
+     *
+     * @param actionId       Given action ID.
+     * @param targetEntityId Target entity OID.
+     * @return {@link Action} with atomicResize info.
+     */
+    @Nonnull
+    public static Action createAtomicResizeAction(final long actionId, final long targetEntityId) {
+        return new Action(createAtomicResizeRecommendation(actionId, targetEntityId), 2, actionModeCalculator,
+                IdentityGenerator.next());
+    }
+
+    /**
+     * Create resize action.
+     *
+     * @param actionId         Given action ID.
+     * @param targetEntityId   Given target entity OID.
+     * @param targetEntityType Given target entity type.
+     * @return Resize action.
+     */
+    @Nonnull
+    public static Action createResizeAction(final long actionId, final long targetEntityId, final int targetEntityType) {
+        return new Action(createResizeRecommendation(actionId, targetEntityId, 1, 1.0, 1.0, targetEntityType),
+                2, actionModeCalculator, IdentityGenerator.next());
     }
 
     /**
@@ -246,6 +288,15 @@ public class ActionOrchestratorTestUtils {
                                         .setMostExpensiveCommodityInfo(ActionOrchestratorTestUtils
                                                 .createReasonCommodity(CommodityDTO.CommodityType
                                                         .RESPONSE_TIME_VALUE, null)))))
+                .build();
+    }
+
+    public static ActionDTO.Action createAtomicResizeRecommendation(final long actionId, final long targetEntityId) {
+        return baseAction(actionId)
+                .setInfo(TestActionBuilder.makeAtomicResizeInfo(targetEntityId,
+                        idCounter.incrementAndGet(), Collections.singletonList(idCounter.incrementAndGet())))
+                .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.getDefaultInstance()).build()).build())
                 .build();
     }
 

@@ -819,7 +819,7 @@ public class ActionPipelineStagesTest {
         stage.execute(actionStore);
 
         verify(actionStore).updateAtomicActions(eq(snapshot), eq(actionDifference.getActionsToRemove()),
-            eq(actionDifference.getActionsToAdd()), eq(mergedActions));
+            eq(actionDifference.getActionsToAdd()), eq(mergedActions), eq(actionDifference.getReRecommendedIdMap()));
 
         // Ensure the action still in the tracker was cleared
         verify(toClear).receive(any(NotRecommendedEvent.class));
@@ -857,7 +857,7 @@ public class ActionPipelineStagesTest {
         stage.execute(actionStore);
 
         verify(actionStore).updateMarketActions(eq(snapshot), eq(actionDifference.getActionsToRemove()),
-            eq(actionDifference.getActionsToAdd()));
+            eq(actionDifference.getActionsToAdd()), eq(actionDifference.getReRecommendedIdMap()));
 
         // Ensure the action still in the tracker was cleared
         verify(toClear).receive(any(NotRecommendedEvent.class));
