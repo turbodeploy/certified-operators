@@ -5,6 +5,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 
 /**
  * An interface for extracting information from the topology, specific to cloud commitments.
@@ -30,6 +31,16 @@ public interface CloudCommitmentTopology {
      */
     @Nonnull
     Set<Long> getCoveredAccounts(long commitmentId) throws IllegalArgumentException;
+
+    /**
+     * Resolves the capacity of {@code entityOid} for the coverage vector type of {@code coverageTypeInfo}. If the entity
+     * cannot be resolved, a capacity of zero will be returned.
+     * @param entityOid The entity OID.
+     * @param coverageTypeInfo The coverage vector info.
+     * @return The coverage capacity of the entity for the specified coverage vector.
+     */
+    double getCoverageCapacityForEntity(long entityOid,
+                                        @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo);
 
     /**
      * A factory for creating {@link CloudCommitmentTopology} instances.

@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.ArrayUtils;
 
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
+import com.vmturbo.cloud.common.commitment.TopologyCommitmentData;
 import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology.TopologyEntityCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
@@ -88,6 +89,7 @@ public class AbstractCoverageAllocatorTest {
             @Nonnull TopologyEntityDTO serviceProvider,
             @Nonnull Set<ReservedInstanceBought> reservedInstances,
             @Nonnull Set<ReservedInstanceSpec> riSpecs,
+            @Nonnull Set<TopologyEntityDTO> topologyCommitments,
             @Nonnull GroupMemberRetriever groupMemberRetriever,
             TopologyEntityDTO... entityDtos) {
 
@@ -99,17 +101,18 @@ public class AbstractCoverageAllocatorTest {
                         ArrayUtils.add(entityDtos, serviceProvider))));
         when(cloudTopology.getServiceProvider(anyLong())).thenReturn(Optional.of(serviceProvider));
         final Set<CloudCommitmentAggregate> commitmentAggregates =
-                createRIAggregates(reservedInstances, riSpecs, cloudTopology);
+                createAggregates(reservedInstances, riSpecs, topologyCommitments, cloudTopology);
 
-        final CoverageTopologyFactory coverageTopologyFactory = new CoverageTopologyFactory();
+        final CoverageTopologyFactory coverageTopologyFactory = new CoverageTopologyFactory(new TopologyEntityCommitmentTopologyFactory());
         return coverageTopologyFactory.createCoverageTopology(
                 cloudTopology,
                 commitmentAggregates);
     }
 
-    private Set<CloudCommitmentAggregate> createRIAggregates(@Nonnull Set<ReservedInstanceBought> reservedInstances,
-                                                                @Nonnull Set<ReservedInstanceSpec> riSpecs,
-                                                                @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
+    private Set<CloudCommitmentAggregate> createAggregates(@Nonnull Set<ReservedInstanceBought> reservedInstances,
+                                                           @Nonnull Set<ReservedInstanceSpec> riSpecs,
+                                                           @Nonnull Set<TopologyEntityDTO> topologyCommitments,
+                                                           @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
 
         final Map<Long, ReservedInstanceSpec> riSpecsById = riSpecs.stream()
                 .collect(ImmutableMap.toImmutableMap(
@@ -141,6 +144,19 @@ public class AbstractCoverageAllocatorTest {
         riDataSet.forEach(riData -> {
             try {
                 cloudCommitmentAggregator.collectCommitment(riData);
+            } catch (AggregationFailureException e) {
+                e.printStackTrace();
+            }
+        });
+
+        topologyCommitments
+                .stream()
+                .map(topologyCommitment -> TopologyCommitmentData.builder()
+                        .commitment(topologyCommitment)
+                        .build())
+                .forEach(commitmentData -> {
+            try {
+                cloudCommitmentAggregator.collectCommitment(commitmentData);
             } catch (AggregationFailureException e) {
                 e.printStackTrace();
             }
