@@ -75,7 +75,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -194,7 +193,7 @@ public class LiveActionsTest {
 
         // Remove action1, add action 2 and 3
         liveActions.updateMarketActions(Collections.singleton(action1),
-                Arrays.asList(action2, action3), entityCacheSnapshot, actionTargetSelector);
+                Arrays.asList(action2, action3), entityCacheSnapshot, actionTargetSelector, Collections.emptyMap());
 
         assertThat(liveActions.getAll().collect(Collectors.toList()),
             containsInAnyOrder(action2, action3));
@@ -281,7 +280,7 @@ public class LiveActionsTest {
         liveActions.updateMarketActions(Collections.emptyList(),
                 Arrays.asList(acceptedAction, actionWithRemovedAcceptance, acceptedActionWithRemovedSchedule),
                 entityCacheSnapshot,
-                actionTargetSelector);
+                actionTargetSelector, Collections.emptyMap());
 
         Assert.assertThat(liveActions.getAll().collect(Collectors.toList()),
                 containsInAnyOrder(acceptedAction, actionWithRemovedAcceptance, acceptedActionWithRemovedSchedule));
@@ -326,7 +325,7 @@ public class LiveActionsTest {
         // ACT
         liveActions.updateMarketActions(Collections.emptyList(),
                 Arrays.asList(rejectedAction, actionWithRemovedRejection), entityCacheSnapshot,
-                actionTargetSelector);
+                actionTargetSelector, Collections.emptyMap());
 
         Assert.assertThat(liveActions.getAll().collect(Collectors.toList()),
                 containsInAnyOrder(rejectedAction, actionWithRemovedRejection));
@@ -381,7 +380,7 @@ public class LiveActionsTest {
 
         liveActions.updateMarketActions(Collections.emptyList(),
                 Arrays.asList(acceptedAction, actionWithoutAcceptance), entityCacheSnapshot,
-                actionTargetSelector);
+                actionTargetSelector, Collections.emptyMap());
 
         assertThat(liveActions.getAll().collect(Collectors.toList()),
                 containsInAnyOrder(acceptedAction, actionWithoutAcceptance));

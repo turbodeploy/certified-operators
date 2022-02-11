@@ -1049,11 +1049,13 @@ public class ActionPipelineStages {
             final List<Action> actionsToTranslate = new ArrayList<>(input.actions.size());
             final RecommendationTracker recommendations = actionDifference.get().previousRecommendations;
             final List<Action> actionsToAdd = actionDifference.get().actionsToAdd;
+            final Map<Long, Long> reRecommendedIdMap = actionDifference.get().reRecommendedIdMap;
 
             final int totalActions = input.actions.size();
             for (IdentifiedActionDTO identifiedAction : input.actions) {
                 // Create the Action for each action DTO
-                final Action action = processRecommendation(recommendations, identifiedAction);
+                final Action action = processRecommendation(recommendations, identifiedAction,
+                        reRecommendedIdMap);
                 processAction(identifiedAction, action);
 
                 categorizeAction(actionsToTranslate, actionsToAdd, action);
@@ -1104,7 +1106,9 @@ public class ActionPipelineStages {
         }
 
         @Nonnull
-        private Action processRecommendation(RecommendationTracker recommendations, IdentifiedActionDTO identifiedAction) {
+        private Action processRecommendation(@Nonnull final RecommendationTracker recommendations,
+                                             @Nonnull final IdentifiedActionDTO identifiedAction,
+                                             @Nonnull final Map<Long, Long> reRecommendedIdMap) {
             final long recommendationOid = identifiedAction.oid;
             final Optional<Action> existingActionOpt = recommendations.take(recommendationOid);
             final Action action;
@@ -1125,7 +1129,8 @@ public class ActionPipelineStages {
                 if (action.getState() == ActionState.READY
                     || action.getState() == ActionState.ACCEPTED
                     || action.getState() == ActionState.REJECTED) {
-                    action.updateRecommendationAndCategory(identifiedAction.action);
+                    action.updateRecommendationAndCategory(identifiedAction.action,
+                            reRecommendedIdMap);
                 }
             } else {
                 newActionCount++;
@@ -1279,7 +1284,7 @@ public class ActionPipelineStages {
         @Override
         public Status passthrough(LiveActionStore input) {
             updateActions(input, entitiesAndSettingsSnapshot.get(),
-                actionDifference.get().actionsToRemove, actionDifference.get().actionsToAdd);
+                actionDifference.get().actionsToRemove, actionDifference.get().actionsToAdd, actionDifference.get().reRecommendedIdMap);
 
             final long actionPlanId = getContext().getActionPlanId();
             final int reRecommendedCount = (inputActionCount.get() - newActionCount.get());
@@ -1317,11 +1322,13 @@ public class ActionPipelineStages {
          * @param entitiesAndSettingsSnapshot The {@link EntitiesAndSettingsSnapshot}.
          * @param actionsToRemove The actions to remove from the store.
          * @param actionsToAdd The actions to add to the store.
+         * @param reRecommendedIdMap Map of action re-recommended ID to initial ID.
          */
         protected abstract void updateActions(@Nonnull LiveActionStore actionStore,
                                               @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot,
                                               @Nonnull List<Action> actionsToRemove,
-                                              @Nonnull List<Action> actionsToAdd);
+                                              @Nonnull List<Action> actionsToAdd,
+                                              @Nonnull Map<Long, Long> reRecommendedIdMap);
     }
 
     /**
@@ -1349,8 +1356,10 @@ public class ActionPipelineStages {
         protected void updateActions(@Nonnull LiveActionStore actionStore,
                                      @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot,
                                      @Nonnull List<Action> actionsToRemove,
-                                     @Nonnull List<Action> actionsToAdd) {
-            actionStore.updateMarketActions(entitiesAndSettingsSnapshot, actionsToRemove, actionsToAdd);
+                                     @Nonnull List<Action> actionsToAdd,
+                                     @Nonnull Map<Long, Long> reRecommendedIdMap) {
+            actionStore.updateMarketActions(entitiesAndSettingsSnapshot, actionsToRemove, actionsToAdd,
+                    reRecommendedIdMap);
         }
     }
 
@@ -1382,9 +1391,10 @@ public class ActionPipelineStages {
         protected void updateActions(@Nonnull LiveActionStore actionStore,
                                      @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot,
                                      @Nonnull List<Action> actionsToRemove,
-                                     @Nonnull List<Action> actionsToAdd) {
+                                     @Nonnull List<Action> actionsToAdd,
+                                     @Nonnull Map<Long, Long> reRecommendedIdMap) {
             actionStore.updateAtomicActions(entitiesAndSettingsSnapshot, actionsToRemove,
-                actionsToAdd, mergedActions.get());
+                actionsToAdd, mergedActions.get(), reRecommendedIdMap);
         }
     }
 
@@ -2235,12 +2245,21 @@ public class ActionPipelineStages {
         private final List<Action> actionsToAdd;
 
         /**
+         * Map of action re-recommended ID to initial ID. As LiveActions stores actions by initial
+         * action ID. This map will be used to retrieve correct stored action based on corresponding
+         * initial action ID if given a new ID for a re-recommended action.
+         */
+        @Nonnull
+        private final Map<Long, Long> reRecommendedIdMap;
+
+        /**
          * Create a new {@link ActionDifference}.
          */
         public ActionDifference() {
             previousRecommendations = new RecommendationTracker();
             actionsToRemove = new ArrayList<>();
             actionsToAdd = new ArrayList<>();
+            reRecommendedIdMap = new HashMap<>();
         }
 
         /**
@@ -2274,6 +2293,17 @@ public class ActionPipelineStages {
         @Nonnull
         List<Action> getActionsToAdd() {
             return actionsToAdd;
+        }
+
+        /**
+         * Get map of action re-recommended ID to initial ID.
+         *
+         * @return Map of action re-recommended ID to initial ID.
+         */
+        @VisibleForTesting
+        @Nonnull
+        Map<Long, Long> getReRecommendedIdMap() {
+            return reRecommendedIdMap;
         }
 
         /**

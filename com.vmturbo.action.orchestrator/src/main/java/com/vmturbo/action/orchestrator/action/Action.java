@@ -419,12 +419,15 @@ public class Action implements ActionView {
      * Also updates the action category because the updated action may belong to a different category.
      *
      * @param newRecommendation The new recommendation from the market.
+     * @param reRecommendedIdMap Map of action re-recommended ID to initial ID.
      */
-    public void updateRecommendationAndCategory(@Nonnull final ActionDTO.Action newRecommendation) {
+    public void updateRecommendationAndCategory(@Nonnull final ActionDTO.Action newRecommendation,
+                                                @Nonnull final Map<Long, Long> reRecommendedIdMap) {
         synchronized (recommendationLock) {
             if (recommendation == null) {
                 throw new IllegalStateException("Action has no recommendation.");
             }
+            reRecommendedIdMap.put(newRecommendation.getId(), recommendation.getId());
             this.recommendation = newRecommendation.toBuilder()
                     // It's important to keep the same ID - that's the whole point of
                     // updating the recommendation instead of creating a new action.

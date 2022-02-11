@@ -192,14 +192,16 @@ public class LiveActionStore implements ActionStore {
      *                 action plan being processed.
      * @param actionsToRemove The list of market actions to remove from the store.
      * @param actionsToAdd The list of market actions to add to the store.
+     * @param reRecommendedIdMap Map of market action re-recommended ID to initial ID.
      */
     public void updateMarketActions(@Nonnull final EntitiesAndSettingsSnapshot snapshot,
                                     @Nonnull final List<Action> actionsToRemove,
-                                    @Nonnull final List<Action> actionsToAdd) {
+                                    @Nonnull final List<Action> actionsToAdd,
+                                    @Nonnull final Map<Long, Long> reRecommendedIdMap) {
         // Some of these may be noops - if we're re-adding an action that was already in
         // the map from a previous action plan.
         // THis also updates the snapshot in the entity settings cache.
-        actions.updateMarketActions(actionsToRemove, actionsToAdd, snapshot, actionTargetSelector);
+        actions.updateMarketActions(actionsToRemove, actionsToAdd, snapshot, actionTargetSelector, reRecommendedIdMap);
     }
 
     /**
@@ -213,12 +215,14 @@ public class LiveActionStore implements ActionStore {
      * @param actionsToRemove The list of atomic actions to remove from the store.
      * @param actionsToAdd The list of atomic actions to add to the store.
      * @param mergedActions The merged market actions to remove from the store of market actions.
+     * @param reRecommendedIdMap Map of action re-recommended ID to initial ID.
      */
     public void updateAtomicActions(@Nonnull final EntitiesAndSettingsSnapshot snapshot,
                                     @Nonnull final List<Action> actionsToRemove,
                                     @Nonnull final List<Action> actionsToAdd,
-                                    @Nonnull final List<Action> mergedActions) {
-        actions.updateAtomicActions(actionsToRemove, actionsToAdd, mergedActions, snapshot);
+                                    @Nonnull final List<Action> mergedActions,
+                                    @Nonnull final Map<Long, Long> reRecommendedIdMap) {
+        actions.updateAtomicActions(actionsToRemove, actionsToAdd, mergedActions, snapshot, reRecommendedIdMap);
     }
 
     /**
@@ -421,6 +425,16 @@ public class LiveActionStore implements ActionStore {
     @Override
     public Map<Long, Action> getActions() {
         return actions.copy();
+    }
+
+    /**
+     * Get the map from re-recommended action ID to initial action ID.
+     *
+     * @return Map from re-recommended action ID to initial action ID.
+     */
+    @Nonnull
+    public Map<Long, Long> getReRecommendedIdMap() {
+        return actions.copyReRecommendedIdMap();
     }
 
     @Nonnull
