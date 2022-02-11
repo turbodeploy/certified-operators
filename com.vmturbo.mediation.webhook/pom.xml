@@ -14,7 +14,6 @@
     <packaging>jar</packaging>
 
     <properties>
-        <integration-test-phase>integration-test</integration-test-phase>
         <dockerImageName>turbonomic/robot-docker</dockerImageName>
         <dockerImageVersion>1.0.0</dockerImageVersion>
         <turborepo>registry.turbonomic.com</turborepo>
@@ -109,7 +108,7 @@
                 <executions>
                     <execution>
                         <id>copy-libs</id>
-                        <phase>pre-integration-test</phase>
+                        <phase>${pre-integration-test}</phase>
                         <goals>
                             <goal>copy-dependencies</goal>
                         </goals>
