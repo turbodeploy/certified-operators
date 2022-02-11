@@ -11,7 +11,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -41,9 +40,9 @@ import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
+import com.vmturbo.cost.component.savings.tem.TopologyEventsMonitor;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -494,13 +493,6 @@ public class EntitySavingsConfig {
      */
     @Bean
     public TopologyEventsMonitor topologyEventsMonitor() {
-        return new TopologyEventsMonitor(ImmutableMap.of(
-                EntityType.VIRTUAL_MACHINE_VALUE, new TopologyEventsMonitor.Config(true,
-                        ImmutableSet.of()),
-                EntityType.VIRTUAL_VOLUME_VALUE, new TopologyEventsMonitor.Config(true,
-                        ImmutableSet.of(
-                                CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
-                                CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
-                                CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE))));
+        return new TopologyEventsMonitor();
     }
 }

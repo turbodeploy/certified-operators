@@ -2,10 +2,8 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -21,7 +19,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.component.savings.Algorithm.Delta;
-import com.vmturbo.cost.component.savings.TopologyEventsMonitor.ChangeResult;
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.tem.ProviderInfoFactory;
+import com.vmturbo.cost.component.savings.tem.ProviderInfoSerializer;
+import com.vmturbo.cost.component.savings.tem.TopologyEventsMonitor;
+import com.vmturbo.cost.component.savings.tem.TopologyEventsMonitor.ChangeResult;
 
 /**
  * Class to encapsulate the entity states that need to be persisted or to be passed from the
@@ -130,16 +132,10 @@ public class EntityState implements MonitoredEntity {
     private Double missedInvestments;
 
     /**
-     * Current commodity usage.
+     * Provider Info.
      */
-    @SerializedName(value = "cu", alternate = "commodityUsage")
-    private Map<Integer, Double> commodityUsage;
-
-    /**
-     * Current provider ID.
-     */
-    @SerializedName(value = "pi", alternate = "providerId")
-    private Long providerId;
+    @SerializedName(value = "pinfo", alternate = "providerInfo")
+    private ProviderInfo providerInfo;
 
     /**
      * Boolean flag to indicate this state was updated as a result of an event.
@@ -165,8 +161,7 @@ public class EntityState implements MonitoredEntity {
         // Initialize the current delta list. Not scaled by period length.
         this.deltaList = new ArrayDeque<>();
         this.lastExecutedAction = Optional.empty();
-        this.commodityUsage = new HashMap<>();
-        this.providerId = 0L;
+        this.providerInfo = ProviderInfoFactory.getUnknownProvider();
     }
 
     @Override
@@ -268,6 +263,7 @@ public class EntityState implements MonitoredEntity {
         return (new GsonBuilder())
                 .registerTypeAdapterFactory(new GsonAdaptersEntityPriceChange())
                 .registerTypeAdapterFactory(new GsonAdaptersActionEntry())
+                .registerTypeAdapter(ProviderInfo.class, new ProviderInfoSerializer())
                 .create();
     }
 
@@ -279,12 +275,8 @@ public class EntityState implements MonitoredEntity {
      */
     public static EntityState fromJson(@Nonnull final String jsonSerialized) {
         EntityState entityState = GSON.fromJson(jsonSerialized, EntityState.class);
-        // Migration:  Fill in missing fields.
-        if (entityState.providerId == null) {
-            entityState.providerId = 0L;
-        }
-        if (entityState.commodityUsage == null) {
-            entityState.commodityUsage = new HashMap<>();
+        if (entityState.getProviderInfo() == null) {
+            entityState.setProviderInfo(ProviderInfoFactory.getUnknownProvider());
         }
         if (entityState.getLastPowerOffTransition() == null) {
             entityState.setLastPowerOffTransition(0L);
@@ -359,23 +351,13 @@ public class EntityState implements MonitoredEntity {
     }
 
     @Override
-    public Long getProviderId() {
-        return providerId;
+    public ProviderInfo getProviderInfo() {
+        return providerInfo;
     }
 
     @Override
-    public void setProviderId(Long providerId) {
-        this.providerId = providerId;
-    }
-
-    @Override
-    @Nullable
-    public Map<Integer, Double> getCommodityUsage() {
-        return commodityUsage;
-    }
-
-    public void setCommodityUsage(Map<Integer, Double> commodityUsage) {
-        this.commodityUsage = commodityUsage;
+    public void setProviderInfo(ProviderInfo providerInfo) {
+        this.providerInfo = providerInfo;
     }
 
     /**
@@ -396,10 +378,10 @@ public class EntityState implements MonitoredEntity {
                 topologyEventsMonitor.generateEvents(this, cloudTopology, topologyTimestamp);
 
         // Generate events
-        entityEventsJournal.addEvents(result.savingsEvents);
+        entityEventsJournal.addEvents(result.getSavingsEvents());
 
         // Update state
-        if (result.stateUpdated) {
+        if (result.isStateUpdated()) {
             try {
                 entityStateStore.updateEntityState(this);
             } catch (EntitySavingsException e) {

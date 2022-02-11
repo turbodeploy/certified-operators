@@ -1,12 +1,13 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.Map;
 import java.util.Optional;
 
 import org.immutables.value.Value;
 import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
+
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 
 /**
  * Describes TEM topology events.
@@ -47,15 +48,18 @@ public interface TopologyEvent {
      * Get provider OID, if changed.
      *
      * @return if the provider OID changed, the new provider OID, else empty.
+     * @deprecated This method is only used for TEP events. Provider OID is set in ProviderInfo for
+     * TEM events.
      */
+    @Deprecated
     Optional<Long> getProviderOid();
 
     /**
-     * Get commodity usage changes.
+     * Provider Info.
      *
-     * @return map from commodity type to amount.
+     * @return Provider info
      */
-    Map<Integer, Double> getCommodityUsage();
+    Optional<ProviderInfo> getProviderInfo();
 
     /**
      * Entity was removed.

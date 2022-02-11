@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -9,7 +8,6 @@ import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.immutables.value.Value;
 
@@ -17,6 +15,8 @@ import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.SerializableSavingsEvent.SerializableActionEvent;
 import com.vmturbo.cost.component.savings.SerializableSavingsEvent.SerializableEntityPriceChange;
 import com.vmturbo.cost.component.savings.SerializableSavingsEvent.SerializableTopologyEvent;
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.tem.ProviderInfoSerializer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -24,12 +24,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 @Value.Style(visibility = Value.Style.ImplementationVisibility.PACKAGE, overshadowImplementation = true)
 @Value.Immutable(lazyhash = true)
-interface SavingsEvent {
+public interface SavingsEvent {
     /**
      * Used for json serialization and deserialization.
      */
     Gson gson = new GsonBuilder()
             .registerTypeAdapterFactory(new GsonAdaptersSerializableSavingsEvent())
+            .registerTypeAdapter(ProviderInfo.class, new ProviderInfoSerializer())
             .create();
 
     /**
@@ -248,12 +249,8 @@ interface SavingsEvent {
             final TopologyEvent topologyEvent = getTopologyEvent().get();
             final SerializableTopologyEvent.Builder topologyBuilder =
                     new SerializableTopologyEvent.Builder();
-            if (topologyEvent.getProviderOid().isPresent()) {
-                topologyBuilder.providerOid(topologyEvent.getProviderOid().get());
-            }
-            final Map<Integer, Double> commodityUsage = topologyEvent.getCommodityUsage();
-            if (MapUtils.isNotEmpty(commodityUsage)) {
-                topologyBuilder.commodityUsage(commodityUsage);
+            if (topologyEvent.getProviderInfo().isPresent()) {
+                topologyBuilder.providerInfo(topologyEvent.getProviderInfo().get());
             }
             if (topologyEvent.getEntityRemoved().isPresent()) {
                 topologyBuilder.entityRemoved(topologyEvent.getEntityRemoved().get());
@@ -317,13 +314,7 @@ interface SavingsEvent {
                         .entityOid(entityOid)
                         .eventType(eventType)
                         .entityType(entityType);
-                if (topologyEvent.getProviderOid().isPresent()) {
-                    topologyBuilder.providerOid(topologyEvent.getProviderOid().get());
-                }
-                final Map<Integer, Double> commodityUsage = topologyEvent.getCommodityUsage();
-                if (MapUtils.isNotEmpty(commodityUsage)) {
-                    topologyBuilder.commodityUsage(commodityUsage);
-                }
+                topologyBuilder.providerInfo(topologyEvent.getProviderInfo());
                 if (topologyEvent.getEntityRemoved().isPresent()) {
                     topologyBuilder.entityRemoved(topologyEvent.getEntityRemoved().get());
                 }

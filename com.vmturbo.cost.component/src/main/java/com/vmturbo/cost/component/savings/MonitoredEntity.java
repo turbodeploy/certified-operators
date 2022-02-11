@@ -1,8 +1,8 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.Map;
-
 import javax.annotation.Nonnull;
+
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 
 /**
  * Represents an entity that is being monitored by the Topology Events Monitor (TEM).
@@ -30,32 +30,17 @@ public interface MonitoredEntity {
     void setLastPowerOffTransition(Long timestamp);
 
     /**
-     * Get provider ID.
+     * Get ProviderInfo.
      *
-     * @return provider ID.
-     */
-    Long getProviderId();
-
-    /**
-     * Set provider ID.
-     *
-     * @param providerId provider ID.
-     */
-    void setProviderId(Long providerId);
-
-    /**
-     * Get commodity usage for tracked commodity types.
-     *
-     * @return map from commodity type to usage.  If there are no tracked commodities, an
-     *      empty map is returned.
+     * @return ProviderInfo
      */
     @Nonnull
-    Map<Integer, Double> getCommodityUsage();
+    ProviderInfo getProviderInfo();
 
     /**
-     * Set commodity usage for this entity.
+     * Set ProviderInfo.
      *
-     * @param commodityUsage map of commodity type to usage for that commodity.
+     * @param providerInfo ProviderInfo
      */
-    void setCommodityUsage(@Nonnull Map<Integer, Double> commodityUsage);
+    void setProviderInfo(ProviderInfo providerInfo);
 }

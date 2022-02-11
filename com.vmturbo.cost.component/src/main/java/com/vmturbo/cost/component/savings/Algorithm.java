@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
 import java.util.Deque;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -9,6 +8,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.math.DoubleMath;
 import com.google.gson.annotations.SerializedName;
+
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 
 /**
  * Algorithm interface.
@@ -191,13 +192,19 @@ public interface Algorithm {
     }
 
     /**
-     * Map from commodity type to the commodity's usage.
+     * Get provider info. (e.g. provider OID, commodity capacities, etc.)
      *
-     * @return commodity usage map.  If there is no commodity information available, an empty
-     * map will be returned.
+     * @return provider info
      */
     @Nonnull
-    Map<Integer, Double> getCommodityUsage();
+    ProviderInfo getProviderInfo();
+
+    /**
+     * Set provider info.
+     *
+     * @param providerInfo provider info
+     */
+    void setProviderInfo(ProviderInfo providerInfo);
 
     /**
      * Group of savings and investments together.

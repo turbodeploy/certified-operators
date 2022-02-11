@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -27,6 +28,8 @@ import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
+import com.vmturbo.cost.component.savings.tem.VolumeProviderInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
@@ -105,6 +108,10 @@ public class SqlEntityEventsJournalTest extends MultiDbTestBase {
      * @return SavingsEvent instance.
      */
     static SavingsEvent createTopologyEvent(long entityId) {
+        final Map<Integer, Double> volCommodityMap = ImmutableMap.of(
+                CommodityType.STORAGE_AMOUNT_VALUE, 100d,
+                CommodityType.IO_THROUGHPUT_VALUE, 200d,
+                CommodityType.STORAGE_ACCESS_VALUE, 300d);
         return new SavingsEvent.Builder()
                 .entityId(entityId)
                 .timestamp(1000L + entityId)
@@ -122,12 +129,8 @@ public class SqlEntityEventsJournalTest extends MultiDbTestBase {
                         .eventType(EventType.PROVIDER_CHANGE.getValue())
                         .entityType(EntityType.VIRTUAL_VOLUME.getValue())
                         .providerOid(5000L * entityId)
-                        .commodityUsage(ImmutableMap.of(
-                                64, 500.000000d * (double)entityId,
-                                39, 61440.000000d * (double)entityId,
-                                8, 65536.000000 * (double)entityId
-                        ))
                         .entityRemoved(entityId % 3 == 0)
+                        .providerInfo(new VolumeProviderInfo(5000L * entityId, volCommodityMap))
                         .build())
                 .build();
     }

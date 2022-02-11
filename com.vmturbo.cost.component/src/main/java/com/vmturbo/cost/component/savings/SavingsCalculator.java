@@ -89,7 +89,7 @@ class SavingsCalculator {
         entityState.setNextExpirationTime(algorithmState.getNextExpirationTime());
         entityState.setCurrentRecommendation(algorithmState.getCurrentRecommendation());
         entityState.setDeletePending(algorithmState.getDeletePending());
-        entityState.setCommodityUsage(algorithmState.getCommodityUsage());
+        entityState.setProviderInfo(algorithmState.getProviderInfo());
         entityState.setUpdated(entitiesWithEvents.contains(entityOid));
         long periodLength = periodEndTime - periodStartTime;
         if (periodLength <= 0) {
@@ -297,7 +297,9 @@ class SavingsCalculator {
         if (event.getPoweredOn().isPresent()) {
             handleStateChange(states, timestamp, entityId, event.getPoweredOn().get());
         }
-        if (event.getProviderOid().isPresent() || !event.getCommodityUsage().isEmpty()) {
+        // TODO: Condition to handle provider change: when providerInfo in event is different from
+        // that in the state.
+        if (event.getProviderOid().isPresent()) {
             handleProviderChange(states, timestamp, entityId, event);
         }
     }
@@ -483,11 +485,9 @@ class SavingsCalculator {
                     entityId);
         } else if (lastExecutedAction.get().reverses(ActionEventType.SCALE_EXECUTION_SUCCESS, newProviderId)) {
             // This is a revert.
-            logger.info("Reverting tracking scale action from {} -> {} (commodities {} -> {}) for entity {}",
+            logger.info("Reverting tracking scale action from {} -> {} for entity {}",
                     lastExecutedAction.get().getSourceOid(),
                     lastExecutedAction.get().getDestinationOid(),
-                    lastExecutedAction.get().getCommodityUsage(),
-                    algorithmState.getCommodityUsage(),
                     entityId);
             algorithmState.endSegment(timestamp);
             algorithmState.removeLastAction();
