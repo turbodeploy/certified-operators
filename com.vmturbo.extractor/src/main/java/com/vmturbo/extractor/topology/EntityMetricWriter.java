@@ -635,13 +635,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private void writeEntityRecords(final DataProvider dataProvider, final TableWriter tableWriter)
                     throws SQLException, InterruptedException {
         logger.info("Upserting entity records for topology {}", topologyLabel);
-        entityHashManager.open(topologyInfo, dsl);
-        for (Record record : entityRecords) {
-            if (ENTITY_TABLE.equals(record.getTable()) && entityHashManager.processEntity(record)) {
-                tableWriter.accept(record);
+        try {
+            entityHashManager.open(topologyInfo, dsl);
+            for (Record record : entityRecords) {
+                if (ENTITY_TABLE.equals(record.getTable()) && entityHashManager.processEntity(record)) {
+                    tableWriter.accept(record);
+                }
             }
+            entityHashManager.close();
+        } finally {
+            entityHashManager.ensureMarkedClosed();
         }
-        entityHashManager.close();
     }
 
     private void writeClusterStats(final DataProvider dataProvider) {

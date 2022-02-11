@@ -156,7 +156,11 @@ public class EntityHashManager {
      * @return true of the records should be part of the upsert
      */
     public boolean processEntity(Record entityRecord) {
-        long oid = entityRecord.get(ENTITY_OID_AS_OID);
+        Long oid = entityRecord.get(ENTITY_OID_AS_OID);
+        if (oid == null) {
+            logger.error("Tried to process entity record with null OID.");
+            return  false;
+        }
         int iid = oidPack.toIndex(oid);
         long hash = entityRecord.getXxHash(HASHED_ENTITY_COLUMNS);
         if (!priorHashes.containsKey(iid) || hash != priorHashes.get(iid)) {
@@ -224,6 +228,20 @@ public class EntityHashManager {
         unchangedEntityIids.clear();
         newHashes.clear();
         priorTopology = currentTopology;
+    }
+
+    /**
+     * Makes sure that there is no open topology set.
+     *
+     * <p>Unlike the close method, which attempts to write data before marking things closed,
+     * this method seeks to simply ensure that everything is marked as closed.</p>
+     */
+    public void ensureMarkedClosed() {
+        // Ensure entity hash manager isn't still open
+        openTopology.set(null);
+        // reset internal state to prepare for next cycle
+        unchangedEntityIids.clear();
+        newHashes.clear();
     }
 
     /**
