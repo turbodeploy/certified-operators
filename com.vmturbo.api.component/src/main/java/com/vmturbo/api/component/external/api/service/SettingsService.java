@@ -19,8 +19,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
@@ -58,12 +62,13 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRespo
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 /**
  * Service implementation of Settings.
  **/
 public class SettingsService implements ISettingsService {
+    private static final Logger logger = LogManager.getLogger();
+
     private final SettingServiceBlockingStub settingServiceBlockingStub;
 
     private final SettingsMapper settingsMapper;
@@ -199,23 +204,14 @@ public class SettingsService implements ISettingsService {
             // in addition to updating the settings store. So before sending to
             // the group setting service, we first attempt the DB update, and then
             // if that succeeds, we proceed with normal settings update.
-            Optional<SettingApiDTO<String>> newSetting = Optional.empty();
+            // Except the extractor, which can be down or not present, we will not throw exception
+            // for EmbeddedReportingRetentionDays update if so.
             if (name.equals(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName())) {
-                newSetting = setAuditLogSetting(settingValue);
+                setAuditLogSetting(settingValue);
             } else if (STATS_NON_AUDIT_RETENTION_SETTINGS.contains(name)) {
-                newSetting = setStatsRetentionSetting(name, settingValue);
+                setStatsRetentionSetting(name, settingValue);
             } else if (GlobalSettingSpecs.EmbeddedReportingRetentionDays.getSettingName().equals(name)) {
-                try {
-                    newSetting = setExtractorRetentionSetting(settingValue);
-                } catch (NumberFormatException nfe) {
-                    throw new OperationFailedException("Could not update extractor retention to "
-                            + settingValue, nfe);
-                }
-            }
-            // Empty means there was no DB settings update required for this setting.
-            if (!newSetting.isPresent()) {
-                throw new OperationFailedException("Failed to set the new " + uuid + " setting " + name
-                        + " = " + settingValue);
+                setExtractorRetentionSetting(settingValue);
             }
         }
         SettingSpec spec = settingServiceBlockingStub.getSettingSpec(
@@ -399,59 +395,92 @@ public class SettingsService implements ISettingsService {
         }
     }
 
-    @Nonnull
-    private Optional<SettingApiDTO<String>> setStatsRetentionSetting(String name, final String settingValue) {
-        final SetStatsDataRetentionSettingResponse response =
-            statsServiceClient.setStatsDataRetentionSetting(
-                SetStatsDataRetentionSettingRequest.newBuilder()
-                    .setRetentionSettingName(name)
-                    // The SettingSpec uses "float" for the setting numeric value
-                    // type(NumericSettingDataType). So we are rounding to get an int
-                    .setRetentionSettingValue(Math.round(Float.parseFloat(settingValue)))
-                    .build());
-
-        return response.hasNewSetting() ?
-                settingsMapper.toSettingApiDto(response.getNewSetting()).getGlobalSetting() :
-                Optional.empty();
+    /**
+     * Logs warning if extractor is unreachable as it is possible extractor is not deployed.
+     *
+     * @param name Stats property name, e.g. numRetainedMonths.
+     * @param settingValue Stats property value, e.g 16.
+     */
+    private void setStatsRetentionSetting(String name, final String settingValue) {
+        final String message = String.format("Failed to set PERSISTENCE_MANAGER.%s setting: %s. ",
+                name, settingValue);
+        try {
+            final SetStatsDataRetentionSettingResponse response =
+                statsServiceClient.setStatsDataRetentionSetting(
+                    SetStatsDataRetentionSettingRequest.newBuilder()
+                        .setRetentionSettingName(name)
+                        // The SettingSpec uses "float" for the setting numeric value
+                        // type(NumericSettingDataType). So we are rounding to get an int
+                        .setRetentionSettingValue(Math.round(Float.parseFloat(settingValue)))
+                        .build());
+            if (!response.hasNewSetting()) {
+                logger.warn(message);
+            } else {
+                logger.info("Successfully set PERSISTENCE_MANAGER.{} setting: {}.", name,
+                        settingValue);
+            }
+        } catch (StatusRuntimeException e) {
+            logger.warn(message, e.getMessage());
+            logger.trace(message, e);
+        }
     }
 
-    @Nonnull
-    private Optional<SettingApiDTO<String>> setAuditLogSetting(final String settingValue) {
-        final SetAuditLogDataRetentionSettingResponse response =
-            statsServiceClient.setAuditLogDataRetentionSetting(
-                SetAuditLogDataRetentionSettingRequest.newBuilder()
-                    .setRetentionSettingValue(Math.round(Float.parseFloat(settingValue)))
-                    .build());
-        return response.hasNewSetting() ?
-                settingsMapper.toSettingApiDto(response.getNewSetting()).getGlobalSetting() :
-                Optional.empty();
+    /**
+     * Sets audit log retention value. Will log warning if unable to connect to extractor.
+     *
+     * @param settingValue New value to set.
+     */
+    private void setAuditLogSetting(final String settingValue) {
+        final String message = String.format("Failed to set "
+                + "PERSISTENCE_MANAGER.AuditLogRetentionDays setting: %s. ", settingValue);
+        try {
+            final SetAuditLogDataRetentionSettingResponse response = statsServiceClient.setAuditLogDataRetentionSetting(
+                    SetAuditLogDataRetentionSettingRequest.newBuilder()
+                            .setRetentionSettingValue(Math.round(Float.parseFloat(settingValue)))
+                            .build());
+            if (!response.hasNewSetting()) {
+                logger.warn(message);
+            } else {
+                logger.info("Successfully set PERSISTENCE_MANAGER.AuditLogRetentionDays setting: {}.",
+                        settingValue);
+            }
+        } catch (StatusRuntimeException e) {
+            logger.warn(message + e.getMessage());
+            logger.trace(message, e);
+        }
     }
 
     /**
      * Calls the retention service in extractor to update the retention settings value specified
-     * by user. If successful, returns the SettingApiDTO.
+     * by user. If not successful, logs a warning.
+     * We don't want to be throwing exception here as it is possible extractor is down or not
+     * deployed at all, in which case extractor (whenever it starts up) will read latest settings
+     * from group component.
      *
      * @param settingValue Numeric value of retention days.
-     * @return SettingApiDTO or empty on update error.
-     * @throws NumberFormatException Thrown when settings value could not be parsed to numeric value.
      */
-    @Nonnull
-    private Optional<SettingApiDTO<String>> setExtractorRetentionSetting(final String settingValue)
-            throws NumberFormatException {
-        final UpdateRetentionSettingResponse response = extractorSettingServiceBlockingStub
-                .updateRetentionSettings(UpdateRetentionSettingRequest.newBuilder()
-                        .setRetentionDays(new Float(settingValue).intValue()).build());
-        if (response.hasUpdateCount() && response.getUpdateCount() > 0) {
-            final Setting newSetting = Setting.newBuilder()
-                    .setSettingSpecName(GlobalSettingSpecs.EmbeddedReportingRetentionDays.getSettingName())
-                    .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(
-                            Float.parseFloat(settingValue)))
-                    .build();
-            return settingsMapper.toSettingApiDto(newSetting).getGlobalSetting();
-        }
-        return Optional.empty();
+    private void setExtractorRetentionSetting(final String settingValue) {
+        final String message = String.format("Failed to set "
+                + "PERSISTENCE_MANAGER.EmbeddedReportingRetentionDays setting: %s. ", settingValue);
+        try {
+            final UpdateRetentionSettingResponse response = extractorSettingServiceBlockingStub.updateRetentionSettings(
+                    UpdateRetentionSettingRequest.newBuilder()
+                            .setRetentionDays(new Float(settingValue).intValue())
+                            .build());
+            if (!response.hasUpdateCount() || response.getUpdateCount() == 0) {
+                logger.warn(message);
+            } else {
+                logger.info("Successfully set PERSISTENCE_MANAGER.EmbeddedReportingRetentionDays setting: {}",
+                        settingValue);
+            }
+        } catch (StatusRuntimeException e) {
+            // This can be either because extractor is down, or because extractor was never deployed.
+            // When extractor starts up later, it will automatically read the latest retention
+            // settings from group component and apply them. Here we are making a best effort to
+            // contact extractor.
+            logger.warn(message + e.getMessage());
+            logger.trace(message, e);        }
     }
-
 
     @Override
     public List<SettingsManagerApiDTO> getSettingsSpecs(final String managerUuid,

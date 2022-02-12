@@ -41,10 +41,8 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDT
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc;
 import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc.ExtractorSettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.extractor.Reporting.UpdateRetentionSettingResponse;
 import com.vmturbo.common.protobuf.extractor.ReportingMoles.ExtractorSettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -73,7 +71,6 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsServiceTest {
@@ -468,18 +465,6 @@ public class SettingsServiceTest {
                 .setNumericSettingValue(NumericSettingValue.newBuilder()
                     .setValue(Float.parseFloat(settingValue))))
                 .build());
-    }
-
-    /**
-     * Verify exception is thrown on bad retention input.
-     *
-     * @throws Exception Any uncaught exception.
-     */
-    @Test
-    public void extractorRetentionSettingUpdateOperationFailedException() throws Exception {
-        expectedException.expect(OperationFailedException.class);
-        expectedException.expectMessage("Could not update extractor retention to");
-        updateSettings("persistencemanager", "embeddedReportingRetentionDays", "bad_value");
     }
 
     /**
