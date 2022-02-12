@@ -188,6 +188,16 @@ public class EntityHashManagerTest {
     }
 
     /**
+     * Test that we skip entities that have a null OID. This prevents us from failing the entire
+     * ingestion.
+     */
+    @Test
+    public void testNullOidEntitiesAreIgnored() {
+        entityHashManager.open(getTopoInfo(1000L), dsl);
+        entityHashManager.processEntity(new Record(ENTITY_TABLE));
+    }
+
+    /**
      * Test that an attempt to open one topology when another is active fails.
      */
     @Test(expected = IllegalStateException.class)
@@ -196,6 +206,16 @@ public class EntityHashManagerTest {
         entityHashManager.open(getTopoInfo(2000), dsl);
     }
 
+    /**
+     * Test that ensureMarketClosed method resets state so that future calls to 'open' succeed.
+     */
+    @Test
+    public void testTopologyClosedAfterException() {
+        entityHashManager.open(getTopoInfo(1000), dsl);
+        // Finally block in EntityMetricWriter will call 'ensureMarketClosed' after an exception
+        entityHashManager.ensureMarkedClosed();
+        entityHashManager.open(getTopoInfo(2000), dsl);
+    }
 
     /**
      * Test that we cannot open a topology with the same timestamp as a prior one.

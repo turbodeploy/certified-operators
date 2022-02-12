@@ -18,7 +18,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
 import com.vmturbo.api.component.external.api.HeaderApiSecurityConfig;
 import com.vmturbo.api.component.external.api.SamlApiSecurityConfig;
-import com.vmturbo.api.component.external.api.logging.GlobalExceptionHandler;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
@@ -291,10 +290,5 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
                 .buildValidatorFactory()
                 .getValidator());
         return bean;
-    }
-
-    @Bean
-    public GlobalExceptionHandler globalExceptionHandler() {
-        return new GlobalExceptionHandler();
     }
 }

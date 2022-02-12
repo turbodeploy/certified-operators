@@ -193,8 +193,6 @@ actionscript:
   enabled: false
 actionstream-kafka:
   enabled: false
-aix:
-  enabled: false
 acims:
   enabled: false
 apic:

@@ -2,8 +2,14 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import javax.servlet.ServletContext;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -19,11 +25,14 @@ import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
 import com.vmturbo.api.component.communication.SamlAuthenticationProvider;
 import com.vmturbo.api.component.external.api.CustomRequestAwareAuthenticationSuccessHandler;
+import com.vmturbo.api.component.external.api.health.ApiComponentRestartHelper;
 import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
+import com.vmturbo.api.component.external.api.logging.GlobalExceptionHandler;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.mapper.TargetDetailsMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.service.util.SearchServiceFilterResolver;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
@@ -203,6 +212,10 @@ public class ServiceConfig {
 
     @Value("${apiPaginationDefaultSortCommodity:priceIndex}")
     private String apiPaginationDefaultSortCommodity;
+
+    // Default to 6 hours
+    @Value("${failureHoursBeforeRestart:6}")
+    private Long failureHoursBeforeRestart;
 
     /**
      * Allow target management in integration mode? False by default.
@@ -780,6 +793,7 @@ public class ServiceConfig {
         return new UsersService(authConfig.getAuthHost(),
             authConfig.getAuthPort(),
             authConfig.getAuthRoute(),
+            mapperConfig.uuidMapper(),
             communicationConfig.serviceRestTemplate(),
             samlRegistrationId,
             samlEnabled,
@@ -1119,5 +1133,42 @@ public class ServiceConfig {
         return new CostStatsQueryExecutor(
                 communicationConfig.costServiceBlockingStub(),
                 mapperConfig.statsMapper());
+    }
+
+    /**
+     * global exception handler.
+     *
+     * @return global exception handler object
+     */
+    @Bean
+    public GlobalExceptionHandler exceptionHandler() {
+        return new GlobalExceptionHandler();
+    }
+
+    /**
+     * API component helper class to restart a component
+     *
+     * @return API GRPC health monitor object.
+     */
+    @Bean
+    public ApiComponentRestartHelper apiGrpcHealthMonitor() {
+        final ApiComponentRestartHelper apiComponentRestartHelper = new ApiComponentRestartHelper(exceptionHandler(),
+                licenseService(), failureHoursBeforeRestart);
+        int initialDelayMinutes = 1;
+        apiComponentHealthManagerExecutor().scheduleAtFixedRate(
+                apiComponentRestartHelper::execute, initialDelayMinutes, 10, TimeUnit.MINUTES);
+        return apiComponentRestartHelper;
+    }
+
+    /**
+     * Setup and return a ScheduledExecutorService for the running of recurrent tasks.
+     *
+     * @return a new single threaded scheduled executor service with the thread factory configured.
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService apiComponentHealthManagerExecutor() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
+                "API-Component-Health-Manager").build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
     }
 }

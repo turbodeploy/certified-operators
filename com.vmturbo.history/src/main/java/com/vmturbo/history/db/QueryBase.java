@@ -46,6 +46,7 @@ public abstract class QueryBase {
 
     /**
      * Create a new instance.
+     *
      * @param dsl DB access
      */
     public QueryBase(DSLContext dsl) {
@@ -63,33 +64,41 @@ public abstract class QueryBase {
             addDefaultSelectFields();
         }
         final SelectSelectStep<Record> fieldsQuery = distinct
-                ? dsl.selectDistinct(selectFields)
-                : dsl.select(selectFields);
+                                                     ? dsl.selectDistinct(selectFields)
+                                                     : dsl.select(selectFields);
         final SelectJoinStep<Record> tablesQuery;
         if (!tables.isEmpty()) {
-            // first table is guaranteed to not include a join specification
-            fieldsQuery.from(applyHint(tables.values().iterator().next().table));
+            // add tables that don't have a join type as FROM tables
+            Table<?>[] fromTables = tables.values().stream()
+                    .filter(j -> j.joinType == null)
+                    .map(JoinSpec::getTable)
+                    .map(this::applyHint)
+                    .toArray(Table<?>[]::new);
+            fieldsQuery.from(fromTables);
             tablesQuery = (SelectJoinStep<Record>)fieldsQuery;
             // add remaining tables with join types and conditions
             tables.values().stream()
-                    .skip(1) // already handled first table
-                    .forEach(j -> tablesQuery.join(applyHint(j.getTable()), j.getJoinType()).on(j.joinConditions));
+                    .filter(j -> j.joinType != null) // already handled tables without join types
+                    .forEach(j -> tablesQuery.join(applyHint(j.getTable()), j.getJoinType())
+                            .on(j.joinConditions));
         } else {
             tablesQuery = (SelectJoinStep<Record>)fieldsQuery;
         }
         final SelectConditionStep<Record> whereQuery = tablesQuery.where(conditions);
         final SelectHavingStep<Record> groupByQuery = groupByFields.isEmpty() ? whereQuery
-                : whereQuery.groupBy(groupByFields);
+                                                                              : whereQuery.groupBy(
+                                                                                      groupByFields);
         final SelectSeekStepN<Record> orderedQuery = sortFields.isEmpty()
-                ? (SelectSeekStepN<Record>)groupByQuery
-                : groupByQuery.orderBy(sortFields);
+                                                     ? (SelectSeekStepN<Record>)groupByQuery
+                                                     : groupByQuery.orderBy(sortFields);
         return limit > 0 ? orderedQuery.limit(limit) : orderedQuery;
     }
 
     private void addDefaultSelectFields() {
         if (tables.isEmpty()) {
             // if there are no tables we require select fields
-            throw new IllegalArgumentException("Cannot build query with no select fields and no queries.");
+            throw new IllegalArgumentException(
+                    "Cannot build query with no select fields and no queries.");
         } else {
             // else default to all the fields of the first table
             addSelectFields(tables.values().iterator().next().getTable().fields());
@@ -115,7 +124,8 @@ public abstract class QueryBase {
     /**
      * Add un-aliased select fields to the query.
      *
-     * <p>Using {@link Iterator} argument type means we can cheaply use this method for both array and collection
+     * <p>Using {@link Iterator} argument type means we can cheaply use this method for both array
+     * and collection
      * based overloads.</p>
      *
      * @param selectFields {@link Field} values to be added
@@ -152,7 +162,8 @@ public abstract class QueryBase {
     protected void addTable(Table<?> table, String alias) {
         if (!tables.isEmpty()) {
             throw new IllegalArgumentException(
-                    String.format("Table %s without join type and conditions is not first added", table.getName()));
+                    String.format("Table %s without join type and conditions is not first added",
+                            table.getName()));
         }
         tables.put(alias != null ? alias : table.getName(), new JoinSpec(table, alias));
     }
@@ -165,12 +176,14 @@ public abstract class QueryBase {
      * @param joinType       join type to use for this table
      * @param joinConditions 'on' conditions for joining this table with prior tables
      */
-    protected void addTable(Table<?> table, String alias, JoinType joinType, Condition... joinConditions) {
+    protected void addTable(Table<?> table, String alias, JoinType joinType,
+            Condition... joinConditions) {
         String name = alias != null ? alias : table.getName();
-        if (tables.containsKey(alias)) {
-            throw new IllegalArgumentException(String.format("Table with name/alias %s already added", name));
+        if (tables.containsKey(name)) {
+            throw new IllegalArgumentException(
+                    String.format("Table with name/alias %s already added", name));
         }
-        tables.put(alias, new JoinSpec(table, alias, joinType, joinConditions));
+        tables.put(name, new JoinSpec(table, alias, joinType, joinConditions));
     }
 
     /**
@@ -350,7 +363,8 @@ public abstract class QueryBase {
                 case FORCE:
                     return table.forceIndex(hint.getLeft());
                 default:
-                    throw new IllegalStateException("Unknown index hint type: " + hint.getRight().name());
+                    throw new IllegalStateException(
+                            "Unknown index hint type: " + hint.getRight().name());
             }
         } else {
             return table;
@@ -376,7 +390,8 @@ public abstract class QueryBase {
         private final Condition[] joinConditions;
 
         /**
-         * Create a new join spec for the first table in the query, which does not have any join info.
+         * Create a new join spec for the first table in the query, which does not have any join
+         * info.
          *
          * @param table the table
          * @param alias an alias, or null for none

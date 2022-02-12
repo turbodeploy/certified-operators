@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.savings.ActionEvent.ActionEventType;
+import com.vmturbo.cost.component.savings.Algorithm.Delta;
 import com.vmturbo.cost.component.savings.Algorithm.SavingsInvestments;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
@@ -84,13 +84,12 @@ class SavingsCalculator {
             entityStates.put(entityOid, entityState);
         }
         entityState.setPowerFactor(algorithmState.getPowerFactor());
-        entityState.setActionList(algorithmState.getActionList());
-        entityState.setExpirationList(algorithmState.getExpirationList());
+        entityState.setDeltaList(algorithmState.getDeltaList());
         entityState.setLastExecutedAction(algorithmState.getLastExecutedAction());
         entityState.setNextExpirationTime(algorithmState.getNextExpirationTime());
         entityState.setCurrentRecommendation(algorithmState.getCurrentRecommendation());
         entityState.setDeletePending(algorithmState.getDeletePending());
-        entityState.setCommodityUsage(algorithmState.getCommodityUsage());
+        entityState.setProviderInfo(algorithmState.getProviderInfo());
         entityState.setUpdated(entitiesWithEvents.contains(entityOid));
         long periodLength = periodEndTime - periodStartTime;
         if (periodLength <= 0) {
@@ -189,11 +188,9 @@ class SavingsCalculator {
             PriorityQueue<SavingsEvent> events, long periodEndTime) {
         for (EntityState entityState : forcedEntityStates) {
             long entityId = entityState.getEntityId();
-            Iterator<Double> deltas = entityState.getActionList().iterator();
-            for (Long expirationTime : entityState.getExpirationList()) {
-                Double delta = deltas.next();
-                if (expirationTime <= periodEndTime) {
-                    events.offer(createActionExpiredEvent(entityId, expirationTime, delta));
+            for (Delta delta : entityState.getDeltaList()) {
+                if (delta.expiration <= periodEndTime) {
+                    events.offer(createActionExpiredEvent(entityId, delta));
                 }
             }
         }
@@ -209,14 +206,13 @@ class SavingsCalculator {
      * delta in the EntityPriceChange to be correct.
      *
      * @param entityId entity Id to create the event for
-     * @param expirationTime when the action expires
      * @param delta cost difference.
      * @return a SavingsEvent for the action expiration
      */
-    private SavingsEvent createActionExpiredEvent(long entityId, Long expirationTime, Double delta) {
+    private SavingsEvent createActionExpiredEvent(long entityId, Delta delta) {
         EntityPriceChange entityPriceChange = new EntityPriceChange.Builder()
                 .sourceCost(0)
-                .destinationCost(delta)
+                .destinationCost(delta.delta)
                 .sourceOid(0L)
                 .destinationOid(0L)
                 .build();
@@ -231,8 +227,8 @@ class SavingsCalculator {
                         .build())
                 .entityPriceChange(entityPriceChange)
                 .entityId(entityId)
-                .timestamp(expirationTime)
-                .expirationTime(expirationTime)
+                .timestamp(delta.expiration)
+                .expirationTime(delta.expiration)
                 .build();
         return expiration;
     }
@@ -301,7 +297,9 @@ class SavingsCalculator {
         if (event.getPoweredOn().isPresent()) {
             handleStateChange(states, timestamp, entityId, event.getPoweredOn().get());
         }
-        if (event.getProviderOid().isPresent() || !event.getCommodityUsage().isEmpty()) {
+        // TODO: Condition to handle provider change: when providerInfo in event is different from
+        // that in the state.
+        if (event.getProviderOid().isPresent()) {
             handleProviderChange(states, timestamp, entityId, event);
         }
     }
@@ -459,9 +457,11 @@ class SavingsCalculator {
         if (currentProvider == null) {
             return null;
         }
-        if (!event.getProviderOid().isPresent()) {  // BCTODO it's okay to not have a provider ID change.  Commodities might have changed.
+        // We currently only support VM provider changes, so the provider ID is required in the event.
+        if (!event.getProviderOid().isPresent()) {
             logger.warn("Dropping provider ID change for {} at {} - ID missing in topology event",
                     entityId, timestamp);
+            return null;
         }
         Long newProviderId = event.getProviderOid().get();
 
@@ -485,11 +485,9 @@ class SavingsCalculator {
                     entityId);
         } else if (lastExecutedAction.get().reverses(ActionEventType.SCALE_EXECUTION_SUCCESS, newProviderId)) {
             // This is a revert.
-            logger.info("Reverting tracking scale action from {} -> {} (commodities {} -> {}) for entity {}",
+            logger.info("Reverting tracking scale action from {} -> {} for entity {}",
                     lastExecutedAction.get().getSourceOid(),
                     lastExecutedAction.get().getDestinationOid(),
-                    lastExecutedAction.get().getCommodityUsage(),
-                    algorithmState.getCommodityUsage(),
                     entityId);
             algorithmState.endSegment(timestamp);
             algorithmState.removeLastAction();
@@ -547,11 +545,13 @@ class SavingsCalculator {
                     .build());
         }
 
-        algorithmState.addAction(currentRecommendation.getDelta(), expirationTimestamp.get());
+        algorithmState.addAction(timestamp, currentRecommendation.getDelta(),
+                expirationTimestamp.get());
         // If this action will expire in this same period, insert its expiration event now.
         return expirationTimestamp.get() < periodEndtime
-                        ? createActionExpiredEvent(entityId, expirationTimestamp.get(),
-                                                   currentRecommendation.getDelta())
+                        ? createActionExpiredEvent(entityId,
+                                new Delta(timestamp, currentRecommendation.getDelta(),
+                                        expirationTimestamp.get()))
                         : null;
     }
 }

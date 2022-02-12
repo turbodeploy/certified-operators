@@ -10,12 +10,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -237,6 +240,8 @@ public class SupplementalCoverageAnalysis {
 
     private final boolean validateCoverages;
 
+    private final boolean logCoverageEntries;
+
     /**
      * Constructor for creating an instance of {@link SupplementalCoverageAnalysis}.
      * @param allocatorFactory An instance of {@link CoverageAllocatorFactory} to create allocator
@@ -248,13 +253,16 @@ public class SupplementalCoverageAnalysis {
      *                                      allocation should be enabled
      * @param validateCoverages A boolean flag indicating whether {@link CloudCommitmentCoverageAllocator}
      *                          validation should be enabled.
+     * @param logCoverageEntries Flag indicating whether coverage entries from the coverage allocator
+     *                           should be logged.
      */
     public SupplementalCoverageAnalysis(
             @Nonnull CoverageAllocatorFactory allocatorFactory,
             @Nonnull CoverageTopology coverageTopology,
             @Nonnull List<EntityRICoverageUpload> entityRICoverageUploads,
             boolean allocatorConcurrentProcessing,
-            boolean validateCoverages) {
+            boolean validateCoverages,
+            boolean logCoverageEntries) {
 
         this.allocatorFactory = allocatorFactory;
         this.coverageTopology = Objects.requireNonNull(coverageTopology);
@@ -262,6 +270,7 @@ public class SupplementalCoverageAnalysis {
                 Objects.requireNonNull(entityRICoverageUploads));
         this.allocatorConcurrentProcessing = allocatorConcurrentProcessing;
         this.validateCoverages = validateCoverages;
+        this.logCoverageEntries = logCoverageEntries;
     }
 
 
@@ -276,6 +285,7 @@ public class SupplementalCoverageAnalysis {
     public List<EntityRICoverageUpload> createCoverageRecordsFromSupplementalAllocation() {
 
         try {
+            final Stopwatch stopwatch = Stopwatch.createStarted();
             final CloudCommitmentCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
                     CoverageAllocationConfig.builder()
                             .sourceCoverage(createSourceCoverage())
@@ -286,6 +296,13 @@ public class SupplementalCoverageAnalysis {
                             .build());
 
             final CloudCommitmentCoverageAllocation coverageAllocation = coverageAllocator.allocateCoverage();
+
+            logger.info("Supplemental analysis created {} allocations in {}",
+                    coverageAllocation.allocatorCoverageTable().size(), stopwatch);
+            if (logCoverageEntries || logger.isDebugEnabled()) {
+                logger.log(logCoverageEntries ? Level.INFO : Level.DEBUG,
+                        "Supplemental coverage entries:\n{}", Joiner.on("\n").join(coverageAllocation.coverageJournalEntries()));
+            }
 
             return ImmutableList.copyOf(createCoverageUploadsFromAllocation(coverageAllocation));
         } catch (Exception e) {

@@ -15,7 +15,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 3.0,
+            "currentRICoverage": {"coupons": 3.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -39,7 +39,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 1.0,
+            "currentRICoverage": {"coupons": 1.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -63,7 +63,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -87,7 +87,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -110,7 +110,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -137,6 +137,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 4
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -150,7 +153,9 @@
             "oid": "100001",
             "name": "template1",
             "family": "family1",
-            "coupons": 4.0,
+            "commitmentAmount": {
+                "coupons": 4
+            },
             "onDemandCosts": {},
             "discountedCosts": {}
         },
@@ -158,7 +163,9 @@
             "oid": "100002",
             "name": "template2",
             "family": "family1",
-            "coupons": 8,
+            "commitmentAmount": {
+                "coupons": 8
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -180,7 +187,9 @@
             "oid": "100003",
             "name": "template3",
             "family": "family1",
-            "coupons": 16,
+            "commitmentAmount": {
+                "coupons": 16
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -202,7 +211,9 @@
             "oid": "100004",
             "name": "template4",
             "family": "family1",
-            "coupons": 16.0,
+            "commitmentAmount": {
+                "coupons": 16.0
+            },
             "onDemandCosts": {},
             "discountedCosts": {}
         },
@@ -210,7 +221,9 @@
             "oid": "100005",
             "name": "template5",
             "family": "family1",
-            "coupons": 16.0,
+            "commitmentAmount": {
+                "coupons": 16.0
+            },
             "onDemandCosts": {},
             "discountedCosts": {}
         }

@@ -9,10 +9,12 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -48,18 +50,21 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.vmturbo.api.component.ApiTestUtils;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
-
 
 /**
  * Test delete user will also invoke expiring user's active sessions
@@ -73,7 +78,12 @@ public class UserServiceTest {
     private static final String OBSERVER = "observer";
     private static final String DEDICATED_CUSTOMER = "DedicatedCustomer";
     private static final String LDAP = "LDAP";
-
+    private static final String SHARED_ADVISOR = "SHARED_ADVISOR";
+    private static final String SHARED_OBSERVER = "SHARED_OBSERVER";
+    private static final String VALID_GROUP = "285408123157775";
+    private static final String VALID_GROUP1 = "285408123157776";
+    private static final String INVALID_UUID = "abcde";
+    private static final String VALID_ENTITY = "74272581024016";
     private final RestTemplate restTemplate = mock(RestTemplate.class);
     private final GroupsService groupsService = mock(GroupsService.class);
     private WidgetSetsService widgetSetsService = mock(WidgetSetsService.class);
@@ -85,8 +95,10 @@ public class UserServiceTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    private UuidMapper uuidMapper = mock(UuidMapper.class);
+
     @InjectMocks
-    private UsersService usersService = new UsersService("", 0, "", restTemplate, "", false,
+    private UsersService usersService = new UsersService("", 0, "", uuidMapper, restTemplate, "", false,
         groupsService, widgetSetsService, reportingUserCalculator, licenseService);
 
     private static final String AUTH_REQUEST = UriComponentsBuilder.newInstance()
@@ -298,7 +310,6 @@ public class UserServiceTest {
         usersService.getActiveDirectories();
     }
 
-
     /**
      * Test create active directory group when Auth component is down.
      *
@@ -330,12 +341,132 @@ public class UserServiceTest {
     }
 
     /**
+     * Test create active directory group with valid user input.
+     * Test succeeds if an exception is not thrown.
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testCreateActiveDirectoryGroupValidInputValidation() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateValidADInputs(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test create active directory group with empty scope list.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateActiveDirectoryGroupInputValidationEmptyScopeList() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateInvalidADInputsEmptyScopeList(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test create active directory group with empty UUID in list.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateActiveDirectoryGroupInputInvalidValidationEmptyUuids() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateInvalidADInputsEmptyUuids(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test create active directory group with one empty UUID.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateActiveDirectoryGroupInputValidationOneEmptyUuid() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateInvalidADInputsOneEmptyUuid(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test create active directory group with invalid UUID with empty string.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateActiveDirectoryGroupInputValidationEmptyStringUuid() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateInvalidADInputsEmptyStringUuid(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test create active directory group with valid UUID but UUID is a entity.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateActiveDirectoryGroupInputValidationNonEmptyEntities() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateInvalidADInputsNonEmptyEntities(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test create active directory group with invalid UUID.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateActiveDirectoryGroupInputValidationInvalidUuid() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateInvalidADInputsInvalidUUID(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
      * Test change active directory group with invalid user input.
      *
      * @throws Exception If anything goes wrong.
      */
     @Test
     public void testChangeActiveDirectoryGroupInputValidation() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
+                Matchers.eq(HttpMethod.PUT),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
+        validateADInputs(adGroupFromRequest -> usersService.changeActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test change active directory group with invalid Uuids.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testChangeActiveDirectoryGroupInputValidationInvalidUuids() throws Exception {
         logon("admin");
         Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
                 Matchers.eq(HttpMethod.PUT),
@@ -551,6 +682,7 @@ public class UserServiceTest {
     /**
      * Testing that when the api input has an empty user name, the service will
      * throw an IllegalArgumentException
+     *
      * @throws Exception when the service fails to edit the user
      */
     @Test
@@ -670,6 +802,7 @@ public class UserServiceTest {
      * This test is only very slightly different than the previous test.
      * It uses a userRole of Local instead of LOCAL.  These should be treated in
      * the same way.
+     *
      * @throws Exception when the edit of a user fails, and this is expected.
      */
     @Test(expected = IllegalArgumentException.class)
@@ -863,7 +996,6 @@ public class UserServiceTest {
         final String adGroupType = "DedicatedCustomer";
         final String adGroupRoleName = "observer";
 
-
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -943,10 +1075,176 @@ public class UserServiceTest {
             function.apply(adGroupFromRequest);
             fail("IllegalArgumentException should have thrown.");
         } catch (IllegalArgumentException e) {
-
         }
         adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
         // it should pass now.
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "entities" instead of group. E.g.:
+     *
+     * @throws IllegalArgumentException if JSON string doesn't match Java object.
+     *
+     *         Scope list is not empty, uuids are valid, but 1 or more are entities instead of
+     *         groups
+     */
+    //test
+    private void validateInvalidADInputsNonEmptyEntities(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function) {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_ADVISOR);
+        List scope = new ArrayList<>();
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO.setUuid(VALID_GROUP1);
+        groupApiDTO1.setUuid(VALID_ENTITY);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        ApiTestUtils.mockGroupId(VALID_GROUP1, uuidMapper);//is passed as string
+        ApiTestUtils.mockEntityId(VALID_ENTITY, uuidMapper);//is passed as string
+        adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "entities" instead of group. E.g.:
+     *
+     * @throws IllegalArgumentException if JSON string doesn't match Java object.
+     *
+     *         Scope list is not empty, uuids are valid, but 1 or more are entities instead of
+     *         groups
+     */
+
+    private void validateInvalidADInputsInvalidUUID(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function)
+            throws OperationFailedException {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_ADVISOR);
+        List scope = new ArrayList<>();
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setUuid(INVALID_UUID);
+        when(uuidMapper.fromUuid(INVALID_UUID)).thenThrow(IllegalArgumentException.class);
+        scope.add(groupApiDTO);
+        adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "empty List".
+     *
+     * @throws IllegalArgumentException if JSON string doesn't match Java object.
+     */
+    private void validateInvalidADInputsEmptyScopeList(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function) {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_OBSERVER);
+        List scope = new ArrayList<>();
+        adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "one empty UUID".
+     *
+     * @throws IllegalArgumentException if JSON string doesn't match Java object.
+     */
+    //check
+    private void validateInvalidADInputsOneEmptyUuid(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function) {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_ADVISOR);
+        List scope = new ArrayList<>();
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO.setUuid(VALID_GROUP1);
+        //Empty UUID
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        ApiTestUtils.mockGroupId(VALID_GROUP1, uuidMapper);
+        adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "empty uuids".
+     *
+     * @throws IllegalArgumentException if JSON string doesn't match Java object.
+     */
+    private void validateInvalidADInputsEmptyUuids(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function) {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_ADVISOR);
+        List scope = new ArrayList<>();
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "empty uuids".
+     *
+     * @throws IllegalArgumentException if JSON string doesn't match Java object.
+     */
+    private void validateInvalidADInputsEmptyStringUuid(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function) {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_ADVISOR);
+        List scope = new ArrayList<>();
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO.setUuid(VALID_GROUP1);
+        groupApiDTO1.setUuid("");
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        //check if its a valid group
+        ApiTestUtils.mockGroupId(VALID_GROUP1, uuidMapper);
+        adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "valid group uuids".
+     */
+    private void validateValidADInputs(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function)
+            throws OperationFailedException {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_ADVISOR);
+        List scope = new ArrayList<>();
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO.setUuid(VALID_GROUP);
+        groupApiDTO1.setUuid(VALID_GROUP1);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        ApiTestUtils.mockGroupId(VALID_GROUP, uuidMapper);//is passed as string
+        ApiTestUtils.mockGroupId(VALID_GROUP1, uuidMapper);//is passed as string
+        adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
         function.apply(adGroupFromRequest);
     }
 

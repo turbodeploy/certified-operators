@@ -15,7 +15,7 @@
             "osType": "WINDOWS",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -41,6 +41,9 @@
             "isf": false,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -54,7 +57,9 @@
             "oid": "100001",
             "name": "Standard_A1",
             "family": "",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "WINDOWS": {

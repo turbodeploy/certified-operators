@@ -52,6 +52,9 @@ public class PhysicalMachineInfoMapper extends TypeSpecificInfoMapper {
         if (physicalMachineData.hasMigrationLevel()) {
             physicalMachineInfoBuilder.setMigrationLevel(physicalMachineData.getMigrationLevel());
         }
+        if (physicalMachineData.hasNumCpuThreads()) {
+            physicalMachineInfoBuilder.setNumCpuThreads(physicalMachineData.getNumCpuThreads());
+        }
         physicalMachineInfoBuilder.addAllDiskGroup(physicalMachineData.getDiskGroupList());
 
         physicalMachineInfoBuilder.setDedicatedFailover(

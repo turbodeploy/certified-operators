@@ -58,13 +58,16 @@ public class SupplementalCoverageAnalysisConfig {
     @Value("${concurrentSupplementalRICoverageAllocation:true}")
     private boolean concurrentSupplementalRICoverageAllocation;
 
+    @Value("${supplementalCoverageAnalysis.logCoverageEntries:false}")
+    private boolean logCoverageEntries;
+
     /**
      * The {@link CoverageTopologyFactory}.
      * @return The {@link CoverageTopologyFactory}.
      */
     @Bean
     public CoverageTopologyFactory coverageTopologyFactory() {
-        return new CoverageTopologyFactory();
+        return new CoverageTopologyFactory(new TopologyEntityCommitmentTopologyFactory());
     }
 
     /**
@@ -152,6 +155,7 @@ public class SupplementalCoverageAnalysisConfig {
                 reservedInstanceSpecStore,
                 cloudCommitmentAggregatorFactory(),
                 supplementalRICoverageValidation,
-                concurrentSupplementalRICoverageAllocation);
+                concurrentSupplementalRICoverageAllocation,
+                logCoverageEntries);
     }
 }

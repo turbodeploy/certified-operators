@@ -608,7 +608,7 @@ message Reconfigure {
     // If it is a reconfigure to add commodity or remove.
     optional bool is_addition = 5;
 
-    optional SettingChange setting_change = 6;
+    repeated SettingChange setting_change = 6;
 
     message SettingChange {
         required float current_value = 1;

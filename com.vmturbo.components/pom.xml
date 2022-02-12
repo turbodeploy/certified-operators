@@ -40,7 +40,7 @@
         <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
         <it.fabric8.kill>30000</it.fabric8.kill>
         <it.fabric8.wait>600000</it.fabric8.wait>
-        <it.suite.name>${artifactId}</it.suite.name>
+        <it.suite.name>${project.artifactId}</it.suite.name>
         <it.test.directory>/usr/src/project/it</it.test.directory>
         <it.test.version>8.4.3</it.test.version>
         <it.docker.dir>/usr/src/project/it/docker</it.docker.dir>

@@ -57,7 +57,9 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceRollupProcessor;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtilizationStore;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsTopologyMonitor;
@@ -405,5 +407,39 @@ public class TopologyListenerConfig {
     public EntitySavingsTopologyMonitor entitySavingsTopologyMonitor() {
         return new EntitySavingsTopologyMonitor(entitySavingsConfig.topologyEventsMonitor(),
                 entitySavingsConfig.entityStateStore(), entitySavingsConfig.entityEventsJournal());
+    }
+
+    /**
+     * Get instance of rollup processor.
+     *
+     * @return Rollup processor.
+     */
+    @Bean
+    @Conditional(DbEndpointCondition.class)
+    public ReservedInstanceRollupProcessor reservedInstanceRollupProcessor() {
+        ReservedInstanceRollupProcessor reservedInstanceRollupProcessor = new ReservedInstanceRollupProcessor(
+            reservedInstanceConfig.reservedInstanceUtilizationStore(),
+            reservedInstanceConfig.reservedInstanceCoverageStore(),
+            rollupConfig.reservedInstanceUtilizationRollupTimesStore(),
+            rollupConfig.reservedInstanceCoverageRollupTimesStore(),
+            ingestedTopologyStore(), costComponentGlobalConfig.clock());
+        rIUtilizationScheduledExecutor().scheduleAtFixedRate(
+            reservedInstanceRollupProcessor::execute, 0, 60, TimeUnit.MINUTES);
+        final SimpleDateFormat sdf3 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        logger.info("ReservedInstanceRollupProcessor is enabled, will run at hour+{} min.",
+            sdf3.format(new Timestamp(System.currentTimeMillis())));
+        return reservedInstanceRollupProcessor;
+    }
+
+    /**
+     * Setup and return a ScheduledExecutorService for the running of recurrent tasks.
+     *
+     * @return a new single threaded scheduled executor service with the thread factory configured.
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService rIUtilizationScheduledExecutor() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
+            "Ri-Coverage-Utilization-Rollup").build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
     }
 }

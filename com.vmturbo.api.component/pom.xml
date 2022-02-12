@@ -122,27 +122,6 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy swagger file for tests</id>
-                        <phase>process-test-resources</phase>
-                        <goals>
-                            <goal>testResources</goal>
-                        </goals>
-                        <configuration>
-                            <resources>
-                                <resource>
-                                    <directory>${swagger.conf.directory}</directory>
-                                    <includes>external/*</includes>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
@@ -160,6 +139,54 @@
                                     <version>${ux.mt.branch.version}</version>
                                     <type>zip</type>
                                     <destFileName>com.vmturbo.UX.zip</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>get-swagger-resources</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.api</artifactId>
+                                    <!-- note: Swagger resources (external API swagger.json and swagger.yaml are built in
+                                         the API project repository. We pull a .jar file containing those resources and
+                                          unpack them for use and inclusion in our docker container here. However, we do
+                                          still codgen the internal component swagger.json and swagger.yaml directly in
+                                          this project.-->
+                                    <version>${com.vmturbo.api.version}</version>
+                                    <classifier>swagger</classifier>
+                                    <type>jar</type>
+                                    <destFileName>swagger-resources.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>unpack-apidoc</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.api</artifactId>
+                                    <version>${com.vmturbo.api.version}</version>
+                                    <type>jar</type>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <includes>apidoc/**/*</includes>
+                                    <!-- remove unused files to reduce api container image layers
+                                     to below 40 -->
+                                    <excludes>**/swagger.*, apidoc/swagger-ui-standalone-preset.*,
+                                        apidoc/oauth2-redirect*, apidoc/index.html.gz
+                                    </excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
@@ -187,42 +214,6 @@
                             </target>
                         </configuration>
                     </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>get-swagger-resources</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.api</artifactId>
-                                    <!-- note: Swagger resources (external API swagger.json and swagger.yaml are built in
-                                         the API project repository. We pull a .jar file containing those resources and
-                                          unpack them for use and inclusion in our docker container here. However, we do
-                                          still codgen the internal component swagger.json and swagger.yaml directly in
-                                          this project.-->
-                                    <version>${com.vmturbo.api.version}</version>
-                                    <classifier>swagger</classifier>
-                                    <type>jar</type>
-                                    <destFileName>swagger-resources.jar</destFileName>
-                                </artifactItem>
-                            </artifactItems>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <executions>
                     <execution>
                         <id>unpack-swagger</id>
                         <phase>process-resources</phase>
@@ -250,36 +241,6 @@
                                 </move>
                                 <delete dir="${swagger.tmp.dir}"/>
                             </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>unpack-apidoc</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>unpack</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.api</artifactId>
-                                    <version>${com.vmturbo.api.version}</version>
-                                    <type>jar</type>
-                                    <outputDirectory>${project.build.directory}</outputDirectory>
-                                    <includes>apidoc/**/*</includes>
-                                    <!-- remove unused files to reduce api container image layers
-                                     to below 40 -->
-                                    <excludes>**/swagger.*, apidoc/swagger-ui-standalone-preset.*,
-                                        apidoc/oauth2-redirect*, apidoc/index.html.gz
-                                    </excludes>
-                                </artifactItem>
-                            </artifactItems>
                         </configuration>
                     </execution>
                 </executions>
@@ -350,6 +311,23 @@
                         <nonFilteredFileExtension>jks</nonFilteredFileExtension>
                     </nonFilteredFileExtensions>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>copy swagger file for tests</id>
+                        <phase>process-test-resources</phase>
+                        <goals>
+                            <goal>testResources</goal>
+                        </goals>
+                        <configuration>
+                            <resources>
+                                <resource>
+                                    <directory>${swagger.conf.directory}</directory>
+                                    <includes>external/*</includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

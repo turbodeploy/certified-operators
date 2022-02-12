@@ -1,0 +1,9 @@
+DROP PROCEDURE IF EXISTS aggregate_ric_topology;
+DROP PROCEDURE IF EXISTS aggregate_reserved_instance_coverage;
+DROP PROCEDURE IF EXISTS aggregate_ric_table;
+DROP PROCEDURE IF EXISTS aggregate_riu_table;
+DROP EVENT IF EXISTS aggregate_ri;
+DROP EVENT IF EXISTS aggregate_entity_cost_event;
+DROP PROCEDURE IF EXISTS aggregate_entity_cost;
+DROP PROCEDURE IF EXISTS aggregate_entity_cost_table;
+DROP PROCEDURE IF EXISTS aggregate_entity_cost_topology;

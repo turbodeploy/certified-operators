@@ -16,11 +16,13 @@ import com.google.common.base.Strings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -95,7 +97,7 @@ public class ActionLogger {
     private long sourceReservedInstanceKey;
     private long sourceReservedInstanceId;
     private String sourceReservedInstanceTemplateName;
-    private float sourceReservedInstanceCouponsApplied;
+    private CloudCommitmentAmount sourceReservedInstanceCouponsApplied;
     private String projectedTemplateName;
     private String projectedFamilyName;
     private float projectedTemplateCoupons;
@@ -103,7 +105,7 @@ public class ActionLogger {
     private long projectedReservedInstanceKey;
     private long projectedReservedInstanceId;
     private String projectedReservedInstanceTemplateName;
-    private float projectedReservedInstanceCouponsApplied;
+    private CloudCommitmentAmount projectedReservedInstanceCouponsApplied;
     private int templateChange;
     private int familyChange;
 
@@ -229,7 +231,7 @@ public class ActionLogger {
         SMATemplate naturalTemplate = vm.getNaturalTemplate();
         if (naturalTemplate != null) {
             naturalTemplateName = naturalTemplate.getName();
-            naturalTemplateCoupons = naturalTemplate.getCoupons();
+            naturalTemplateCoupons = (float)naturalTemplate.getCommitmentAmount().getCoupons();
         }
         if (vm.getCurrentRI() != null && vm.getCurrentRI().getOid() != SMAUtils.UNKNOWN_OID) {
             SMAReservedInstance ri = vm.getCurrentRI();
@@ -252,12 +254,12 @@ public class ActionLogger {
         SMATemplate sourceTemplate = vm.getCurrentTemplate();
         sourceTemplateName = sourceTemplate.getName();
         sourceFamilyName = sourceTemplate.getFamily();
-        sourceTemplateCoupons = sourceTemplate.getCoupons();
+        sourceTemplateCoupons = (float)sourceTemplate.getCommitmentAmount().getCoupons();
 
         SMATemplate projectedTemplate = match.getTemplate();
         projectedTemplateName = projectedTemplate.getName();
         projectedFamilyName = projectedTemplate.getFamily();
-        projectedTemplateCoupons = projectedTemplate.getCoupons();
+        projectedTemplateCoupons = (float)projectedTemplate.getCommitmentAmount().getCoupons();
 
         SMAReservedInstance ri = match.getReservedInstance();
         if (ri != null) {
@@ -265,15 +267,11 @@ public class ActionLogger {
         }
 
         float sourceCost = cloudCostCalculator.getNetCost(vm,sourceTemplate,
-            (sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
-                : sourceReservedInstanceCouponsApplied),
-                (sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? -1l
-                        : sourceReservedInstanceId));
+            sourceReservedInstanceCouponsApplied,
+                sourceReservedInstanceId);
         float projectedCost = cloudCostCalculator.getNetCost(vm,projectedTemplate,
-            (projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
-                : projectedReservedInstanceCouponsApplied),
-                (projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? -1l
-                : projectedReservedInstanceId));
+            projectedReservedInstanceCouponsApplied,
+                projectedReservedInstanceId);
         savingsPerHour = SMAUtils.format4Digits(sourceCost - projectedCost);
 
         setChange();
@@ -325,13 +323,13 @@ public class ActionLogger {
             .append(sourceReservedInstanceName).append(",")
             .append(sourceReservedInstanceKey == LONG_UNKNOWN ? "-" : sourceReservedInstanceKey).append(",")
             .append(sourceReservedInstanceTemplateName).append(",")
-            .append(sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? "-" : sourceReservedInstanceCouponsApplied).append(",")
+            .append(sourceReservedInstanceKey == LONG_UNKNOWN ? "-" : sourceReservedInstanceCouponsApplied.getCoupons()).append(",")
             .append(projectedTemplateName).append(",")
             .append(projectedTemplateCoupons).append(",")
             .append(projectedReservedInstanceName).append(",")
             .append(projectedReservedInstanceKey == LONG_UNKNOWN ? "-" : projectedReservedInstanceKey).append(",")
             .append(projectedReservedInstanceTemplateName).append(",")
-            .append(projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? "-" : projectedReservedInstanceCouponsApplied).append(",")
+            .append(projectedReservedInstanceKey == LONG_UNKNOWN ? "-" : projectedReservedInstanceCouponsApplied.getCoupons()).append(",")
             .append(templateChange).append(",")
             .append(familyChange);
         return buffer.toString();
@@ -487,11 +485,11 @@ public class ActionLogger {
             if (isSource) {
                 sourceReservedInstanceName = reservedInstanceName;
                 sourceReservedInstanceTemplateName = templateName;
-                sourceReservedInstanceCouponsApplied = couponsApplied;
+                sourceReservedInstanceCouponsApplied = CloudCommitmentAmount.newBuilder().setCoupons(couponsApplied).build();
             } else {
                 projectedReservedInstanceName = reservedInstanceName;
                 projectedReservedInstanceTemplateName = templateName;
-                projectedReservedInstanceCouponsApplied = couponsApplied;
+                projectedReservedInstanceCouponsApplied = CloudCommitmentAmount.newBuilder().setCoupons(couponsApplied).build();
             }
         }
     }
@@ -609,11 +607,11 @@ public class ActionLogger {
         sourceReservedInstanceKey = LONG_UNKNOWN;
         sourceReservedInstanceId = LONG_UNKNOWN;
         sourceReservedInstanceTemplateName = STRING_UNKNOWN;
-        sourceReservedInstanceCouponsApplied = FLOAT_UNKNOWN;
+        sourceReservedInstanceCouponsApplied = CommitmentAmountCalculator.ZERO_COVERAGE;
         projectedReservedInstanceName = STRING_UNKNOWN;
         projectedReservedInstanceKey = LONG_UNKNOWN;
         projectedReservedInstanceTemplateName = STRING_UNKNOWN;
-        projectedReservedInstanceCouponsApplied = FLOAT_UNKNOWN;
+        projectedReservedInstanceCouponsApplied = CommitmentAmountCalculator.ZERO_COVERAGE;
         virtualMachineName = STRING_UNKNOWN;
         virtualMachineOid = LONG_UNKNOWN;
         templateChange = 0;

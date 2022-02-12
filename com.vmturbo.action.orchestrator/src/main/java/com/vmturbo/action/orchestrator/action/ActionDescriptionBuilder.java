@@ -8,6 +8,7 @@ import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_A
 
 import java.text.MessageFormat;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +93,7 @@ public class ActionDescriptionBuilder {
     // Cloud native entities with CPU values in millicores.
     private static final Set<Integer> CLOUD_NATIVE_ENTITIES = ImmutableSet.of(EntityType.CONTAINER_VALUE,
         EntityType.CONTAINER_SPEC_VALUE, EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE);
+    private static final String COMMA_SPACE = ", ";
 
     // Static patterns used for dynamically-constructed message contents.
     //
@@ -127,7 +129,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES("Reconfigure {0} to provide {1} from {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
-        ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} for {1} from {2} to {3}"),
+        ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} changing {1}"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE("Scale {0} {1} for {2} from {3} to {4}"),
@@ -139,7 +141,9 @@ public class ActionDescriptionBuilder {
         VCPU_CORES(String.format("{0,number,integer} %s", CommodityTypeMapping.CPU_CORE)),
         STORAGE_ACCESS_IOPS("{0,number,integer} IOPS"),
         IO_THROUGHPUT_MBPS("{0,number,integer} MB/s"),
-        SIMPLE("{0, number, integer}");
+        SIMPLE("{0, number, integer}"),
+        ACTION_DESCRIPTION_ACCOUNT_NAME(" in {0}");
+
 
         private final ThreadLocal<MessageFormat> messageFormat;
 
@@ -252,10 +256,9 @@ public class ActionDescriptionBuilder {
                     .collect(Collectors.toList());
 
         ActionMessageFormat messageFormat = ActionMessageFormat.ACTION_DESCRIPTION_ATOMIC_RESIZE;
-        return messageFormat.format(
-                String.join(",", formattedCommodityTypes),
-                beautifyEntityTypeAndName(targetEntity)
-        );
+        return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                messageFormat.format(String.join(",", formattedCommodityTypes),
+                        beautifyEntityTypeAndName(targetEntity)));
     }
 
     /**
@@ -281,9 +284,10 @@ public class ActionDescriptionBuilder {
                 .forNumber(resize.getCommodityType().getType());
         // Construct the description based on the attribute type
         if (resize.getCommodityAttribute() == CommodityAttribute.LIMIT) {
-            return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT.format(
-                beautifyCommodityType(resize.getCommodityType()),
-                beautifyEntityTypeAndName(entity));
+            return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                    ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT.format(
+                            beautifyCommodityType(resize.getCommodityType()),
+                            beautifyEntityTypeAndName(entity)));
         }
 
         String commodity = beautifyCommodityType(resize.getCommodityType());
@@ -293,16 +297,15 @@ public class ActionDescriptionBuilder {
             if (resize.hasOldCpsr()
                             && resize.hasNewCpsr()
                             && resize.getOldCpsr() != resize.getNewCpsr()) {
-                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_VCPU_CPS.format(
+                return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                        ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_VCPU_CPS.format(
                                 resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
                                 commodity, beautifyEntityTypeAndName(entity),
                                 formatResizeActionCommodityValue(commodityType,
-                                                entity.getEntityType(), resize.getOldCapacity(),
-                                                false),
+                                        entity.getEntityType(), resize.getOldCapacity(), false),
                                 formatResizeActionCommodityValue(commodityType,
-                                                entity.getEntityType(), resize.getNewCapacity(),
-                                                true), resize.getOldCpsr(),
-                                resize.getNewCpsr());
+                                        entity.getEntityType(), resize.getNewCapacity(), true),
+                                resize.getOldCpsr(), resize.getNewCpsr()));
             }
             Double cpuReservation = vmInfo.getReservationInfoMap().get(CommodityType.CPU_VALUE);
             if (cpuReservation != null
@@ -325,14 +328,13 @@ public class ActionDescriptionBuilder {
             commodity += getPartition(entity, resize);
         }
 
-        return messageFormat.format(
-            resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
-            commodity,
-            beautifyEntityTypeAndName(entity),
-            formatResizeActionCommodityValue(
-                commodityType, entity.getEntityType(), resize.getOldCapacity(), false),
-            formatResizeActionCommodityValue(
-                commodityType, entity.getEntityType(), resize.getNewCapacity(), true));
+        return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                messageFormat.format(resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
+                        commodity, beautifyEntityTypeAndName(entity),
+                        formatResizeActionCommodityValue(commodityType, entity.getEntityType(),
+                                resize.getOldCapacity(), false),
+                        formatResizeActionCommodityValue(commodityType, entity.getEntityType(),
+                                resize.getNewCapacity(), true)));
     }
 
     @Nonnull
@@ -400,40 +402,54 @@ public class ActionDescriptionBuilder {
             }
             Explanation explanation = recommendation.getExplanation();
             if (!explanation.getReconfigure().getReasonSettingsList().isEmpty()) {
-                return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS.format(
-                    beautifyEntityTypeAndName(targetEntityDTO.get()));
+                return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                        ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS.format(
+                                beautifyEntityTypeAndName(targetEntityDTO.get())));
             } else {
                 if (currentEntityDTO.isPresent() && reconfigure.getIsProvider()) {
-                    return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES.format(
-                            beautifyEntityTypeAndName(targetEntityDTO.get()),
-                            beautifyCommodityTypes(explanation.getReconfigure()
-                                    .getReconfigureCommodityList().stream()
-                                    .map(ReasonCommodity::getCommodityType)
-                                    .collect(Collectors.toList())),
-                            beautifyEntityTypeAndName(currentEntityDTO.get()));
+                    return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                            ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES.format(
+                                    beautifyEntityTypeAndName(targetEntityDTO.get()),
+                                    beautifyCommodityTypes(explanation.getReconfigure()
+                                            .getReconfigureCommodityList()
+                                            .stream()
+                                            .map(ReasonCommodity::getCommodityType)
+                                            .collect(Collectors.toList())),
+                                    beautifyEntityTypeAndName(currentEntityDTO.get())));
                 }
-                return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(
-                    beautifyEntityTypeAndName(targetEntityDTO.get()),
-                    ((reconfigure.getIsProvider() && !reconfigure.getIsAddition())
-                        ? "remove" : "provide"),
-                    beautifyCommodityTypes(explanation.getReconfigure()
-                        .getReconfigureCommodityList().stream()
-                        .map(ReasonCommodity::getCommodityType)
-                        .collect(Collectors.toList())));
+                return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                        ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(
+                                beautifyEntityTypeAndName(targetEntityDTO.get()),
+                                ((reconfigure.getIsProvider() && !reconfigure.getIsAddition())
+                                        ? "remove" : "provide"), beautifyCommodityTypes(
+                                        explanation.getReconfigure()
+                                                .getReconfigureCommodityList()
+                                                .stream()
+                                                .map(ReasonCommodity::getCommodityType)
+                                                .collect(Collectors.toList()))));
             }
-        } else if (reconfigure.hasSettingChange()) {
-            SettingChange change = reconfigure.getSettingChange();
-            String settingChange = StringUtils.capitalize(change.getEntityAttribute().name()
-                    .replace("_", " ").toLowerCase());
-            return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
-                    settingChange,
-                    beautifyEntityTypeAndName(targetEntityDTO.get()),
-                    change.getCurrentValue(),
-                    change.getNewValue());
+        } else if (reconfigure.getSettingChangeCount() > 0) {
+            final StringBuilder changesBuilder = new StringBuilder();
+            final Iterator<SettingChange> it = reconfigure.getSettingChangeList().iterator();
+            while (it.hasNext()) {
+                final SettingChange change = it.next();
+                final String attributeName =
+                                change.getEntityAttribute().name().replace("_", " ").toLowerCase();
+                changesBuilder.append(MessageFormat.format("{0} from {1} to {2}", attributeName,
+                                change.getCurrentValue(), change.getNewValue()));
+                if (it.hasNext()) {
+                    changesBuilder.append(COMMA_SPACE);
+                }
+            }
+            return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                    ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
+                            beautifyEntityTypeAndName(targetEntityDTO.get()),
+                            changesBuilder.toString()));
 
         } else {
-            return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE.format(
-                beautifyEntityTypeAndName(targetEntityDTO.get()));
+            return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                    ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE.format(
+                            beautifyEntityTypeAndName(targetEntityDTO.get())));
         }
     }
 
@@ -533,11 +549,11 @@ public class ActionDescriptionBuilder {
         ActionPartialEntity targetEntityDTO = optTargetEntity.get();
 
         ActionPartialEntity newEntityDTO = optDestinationEntity.get();
-
         if (!hasSource) {
-            return ActionMessageFormat.ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE.format(
-                    beautifyEntityTypeAndName(targetEntityDTO),
-                    beautifyEntityTypeAndName(newEntityDTO));
+            return getDescriptionWithAccountName(entitiesSnapshot, targetEntityId,
+                    ActionMessageFormat.ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE.format(
+                            beautifyEntityTypeAndName(targetEntityDTO),
+                            beautifyEntityTypeAndName(newEntityDTO)));
         } else {
             long sourceEntityId = primaryChange.getSource().getId();
             final Optional<ActionPartialEntity> optSourceEntity =
@@ -580,7 +596,7 @@ public class ActionDescriptionBuilder {
                                 .map(ActionDTOUtil::beautifyEntityTypeAndName)
                                 .collect(Collectors.toList());
                 if (!resources.isEmpty()) {
-                    resource = resources.stream().sorted().collect(Collectors.joining(", ")) + OF;
+                    resource = resources.stream().sorted().collect(Collectors.joining(COMMA_SPACE)) + OF;
                 }
             }
             String actionMessage = ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,
@@ -595,7 +611,9 @@ public class ActionDescriptionBuilder {
                 additionalActionDescription = Optional.empty();
             }
             // add additionalActionDescription to actionMessage if not empty.
-            return additionalActionDescription.map(actionMessage::concat).orElse(actionMessage);
+            return getDescriptionWithAccountName(entitiesSnapshot, targetEntityId,
+                    additionalActionDescription.map(actionMessage::concat).orElse(actionMessage));
+
         }
     }
 
@@ -626,7 +644,7 @@ public class ActionDescriptionBuilder {
             @Nonnull ActionPartialEntity targetEntityDTO,
             @Nonnull ActionPartialEntity newEntityDTO) {
         final StringBuilder commodityMessageBuilder = new StringBuilder();
-        final String messageSeparator = ", ";
+        final String messageSeparator = COMMA_SPACE;
         resizeInfoList.forEach(resizeInfo -> {
             final CommodityType resizeInfoCommodityType = CommodityType
                     .forNumber(resizeInfo.getCommodityType().getType());
@@ -698,7 +716,8 @@ public class ActionDescriptionBuilder {
 
         // Scaling more than one commodity
         description.append(getAdditionalResizeCommodityMessage(resizeInfos, optTargetEntity, optTargetEntity));
-        return description.toString();
+        return getDescriptionWithAccountName(entitiesSnapshot, targetEntityId,
+                description.toString());
     }
 
     /**
@@ -833,23 +852,31 @@ public class ActionDescriptionBuilder {
             ActionMessageFormat messageFormat = hasLicense(explanation.getReconfigCommTypesList())
                 ? ActionMessageFormat.ACTION_DESCRIPTION_LICENSED_PROVISION_BY_SUPPLY
                 : ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_SUPPLY;
-            return messageFormat.format(provisionedEntity, getProvisionedForVSANSuffix(
-                    entityDTO, explanation.getProvisionBySupplyExplanation(), entitiesSnapshot));
+            return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                    messageFormat.format(provisionedEntity, getProvisionedForVSANSuffix(entityDTO,
+                            explanation.getProvisionBySupplyExplanation(), entitiesSnapshot)));
         } else {
             final ProvisionByDemandExplanation provisionByDemandExplanation =
                 explanation.getProvisionByDemandExplanation();
             ActionMessageFormat messageFormat = hasLicense(explanation.getReconfigCommTypesList())
                     ? ActionMessageFormat.ACTION_DESCRIPTION_LICENSED_PROVISION_BY_DEMAND
                     : ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_DEMAND;
-            return messageFormat.format(StringUtil.beautifyString(EntityType.forNumber(
-                entityDTO.getEntityType()).name()), entityDTO.getDisplayName(),
-                // Beautify all reason commodities.
-                beautifyCommodityTypes(provisionByDemandExplanation.getCommodityNewCapacityEntryList()
-                    .stream().map(CommodityNewCapacityEntry::getCommodityBaseType)
-                    .map(baseType -> TopologyDTO.CommodityType.newBuilder().setType(baseType).build())
-                    .collect(Collectors.toList())),
-                entitiesSnapshot.getEntityFromOid(provisionByDemandExplanation.getBuyerId())
-                    .map(ActionPartialEntity::getDisplayName).orElse("high demand"));
+            return getDescriptionWithAccountName(entitiesSnapshot, entityId, messageFormat.format(
+                    StringUtil.beautifyString(
+                            EntityType.forNumber(entityDTO.getEntityType()).name()),
+                    entityDTO.getDisplayName(),
+                    // Beautify all reason commodities.
+                    beautifyCommodityTypes(
+                            provisionByDemandExplanation.getCommodityNewCapacityEntryList()
+                                    .stream()
+                                    .map(CommodityNewCapacityEntry::getCommodityBaseType)
+                                    .map(baseType -> TopologyDTO.CommodityType.newBuilder()
+                                            .setType(baseType)
+                                            .build())
+                                    .collect(Collectors.toList())),
+                    entitiesSnapshot.getEntityFromOid(provisionByDemandExplanation.getBuyerId())
+                            .map(ActionPartialEntity::getDisplayName)
+                            .orElse("high demand")));
         }
     }
 
@@ -980,8 +1007,9 @@ public class ActionDescriptionBuilder {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getActivateActionDescription", "entityId", entityId);
             return "";
         }
-        return ActionMessageFormat.ACTION_DESCRIPTION_ACTIVATE.format(
-            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(entityId).get()));
+        return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                ActionMessageFormat.ACTION_DESCRIPTION_ACTIVATE.format(beautifyEntityTypeAndName(
+                        entitiesSnapshot.getEntityFromOid(entityId).get())));
     }
 
     /**
@@ -1003,8 +1031,10 @@ public class ActionDescriptionBuilder {
         ActionMessageFormat messageFormat = hasLicense(explanation.getReconfigCommTypesList())
             ? ActionMessageFormat.ACTION_DESCRIPTION_LICENSED_DEACTIVATE
             : ActionMessageFormat.ACTION_DESCRIPTION_DEACTIVATE;
-        return messageFormat.format(StringUtil.beautifyString(ActionDTO.ActionType.SUSPEND.name()),
-            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(entityId).get()));
+        return getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                messageFormat.format(StringUtil.beautifyString(ActionDTO.ActionType.SUSPEND.name()),
+                        beautifyEntityTypeAndName(
+                                entitiesSnapshot.getEntityFromOid(entityId).get())));
     }
 
     /**
@@ -1050,4 +1080,26 @@ public class ActionDescriptionBuilder {
             .anyMatch(type -> type == CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE);
     }
 
+    /**
+     * Returns description with account name for the action.
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains
+     *         entities
+     *         information.
+     * @param targetId the target entity id.
+     * @param description action description without account name.
+     * @return The action description with account name.
+     */
+    private static String getDescriptionWithAccountName(final EntitiesAndSettingsSnapshot entitiesSnapshot,
+            final Long targetId, String description) {
+        final Optional<EntityWithConnections> businessAccount = entitiesSnapshot.getOwnerAccountOfEntity(
+                targetId);
+        if (businessAccount.isPresent() && !Strings.isNullOrEmpty(businessAccount.get().getDisplayName())) {
+            return description.concat(ActionMessageFormat.ACTION_DESCRIPTION_ACCOUNT_NAME.format(
+                    businessAccount.get().getDisplayName()));
+        } else {
+            logger.debug("Cannot find Business Account for target Id. ID - {})", targetId);
+            return description;
+        }
+    }
 }

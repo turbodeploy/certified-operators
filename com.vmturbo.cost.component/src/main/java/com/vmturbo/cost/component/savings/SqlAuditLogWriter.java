@@ -267,14 +267,6 @@ public class SqlAuditLogWriter implements AuditLogWriter {
                 this.eventType += EventType.PROVIDER_CHANGE.getValue();
                 jsonData.put("do", topologyEvent.getProviderOid().get());
             }
-            if (!topologyEvent.getCommodityUsage().isEmpty()) {
-                this.eventType += EventType.COMMODITY_USAGE.getValue();
-                StringBuilder sb = new StringBuilder();
-                topologyEvent.getCommodityUsage().forEach((commodity, amount) ->
-                        sb.append(String.format(" %d:%f", commodity, amount)));
-                sb.append("}");
-                jsonData.put("cu", sb.toString());
-            }
         }
 
         /**

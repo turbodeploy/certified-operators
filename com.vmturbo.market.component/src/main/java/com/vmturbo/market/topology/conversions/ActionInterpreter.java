@@ -34,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.api.enums.DatabasePricingModel;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -66,7 +67,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
@@ -198,6 +202,8 @@ public class ActionInterpreter {
                     action = createAction(actionTO);
                     final ActionType translatedActionType = findTranslatedActionType(actionTO, originalCloudTopology);
                     if (translatedActionType == ActionType.SCALE) {
+                        // TODO: Remove setVCoreDbSupportingLevel when OM-79522 is implemented
+                        setVCoreDbSupportingLevel(actionTO, action, projectedTopology);
                         action.getInfoBuilder().setScale(interpretScaleAction(actionTO.getMove(),
                                 projectedTopology, originalCloudTopology));
                         actionList.add(ActionData.of(actionTO, action));
@@ -310,6 +316,27 @@ public class ActionInterpreter {
             }
 
             return Collections.EMPTY_LIST;
+        }
+    }
+
+    private void setVCoreDbSupportingLevel(
+            ActionTO actionTO,
+            Action.Builder action,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        final ShoppingListInfo shoppingListInfo = getShoppingListInfo(actionTO.getMove());
+        final long targetEntityId = shoppingListInfo.getCollapsedBuyerId().orElse(shoppingListInfo.getBuyerId());
+        final ProjectedTopologyEntity projectedTopologyEntity = projectedTopology.get(targetEntityId);
+        if (Objects.isNull(projectedTopologyEntity)) {
+            return;
+        }
+        final TopologyEntityDTO projectedEntity = projectedTopologyEntity.getEntity();
+        if (EntityType.DATABASE_VALUE == projectedEntity.getEntityType()) {
+            String pricingModel = projectedEntity.getEntityPropertyMapOrDefault(StringConstants.DB_PRICING_MODEL, null);
+            if (pricingModel != null && DatabasePricingModel.vCore.toString().equals(pricingModel)) {
+                logger.debug("setSupportingLevel == SHOW_ONLY, executable == false on db: {} to ", projectedEntity.getDisplayName());
+                action.setSupportingLevel(Action.SupportLevel.SHOW_ONLY);
+                action.setExecutable(false);
+            }
         }
     }
 
@@ -635,6 +662,16 @@ public class ActionInterpreter {
         }
     }
 
+    private ShoppingListInfo getShoppingListInfo(@Nonnull final MoveTO moveTO) {
+        final ShoppingListInfo shoppingListInfo =
+                shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
+        if (shoppingListInfo == null) {
+            throw new IllegalStateException(
+                    "Market returned invalid shopping list for MOVE: " + moveTO);
+        }
+        return shoppingListInfo;
+    }
+
     /**
      * Convert the {@link MoveTO} received from M2 into a {@link ActionDTO.Scale} action -
      * Create an action entity and set it as the target for the Scale.
@@ -649,12 +686,7 @@ public class ActionInterpreter {
     public ActionDTO.Scale interpretScaleAction(@Nonnull final MoveTO moveTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
-        final ShoppingListInfo shoppingListInfo =
-                shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-        if (shoppingListInfo == null) {
-            throw new IllegalStateException(
-                    "Market returned invalid shopping list for MOVE: " + moveTO);
-        }
+        final ShoppingListInfo shoppingListInfo = getShoppingListInfo(moveTO);
         // Set action target entity.
         final ActionEntity actionTargetEntity = createActionTargetEntity(shoppingListInfo, projectedTopology);
         ActionDTO.Scale.Builder builder = ActionDTO.Scale.newBuilder().setTarget(actionTargetEntity);
@@ -1611,5 +1643,29 @@ public class ActionInterpreter {
         } else {
             return Lists.newArrayList();
         }
+    }
+
+    /**
+     * Given a VM and topology, return the CPU threads of its projected host.
+     * @param topology topologies
+     * @param entity the entity resides on PM
+     * @return The CPU threads of PM that hosts the entity, if present
+     */
+     public static Optional<Integer> getCPUThreadsFromPM(@Nonnull final Map<Long, ProjectedTopologyEntity> topology,
+            TopologyEntityDTO entity) {
+        Optional<Integer> cpuThreadsOfHost = entity.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(comm -> comm.hasProviderEntityType()
+                        && comm.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .map(comm -> topology.get(comm.getProviderId()))
+                .filter(Objects::nonNull)
+                .map(ProjectedTopologyEntity::getEntity)
+                .filter(TopologyEntityDTO::hasTypeSpecificInfo)
+                .map(TopologyEntityDTO::getTypeSpecificInfo)
+                .filter(TypeSpecificInfo::hasPhysicalMachine)
+                .map(TypeSpecificInfo::getPhysicalMachine)
+                .filter(PhysicalMachineInfo::hasNumCpuThreads)
+                .map(PhysicalMachineInfo::getNumCpuThreads)
+                .findFirst();
+        return cpuThreadsOfHost;
     }
 }

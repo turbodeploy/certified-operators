@@ -53,6 +53,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.tem.VirtualMachineProviderInfo;
+import com.vmturbo.cost.component.savings.tem.VolumeProviderInfo;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -385,7 +388,7 @@ public class EventInjector implements Runnable {
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(dummyPriceChange);
          } else if ("POWER_STATE".equals(event.eventType)) {
-             result.topologyEvent(createTopologyEvent(EventType.STATE_CHANGE, event.timestamp)
+             result.topologyEvent(createTopologyEvent(uuid, EventType.STATE_CHANGE, event.timestamp)
                      .poweredOn(event.state)
                      .build());
         } else if ("RESIZE_EXECUTED".equals(event.eventType)) {
@@ -421,16 +424,20 @@ public class EventInjector implements Runnable {
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("ENTITY_REMOVED".equals(event.eventType)) {
-            result.topologyEvent(createTopologyEvent(EventType.ENTITY_REMOVED, event.timestamp)
+            result.topologyEvent(createTopologyEvent(uuid, EventType.ENTITY_REMOVED, event.timestamp)
                     .entityRemoved(true)
                     .build());
         } else if ("PROVIDER_CHANGE".equals(event.eventType)) {
-            result.topologyEvent(createTopologyEvent(EventType.PROVIDER_CHANGE, event.timestamp)
+             ProviderInfo providerInfo = new VirtualMachineProviderInfo((long)event.destTier);
+             result.topologyEvent(createTopologyEvent(uuid, EventType.PROVIDER_CHANGE, event.timestamp)
                     .providerOid((long)event.destTier)
+                    .providerInfo(providerInfo)
                     .build());
         } else if ("COMMODITY_CHANGE".equals(event.eventType)) {
-            result.topologyEvent(createTopologyEvent(EventType.PROVIDER_CHANGE, event.timestamp)
-                    .commodityUsage(event.commodityUsage)
+             // TODO How do I know the entity type?
+             ProviderInfo providerInfo = new VolumeProviderInfo((long)event.destTier, event.commodityUsage);
+             result.topologyEvent(createTopologyEvent(uuid, EventType.PROVIDER_CHANGE, event.timestamp)
+                    .providerInfo(providerInfo)
                     .build());
         } else if ("STOP".equals(event.eventType)) {
             purgePreviousTestState.set(event.purgeState);
@@ -442,8 +449,10 @@ public class EventInjector implements Runnable {
         entityEventsJournal.addEvent(result.build());
     }
 
-    private static TopologyEvent.Builder createTopologyEvent(EventType eventType, long timestamp) {
+    private static TopologyEvent.Builder createTopologyEvent(long entityOid, EventType eventType, long timestamp) {
         return new TopologyEvent.Builder()
+                .entityOid(entityOid)
+                .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                 .eventType(eventType.getValue())
                 .timestamp(timestamp);
     }

@@ -15,7 +15,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 32.0,
+            "currentRICoverage": {"coupons": 32.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -37,7 +37,7 @@
             "osType": "LINUX",
             "zoneId": "21",
             "providers": [],
-            "currentRICoverage": 0.0,
+            "currentRICoverage": {"coupons": 0.0},
             "groupProviders": [],
             "minCostProviderPerFamily": {},
             "groupSize": 1,
@@ -63,6 +63,9 @@
             "isf": true,
             "shared": true,
             "platformFlexible": false,
+            "commitmentAmount": {
+                "coupons": 36.0
+            },
             "couponToBestVM": {},
             "discountableVMs": [],
             "skippedVMsWIthIndex": [],
@@ -76,7 +79,9 @@
             "oid": "100001",
             "name": "m5.nano",
             "family": "m5",
-            "coupons": 1,
+            "commitmentAmount": {
+                "coupons": 1
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -98,7 +103,9 @@
             "oid": "100002",
             "name": "m5.medium",
             "family": "m5",
-            "coupons": 16,
+            "commitmentAmount": {
+                "coupons": 16
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -120,7 +127,9 @@
             "oid": "100003",
             "name": "m5.large",
             "family": "m5",
-            "coupons": 32,
+            "commitmentAmount": {
+                "coupons": 32
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -142,7 +151,9 @@
             "oid": "100004",
             "name": "t3.medium",
             "family": "t3",
-            "coupons": 16,
+            "commitmentAmount": {
+                "coupons": 16
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {
@@ -164,7 +175,9 @@
             "oid": "100005",
             "name": "t2.large",
             "family": "t2",
-            "coupons": 32,
+            "commitmentAmount": {
+                "coupons": 32
+            },
             "onDemandCosts": {
                 "10": {
                     "LINUX": {

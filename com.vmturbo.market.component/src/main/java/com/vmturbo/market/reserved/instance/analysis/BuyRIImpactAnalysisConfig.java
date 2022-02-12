@@ -65,7 +65,7 @@ public class BuyRIImpactAnalysisConfig {
      */
     @Bean
     public CoverageTopologyFactory coverageTopologyFactory() {
-        return new CoverageTopologyFactory();
+        return new CoverageTopologyFactory(new TopologyEntityCommitmentTopologyFactory());
     }
 
     /**

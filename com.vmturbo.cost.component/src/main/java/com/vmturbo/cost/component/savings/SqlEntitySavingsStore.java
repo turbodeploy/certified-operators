@@ -163,11 +163,12 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                                         ENTITY_SAVINGS_BY_HOUR.STATS_TYPE,
                                         ENTITY_SAVINGS_BY_HOUR.STATS_VALUE);
                         chunk.forEach(stats -> insert.values(stats.getEntityId(),
-                                SavingsUtil.getLocalDateTime(
-                                        stats.getTimestamp(), clock),
-                                stats.getType().getNumber(),
-                                stats.getValue()));
-                        int inserted = insert.onDuplicateKeyIgnore().execute();
+                                            SavingsUtil.getLocalDateTime(stats.getTimestamp(), clock),
+                                            stats.getType().getNumber(), stats.getValue())
+                                    .onDuplicateKeyUpdate()
+                                    .set(ENTITY_SAVINGS_BY_HOUR.STATS_VALUE, stats.getValue())
+                        );
+                        int inserted = insert.execute();
                         if (inserted < chunk.size()) {
                             logger.warn("Hourly entity savings stats: Could only insert {} out of "
                                             + "batch size of {}. Total input stats count: {}. "

@@ -9,8 +9,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-
 /**
  * The Stable Marriage algorithm input context.
  * The context contains all the VMs, RIs and templates that are scoped to this input context.

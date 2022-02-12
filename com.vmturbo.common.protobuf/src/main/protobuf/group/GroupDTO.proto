@@ -176,11 +176,17 @@ message Origin {
 
 message StaticMembers {
     message StaticMembersByType {
-      // The type of the member.
-      optional MemberType type = 1;
+        // The type of the member.
+        optional MemberType type = 1;
 
-      // A non-repeating list of the ids of the members.
-      repeated int64 members = 2;
+        // A non-repeating list of the ids of the members.
+        repeated int64 members = 2;
+
+        // A list of local (target-specific) IDs of the members.
+        // Topology Processor is not able to retrieve OIDs for nested group members because group
+        // OIDs are calculated by Group component. In these cases Topology Processor sends member
+        // local ID instead of OID and Group component resolves it to OID.
+        repeated string memberLocalId = 3;
     }
 
     // One entry for each group member type.

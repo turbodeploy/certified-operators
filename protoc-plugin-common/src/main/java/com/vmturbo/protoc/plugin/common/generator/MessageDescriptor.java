@@ -47,7 +47,8 @@ public class MessageDescriptor extends AbstractDescriptor {
 
     public MessageDescriptor(@Nonnull final FileDescriptorProcessingContext context,
                              @Nonnull final DescriptorProto descriptorProto,
-                             @Nonnull final ImmutableList<AbstractDescriptor> nestedMessages) {
+                             @Nonnull final ImmutableList<AbstractDescriptor> nestedMessages,
+                             @Nonnull final TypeNameFormatter typeNameFormatter) {
         super(context, descriptorProto.getName());
         this.descriptorProto = descriptorProto;
         this.nestedMessages = nestedMessages;
@@ -69,7 +70,7 @@ public class MessageDescriptor extends AbstractDescriptor {
             context.startListElement(i);
 
             final FieldDescriptor fieldDescriptor = new FieldDescriptor(context, this,
-                    descriptorProto.getField(i), duplicateNameMap);
+                    descriptorProto.getField(i), duplicateNameMap, typeNameFormatter);
             fieldDescriptorBuilder.add(fieldDescriptor);
 
             context.endListElement();
@@ -154,7 +155,7 @@ public class MessageDescriptor extends AbstractDescriptor {
      * @return The descriptor of the key.
      */
     @Nonnull
-    private FieldDescriptor getMapKey() {
+    public FieldDescriptor getMapKey() {
         assert(isMapEntry());
         return fieldDescriptors.get(0);
     }

@@ -1,10 +1,14 @@
 package com.vmturbo.topology.processor.probes;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Strings;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.sdk.common.util.Pair;
 
@@ -14,6 +18,9 @@ import common.HealthCheck.HealthState;
  * A factory related to probe versions.
  */
 public class ProbeVersionFactory {
+
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Error messages related to probe version errors.
      */
@@ -75,6 +82,16 @@ public class ProbeVersionFactory {
         }
     }
 
+    /**
+     * Enum representing the result of probe version comparison.
+     */
+    enum ProbeVersionCompareResult {
+        EQUAL,
+        SMALLER,
+        GREATER,
+        UNKNOWN
+    }
+
     private ProbeVersionFactory() {}
 
     /**
@@ -122,4 +139,47 @@ public class ProbeVersionFactory {
                 ProbeVersionErrorMessage.OLDER.getMessage(probeVersion, serverSemver.toString()));
     }
 
+    /**
+     * Compare two probe versions.
+     * - If both versions are missing (e.g., an empty string), return unknown result
+     * - If one of the versions is missing , then the missing version is considered smaller
+     * - If the two version strings are literally the same (ignore case), return equal result
+     * - Otherwise compare two versions following Semantic Versioning scheme
+     * - If any of the versions is not a semantic version, return unknown result
+     *
+     * @param probeVersion1 The first probe version
+     * @param probeVersion2 The second probe version
+     * @return the probe version comparison result
+     */
+    @Nonnull
+    public static ProbeVersionCompareResult compareProbeVersion(@Nullable final String probeVersion1,
+                                                                @Nullable final String probeVersion2) {
+        if (Strings.isNullOrEmpty(probeVersion1) && Strings.isNullOrEmpty(probeVersion2)) {
+            return ProbeVersionCompareResult.UNKNOWN;
+        }
+        if (Strings.isNullOrEmpty(probeVersion1)) {
+            return ProbeVersionCompareResult.SMALLER;
+        }
+        if (Strings.isNullOrEmpty(probeVersion2)) {
+            return ProbeVersionCompareResult.GREATER;
+        }
+        if (probeVersion1.equalsIgnoreCase(probeVersion2)) {
+            return ProbeVersionCompareResult.EQUAL;
+        }
+        try {
+            final Semver probeSemver1 = new Semver(probeVersion1).toStrict().withClearedSuffixAndBuild();
+            final Semver probeSemver2 = new Semver(probeVersion2).toStrict().withClearedSuffixAndBuild();
+            if (probeSemver1.isEquivalentTo(probeSemver2)) {
+                return ProbeVersionCompareResult.EQUAL;
+            }
+            if (probeSemver1.isGreaterThan(probeSemver2)) {
+                return ProbeVersionCompareResult.GREATER;
+            }
+            return ProbeVersionCompareResult.SMALLER;
+        } catch (SemverException e) {
+            logger.warn("Cannot compare between version {} and {}: {}",
+                        probeVersion1, probeVersion2, e.getMessage());
+            return ProbeVersionCompareResult.UNKNOWN;
+        }
+    }
 }

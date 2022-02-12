@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.Map;
 import java.util.Optional;
 
 import com.google.gson.annotations.SerializedName;
@@ -9,6 +8,8 @@ import org.immutables.gson.Gson;
 import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
+
+import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 
 /**
  * Sole purpose of this class is to help efficiently serialize only the required fields out of
@@ -52,11 +53,9 @@ interface SerializableSavingsEvent {
     @Gson.TypeAdapters
     @Immutable(lazyhash = true)
     interface SerializableTopologyEvent {
-        @SerializedName("pid")
-        Optional<Long> getProviderOid();
 
-        @SerializedName("cu")
-        Map<Integer, Double> getCommodityUsage();
+        @SerializedName("pinfo")
+        Optional<ProviderInfo> getProviderInfo();
 
         @SerializedName("er")
         Optional<Boolean> getEntityRemoved();

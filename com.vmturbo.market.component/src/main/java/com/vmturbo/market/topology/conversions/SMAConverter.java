@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
@@ -128,7 +129,7 @@ public class SMAConverter {
                 Long destinationRIDiscountedMarketTierOid = destinationOnDemandMarketTierOid;
                 // If SMAMatch uses an RI, then create a corresponding
                 // RiDiscountedMarketTier and use it instead of the OnDemandMarketTier.
-                if (smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON) {
+                if (CommitmentAmountCalculator.isPositive(smaMatch.getDiscountedCoupons(), SMAUtils.EPSILON)) {
                     final ReservedInstanceData riData = converter.getCloudTc().getRiDataById(
                             smaMatch.getReservedInstance().getOid());
                     if (riData == null) {
@@ -161,7 +162,7 @@ public class SMAConverter {
                         ShoppingListTO.newBuilder(sl)
                                 .setSupplier(destinationOnDemandMarketTierOid)
                                 .clearCouponId();
-                if (smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON) {
+                if (CommitmentAmountCalculator.isPositive(smaMatch.getDiscountedCoupons(), SMAUtils.EPSILON)) {
                     // add the coupon commodity to the compute shopping list.
                     Optional<CommodityBoughtTO> coupon =
                             converter.createCouponCommodityBoughtForCloudEntity(
@@ -170,7 +171,7 @@ public class SMAConverter {
                     if (coupon.isPresent()) {
                         CommodityBoughtTO.Builder couponCommodity =
                                 CommodityBoughtTO.newBuilder(coupon.get());
-                        couponCommodity.setQuantity(smaMatch.getDiscountedCoupons());
+                        couponCommodity.setQuantity((float)smaMatch.getDiscountedCoupons().getCoupons());
                         slWithSMA.addCommoditiesBought(couponCommodity);
                         slWithSMA.setCouponId(destinationRIDiscountedMarketTierOid);
                     }
@@ -293,7 +294,8 @@ public class SMAConverter {
                 }
                 if (smaMatch.getVirtualMachine()
                         .getCurrentTemplate().getOid() == smaMatch.getTemplate().getOid()
-                        && Math.abs(smaMatch.getVirtualMachine().getCurrentRICoverage() - smaMatch.getDiscountedCoupons()) < 0.01) {
+                        && CommitmentAmountCalculator.isZero(CommitmentAmountCalculator.subtract(smaMatch.getVirtualMachine().getCurrentRICoverage(),
+                        smaMatch.getDiscountedCoupons()), 0.01d)) {
                     continue;
                 }
                 MoveExplanation.Builder moveExplanation = MoveExplanation.newBuilder();
@@ -312,7 +314,7 @@ public class SMAConverter {
                         .setMoveContext(Context.newBuilder()
                                 .setRegionId(outputContext.getContext().getRegionId())
                                 .setZoneId(smaMatch.getVirtualMachine().getZoneId()));
-                if (smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON) {
+                if (CommitmentAmountCalculator.isPositive(smaMatch.getDiscountedCoupons(), SMAUtils.EPSILON)) {
                     // This is just a dummy piece of code because this is used in
                     // one place to figure out if the vm is moving to a RI.
                     // ActionInterpreter.createChangeProviders while computing isAccountingAction.

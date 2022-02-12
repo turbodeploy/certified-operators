@@ -57,6 +57,11 @@ public class RelatedActionsInjector {
 
     private final Map<Long, Action> actions;
 
+    /**
+     * Map of action re-recommended ID to initial ID.
+     */
+    private final Map<Long, Long> reRecommendedActionIdMap;
+
     private final EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot;
 
     /**
@@ -81,6 +86,7 @@ public class RelatedActionsInjector {
         this.atomicActionsReverseRelations = atomicActionsReverseRelations;
         // a copy of action from the action store
         actions = actionStore.getActions();
+        reRecommendedActionIdMap = actionStore.getReRecommendedIdMap();
         // Cache of entities.
         this.entitiesAndSettingsSnapshot = entitiesAndSettingsSnapshot;
     }
@@ -93,10 +99,14 @@ public class RelatedActionsInjector {
      * @return  Action
      */
     private Optional<Action> getAction(long actionId) {
-        if (actions.containsKey(actionId)) {
-            return Optional.of(actions.get(actionId));
+        Action action = actions.get(actionId);
+        if (action == null) {
+            // If action is not found based on given action ID, check if this is a re-recommended
+            // action and get the stored action from initial action ID based on reRecommendedActionIdMap.
+            Long origActionId = reRecommendedActionIdMap.get(actionId);
+            return Optional.ofNullable(actions.get(origActionId));
         }
-        return Optional.empty();
+        return Optional.of(action);
     }
 
     /**
@@ -372,8 +382,8 @@ public class RelatedActionsInjector {
         switch (relationType) {
             case BLOCKED_BY_RELATION:
                 if (atomicActionsReverseRelations.containsKey(marketImpactingAction.getActionId())) {
-                    Map<Long, RelatedAction> raMap
-                            = atomicActionsReverseRelations.get(marketImpactingAction.getActionId());
+                    Map<Long, RelatedAction> raMap =
+                            getInitActionIDToRelatedActionMap(atomicActionsReverseRelations.get(marketImpactingAction.getActionId()));
                     long blockedActionId = impactedAction.getId();
                     if (raMap.containsKey(blockedActionId)) {
                         RelatedAction ra = raMap.get(blockedActionId);
@@ -399,5 +409,27 @@ public class RelatedActionsInjector {
                 break;
         }
         return relatedAction.build();
+    }
+
+    /**
+     * Get map of initial action ID to relatedActions from the given map of current action ID to
+     * relatedActions. As {@link LiveActionStore} stores actions by initial action ID and relatedActionsMap
+     * from action plan has new action ID for a re-recommended action. To correctly retrieve corresponding
+     * actions from LiveActionStore, convert currentActionIDToRelatedActionMap to initActionIDToRelatedActionMap.
+     *
+     * @param currentActionIDToRelatedActionMap Given current action ID to relatedActions.
+     * @return Map of initial action ID to relatedActions.
+     */
+    private Map<Long, RelatedAction> getInitActionIDToRelatedActionMap(
+            @Nonnull final Map<Long, RelatedAction> currentActionIDToRelatedActionMap) {
+        final Map<Long, RelatedAction> initActionIDToRelatedActionMap = new HashMap<>();
+        currentActionIDToRelatedActionMap.forEach((curActionID, relatedAction) -> {
+            Optional<Action> actionOpt = getAction(curActionID);
+            if (!actionOpt.isPresent()) {
+                throw new IllegalArgumentException("Action is not found in liveActionStore from action ID: " + curActionID);
+            }
+            initActionIDToRelatedActionMap.put(actionOpt.get().getId(), relatedAction);
+        });
+        return initActionIDToRelatedActionMap;
     }
 }

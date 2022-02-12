@@ -58,7 +58,7 @@ import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
@@ -127,8 +127,8 @@ public class MarketTimeoutTest {
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
 
-    private InitialPlacementFinder initialPlacementFinder =
-            mock(InitialPlacementFinder.class);
+    private InitialPlacementHandler initialPlacementHandler =
+            mock(InitialPlacementHandler.class);
 
     private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory =
             mock(ReversibilitySettingFetcherFactory.class);
@@ -146,7 +146,7 @@ public class MarketTimeoutTest {
         // initialize market runner with a low timeout of 1secs
         runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty(),
                 new SingleTopologyProcessingGate(10, TimeUnit.MINUTES),
-                                initialPlacementFinder, 1, new ComponentRestartHelper(6));
+                initialPlacementHandler, 1, new ComponentRestartHelper(6));
 
         AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
@@ -194,7 +194,7 @@ public class MarketTimeoutTest {
                                         cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                                         wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
                                         tierExcluderFactory, mock(AnalysisRICoverageListener.class),
-                                        consistentScalingHelperFactory, initialPlacementFinder,
+                                        consistentScalingHelperFactory, initialPlacementHandler,
                                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                                         new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                                         externalReconfigureActionEngine,

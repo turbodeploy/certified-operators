@@ -17,7 +17,17 @@ public enum RolledUpTable {
     /**
      * Billed costs.
      */
-    BILLED_COST("billed_cost");
+    BILLED_COST("billed_cost"),
+
+    /**
+     * Reserved instance coverage.
+     */
+    RESERVED_INSTANCE_COVERAGE("reserved_instance_coverage"),
+
+    /**
+     * Reserved instance utilization.
+     */
+    RESERVED_INSTANCE_UTILIZATION("reserved_instance_utilization");
 
     private final String tableName;
 

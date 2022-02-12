@@ -168,6 +168,9 @@ message TypeSpecificInfo {
 
         // Migration level specified for the cluster of the PM
         optional string migrationLevel = 11;
+
+        // The total number of CPU threads on the host.
+        optional int32 num_cpu_threads = 12;
     }
 
     message BusinessAccountInfo {

@@ -81,8 +81,8 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
         List<Action> actions = generator.execute(settingPolicyService, topology, Collections.emptyList());
         //Generate actions only if the request socket are different from current value.
         Assert.assertEquals(1, actions.size());
-        Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getSettingChange().getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getSettingChange().getNewValue(), 0.0001);
+        Assert.assertEquals(1, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
         Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertTrue(actions.get(0).getExplanation().getReconfigure().getReasonSettingsList().containsAll(ImmutableList.of(1L, 2L)));
     }
@@ -110,8 +110,8 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
 
         //Generate actions only if the VM doesn't have resize action on it.
         Assert.assertEquals(1, actions.size());
-        Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getSettingChange().getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getSettingChange().getNewValue(), 0.0001);
+        Assert.assertEquals(1, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
         Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertTrue(actions.get(0).getExplanation().getReconfigure().getReasonSettingsList().containsAll(ImmutableList.of(1L, 2L)));
     }
@@ -144,12 +144,12 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
                 Collections.emptyList());
         //Generate actions only if the hosts' sockets are different from current value.
         Assert.assertEquals(2, actions.size());
-        Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getSettingChange().getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getSettingChange().getNewValue(), 0.0001);
+        Assert.assertEquals(1, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
         Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertEquals(ImmutableList.of(1L), actions.get(0).getExplanation().getReconfigure().getReasonSettingsList());
-        Assert.assertEquals(4, actions.get(1).getInfo().getReconfigure().getSettingChange().getCurrentValue(), 0.0001);
-        Assert.assertEquals(3, actions.get(1).getInfo().getReconfigure().getSettingChange().getNewValue(), 0.0001);
+        Assert.assertEquals(4, actions.get(1).getInfo().getReconfigure().getSettingChange(0).getCurrentValue(), 0.0001);
+        Assert.assertEquals(3, actions.get(1).getInfo().getReconfigure().getSettingChange(0).getNewValue(), 0.0001);
         Assert.assertEquals(3, actions.get(1).getInfo().getReconfigure().getTarget().getId(), 0.0001);
     }
 

@@ -26,7 +26,6 @@ import io.grpc.stub.StreamObserver;
 import org.apache.commons.collections4.CollectionUtils;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.JoinType;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.springframework.lang.Nullable;
@@ -134,7 +133,6 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
                 .filter(idx -> idx.getName().equalsIgnoreCase(FORCE_INDEX))
                 .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
         }
-
         addConditions(
                 snapshotTime.greaterOrEqual(Timestamp.from(Instant.now().minus(lookbackDays, ChronoUnit.DAYS))),
                 propertyTypeField.in(comms),
@@ -144,11 +142,12 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
         boolean useTempTable = tempTableNameOptional.isPresent();
         if (useTempTable) {
             final String tempTableName = tempTableNameOptional.get();
-            final Table<?> tempTable = DSL.table(tempTableName);
-            addTable(tempTable, null, JoinType.JOIN, getStringField(table, UUID).eq(
-                    DSL.field(DSL.name(tempTableName, StringConstants.TARGET_OBJECT_UUID), String.class)
+            final Table<?> tempTable = DSL.table(DSL.name(tempTableName));
+            addTable(tempTable, null, null);
+            addConditions(getStringField(table, UUID).eq(
+                    DSL.field(DSL.name(tempTableName, StringConstants.TARGET_OBJECT_UUID),
+                            String.class)
             ));
-
         } else if (CollectionUtils.isNotEmpty(uuids) && !useTempTable) {
             addConditions(uuidField.in(uuids));
         }

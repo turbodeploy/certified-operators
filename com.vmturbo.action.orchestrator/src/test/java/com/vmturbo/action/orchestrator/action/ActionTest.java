@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -25,7 +26,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -56,10 +57,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit test for {@link Action}s.
@@ -586,9 +585,36 @@ public class ActionTest {
                                         .build()))
                         .build())
                 .build();
-        action.updateRecommendationAndCategory(updatedActionRecommendation);
+        action.updateRecommendationAndCategory(updatedActionRecommendation, new HashMap<>());
 
         // Assert updated action category is Compliance.
         assertEquals(ActionCategory.COMPLIANCE, action.getActionCategory());
+    }
+
+    /**
+     * Verify after {@link Action#updateRecommendationAndCategory}, reRecommendedIdMap is populated
+     * with key as new action ID and value as initial action ID.
+     */
+    @Test
+    public void testUpdateReRecommendedIdMap() {
+        ActionDTO.Action initialActionRecommendation = makeRec(makeVmResizeInfo(11L), SupportLevel.SUPPORTED)
+                .setExplanation(Explanation.newBuilder()
+                        .setDeactivate(DeactivateExplanation.newBuilder()))
+                .build();
+
+        final Action action = new Action(initialActionRecommendation, actionPlanId,
+                actionModeCalculator, IdentityGenerator.next());
+        final long initActionId = initialActionRecommendation.getId();
+        ActionDTO.Action updatedActionRecommendation = makeRec(makeVmResizeInfo(11L), SupportLevel.SUPPORTED)
+                .setExplanation(Explanation.newBuilder()
+                        .setDeactivate(DeactivateExplanation.newBuilder()))
+                .build();
+        final long newActionId = updatedActionRecommendation.getId();
+        Map<Long, Long> actionReRecommendedIDToInitIDMap = new HashMap<>();
+        action.updateRecommendationAndCategory(updatedActionRecommendation, actionReRecommendedIDToInitIDMap);
+        // Verify actionReRecommendedIDToInitIDMap is populated with key as newActionId and value
+        // as initActionId.
+        assertTrue(actionReRecommendedIDToInitIDMap.containsKey(newActionId));
+        assertEquals(initActionId, (long)actionReRecommendedIDToInitIDMap.get(newActionId));
     }
 }

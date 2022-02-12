@@ -13,6 +13,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
@@ -82,7 +83,7 @@ public class SMAVirtualMachine {
      * Used in Stability testing.
      * Not known at construction time, because need to process compute tiers to get number of coupons.
      */
-    private float currentRICoverage;
+    private CloudCommitmentAmount currentRICoverage;
     /*
      * Current Reserved Instance
      */
@@ -142,7 +143,7 @@ public class SMAVirtualMachine {
                              final long businessAccountId,
                              SMATemplate currentTemplate,
                              @Nonnull List<SMATemplate> providers,
-                             final float currentRICoverage,
+                             final CloudCommitmentAmount currentRICoverage,
                              final long zoneId,
                              final SMAReservedInstance currentRI,
                              final OSType osType,
@@ -297,11 +298,11 @@ public class SMAVirtualMachine {
     /*
      * if 0 then no RI coverage
      */
-    public float getCurrentRICoverage() {
+    public CloudCommitmentAmount getCurrentRICoverage() {
         return currentRICoverage;
     }
 
-    public void setCurrentRICoverage(float coverage) {
+    public void setCurrentRICoverage(CloudCommitmentAmount coverage) {
         currentRICoverage = coverage;
     }
 

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.component.savings.tem.TopologyEventsMonitor;
 import com.vmturbo.cost.component.topology.cloud.listener.LiveCloudTopologyListener;
 
 /**
@@ -50,6 +51,7 @@ public class EntitySavingsTopologyMonitor implements  LiveCloudTopologyListener 
         } catch (com.vmturbo.cost.component.savings.EntitySavingsException e) {
             logger.error("Error processing topology update for topology ID {}: {}",
                     topologyInfo.getTopologyId(), e);
+            return;
         }
         entityStateStream.forEach(state -> {
             EntityState entityState = (EntityState)state;

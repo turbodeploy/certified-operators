@@ -1,6 +1,7 @@
 package com.vmturbo.cloud.common.commitment;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -8,6 +9,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -46,6 +49,48 @@ public class TopologyEntityCommitmentTopology implements CloudCommitmentTopology
                         .map(ConnectedEntity::getConnectedEntityId)
                         .collect(ImmutableSet.toImmutableSet()))
                 .orElse(ImmutableSet.of());
+    }
+
+    @Override
+    public double getCoverageCapacityForEntity(long entityOid, @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
+        switch (coverageTypeInfo.getCoverageType()) {
+            case COUPONS:
+                return cloudTopology.getRICoverageCapacityForEntity(entityOid);
+            case COMMODITY:
+                return cloudTopology.getEntity(entityOid)
+                        .map(entity -> extractCommodityCapacity(entity, coverageTypeInfo.getCoverageSubtype()))
+                        .orElse(0.0);
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Unsupported coverage type: %s", coverageTypeInfo.getCoverageType()));
+        }
+
+    }
+
+
+    private double extractCommodityCapacity(@Nonnull TopologyEntityDTO buyer,
+                                            int commodityType) {
+
+        final Optional<CommodityBoughtDTO> commodityBought = buyer.getCommoditiesBoughtFromProvidersList()
+                .stream()
+                // Right now, only compute tier resources are supported.
+                .filter(commoditiesBought -> commoditiesBought.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                .flatMap(commoditiesBought -> commoditiesBought.getCommodityBoughtList().stream())
+                .filter(commBought -> commBought.getCommodityType().getType() == commodityType)
+                .findAny();
+
+        if (commodityBought.isPresent()) {
+            return commodityBought.get().getUsed();
+        } else {
+            return cloudTopology.getComputeTier(buyer.getOid())
+                    .map(computeTier -> computeTier.getCommoditySoldListList()
+                            .stream()
+                            .filter(commoditySold -> commoditySold.getCommodityType().getType() == commodityType)
+                            .map(commSold -> commSold.getCapacity())
+                            .findFirst()
+                            .orElse(0.0))
+                    .orElse(0.0);
+        }
     }
 
     /**

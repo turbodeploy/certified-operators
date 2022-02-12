@@ -164,7 +164,8 @@ public class SupplementalCoverageAnalysisTest {
                 ImmutableTable.<Long, Long, CloudCommitmentAmount>builder()
                         .put(1L, 4L, CloudCommitmentAmount.newBuilder().setCoupons(2.0).build())
                         .put(3L, 6L, CloudCommitmentAmount.newBuilder().setCoupons(4.0).build())
-                        .build());
+                        .build(),
+                Collections.emptyList());
         when(riCoverageAllocator.allocateCoverage()).thenReturn(coverageAllocation);
 
         // setup coverage topology
@@ -268,7 +269,8 @@ public class SupplementalCoverageAnalysisTest {
                         reservedInstanceSpecStore,
                         cloudCommitmentAggregatorFactory,
                         true,
-                        false);
+                        false,
+                        true);
 
         /*
         Invoke SUT

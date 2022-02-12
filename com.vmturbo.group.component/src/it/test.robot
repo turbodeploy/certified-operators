@@ -89,12 +89,12 @@ Inspect Infrastructure Component
     END
 
 Inspect Test Component
-    ${result}=  Wait Until Keyword Succeeds  10x  5s  Is Process Running   ${HANDLE}
+    ${result}=  Wait Until Keyword Succeeds  20x  5s  Is Process Running   ${HANDLE}
     Return From Keyword If  ${result} == False  False
 
     Log to Console   module started, waiting for gRPC server!
 
-    ${result}=  Wait Until Keyword Succeeds  10x  5s  GRPC Server Started
+    ${result}=  Wait Until Keyword Succeeds  20x  5s  GRPC Server Started
     [return]  ${result}
 
 GRPC Server Started

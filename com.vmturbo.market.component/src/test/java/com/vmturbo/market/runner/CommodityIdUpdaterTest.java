@@ -26,7 +26,7 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.DiagsFileSystem;
-import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -76,7 +76,7 @@ public class CommodityIdUpdaterTest {
             mock(MarketPriceTableFactory.class), mock(WastedFilesAnalysisEngine.class),
             mock(BuyRIImpactAnalysisFactory.class), mock(NamespaceQuotaAnalysisFactory.class), mock(TierExcluderFactory.class),
             mock(AnalysisRICoverageListener.class), mock(ConsistentScalingHelperFactory.class),
-            mock(InitialPlacementFinder.class), mock(ReversibilitySettingFetcherFactory.class),
+            mock(InitialPlacementHandler.class), mock(ReversibilitySettingFetcherFactory.class),
             mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
             mock(JournalActionSavingsCalculatorFactory.class), mock(ExternalReconfigureActionEngine.class),
             new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),

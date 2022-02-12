@@ -1,6 +1,8 @@
 package com.vmturbo.market.reservations;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -9,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import com.google.common.collect.BiMap;
@@ -30,7 +31,6 @@ import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
-import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
@@ -41,6 +41,7 @@ import com.vmturbo.market.TestMarketDbEndpointConfig;
 import com.vmturbo.market.component.db.Market;
 import com.vmturbo.market.component.db.tables.EconomyCache;
 import com.vmturbo.market.component.db.tables.records.EconomyCacheRecord;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -191,9 +192,11 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        AnalysisDiagnosticsCollectorFactory diagsCollectorFactory = Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class);
+        when(diagsCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
         ReservationServiceBlockingStub stub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        InitialPlacementFinder finder = new InitialPlacementFinder(dsl, stub, true, 2, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+        InitialPlacementHandler handler = new InitialPlacementHandler(dsl, stub, true, 2, 5,
+                diagsCollectorFactory);
         final long buyer1Oid = 1234L;
         final long buyerSl1Oid = 1000L;
         final long reservation1Oid = 1L;
@@ -214,16 +217,18 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         }});
         List<InitialPlacementBuyer> buyerList = new ArrayList();
         buyerList.add(buyer1);
-        Map<Long, InitialPlacementDTO> existingReservations =  new HashMap() {{
+        InitialPlacementFinder pf = handler.getPlacementFinder();
+        pf.existingReservations = new HashMap() {{
             put(reservation1Oid, PlanUtils.setupInitialPlacement(buyerList, reservation1Oid));
         }};
-        Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
+        pf.buyerPlacements = new HashMap() {{
             put(buyer1Oid, Arrays.asList(new InitialPlacementDecision(buyerSl1Oid,
                     Optional.of(1112L), new ArrayList())));
         }};
-        finder.economyCaches.updateHistoricalCachedEconomy(EconomyCachesTest.economyWithCluster(
+
+        pf.updateCachedEconomy(EconomyCachesTest.economyWithCluster(
                 new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}), commTypeToSpecMap,
-                buyerPlacements, existingReservations);
+                false);
         // Assuming the PO returns a reservation with oid 2L that has 1 buyer. The buyer has pm4 as
         // the provider.
         final long buyer2Oid = 2234L;
@@ -238,23 +243,27 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         }});
         List<InitialPlacementBuyer> newBuyerList = new ArrayList();
         newBuyerList.add(buyer2);
-        finder.buyerPlacements = new HashMap() {{
-            put(buyer2Oid, Arrays.asList(new InitialPlacementDecision(buyerSl2Oid, Optional.of(1114L), new ArrayList())));
+
+        pf.buyerPlacements = new HashMap() {{
+            put(buyer2Oid, Arrays.asList(
+                    new InitialPlacementDecision(buyerSl2Oid, Optional.of(1114L), new ArrayList())));
         }};
-        finder.existingReservations = new HashMap() {{
+        pf.existingReservations = new HashMap() {{
             put(reservation2Oid, PlanUtils.setupInitialPlacement(newBuyerList, reservation2Oid));
         }};
-        finder.economyCaches.getState().setReservationReceived(true);
-        // Restore economy cache would eliminate any previously placed buyers from the loaded
-        finder.restoreEconomyCaches(180);
+        pf.economyCaches.getState().setReservationReceived(true);
 
-        Assert.assertTrue(finder.economyCaches.historicalCachedEconomy.getTraders().size() == 5);
-        Assert.assertTrue(finder.economyCaches.historicalCachedEconomy.getTraders().stream()
+        // Restore economy cache would eliminate any previously placed buyers from the loaded
+        pf.restoreEconomyCaches(180);
+
+        Assert.assertTrue(pf.economyCaches.historicalCachedEconomy.getTraders().size() == 5);
+        Assert.assertTrue(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .stream()
                 .filter(t -> !InitialPlacementUtils.PROVIDER_ENTITY_TYPES.contains(t.getType()))
                 .allMatch(t -> t.getOid() == buyer2Oid));
-        Trader pm4 = finder.economyCaches.historicalCachedEconomy.getTraders().stream()
-                .filter(t -> t.getOid() == 1114L).findFirst().get();
+        Trader pm4 = pf.economyCaches.historicalCachedEconomy.getTraders().stream().filter(t -> t.getOid() == 1114L).findFirst().get();
         Assert.assertEquals(pm4MemUsed + buyerMemUsed, pm4.getCommoditiesSold()
-                .get(pm4.getBasketSold().indexOf(CommodityType.MEM_VALUE)).getQuantity(), 0.001);
+                .get(pm4.getBasketSold().indexOf(CommodityType.MEM_VALUE))
+                .getQuantity(), 0.001);
     }
 }

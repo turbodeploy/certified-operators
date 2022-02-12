@@ -47,9 +47,11 @@ public class SupplementalCoverageAnalysisFactory {
 
     private final CloudCommitmentAggregatorFactory cloudCommitmentAggregatorFactory;
 
-    private boolean riCoverageAllocatorValidation;
+    private final boolean riCoverageAllocatorValidation;
 
-    private boolean concurrentRICoverageAllocation;
+    private final boolean concurrentRICoverageAllocation;
+
+    private final boolean logCoverageEntries;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -64,6 +66,7 @@ public class SupplementalCoverageAnalysisFactory {
      * @param concurrentRICoverageAllocation A boolean flag indicating whether concurrent coverage allocation
      * @param cloudCommitmentAggregatorFactory A factory for creating {@link CloudCommitmentAggregator}
      *                                         instances.
+     * @param logCoverageEntries Flag indicating whether coverage entries should be logged after coverage analysis.
      */
     public SupplementalCoverageAnalysisFactory(
             @Nonnull CoverageAllocatorFactory allocatorFactory,
@@ -72,7 +75,8 @@ public class SupplementalCoverageAnalysisFactory {
             @Nonnull ReservedInstanceSpecStore reservedInstanceSpecStore,
             @Nonnull CloudCommitmentAggregatorFactory cloudCommitmentAggregatorFactory,
             boolean riCoverageAllocatorValidation,
-            boolean concurrentRICoverageAllocation) {
+            boolean concurrentRICoverageAllocation,
+            boolean logCoverageEntries) {
 
         this.allocatorFactory = Objects.requireNonNull(allocatorFactory);
         this.coverageTopologyFactory = Objects.requireNonNull(coverageTopologyFactory);
@@ -81,6 +85,7 @@ public class SupplementalCoverageAnalysisFactory {
         this.cloudCommitmentAggregatorFactory = Objects.requireNonNull(cloudCommitmentAggregatorFactory);
         this.riCoverageAllocatorValidation = riCoverageAllocatorValidation;
         this.concurrentRICoverageAllocation = concurrentRICoverageAllocation;
+        this.logCoverageEntries = logCoverageEntries;
     }
 
     /**
@@ -107,7 +112,8 @@ public class SupplementalCoverageAnalysisFactory {
                 coverageTopology,
                 entityRICoverageUploads,
                 concurrentRICoverageAllocation,
-                riCoverageAllocatorValidation);
+                riCoverageAllocatorValidation,
+                logCoverageEntries);
     }
 
 

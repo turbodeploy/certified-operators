@@ -92,15 +92,16 @@ public class HealthDataMapper {
         final Map<TargetErrorType, String> result = new EnumMap<>(TargetErrorType.class);
         result.put(TargetErrorType.CONNECTIVITY_ERROR, "Check the connectivity of the targets.");
         result.put(TargetErrorType.UNAUTHENTICATED, "Some targets are not authenticated. Check the credentials.");
-        result.put(TargetErrorType.TOKEN_UNAVAILABLE, "Token is unavailable. Get (a new) one.");
-        result.put(TargetErrorType.VERSION_NOT_SUPPORTED, "Target version is not supported. Choose a different target.");
+        result.put(TargetErrorType.TOKEN_UNAVAILABLE, "Token is unavailable. Get a new one.");
+        result.put(TargetErrorType.VERSION_NOT_SUPPORTED, "Target version is not supported. Please contact support.");
         result.put(TargetErrorType.DATA_ACCESS_ERROR, "Wrong data received from target. Check what is being sent.");
         result.put(TargetErrorType.INTERNAL_PROBE_ERROR,
                 "Check the Target Configuration page for more information. Please contact support if the problem persists.");
-        result.put(TargetErrorType.DUPLICATION, "There're duplicate targets present in the system."
-                + " Check the Target Configuration page for more information.");
+        result.put(TargetErrorType.DUPLICATION, "There are duplicate targets present in the system."
+                + " Check the Target Configuration page for more information and remove duplicate target.");
         result.put(TargetErrorType.DELAYED_DATA, "Discovered data is too old. Check the pod states,"
                 + " target servers, and Target Configuration page for more information.");
+        result.put(TargetErrorType.THIRD_PARTY_FAILURE, "Internal error in vendor API.  Please contact support.");
         return result;
     }
 
