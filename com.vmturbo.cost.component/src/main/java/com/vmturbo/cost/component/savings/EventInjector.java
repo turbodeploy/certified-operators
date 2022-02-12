@@ -388,7 +388,7 @@ public class EventInjector implements Runnable {
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(dummyPriceChange);
          } else if ("POWER_STATE".equals(event.eventType)) {
-             result.topologyEvent(createTopologyEvent(EventType.STATE_CHANGE, event.timestamp)
+             result.topologyEvent(createTopologyEvent(uuid, EventType.STATE_CHANGE, event.timestamp)
                      .poweredOn(event.state)
                      .build());
         } else if ("RESIZE_EXECUTED".equals(event.eventType)) {
@@ -424,19 +424,19 @@ public class EventInjector implements Runnable {
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("ENTITY_REMOVED".equals(event.eventType)) {
-            result.topologyEvent(createTopologyEvent(EventType.ENTITY_REMOVED, event.timestamp)
+            result.topologyEvent(createTopologyEvent(uuid, EventType.ENTITY_REMOVED, event.timestamp)
                     .entityRemoved(true)
                     .build());
         } else if ("PROVIDER_CHANGE".equals(event.eventType)) {
              ProviderInfo providerInfo = new VirtualMachineProviderInfo((long)event.destTier);
-             result.topologyEvent(createTopologyEvent(EventType.PROVIDER_CHANGE, event.timestamp)
+             result.topologyEvent(createTopologyEvent(uuid, EventType.PROVIDER_CHANGE, event.timestamp)
                     .providerOid((long)event.destTier)
                     .providerInfo(providerInfo)
                     .build());
         } else if ("COMMODITY_CHANGE".equals(event.eventType)) {
              // TODO How do I know the entity type?
              ProviderInfo providerInfo = new VolumeProviderInfo((long)event.destTier, event.commodityUsage);
-             result.topologyEvent(createTopologyEvent(EventType.PROVIDER_CHANGE, event.timestamp)
+             result.topologyEvent(createTopologyEvent(uuid, EventType.PROVIDER_CHANGE, event.timestamp)
                     .providerInfo(providerInfo)
                     .build());
         } else if ("STOP".equals(event.eventType)) {
@@ -449,8 +449,10 @@ public class EventInjector implements Runnable {
         entityEventsJournal.addEvent(result.build());
     }
 
-    private static TopologyEvent.Builder createTopologyEvent(EventType eventType, long timestamp) {
+    private static TopologyEvent.Builder createTopologyEvent(long entityOid, EventType eventType, long timestamp) {
         return new TopologyEvent.Builder()
+                .entityOid(entityOid)
+                .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                 .eventType(eventType.getValue())
                 .timestamp(timestamp);
     }

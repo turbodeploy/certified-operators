@@ -55,7 +55,7 @@ interface SerializableSavingsEvent {
     interface SerializableTopologyEvent {
 
         @SerializedName("pinfo")
-        ProviderInfo getProviderInfo();
+        Optional<ProviderInfo> getProviderInfo();
 
         @SerializedName("er")
         Optional<Boolean> getEntityRemoved();
