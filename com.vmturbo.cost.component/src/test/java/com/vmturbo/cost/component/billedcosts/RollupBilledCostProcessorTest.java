@@ -24,10 +24,12 @@ import org.junit.Test;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.tables.BilledCostMonthly;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RolledUpTable;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
@@ -65,6 +67,7 @@ public class RollupBilledCostProcessorTest {
     }
 
     @Test
+    @CleanupOverrides(truncate = {BilledCostMonthly.class})
     public void testPerformRollup() {
         final YearMonth currentMonth = YearMonth.now();
         final YearMonth currentMonthMinusOne = currentMonth.minusMonths(1);

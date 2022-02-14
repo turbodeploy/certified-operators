@@ -116,8 +116,7 @@ public class EntityStatsRollupTest extends RollupTestBase {
         EntityStatsIdentityValues identityValues = new EntityStatsIdentityValues(
                 getRandUuid(), producerUuid, StringConstants.CPU, StringConstants.USED,
                 null, relation);
-        VmStatsLatestRecord template1 =
-                createTemplate(VM_STATS_LATEST, identityValues);
+        VmStatsLatestRecord template1 = createTemplate(VM_STATS_LATEST, identityValues);
         StatsTimeSeries<VmStatsLatestRecord> ts1 = new StatsTimeSeries<>(VM_STATS_LATEST, template1,
                 100_000.0, Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10));
         BulkLoader<VmStatsLatestRecord> loader = loaders.getLoader(VM_STATS_LATEST);

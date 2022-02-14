@@ -27,7 +27,6 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.topology.attributes.EnumOidRetriever.EnumOidRetrievalException;
 import com.vmturbo.extractor.topology.attributes.EnumOidRetriever.PostgresEnumOidRetriever;
-import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointTestRule;
@@ -40,7 +39,6 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
-@CleanupOverrides(checkOthers = true)
 public class EnumOidRetrieverTest implements ApplicationContextAware {
 
     @Autowired

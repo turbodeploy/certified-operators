@@ -21,9 +21,7 @@ import com.google.common.collect.Sets;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -77,10 +75,6 @@ public class DeploymentProfileDaoImplTest extends MultiDbTestBase {
                 TestPlanOrchestratorDBEndpointConfig::planEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage DB provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private DeploymentProfileDaoImpl deploymentProfileDao;
 

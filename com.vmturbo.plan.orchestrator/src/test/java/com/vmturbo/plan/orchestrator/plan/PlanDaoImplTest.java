@@ -39,7 +39,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -117,12 +116,6 @@ public class PlanDaoImplTest extends MultiDbTestBase {
         super(Plan.PLAN, configurableDbDialect, dialect, "plan-orchestrator", TestPlanOrchestratorDBEndpointConfig::planEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /**
-     * Rule chain to manage DB provisioining and lifecycle.
-     */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final long GENERATION_TIME = 111111111L;
 

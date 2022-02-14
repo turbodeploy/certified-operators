@@ -23,9 +23,7 @@ import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -41,6 +39,9 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.db.tables.ReservedInstanceCoverageByDay;
+import com.vmturbo.cost.component.db.tables.ReservedInstanceCoverageByHour;
+import com.vmturbo.cost.component.db.tables.ReservedInstanceCoverageByMonth;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
@@ -48,6 +49,7 @@ import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.topology.IngestedTopologyStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
@@ -79,10 +81,6 @@ public class ReservedInstanceCoverageStoreTest extends MultiDbTestBase {
         super(Cost.COST, configurableDbDialect, dialect, "cost", TestCostDbEndpointConfig::costEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private final static double DELTA = 0.000001;
 
@@ -206,6 +204,8 @@ public class ReservedInstanceCoverageStoreTest extends MultiDbTestBase {
      * @throws EntitySavingsException if there's a problem with the store
      */
     @Test
+    @CleanupOverrides(truncate = {ReservedInstanceCoverageByHour.class,
+            ReservedInstanceCoverageByDay.class, ReservedInstanceCoverageByMonth.class})
     public void rollupToHourlyDailyAndMonthly() {
         // make sure to use a time that has the following properties: 1) adding a minute doesn't increase the hour.
         // 2) Adding an hour doesn't increase by one day 3) Adding one day doesn't increase by one the month

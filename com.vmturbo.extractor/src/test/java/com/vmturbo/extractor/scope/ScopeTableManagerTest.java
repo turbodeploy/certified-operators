@@ -38,6 +38,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.extractor.schema.tables.Scope;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -51,7 +52,6 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
-@CleanupOverrides(checkOthers = true)
 public class ScopeTableManagerTest {
     private DSLContext dsl;
     private DbEndpoint endpoint;
@@ -96,6 +96,7 @@ public class ScopeTableManagerTest {
      * @throws Exception any exception
      */
     @Test
+    @CleanupOverrides(truncate = {Scope.class})
     public void testExecute() throws Exception {
         // Create the hypertable
         scopeTableManager.createScopeHypertable(dsl);

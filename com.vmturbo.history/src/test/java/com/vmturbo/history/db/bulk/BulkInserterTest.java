@@ -43,9 +43,7 @@ import org.jooq.exception.DataAccessException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -97,11 +95,6 @@ public class BulkInserterTest extends MultiDbTestBase {
                 TestHistoryDbEndpointConfig::historyEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
-
 
     /**
      * Set up and populate live database for tests, and create required mocks.
