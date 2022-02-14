@@ -54,9 +54,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -115,10 +113,6 @@ public class HistorydbIOTest extends MultiDbTestBase {
                 TestHistoryDbEndpointConfig::historyEndpoint);
         dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private HistorydbIO historydbIO;
 

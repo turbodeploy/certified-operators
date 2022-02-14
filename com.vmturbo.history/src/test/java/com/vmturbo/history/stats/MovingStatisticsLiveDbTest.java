@@ -28,9 +28,7 @@ import org.jooq.SQLDialect;
 import org.jooq.exception.DataAccessException;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -82,10 +80,6 @@ public class MovingStatisticsLiveDbTest extends MultiDbTestBase {
         this.dsl = super.getDslContext();
         this.dataSource = super.getDataSource();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final String OLD_CHUNK_DATA = "old chunk data";
     private static final long OLD_START_TIMESTAMP = 11L;

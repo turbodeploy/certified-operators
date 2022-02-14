@@ -45,6 +45,7 @@ import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.tables.Metric;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -61,7 +62,6 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
-@CleanupOverrides(checkOthers = true)
 public class DslRecordSinkWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
@@ -124,6 +124,7 @@ public class DslRecordSinkWriterTest {
      * @throws SQLException should not happen
      */
     @Test
+    @CleanupOverrides(truncate = {Metric.class})
     public void testMetricInserts() throws SQLException, InterruptedException {
         metricSink.accept(createRecordByName(METRIC_TABLE, metricData1));
         metricSink.accept(createRecordByName(METRIC_TABLE, metricData2));

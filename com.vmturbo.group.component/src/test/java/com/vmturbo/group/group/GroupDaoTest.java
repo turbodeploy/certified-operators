@@ -41,7 +41,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -127,10 +126,6 @@ public class GroupDaoTest extends MultiDbTestBase {
                 TestGroupDBEndpointConfig::groupEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage DB provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final Set<MemberType> EXPECTED_MEMBERS =
             ImmutableSet.of(MemberType.newBuilder().setEntity(1).build(),

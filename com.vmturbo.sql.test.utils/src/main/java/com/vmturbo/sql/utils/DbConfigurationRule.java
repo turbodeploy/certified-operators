@@ -39,7 +39,6 @@ public class DbConfigurationRule extends ExternalResource {
     }
 
     private final TestDbConfiguration dbConfig;
-
     private final Schema schema;
 
     /**
@@ -62,12 +61,7 @@ public class DbConfigurationRule extends ExternalResource {
      */
     @Nonnull
     public DbCleanupRule cleanupRule() {
-        return new DbCleanupRule(this, schema);
-    }
-
-    @Override
-    protected void before() {
-        dbConfig.getFlyway().migrate();
+        return dbConfig.getCleanupRule();
     }
 
     /**

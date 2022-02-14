@@ -30,9 +30,7 @@ import org.jooq.Table;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -92,10 +90,6 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
                 TestCostDbEndpointConfig::costEndpoint);
         this.context = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final String BILLING_ID = "1111111";
     private static final long ACCOUNT_ID = 2222222L;

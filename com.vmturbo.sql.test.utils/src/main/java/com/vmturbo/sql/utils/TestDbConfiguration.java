@@ -37,6 +37,8 @@ public class TestDbConfiguration {
     private final DataSource dataSource;
     private final String dbUrl;
     private final Configuration configuration;
+    private final DbCleanupRule cleanupRule;
+
 
     private static final Map<Schema, TestDbConfiguration> configsBySchema = new HashMap<>();
 
@@ -51,8 +53,7 @@ public class TestDbConfiguration {
     /**
      * Constructor.
      *
-     * @param originalSchema    original schema (which Jooq has generated sources
-     *                          against)
+     * @param originalSchema    original schema (which Jooq has generated sources against)
      * @param testSchemaName    Name for the schema to use.
      * @param mariaDBProperties maria DB connection properties, if any.
      */
@@ -74,6 +75,8 @@ public class TestDbConfiguration {
         configuration = createConfiguration(connectionProvider, originalSchema.getName(),
                 testSchemaName);
         this.dslContext = new DefaultDSLContext(configuration);
+        flyway.migrate();
+        this.cleanupRule = new DbCleanupRule(originalSchema, dslContext);
     }
 
     /**
@@ -102,6 +105,10 @@ public class TestDbConfiguration {
         } catch (SQLException e) {
             throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }
+    }
+
+    public DbCleanupRule getCleanupRule() {
+        return cleanupRule;
     }
 
     @Nonnull
@@ -133,7 +140,6 @@ public class TestDbConfiguration {
 
         return jooqConfiguration;
     }
-
 
     /**
      * Returns schema name that will be used for tests. It is usually based on original schema name

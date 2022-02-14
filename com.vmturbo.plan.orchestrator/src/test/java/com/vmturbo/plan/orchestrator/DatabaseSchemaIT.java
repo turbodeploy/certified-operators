@@ -11,9 +11,7 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -59,10 +57,6 @@ public class DatabaseSchemaIT extends MultiDbTestBase {
                 TestPlanOrchestratorDBEndpointConfig::planEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to provide optimized DB access during test. */
-    @Rule
-    public TestRule multiDbRuleChain = super.ruleChain;
 
     @Before
     public void prepare() throws Exception {

@@ -7,9 +7,7 @@ import static org.mockito.Mockito.when;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import com.google.common.primitives.Longs;
 
@@ -21,8 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Schema;
-import org.jooq.Table;
-import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -68,10 +64,9 @@ public class TestDbEndpoint {
     private static final StreamingXXHash32 xxHash32 = XXHashFactory.safeInstance()
             .newStreamingHash32(XXHASH_SEED);
     private final DbEndpoint endpoint;
-    private final Set<Table<?>> baseTables;
-    private final Set<Table<?>> refTables;
     private final Schema schema;
     private final DSLContext dsl;
+    private final SchemaCleaner schemaCleaner;
 
     /**
      * Create a new instance.
@@ -94,10 +89,9 @@ public class TestDbEndpoint {
             // following copies are really just to avoid compiler errors about final fields
             // not being initialized
             this.endpoint = testDbEndpoint.getDbEndpoint();
-            this.baseTables = testDbEndpoint.getBaseTables();
-            this.refTables = testDbEndpoint.getRefTables();
             this.schema = testDbEndpoint.getSchema();
             this.dsl = testDbEndpoint.dsl;
+            this.schemaCleaner = testDbEndpoint.schemaCleaner;
         } else {
             // no luck... create a mangled copy of this confignew DbEndpointResolver(endpoint.getConfig(), properties::get, testPasswordUtil).resolve();
             new DbEndpointResolver(config, properties::get, testPasswordUtil).resolve();
@@ -107,23 +101,14 @@ public class TestDbEndpoint {
             // register the new test endpoint for later resuse
             testEndpoints.put(name, this);
             // now gather some other useful stuff
-            this.dsl = endpoint.dslContext();
             this.schema = schema;
-            this.baseTables = discoverBaseTables();
-            this.refTables = discoverReferenceTables();
+            this.dsl = endpoint.dslContext();
+            this.schemaCleaner = new SchemaCleaner(schema, dsl);
         }
     }
 
     public DbEndpoint getDbEndpoint() {
         return endpoint;
-    }
-
-    public Set<Table<?>> getBaseTables() {
-        return baseTables;
-    }
-
-    public Set<Table<?>> getRefTables() {
-        return refTables;
     }
 
     public Schema getSchema() {
@@ -132,6 +117,10 @@ public class TestDbEndpoint {
 
     public DSLContext getDslContext() {
         return dsl;
+    }
+
+    public SchemaCleaner getSchemaCleaner() {
+        return schemaCleaner;
     }
 
     /**
@@ -143,64 +132,6 @@ public class TestDbEndpoint {
     private void complete(DbEndpoint endpoint) throws InterruptedException {
         MultiDbTestBase.getTestCompleter().completeEndpoint(endpoint);
         endpoint.awaitCompletion(60L, TimeUnit.SECONDS);
-    }
-
-    /**
-     * Find reference tables. This is used immediately after initial provisioning, by searching for
-     * tables that are not empty. All such tables are considered to hold reference data that should
-     * be preserved, so the tables will be exempt from cleaning.
-     *
-     * @return reference tables
-     * @throws SQLException                if a DB operation fails
-     * @throws UnsupportedDialectException if the dialect is bogus
-     * @throws InterruptedException        if we're interrupted
-     */
-    private Set<Table<?>> discoverReferenceTables() {
-        return schema.tableStream()
-                .filter(baseTables::contains)
-                .filter(dsl::fetchExists)
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     * Collect all the base tables (not views or other varieties of table) in our schema.
-     *
-     * @return base tables
-     */
-    private Set<Table<?>> discoverBaseTables() {
-        Set<String> baseTableNames = getBaseTableNames();
-        return schema.tableStream()
-                .filter(t -> baseTableNames.contains(t.getName()))
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     * Collect the names of all base tables in the schema, by actually querying the database. This
-     * is needed because jOOQ's in-memory model cannot distinguish base tables from views and other
-     * table-ish objets.
-     *
-     * @return names of base tables
-     */
-    private Set<String> getBaseTableNames() {
-        String sql;
-        switch (dsl.dialect()) {
-            // this works for many dialects including those explicitly listed here
-            case MARIADB:
-            case MYSQL:
-            case POSTGRES:
-            default:
-                sql = String.format("SELECT table_name FROM information_schema.tables "
-                                + "WHERE table_schema='%s' AND table_type='BASE TABLE'",
-                        endpoint.getConfig().getSchemaName());
-                break;
-        }
-        try {
-            return dsl.fetch(sql).intoSet(0, String.class);
-        } catch (DataAccessException e) {
-            logger.error("Failed to obtain list of base tables from DB; "
-                    + "using jOOQ metadata for all tables", e);
-            return schema.tableStream().map(Table::getName).collect(Collectors.toSet());
-        }
     }
 
     /**

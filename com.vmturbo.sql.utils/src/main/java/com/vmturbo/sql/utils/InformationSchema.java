@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import org.jooq.Configuration;
 import org.jooq.DSLContext;
 import org.jooq.Schema;
 import org.jooq.Table;
@@ -45,8 +46,9 @@ public class InformationSchema {
      * @return tables that appear in the database and in the jOOQ schema
      */
     public static Collection<Table<?>> getTables(@Nullable Schema jooqSchema, DSLContext dsl) {
-        dsl.settings().withRenderSchema(true);
-        return dsl.select(TABLE_NAME, TABLE_SCHEMA)
+        Configuration config = dsl.configuration().derive();
+        config.settings().withRenderSchema(true);
+        return DSL.using(config).select(TABLE_NAME, TABLE_SCHEMA)
                 .from(TABLES)
                 .where(TABLE_SCHEMA.eq(DSL.currentSchema()).and(TABLE_TYPE.eq(BASE_TABLE_TYPE)))
                 .fetch().stream()

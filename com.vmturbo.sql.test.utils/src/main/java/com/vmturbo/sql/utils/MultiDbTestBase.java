@@ -11,6 +11,7 @@ import javax.sql.DataSource;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.jooq.Schema;
+import org.junit.Rule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.runners.Parameterized;
@@ -104,6 +105,16 @@ public class MultiDbTestBase {
         }
     }
 
+    /**
+     * Declare a rule chain that will manage provisioning and access to DBs by tests.
+     *
+     * @return rule chain
+     */
+    @Rule
+    public TestRule multiDbTestRule() {
+        return ruleChain;
+    }
+
     protected final DbConfigurationRule dbConfigurationRule(Schema schema) {
         return new DbConfigurationRule(schema);
     }
@@ -118,7 +129,7 @@ public class MultiDbTestBase {
      * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
      * @return rule chain instance
      */
-    protected TestRule multiDbRuleChain(boolean configurableDbDialect) {
+    public TestRule multiDbRuleChain(boolean configurableDbDialect) {
         // we always need to set up feature flags
         RuleChain ruleChain = RuleChain.outerRule(featureFlagTestRule);
         if (configurableDbDialect) {

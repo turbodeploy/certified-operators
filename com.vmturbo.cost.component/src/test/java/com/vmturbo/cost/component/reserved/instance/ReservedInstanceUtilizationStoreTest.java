@@ -54,6 +54,9 @@ import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.db.tables.ReservedInstanceUtilizationByDay;
+import com.vmturbo.cost.component.db.tables.ReservedInstanceUtilizationByHour;
+import com.vmturbo.cost.component.db.tables.ReservedInstanceUtilizationByMonth;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
@@ -71,6 +74,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.platform.sdk.common.PricingDTO;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
@@ -372,6 +376,8 @@ public class ReservedInstanceUtilizationStoreTest extends MultiDbTestBase {
      * @throws EntitySavingsException if there's a problem with the store
      */
     @Test
+    @CleanupOverrides(truncate = {ReservedInstanceUtilizationByHour.class,
+            ReservedInstanceUtilizationByDay.class, ReservedInstanceUtilizationByMonth.class})
     public void rollupToHourlyDailyAndMonthly() {
         // make sure to use a time that has the following properties: 1) adding a minute doesn't increase the hour.
         // 2) Adding an hour doesn't increase by one day 3) Adding one day doesn't increase by one the month

@@ -51,7 +51,7 @@ import com.vmturbo.sql.utils.SchemaCleaner.Monitor;
  * <p>A previously provisioned endpoint is reused whenever a later test class requests completion
  * of an endpoint with the same name. There is no check that the endpoints actually align in
  * other ways. Using two endpoints with different configurations within the lifetime of the
- * runinng JVM (typically, all the tests in a given module) will yield unpredictable results.
+ * running JVM (typically, all the tests in a given module) will yield unpredictable results.
  * This is not a scenario that is likely to arise in any case, since it would yield very confusing
  * code.</p>
  *
@@ -59,7 +59,7 @@ import com.vmturbo.sql.utils.SchemaCleaner.Monitor;
  * or user name appearing in a resolved endpoint is not equal to a previously mangled name, then
  * it is mangled and added to the list. This means that two endpoints intended ot use the same
  * schema, for instance, will do so. Again, it is possible to create scenarios where this will
- * misfire, but such scenarios would be confusing to begin wtih.</p>
+ * misfire, but such scenarios would be confusing to begin with.</p>
  *
  * <p>This class makes no use of Spring services, while {@link DbEndpoint} instances are generally
  * defined as Spring beans. The intended approach is to initialize endpoints for tests by directly
@@ -82,18 +82,18 @@ import com.vmturbo.sql.utils.SchemaCleaner.Monitor;
  * scenarios as well.</p>
  */
 public class DbEndpointTestRule implements TestRule {
-
     private static final Set<TestDbEndpoint> testDbEndpoints = new HashSet<>();
     private final Map<String, String> propertySettings;
+    private SchemaCleaner schemaCleaner;
 
     /**
      * Create a new rule instance to manage the provided endpoints.
      *
-     * <p>The `componentName` value will be used in various ways for endpiont resolution; most
+     * <p>The `componentName` value will be used in various ways for endpoint resolution; most
      * importantly, it will be used in constructing a default value for `migrationLocations`.
      * Therefore, it probably needs to be what it will be in production. Since that value is
-     * generally free-form, it will have non-alphanumeric characters removed if it is ever used
-     * for database, schema, or user names - where such characters could cause problems.</p>
+     * generally free-form, it will have non-alphanumeric characters removed if it is ever used for
+     * database, schema, or user names - where such characters could cause problems.</p>
      *
      * @param componentName name of component, for object naming defaults
      */
@@ -117,12 +117,12 @@ public class DbEndpointTestRule implements TestRule {
     /**
      * Complete an endpoint using the test rule.
      *
-     * <p>The {@link TestDbEndpoint} instance retunred by this method may be shared with other
+     * <p>The {@link TestDbEndpoint} instance returned by this method may be shared with other
      * endpoints that have been completed (in this test class or another) that had identical
      * configuration, to avoid unnecessary rebuilding of schemas.</p>
      *
      * @param endpoint endpoint to be completed
-     * @param schema   schema associated iwth the ehdpoint
+     * @param schema   schema associated with the endpoint
      * @return TestDbEndpoint instance for completed endpoint
      * @throws UnsupportedDialectException if the dialect is bogus
      * @throws InterruptedException        if we're interrupted
@@ -195,26 +195,8 @@ public class DbEndpointTestRule implements TestRule {
                         == DbEndpointAccess.ALL)
                 .collect(Collectors.groupingBy(TestDbEndpoint::getDbEndpoint))
                 .values().stream()
-                .map(list -> (TestDbEndpoint)list.get(0))
-                .map(te -> new SchemaCleaner(te.getSchema())
-                        .monitor(description.getTestClass(),
-                                getRealMethodName(description.getMethodName()),
-                                te.getRefTables(), te.getBaseTables(),
-                                te.getDslContext()));
-    }
-
-    /**
-     * This deals with an issue with parameterized tests, wherein the "test method name" provided
-     * to rules is not really the method name, becuase it includes rendered parameter values
-     * following the method name in square brackets. We need the true method name to look up
-     * annotations.
-     *
-     * @param methodName method name provided by JUnit
-     * @return method name with parameters stripped
-     */
-    private String getRealMethodName(String methodName) {
-        int bracket = methodName.indexOf('[');
-        return bracket >= 0 ? methodName.substring(0, bracket) : methodName;
+                .map(list -> list.get(0))
+                .map(te -> te.getSchemaCleaner().monitor(description));
     }
 
     private static String getFromSystemProperties(String endpointName, String propertyName,

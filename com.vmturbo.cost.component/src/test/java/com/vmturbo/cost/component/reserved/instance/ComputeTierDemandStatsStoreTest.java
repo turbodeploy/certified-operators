@@ -12,9 +12,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -55,10 +53,6 @@ public class ComputeTierDemandStatsStoreTest extends MultiDbTestBase {
                 TestCostDbEndpointConfig::costEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     @Test
     public void testPersistence() {

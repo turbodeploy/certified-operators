@@ -20,9 +20,7 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -73,10 +71,6 @@ public class EntityMaintenanceTimeDaoTest extends MultiDbTestBase {
                 "topology-processor", TestTopologyProcessorDbEndpointConfig::tpEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage DB provisioining and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private Clock clock = mock(Clock.class);
 

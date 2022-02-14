@@ -27,7 +27,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -68,12 +67,6 @@ public class WidgetsetDbStoreTest extends MultiDbTestBase {
                 TestAuthDbEndpointConfig::authDbEndpoint);
         dsl = super.getDslContext();
     }
-
-    /**
-     * Rule chain to manage DB provisioning and lifecycle.
-     */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private WidgetsetDbStore testDbStore;
 

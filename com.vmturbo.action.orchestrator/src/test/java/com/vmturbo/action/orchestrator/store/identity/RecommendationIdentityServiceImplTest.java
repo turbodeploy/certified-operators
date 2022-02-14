@@ -18,7 +18,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -78,10 +77,6 @@ public class RecommendationIdentityServiceImplTest extends MultiDbTestBase {
                 TestActionOrchestratorDbEndpointConfig::actionOrchestratorEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final long TTL_MILLIS = 24 * 60 * 60 * 1000;
 

@@ -71,10 +71,6 @@ public class EntityActionDaoImpTest extends MultiDbTestBase {
         this.dsl = super.getDslContext();
     }
 
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
-
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
