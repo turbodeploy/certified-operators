@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -65,6 +66,7 @@ import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
+import com.vmturbo.history.listeners.PartmanHelper;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
@@ -129,7 +131,7 @@ public class SystemLoadWriterTest extends MultiDbTestBase {
         if (groupService == null) {
             this.groupService = createGroupService();
          }
-        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class), threadPool);
         this.writerFactory = new SystemLoadWriter.Factory(groupService, dsl, dsl);
     }
 

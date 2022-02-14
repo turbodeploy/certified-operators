@@ -1,6 +1,7 @@
 package com.vmturbo.history.ingesters;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -8,6 +9,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -27,8 +29,11 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.DbAccessConfig;
@@ -49,6 +54,8 @@ import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.writers.PlanStatsWriter;
 import com.vmturbo.history.ingesters.plan.writers.ProjectedPlanStatsWriter.Factory;
 import com.vmturbo.history.listeners.ImmutableTopologyCoordinatorConfig;
+import com.vmturbo.history.listeners.PartmanHelper;
+import com.vmturbo.history.listeners.PartmanHelper.PartitionProcessingException;
 import com.vmturbo.history.listeners.RollupProcessor;
 import com.vmturbo.history.listeners.TopologyCoordinator;
 import com.vmturbo.history.listeners.TopologyCoordinatorConfig;
@@ -112,6 +119,10 @@ public class IngestersConfig {
     @Value("${ingest.volumeAttachmentHistoryIntervalBetweenInsertsInHours:6}")
     private long volumeAttachmentHistoryIntervalBetweenInsertsInHours;
 
+    // T(fqcn) in SpEL evaluates to a class object, which permits invoking static methods
+    @Value("#{T(java.time.Duration).parse('${retentionUpdateInterval:PT1H}')}")
+    private Duration retentionUpdateInterval;
+
     /**
      * One or more thread pools for use by ingesters.
      *
@@ -153,6 +164,21 @@ public class IngestersConfig {
 
     @Value("${ingest.saveGuestLoadEntityStats:false}")
     private boolean saveGuestLoadEntityStats;
+
+    @Value("${partitioning.latestInterval:1 hour}")
+    private String latestPartitioningInterval;
+
+    @Value("${partitioning.hourlyInterval:12 hours}")
+    private String hourlyPartitioningInterval;
+
+    @Value("${partitioning.dailyInterval:4 days}")
+    private String dailyPartitioningInterval;
+
+    @Value("${partitioning.monthlyInterval:6 months}")
+    private String monthlyPartitioningInterval;
+
+    @Value("${latestRetentionMinutes:120}")
+    private int latestRetentionMinutes;
 
     @Bean
     MarketClientConfig marketClientConfig() {
@@ -417,7 +443,7 @@ public class IngestersConfig {
     RollupProcessor rollupProcessor() {
         try {
             return new RollupProcessor(
-                    dbAccessConfig.dsl(), dbAccessConfig.unpooledDsl(),
+                    dbAccessConfig.dsl(), dbAccessConfig.unpooledDsl(), partmanHelper(),
                     dbAccessConfig.bulkLoaderThreadPool());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
@@ -518,7 +544,8 @@ public class IngestersConfig {
         return () -> {
             try {
                 return new SimpleBulkLoaderFactory(dbAccessConfig.dsl(),
-                        dbAccessConfig.bulkLoaderConfig(), dbAccessConfig.bulkLoaderThreadPool());
+                        dbAccessConfig.bulkLoaderConfig(), partmanHelper(),
+                        dbAccessConfig.bulkLoaderThreadPool());
             } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
@@ -527,6 +554,60 @@ public class IngestersConfig {
                         e);
             }
         };
+    }
+
+    /**
+     * Create a new {@link PartmanHelper} instance to integrate with Postgres' pg_partman
+     * extension.
+     *
+     * @return new instance
+     */
+    @Bean
+    public PartmanHelper partmanHelper() {
+        try {
+            return new PartmanHelper(dbAccessConfig.dsl(), settingServiceBlockingStub(),
+                    partitionIntervals(), latestRetentionMinutes, retentionUpdateInterval,
+                    retentionUpdateThreadPool());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException | PartitionProcessingException e) {
+            throw new BeanCreationException("Failed to obtain DSLContext for partman helper");
+        }
+    }
+
+    /**
+     * Partition interval settings for entity-stats tables in postgres.
+     *
+     * @return interval settings
+     */
+    @Bean
+    Map<TimeFrame, String> partitionIntervals() {
+        return ImmutableMap.of(
+                TimeFrame.LATEST, latestPartitioningInterval,
+                TimeFrame.HOUR, hourlyPartitioningInterval,
+                TimeFrame.DAY, dailyPartitioningInterval,
+                TimeFrame.MONTH, monthlyPartitioningInterval
+        );
+    }
+
+    /**
+     * Create a scheduling thread pool for updating the retention settings for partitioning.
+     *
+     * @return new thread pool
+     */
+    @Bean
+    ScheduledExecutorService retentionUpdateThreadPool() {
+        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("retention-updates")
+                .build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
+    }
+
+    /**
+     * Create a setting service access point.
+     *
+     * @return new group service endpoint
+     */
+    @Bean
+    public SettingServiceBlockingStub settingServiceBlockingStub() {
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     private Predicate<TopologyDTO.TopologyEntityDTO> getEntitiesFilter() {

@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -110,6 +111,9 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     // after allowing the throttling executor to quiesce, we still have outstanding tasks.
     private final AtomicInteger pendingExecutions = new AtomicInteger(0);
 
+    private Function<Record, Boolean> preInsertionHook;
+    private boolean firstInsertionAttempt = true;
+
     private final Table<InT> inTable;
     private final Table<OutT> outTable;
     private final DSLContext dsl;
@@ -166,17 +170,29 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
      *
      * @param record record to be inserted
      */
-    public void insert(@Nonnull InT record) {
+    public synchronized void insert(@Nonnull InT record) {
         checkClosed();
-        synchronized (pendingRecords) {
-            // is there room for more?
-            if (pendingRecords.size() >= batchSize) {
-                // nope, make some room
-                flush(false);
+        if (firstInsertionAttempt && preInsertionHook != null) {
+            firstInsertionAttempt = false;
+            if (!preInsertionHook.apply(record)) {
+                logger.error("Pre-insertion hook failed; insertions disallowed");
+                closed.set(true);
+                checkClosed();
             }
-            // now add our record
-            Optional<OutT> out = recordTransformer.transform(record, inTable, outTable);
-            out.ifPresent(pendingRecords::add);
+        }
+        // is there room for more?
+        if (pendingRecords.size() >= batchSize) {
+            // nope, make some room
+            flush(false);
+        }
+        // now add our record
+        Optional<OutT> out = recordTransformer.transform(record, inTable, outTable);
+        out.ifPresent(pendingRecords::add);
+    }
+
+    synchronized void setPreInsertionHook(Function<Record, Boolean> preInsertionHook) {
+        if (this.preInsertionHook == null) {
+            this.preInsertionHook = preInsertionHook;
         }
     }
 
@@ -185,7 +201,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         int thisBatchNo;
         List<OutT> batch;
         // capture pending records and remove them from pending list
-        synchronized (pendingRecords) {
+        synchronized (this) {
             if (pendingRecords.isEmpty()) {
                 // nothing to flush
                 return;
@@ -369,19 +385,17 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
      * @param statsLogger Logger where stats are reported; null means do not log
      * @throws InterruptedException if interrupted
      */
-    public void close(Logger statsLogger) throws InterruptedException {
+    public synchronized void close(Logger statsLogger) throws InterruptedException {
         // only one closer actually does the work of closing; subsequent closers can't
         // return until that work is finished
-        synchronized (this) {
-            if (!closed.getAndSet(true)) {
-                flush(true);
-                if (pendingExecutions.get() > 0) {
-                    logger.warn("Some batch executions still pending at close for out table {}",
-                            outTable.getName());
-                }
-                if (statsLogger != null) {
-                    inserterStats.logStats(statsLogger);
-                }
+        if (!closed.getAndSet(true)) {
+            flush(true);
+            if (pendingExecutions.get() > 0) {
+                logger.warn("Some batch executions still pending at close for out table {}",
+                        outTable.getName());
+            }
+            if (statsLogger != null) {
+                inserterStats.logStats(statsLogger);
             }
         }
         // close our out table if it's transient

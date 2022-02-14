@@ -6,7 +6,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.schema.TimeFrame.DAY;
 import static com.vmturbo.history.schema.TimeFrame.HOUR;
 import static com.vmturbo.history.schema.TimeFrame.MONTH;
-import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -24,6 +24,9 @@ import org.jooq.Record;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.TableImpl;
+import org.jooq.impl.TableRecordImpl;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -33,10 +36,11 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.TimeFrame;
-import com.vmturbo.history.schema.abstraction.tables.PmStatsByDay;
-import com.vmturbo.history.schema.abstraction.tables.PmStatsByHour;
-import com.vmturbo.history.schema.abstraction.tables.PmStatsByMonth;
-import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByDay;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByMonth;
+import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -46,12 +50,12 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 @RunWith(Parameterized.class)
 public class EntityStatsRollupTest extends RollupTestBase {
 
-    private static final Field<String> uuidField = PM_STATS_LATEST.UUID;
-    private static final Field<String> producerUuidField = PM_STATS_LATEST.PRODUCER_UUID;
-    private static final Field<String> propertyTypeField = PM_STATS_LATEST.PROPERTY_TYPE;
-    private static final Field<String> propertySubtypeField = PM_STATS_LATEST.PROPERTY_SUBTYPE;
-    private static final Field<String> commodityKeyField = PM_STATS_LATEST.COMMODITY_KEY;
-    private static final Field<RelationType> relationField = PM_STATS_LATEST.RELATION;
+    private static final Field<String> uuidField = VM_STATS_LATEST.UUID;
+    private static final Field<String> producerUuidField = VM_STATS_LATEST.PRODUCER_UUID;
+    private static final Field<String> propertyTypeField = VM_STATS_LATEST.PROPERTY_TYPE;
+    private static final Field<String> propertySubtypeField = VM_STATS_LATEST.PROPERTY_SUBTYPE;
+    private static final Field<String> commodityKeyField = VM_STATS_LATEST.COMMODITY_KEY;
+    private static final Field<RelationType> relationField = VM_STATS_LATEST.RELATION;
     private static final String HOUR_KEY_FIELD_NAME = "hour_key";
     private static final String DAY_KEY_FIELD_NAME = "day_key";
     private static final String MONTH_KEY_FIELD_NAME = "month_key";
@@ -78,6 +82,24 @@ public class EntityStatsRollupTest extends RollupTestBase {
     }
 
     /**
+     * Make sure all the vm_stats tables have a default partition before we start, else inserts will
+     * fail.
+     */
+    @Before
+    public void before() {
+        if (dsl.dialect() == SQLDialect.POSTGRES) {
+            for (TableImpl<? extends TableRecordImpl<? extends TableRecordImpl<?>>> table : Arrays.asList(
+                    Tables.VM_STATS_LATEST, Tables.VM_STATS_BY_HOUR, Tables.VM_STATS_BY_DAY,
+                    Tables.VM_STATS_BY_MONTH)) {
+                String sql = String.format(
+                        "CREATE TABLE IF NOT EXISTS %1$s_default PARTITION OF %1$s DEFAULT",
+                        table.getName());
+                dsl.execute(sql);
+            }
+        }
+    }
+
+    /**
      * Perform a test of rollups by inserting records into a time series over a span of 26 hours
      * crossing a month (and therefore day) boundary in the process, and checking that all rollup
      * tables have correct values in all fields.
@@ -86,7 +108,7 @@ public class EntityStatsRollupTest extends RollupTestBase {
      * @throws DataAccessException  on db error
      */
     @Test
-    @CleanupOverrides(truncate = {PmStatsByHour.class, PmStatsByDay.class, PmStatsByMonth.class})
+    @CleanupOverrides(truncate = {VmStatsByHour.class, VmStatsByDay.class, VmStatsByMonth.class})
     public void testRollups() throws InterruptedException, DataAccessException {
         String producerUuid = rand.nextBoolean() ? null : getRandUuid();
         RelationType relation = producerUuid != null ? RelationType.COMMODITIESBOUGHT
@@ -94,11 +116,11 @@ public class EntityStatsRollupTest extends RollupTestBase {
         EntityStatsIdentityValues identityValues = new EntityStatsIdentityValues(
                 getRandUuid(), producerUuid, StringConstants.CPU, StringConstants.USED,
                 null, relation);
-        PmStatsLatestRecord template1 =
-                createTemplate(PM_STATS_LATEST, identityValues);
-        StatsTimeSeries<PmStatsLatestRecord> ts1 = new StatsTimeSeries<>(PM_STATS_LATEST, template1,
+        VmStatsLatestRecord template1 =
+                createTemplate(VM_STATS_LATEST, identityValues);
+        StatsTimeSeries<VmStatsLatestRecord> ts1 = new StatsTimeSeries<>(VM_STATS_LATEST, template1,
                 100_000.0, Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10));
-        BulkLoader<PmStatsLatestRecord> loader = loaders.getLoader(PM_STATS_LATEST);
+        BulkLoader<VmStatsLatestRecord> loader = loaders.getLoader(VM_STATS_LATEST);
         // run through the 22:00 hour
         ts1.cycle(6, loader);
         final Aggregator hourly10PM = ts1.reset(HOUR);
@@ -132,14 +154,14 @@ public class EntityStatsRollupTest extends RollupTestBase {
         final Aggregator dailyFeb1 = ts1.reset(DAY);
         final Aggregator monthlyFeb = ts1.reset(MONTH);
         // now check the rollup data for the aggregators we grabbed
-        checkEntityRollup(HOUR, template1, hourly10PM, PM_STATS_LATEST, identityValues);
-        checkEntityRollup(HOUR, template1, hourly11PM, PM_STATS_LATEST, identityValues);
-        checkEntityRollup(HOUR, template1, hourly12AM, PM_STATS_LATEST, identityValues);
-        checkEntityRollup(HOUR, template1, hourly1AM, PM_STATS_LATEST, identityValues);
-        checkEntityRollup(DAY, template1, dailyJan31, PM_STATS_LATEST, identityValues);
-        checkEntityRollup(DAY, template1, dailyFeb1, PM_STATS_LATEST, identityValues);
-        checkEntityRollup(MONTH, template1, monthlyJan, PM_STATS_LATEST, identityValues);
-        checkEntityRollup(MONTH, template1, monthlyFeb, PM_STATS_LATEST, identityValues);
+        checkEntityRollup(HOUR, template1, hourly10PM, VM_STATS_LATEST, identityValues);
+        checkEntityRollup(HOUR, template1, hourly11PM, VM_STATS_LATEST, identityValues);
+        checkEntityRollup(HOUR, template1, hourly12AM, VM_STATS_LATEST, identityValues);
+        checkEntityRollup(HOUR, template1, hourly1AM, VM_STATS_LATEST, identityValues);
+        checkEntityRollup(DAY, template1, dailyJan31, VM_STATS_LATEST, identityValues);
+        checkEntityRollup(DAY, template1, dailyFeb1, VM_STATS_LATEST, identityValues);
+        checkEntityRollup(MONTH, template1, monthlyJan, VM_STATS_LATEST, identityValues);
+        checkEntityRollup(MONTH, template1, monthlyFeb, VM_STATS_LATEST, identityValues);
     }
 
     /**
@@ -159,7 +181,7 @@ public class EntityStatsRollupTest extends RollupTestBase {
      * @throws DataAccessException on db error
      */
     protected <R extends Record> void checkEntityRollup(TimeFrame timeFrame, R template,
-            Aggregator aggregator, Table<R> table, IdentityValues<PmStatsLatestRecord> identity)
+            Aggregator aggregator, Table<R> table, IdentityValues<VmStatsLatestRecord> identity)
             throws DataAccessException {
         Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());
         Table<?> rollupTable = getRollupTable(table, timeFrame);
@@ -187,7 +209,7 @@ public class EntityStatsRollupTest extends RollupTestBase {
     /**
      * CLass to manage identity fields for entity stats records.
      */
-    private static class EntityStatsIdentityValues implements IdentityValues<PmStatsLatestRecord> {
+    private static class EntityStatsIdentityValues implements IdentityValues<VmStatsLatestRecord> {
 
         private final String uuid;
         private final String producerUuid;
@@ -207,7 +229,7 @@ public class EntityStatsRollupTest extends RollupTestBase {
         }
 
         @Override
-        public void set(PmStatsLatestRecord record) {
+        public void set(VmStatsLatestRecord record) {
             record.setValue(uuidField, uuid);
             record.setValue(producerUuidField, producerUuid);
             record.setValue(propertyTypeField, propertyType);

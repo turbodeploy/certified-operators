@@ -84,6 +84,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.listeners.PartmanHelper;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
@@ -226,7 +227,7 @@ public class ClusterStatsReaderTest extends MultiDbTestBase {
                 .batchSize(10).maxPendingBatches(1).maxBatchRetries(1).maxRetryBackoffMsec(100)
                 .build();
         try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(dsl, config,
-                Executors.newSingleThreadExecutor())) {
+                mock(PartmanHelper.class), Executors.newSingleThreadExecutor())) {
             for (final Timestamp time : latestTimes) {
                 for (final String propertyType : propertyTypes) {
                     insertStatsRecord(loaders, CLUSTER_STATS_LATEST,
@@ -265,7 +266,7 @@ public class ClusterStatsReaderTest extends MultiDbTestBase {
                 .batchSize(10).maxPendingBatches(1).maxBatchRetries(1).maxRetryBackoffMsec(100)
                 .build();
         try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(dsl, config,
-                Executors.newSingleThreadExecutor())) {
+                mock(PartmanHelper.class), Executors.newSingleThreadExecutor())) {
 
             if (insertLatest) {
                 insertTimeStampRecord(loaders, TimeFrame.LATEST, LATEST_TIMESTAMP1,
@@ -462,7 +463,7 @@ public class ClusterStatsReaderTest extends MultiDbTestBase {
                 .batchSize(10).maxPendingBatches(1).maxBatchRetries(1).maxRetryBackoffMsec(100)
                 .build();
         try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(dsl, config,
-                Executors.newSingleThreadExecutor())) {
+                mock(PartmanHelper.class), Executors.newSingleThreadExecutor())) {
             insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, yesterday, CLUSTER_ID_3,
                     CPU_HEADROOM, USED, 20.0);
             insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, yesterday, CLUSTER_ID_3,

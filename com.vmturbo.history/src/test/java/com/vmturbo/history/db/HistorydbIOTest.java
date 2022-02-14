@@ -132,6 +132,10 @@ public class HistorydbIOTest extends MultiDbTestBase {
     @Before
     public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
         historydbIO = new HistorydbIO(dsl, dsl);
+        if (dsl.dialect() == SQLDialect.POSTGRES) {
+            dsl.execute("CREATE TABLE IF NOT EXISTS vm_stats_latest_default "
+                    + "PARTITION OF vm_stats_latest DEFAULT");
+        }
     }
 
     private static final Logger logger = LogManager.getLogger();

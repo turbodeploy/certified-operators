@@ -1,5 +1,7 @@
 package com.vmturbo.history.testutil;
 
+import static org.mockito.Mockito.mock;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -7,6 +9,7 @@ import org.jooq.DSLContext;
 
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.listeners.PartmanHelper;
 
 /**
  * Utilities for testing with bulk loaders.
@@ -21,7 +24,8 @@ public class BulkLoaderUtils {
      * @return the new factory
      */
     public static SimpleBulkLoaderFactory getRecordWriterFactory(DSLContext dsl) {
-        return new SimpleBulkLoaderFactory(dsl, getConfig(), getRecordWritersThreadPool());
+        return new SimpleBulkLoaderFactory(dsl, getConfig(), mock(PartmanHelper.class),
+                getRecordWritersThreadPool());
     }
 
     public static ExecutorService getRecordWritersThreadPool() {

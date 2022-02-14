@@ -116,7 +116,19 @@ public interface EntityType {
      * @return associated entity type, if any
      */
     static Optional<EntityType> fromTable(Table<?> table) {
-        return Optional.ofNullable(EntityTypeDefinitions.TABLE_TO_ENTITY_TYPE_MAP.get(table));
+        return Optional.ofNullable(
+                EntityTypeDefinitions.TABLE_TO_ENTITY_TYPE_MAP.get(table.getClass()));
+    }
+
+    /**
+     * Obtain the timeframe for the given history statas table.
+     *
+     * @param table table
+     * @return associated {@link TimeFrame}
+     */
+    static Optional<TimeFrame> timeFrameOfTable(Table<?> table) {
+        return Optional.ofNullable(
+                EntityTypeDefinitions.TABLE_TO_TIME_FRAME_MAP.get(table.getClass()));
     }
 
     /**
