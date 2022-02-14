@@ -10,7 +10,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -19,8 +18,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.protobuf.AbstractMessage;
 
 import org.apache.commons.io.FileUtils;
@@ -65,7 +62,6 @@ import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.matrix.component.external.MatrixInterface;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricGauge;
@@ -116,7 +112,6 @@ import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.BaseTopologicalChange;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -808,7 +803,7 @@ public class Stages {
     /**
      * This stage is to update entity controllable flag.
      */
-    public static class ControllableStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+    public static class ControllableStage extends PassthroughStage<GraphWithSettings> {
         private final ControllableManager controllableManager;
 
         public ControllableStage(@Nonnull final ControllableManager controllableManager) {
@@ -817,15 +812,15 @@ public class Stages {
 
         @NotNull
         @Override
-        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
+        public Status passthrough(@Nonnull final GraphWithSettings graph) {
             if (TopologyDTOUtil.isPlan(getContext().getTopologyInfo())) {
-                final int modified = controllableManager.setUncontrollablePodsToControllableInPlan(input);
+                final int modified = controllableManager.setUncontrollablePodsToControllableInPlan(graph.getTopologyGraph());
                 return Status.success("Marked " + modified + " pods as topologycontrollable.");
             }
-            final int controllableModified = controllableManager.applyControllable(input);
-            final int suspendableModified = controllableManager.applySuspendable(input);
-            final int scaleModified = controllableManager.applyScaleEligibility(input);
-            final int resizeModified = controllableManager.applyResizable(input);
+            final int controllableModified = controllableManager.applyControllable(graph);
+            final int suspendableModified = controllableManager.applySuspendable(graph.getTopologyGraph());
+            final int scaleModified = controllableManager.applyScaleEligibility(graph.getTopologyGraph());
+            final int resizeModified = controllableManager.applyResizable(graph.getTopologyGraph());
             return Status.success("Marked " + controllableModified + " entities as non-controllable.\n"
                     + "Marked " + suspendableModified + " entities as non-suspendable.\n"
                     + "Marked " + scaleModified + " entities as not scalable.\n"
