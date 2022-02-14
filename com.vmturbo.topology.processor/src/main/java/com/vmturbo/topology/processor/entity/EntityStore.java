@@ -53,7 +53,6 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
@@ -159,8 +158,6 @@ public class EntityStore {
      */
     private boolean entityDetailsEnabled = false;
 
-    private final boolean accountForVendorAutomation;
-
     /**
      * All the probe types which support converting layered over and consists of to connected to relationship.
      */
@@ -244,14 +241,13 @@ public class EntityStore {
     public EntityStore(@Nonnull final TargetStore targetStore, @Nonnull final IdentityProvider identityProvider,
             final float duplicateTargetOverlapRatio, final boolean mergeKubernetesTypesForDuplicateDetection,
             @Nonnull final List<EntitiesWithNewStateListener> entitiesWithNewStateListeners, @Nonnull final Clock clock,
-            final boolean accountForVendorAutomation, boolean useSerializedEntities) {
+            boolean useSerializedEntities) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.duplicateTargetDetector = new InternalDuplicateTargetDetector(entityMap, targetStore,
                 duplicateTargetOverlapRatio, mergeKubernetesTypesForDuplicateDetection);
         this.entitiesWithNewStateListeners = Objects.requireNonNull(entitiesWithNewStateListeners);
         this.clock = Objects.requireNonNull(clock);
-        this.accountForVendorAutomation = accountForVendorAutomation;
         this.useSerializedEntities = useSerializedEntities;
         targetStore.addListener(new TargetStoreListener() {
             @Override
@@ -940,15 +936,13 @@ public class EntityStore {
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .setEntityState(entityState(entityDTO));
 
-                if (accountForVendorAutomation) {
-                    // Send automation level
-                    getEntityDTOs(entityOid)
-                        .filter(EntityDTO::hasPhysicalMachineData).map(EntityDTO::getPhysicalMachineData)
-                        .filter(PhysicalMachineData::hasAutomationLevel).map(PhysicalMachineData::getAutomationLevel)
-                        .findFirst().ifPresent(automationLevel ->
-                            topologyEntityDTO.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
-                                PhysicalMachineInfo.newBuilder().setAutomationLevel(automationLevel))));
-                }
+                // Send automation level
+                getEntityDTOs(entityOid)
+                    .filter(EntityDTO::hasPhysicalMachineData).map(EntityDTO::getPhysicalMachineData)
+                    .filter(PhysicalMachineData::hasAutomationLevel).map(PhysicalMachineData::getAutomationLevel)
+                    .findFirst().ifPresent(automationLevel ->
+                        topologyEntityDTO.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                            PhysicalMachineInfo.newBuilder().setAutomationLevel(automationLevel))));
 
                 entitiesWithNewStateBuilder.addTopologyEntity(topologyEntityDTO);
             }
@@ -1358,7 +1352,7 @@ public class EntityStore {
             this.targetStore = targetStore;
             targetStore.addListener(new TargetStoreListener() {
                 @Override
-                public void onTargetRemoved(@NotNull Target target) {
+                public void onTargetRemoved(@Nonnull Target target) {
                     targetRemoved(target.getId());
                 }
             });

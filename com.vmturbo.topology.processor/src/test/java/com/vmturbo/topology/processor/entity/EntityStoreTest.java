@@ -144,7 +144,7 @@ public class EntityStoreTest {
             .build();
 
     private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                    Collections.singletonList(sender), Clock.systemUTC(), false, true));
+                    Collections.singletonList(sender), Clock.systemUTC(), true));
 
     /**
      * Expected exception rule.
@@ -608,7 +608,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, false, useSerializedEntities);
+                mockClock, useSerializedEntities);
 
         addEntities(entities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
@@ -698,7 +698,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, false, useSerializedEntities);
+                mockClock, useSerializedEntities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
@@ -779,7 +779,7 @@ public class EntityStoreTest {
     @Parameters(method = "generateTestData")
     public void testSendEntitiesWithNewState(boolean useSerializedEntities) throws Exception {
         entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                    Collections.singletonList(sender), Clock.systemUTC(), true, true));
+                    Collections.singletonList(sender), Clock.systemUTC(), true));
 
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         final long targetId1 = 2001;
@@ -820,20 +820,6 @@ public class EntityStoreTest {
                             PhysicalMachineInfo.newBuilder().setAutomationLevel(
                                 AutomationLevel.FULLY_AUTOMATED))))
                 .build());
-
-        // Disable maintenance mode feature. Automation level is not sent.
-        entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                        Collections.singletonList(sender), Clock.systemUTC(), false, true));
-        addEntities(ImmutableMap.of(oid2, entityDTO2), targetId1, 0, DiscoveryType.INCREMENTAL, 2);
-        verify(sender, times(1)).onEntitiesWithNewState(
-            EntitiesWithNewState.newBuilder()
-                .setStateChangeId(1L)
-                .addTopologyEntity(
-                    TopologyEntityDTO.newBuilder().setOid(oid2)
-                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                        .setEntityState(EntityState.MAINTENANCE))
-                .build()
-        );
     }
 
     private void restoreWithSharedEntity(@Nonnull EntityType entityType)
@@ -1023,7 +1009,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true,
-                        Collections.singletonList(sender), mockClock, false, true);
+                        Collections.singletonList(sender), mockClock, true);
         addEntities(entities);
 
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))

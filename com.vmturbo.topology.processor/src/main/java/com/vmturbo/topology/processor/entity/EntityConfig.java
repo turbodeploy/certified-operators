@@ -63,9 +63,6 @@ public class EntityConfig {
     @Value("${targetDeduplicationMergeKubernetesProbeTypes:true}")
     private boolean targetDeduplicationMergeKubernetesProbeTypes;
 
-    @Value("${accountForVendorAutomation:false}")
-    private boolean accountForVendorAutomation;
-
     @Value("${useSerializedEntities:false}")
     private boolean useSerializedEntities;
 
@@ -77,7 +74,7 @@ public class EntityConfig {
             targetDeduplicationMergeKubernetesProbeTypes,
             Lists.newArrayList(sender, controllableConfig.entityMaintenanceTimeDao()),
             clockConfig.clock(),
-            accountForVendorAutomation, useSerializedEntities);
+            useSerializedEntities);
         store.setEntityDetailsEnabled(entityDetailsEnabled);
         return store;
     }

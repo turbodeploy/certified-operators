@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.controllable;
 
 import java.sql.SQLException;
-import java.time.Clock;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -18,6 +17,7 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.AffectedEntitiesServiceGrpc;
 import com.vmturbo.common.protobuf.action.AffectedEntitiesServiceGrpc.AffectedEntitiesServiceBlockingStub;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.DbAccessConfig;
 
 /**
@@ -27,7 +27,8 @@ import com.vmturbo.topology.processor.DbAccessConfig;
 @Configuration
 @Import({
         DbAccessConfig.class,
-        ActionOrchestratorClientConfig.class
+        ActionOrchestratorClientConfig.class,
+        ClockConfig.class
 })
 public class ControllableConfig {
 
@@ -53,12 +54,6 @@ public class ControllableConfig {
     @Value("${resizeSucceedRecordExpiredSeconds:14400}")
     int resizeSucceedRecordExpiredSeconds;
 
-    @Value("${accountForVendorAutomation:false}")
-    private boolean accountForVendorAutomation;
-
-    @Value("${drsMaintenanceProtectionWindow:1800}")
-    private int drsMaintenanceProtectionWindow;
-
     /**
      * When false, ControllableManager uses the existing entity_action table to
      * calculate the actions that should be suppressed. This old logic does not
@@ -79,6 +74,9 @@ public class ControllableConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
+
+    @Autowired
+    private ClockConfig clockConfig;
 
     /**
      * The implementation the updates and reads entity action, affected entities.
@@ -122,8 +120,7 @@ public class ControllableConfig {
     @Bean
     public EntityMaintenanceTimeDao entityMaintenanceTimeDao() {
         try {
-            return new EntityMaintenanceTimeDao(dbAccessConfig.dsl(), drsMaintenanceProtectionWindow,
-                Clock.systemUTC(), accountForVendorAutomation);
+            return new EntityMaintenanceTimeDao(dbAccessConfig.dsl(), clockConfig.clock());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -139,7 +136,7 @@ public class ControllableConfig {
      */
     @Bean
     public ControllableManager controllableManager() {
-        return new ControllableManager(entityActionDao(), entityMaintenanceTimeDao(), accountForVendorAutomation);
+        return new ControllableManager(entityActionDao(), entityMaintenanceTimeDao(), clockConfig.clock());
     }
 
     /**

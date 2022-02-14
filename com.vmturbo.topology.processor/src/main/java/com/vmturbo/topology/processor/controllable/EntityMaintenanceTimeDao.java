@@ -4,8 +4,10 @@ import static com.vmturbo.topology.processor.db.tables.EntityMaintenance.ENTITY_
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -19,9 +21,12 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.db.tables.records.EntityMaintenanceRecord;
 import com.vmturbo.topology.processor.entity.EntitiesWithNewStateListener;
 
@@ -33,6 +38,7 @@ import com.vmturbo.topology.processor.entity.EntitiesWithNewStateListener;
  * 2. When a host exits maintenance mode, we'll update the EXIT_TIME to now only when the existing EXIT_TIME is null.
  *    If EXIT_TIME is not null, it means that host already exists maintenance mode.
  * 3. Every broadcast, we delete expired records and return all hosts that should be marked as controllable false.
+ * TODO change timestamps to epoch longs and get rid of LocalDateTime manipulations
  */
 public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
 
@@ -40,29 +46,17 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
 
     private final DSLContext dsl;
 
-    private final int drsMaintenanceProtectionWindow;
-
     private final Clock clock;
-
-    private final boolean accountForVendorAutomation;
 
     /**
      * Constructor.
      *
      * @param dsl Jooq context to use
-     * @param drsMaintenanceProtectionWindow number of seconds to keep host controllable false
-     *                                     after it exits maintenance mode
      * @param clock clock
-     * @param accountForVendorAutomation enable or disable feature
      */
-    EntityMaintenanceTimeDao(final DSLContext dsl,
-                             final int drsMaintenanceProtectionWindow,
-                             final Clock clock,
-                             final boolean accountForVendorAutomation) {
+    EntityMaintenanceTimeDao(final DSLContext dsl, final Clock clock) {
         this.dsl = Objects.requireNonNull(dsl);
-        this.drsMaintenanceProtectionWindow = drsMaintenanceProtectionWindow;
         this.clock = clock;
-        this.accountForVendorAutomation = accountForVendorAutomation;
     }
 
     /**
@@ -73,30 +67,48 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
      */
     @Override
     public void onEntitiesWithNewState(final EntitiesWithNewState entitiesWithNewState) {
-        if (accountForVendorAutomation) {
-            updateMaintenanceExitTime(entitiesWithNewState);
-            recordMaintenanceHosts(entitiesWithNewState);
-        }
+        processHostInfos(entitiesWithNewState.getTopologyEntityList().stream()
+                        .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
+                        .map(HostMaintenanceInfo::new)
+                        .collect(Collectors.toList()));
     }
 
     /**
-     * Delete expired records and return all hosts that should be marked as controllable false.
+     * Process entities in the broadcast to react to state changes.
      *
-     * @return hosts that should be marked as controllable false
+     * @param graph topology graph
      */
-    public Set<Long> getControllableFalseHost() {
-        Set<Long> oids;
+    public void onEntities(TopologyGraph<TopologyEntity> graph) {
+        // gather hosts' data only once for two types of processing
+        processHostInfos(graph.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
+                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .map(HostMaintenanceInfo::new)
+                        .collect(Collectors.toList()));
+    }
+
+    private void processHostInfos(List<HostMaintenanceInfo> hostInfos) {
+        updateMaintenanceExitTime(hostInfos);
+        recordMaintenanceHosts(hostInfos);
+    }
+
+    /**
+     * Delete expired records and return all hosts that may have to be marked as controllable false.
+     *
+     * @return hosts that left maintenance mode and timestamps (seconds) of that moment
+     */
+    public Map<Long, Long> getHostsThatLeftMaintenance() {
         try {
             deleteExpiredRecords();
-            oids = dsl.selectFrom(ENTITY_MAINTENANCE)
-                .where(ENTITY_MAINTENANCE.EXIT_TIME.isNotNull())
-                .fetchSet(ENTITY_MAINTENANCE.ENTITY_OID);
+            ZoneId zoneId = ZoneId.systemDefault();
+            return dsl.selectFrom(ENTITY_MAINTENANCE)
+                            .where(ENTITY_MAINTENANCE.EXIT_TIME.isNotNull())
+                            .fetchStream()
+                            .collect(Collectors.toMap(EntityMaintenanceRecord::value1,
+                                            rec -> rec.value2().atZone(zoneId).toEpochSecond()));
         } catch (DataAccessException e) {
             logger.error("Failed to read the entities in maintenance state from the db.", e);
-            oids = Collections.emptySet();
+            return Collections.emptyMap();
         }
-
-        return oids;
     }
 
     /**
@@ -109,7 +121,7 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
             final DSLContext dslContext = DSL.using(configuration);
             final LocalDateTime now = LocalDateTime.now(clock);
             final LocalDateTime expiredThresholdTime =
-                now.minusSeconds(drsMaintenanceProtectionWindow);
+                now.minusMinutes((long)EntitySettingSpecs.DrsMaintenanceProtectionWindow.getNumericMax());
 
             dslContext.deleteFrom(ENTITY_MAINTENANCE)
                 .where(ENTITY_MAINTENANCE.EXIT_TIME.lessOrEqual(expiredThresholdTime))
@@ -120,9 +132,9 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
     /**
      * Update the time when a host exits maintenance mode.
      *
-     * @param entitiesWithNewState entities with new state
+     * @param hostInfos hosts' data
      */
-    private void updateMaintenanceExitTime(final EntitiesWithNewState entitiesWithNewState) {
+    private void updateMaintenanceExitTime(List<HostMaintenanceInfo> hostInfos) {
         // We know that the state of a host that exits maintenance mode is POWERED_ON,
         // but we don't know the previous state of a host.
         // If the state of a host is POWERED_ON, it doesn't mean that its previous state must be MAINTENANCE.
@@ -132,14 +144,10 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
         // If the given host oid exists in table and its EXIT_TIME value is null,
         // it means the previous state is MAINTENANCE.
         // This is because record (host_oid, null) will be inserted only when a host enters maintenance mode.
-        final Set<Long> automatedHostsNotInMaintenanceMode = entitiesWithNewState.getTopologyEntityList().stream()
-            .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
-            .filter(entity -> entity.getEntityState() != EntityState.MAINTENANCE)
-            .filter(entity -> entity.hasTypeSpecificInfo()
-                && entity.getTypeSpecificInfo().hasPhysicalMachine()
-                && entity.getTypeSpecificInfo().getPhysicalMachine().hasAutomationLevel()
-                && entity.getTypeSpecificInfo().getPhysicalMachine().getAutomationLevel() == AutomationLevel.FULLY_AUTOMATED)
-            .map(TopologyEntityDTO::getOid)
+        final Set<Long> automatedHostsNotInMaintenanceMode = hostInfos.stream()
+            .filter(entity -> entity.getState() != EntityState.MAINTENANCE)
+            .filter(entity -> entity.getLevel() == AutomationLevel.FULLY_AUTOMATED)
+            .map(HostMaintenanceInfo::getOid)
             .collect(Collectors.toSet());
 
         logger.trace("Automated hosts not in maintenance mode: {}", automatedHostsNotInMaintenanceMode);
@@ -168,13 +176,12 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
     /**
      * Record hosts in maintenance mode. EXIT_TIME will be set to null.
      *
-     * @param entitiesWithNewState entities with new state
+     * @param hostInfos hosts' data
      */
-    private void recordMaintenanceHosts(final EntitiesWithNewState entitiesWithNewState) {
-        final Set<Long> hostsInMaintenanceMode = entitiesWithNewState.getTopologyEntityList().stream()
-            .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
-            .filter(entity -> entity.getEntityState() == EntityState.MAINTENANCE)
-            .map(TopologyEntityDTO::getOid)
+    private void recordMaintenanceHosts(List<HostMaintenanceInfo> hostInfos) {
+        final Set<Long> hostsInMaintenanceMode = hostInfos.stream()
+            .filter(entity -> entity.getState() == EntityState.MAINTENANCE)
+            .map(HostMaintenanceInfo::getOid)
             .collect(Collectors.toSet());
 
         logger.trace("Hosts in maintenance mode: {}", hostsInMaintenanceMode);
@@ -199,6 +206,43 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
             });
         } catch (DataAccessException e) {
             logger.error("Failed to record hosts {} in maintenance mode.", hostsInMaintenanceMode, e);
+        }
+    }
+
+    /**
+     * Intermediate maintenance information holder for hosts.
+     * Retains data of interest for this tracker, to reduce the number of topology enumerations.
+     */
+    private static class HostMaintenanceInfo {
+        private final long oid;
+        private final EntityState state;
+        private final AutomationLevel level;
+
+        /**
+         * Extract the relevant fields from a topo dto.
+         *
+         * @param dto dto or builder
+         */
+        HostMaintenanceInfo(TopologyEntityDTOOrBuilder dto) {
+            this.oid = dto.getOid();
+            this.state = dto.getEntityState();
+            if (dto.hasTypeSpecificInfo() && dto.getTypeSpecificInfo().hasPhysicalMachine()) {
+                this.level = dto.getTypeSpecificInfo().getPhysicalMachine().getAutomationLevel();
+            } else {
+                this.level = AutomationLevel.NOT_AUTOMATED;
+            }
+        }
+
+        public long getOid() {
+            return oid;
+        }
+
+        public EntityState getState() {
+            return state;
+        }
+
+        public AutomationLevel getLevel() {
+            return level;
         }
     }
 }

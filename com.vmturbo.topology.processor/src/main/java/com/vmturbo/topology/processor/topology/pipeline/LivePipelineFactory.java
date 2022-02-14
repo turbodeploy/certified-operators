@@ -358,7 +358,6 @@ public class LivePipelineFactory {
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
                 .addStage(new ReservationStage(reservationManager))
                 .addStage(new GraphCreationStage(groupScopeResolver))
-                .addStage(new ControllableStage(controllableManager))
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
@@ -371,6 +370,7 @@ public class LivePipelineFactory {
                     .asStage("SettingsAndPoliciesSegment"))
                 .addStage(new Stages.MatrixUpdateStage(mi))
                 .addStage(new PostStitchingStage(stitchingManager))
+                .addStage(new ControllableStage(controllableManager))
                 .addStage(new EntityValidationStage(entityValidator, false))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator,
                     supplyChainValidationFrequency, broadcastCount))

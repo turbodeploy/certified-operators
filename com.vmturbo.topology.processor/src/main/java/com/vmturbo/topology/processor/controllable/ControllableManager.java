@@ -1,8 +1,12 @@
 package com.vmturbo.topology.processor.controllable;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -11,17 +15,21 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
  * Controllable means that when there are some actions are executing, we should not let Market generate
@@ -33,21 +41,20 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * entity id, it should change its TopologyEntityDTO controllable flag to false.
  */
 public class ControllableManager {
+    private static final Logger logger = LogManager.getLogger();
 
     private final EntityActionDao entityActionDao;
 
-    private final boolean accountForVendorAutomation;
-
     private final EntityMaintenanceTimeDao entityMaintenanceTimeDao;
 
-    private static final Logger logger = LogManager.getLogger();
+    private final Clock clock;
 
     public ControllableManager(@Nonnull final EntityActionDao entityActionDao,
                                @Nonnull final EntityMaintenanceTimeDao entityMaintenanceTimeDao,
-                               final boolean accountForVendorAutomation) {
+                               @Nonnull Clock clock) {
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
         this.entityMaintenanceTimeDao = Objects.requireNonNull(entityMaintenanceTimeDao);
-        this.accountForVendorAutomation = accountForVendorAutomation;
+        this.clock = clock;
     }
 
     /**
@@ -57,15 +64,14 @@ public class ControllableManager {
      * @param topology a topology graph.
      * @return Number of modified entities.
      */
-    public int applyControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+    public int applyControllable(@Nonnull final GraphWithSettings topology) {
         final Set<Long> oidModified = new HashSet<>();
-        oidModified.addAll(applyControllableEntityAction(topology));
-        oidModified.addAll(markVMsOnFailoverOrUnknownHostAsNotControllable(topology));
-        oidModified.addAll(markSuspendedEntitiesAsNotControllable(topology));
-        if (accountForVendorAutomation) {
-            oidModified.addAll(applyControllableAutomationLevel(topology));
-            oidModified.addAll(keepControllableFalseAfterExitingMaintenanceMode(topology));
-        }
+        TopologyGraph<TopologyEntity> topologyGraph = topology.getTopologyGraph();
+        oidModified.addAll(applyControllableEntityAction(topologyGraph));
+        oidModified.addAll(markVMsOnFailoverOrUnknownHostAsNotControllable(topologyGraph));
+        oidModified.addAll(markSuspendedEntitiesAsNotControllable(topologyGraph));
+        oidModified.addAll(applyControllableAutomationLevel(topologyGraph));
+        oidModified.addAll(keepControllableFalseAfterExitingMaintenanceMode(topology));
         return oidModified.size();
     }
 
@@ -75,7 +81,7 @@ public class ControllableManager {
      * for example if the VM which they are currently on gets suspended, or such pods are added
      * as cloned pods in the plan.
      *
-     * @param topology a topology graph.
+     * @param graph a topology graph.
      * @return Number of modified entities.
      */
     public int setUncontrollablePodsToControllableInPlan(@Nonnull final TopologyGraph<TopologyEntity> topology) {
@@ -218,18 +224,39 @@ public class ControllableManager {
      * @param topology topology a topology graph.
      * @return a set of modified entity oids.
      */
-    private Set<Long> keepControllableFalseAfterExitingMaintenanceMode(final TopologyGraph<TopologyEntity> topology) {
-        return entityMaintenanceTimeDao.getControllableFalseHost().stream()
-            .map(topology::getEntity)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            .map(entity -> {
-                entity.getAnalysisSettingsBuilder().setControllable(false);
-                logger.trace("Set controllable to false for host {}", entity);
-                return entity.getOid();
-            })
-            .collect(Collectors.toSet());
+    private Set<Long> keepControllableFalseAfterExitingMaintenanceMode(final GraphWithSettings topology) {
+        entityMaintenanceTimeDao.onEntities(topology.getTopologyGraph());
+        Map<Long, Long> oids2exitMaintenances = entityMaintenanceTimeDao.getHostsThatLeftMaintenance();
+        Set<Long> oidsToKeep = new HashSet<>();
+        long now = clock.millis();
+
+        for (Map.Entry<Long, Long> oid2exitMaintenance : oids2exitMaintenances.entrySet()) {
+            long oid = oid2exitMaintenance.getKey();
+            Optional<TopologyEntity> host = topology.getTopologyGraph().getEntity(oid);
+            if (!host.isPresent()) {
+                // could be already removed from topology, will expire in maintenance table at max setting window
+                continue;
+            }
+            EntitySettings hostSettings = topology.getSettingsByEntity().get(oid);
+            if (hostSettings == null) {
+                continue;
+            }
+            for (SettingToPolicyId settingToId : hostSettings.getUserSettingsList()) {
+                Setting setting = settingToId.getSetting();
+                if (EntitySettingSpecs.DrsMaintenanceProtectionWindow.getSettingName()
+                                .equals(setting.getSettingSpecName())
+                                && setting.hasNumericSettingValue()) {
+                    long delay = (long)setting.getNumericSettingValue().getValue();
+                    if (delay > 0 && Instant.ofEpochMilli(now).minus(delay, ChronoUnit.MINUTES).compareTo(
+                                    Instant.ofEpochSecond(oid2exitMaintenance.getValue())) < 0) {
+                        logger.trace("Keeping controllable false for host that left maintenance {}", host.get());
+                        host.get().getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                        oidsToKeep.add(oid);
+                    }
+                }
+            }
+        }
+        return oidsToKeep;
     }
 
     /**
@@ -242,7 +269,7 @@ public class ControllableManager {
     public int applySuspendable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
         entityActionDao.getNonSuspendableEntityIds().stream()
-            .map(topology::getEntity)
+            .map(oid -> topology.getEntity(oid))
             .filter(Optional::isPresent)
             .map(Optional::get)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
@@ -269,7 +296,7 @@ public class ControllableManager {
     public int applyScaleEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
         entityActionDao.ineligibleForScaleEntityIds().stream()
-                .map(topology::getEntity)
+                .map(oid -> topology.getEntity(oid))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .map(TopologyEntity::getTopologyEntityDtoBuilder)
@@ -314,7 +341,7 @@ public class ControllableManager {
      */
     private Set<Long> applyResizeDownEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return entityActionDao.ineligibleForResizeDownEntityIds().stream()
-                .map(topology::getEntity)
+                .map(oid -> topology.getEntity(oid))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .map(TopologyEntity::getTopologyEntityDtoBuilder)
