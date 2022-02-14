@@ -63,6 +63,7 @@ import com.vmturbo.history.db.EntityStatsRollups;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.MarketStatsRollups;
 import com.vmturbo.history.db.RetentionPolicy;
+import com.vmturbo.history.listeners.PartmanHelper.PartitionProcessingException;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RetentionUtil;
 import com.vmturbo.history.schema.abstraction.Routines;
@@ -106,18 +107,21 @@ public class RollupProcessor {
     private final ExecutorService executorService;
     private final DSLContext dsl;
     private final DSLContext unpooledDsl;
+    private final PartmanHelper partmanHelper;
 
     /**
      * Create a new instance.
      *
      * @param dsl             DB access for general use
      * @param unpooledDsl     DB access for long-running operations
+     * @param partmanHelper   for integration with the pg_partman extension if needed
      * @param executorService thread pool to run individual tasks
      */
     public RollupProcessor(DSLContext dsl, DSLContext unpooledDsl,
-            ExecutorService executorService) {
+            PartmanHelper partmanHelper, ExecutorService executorService) {
         this.dsl = dsl;
         this.unpooledDsl = unpooledDsl;
+        this.partmanHelper = partmanHelper;
         this.executorService = executorService;
     }
 
@@ -300,6 +304,10 @@ public class RollupProcessor {
      * @param timer timer to use
      */
     private void performRepartitioning(MultiStageTimer timer) {
+        if (dsl.dialect() == SQLDialect.POSTGRES) {
+            // no explicit operation required for partition maintenance in Postgres
+            return;
+        }
         timer.start("Repartitioning");
         final Set<Table> tables = getTablesToRepartition();
         final Stream<Pair<Table, Future<Void>>> tableFutures = tables.stream()
@@ -342,7 +350,6 @@ public class RollupProcessor {
         return tables;
     }
 
-
     private Future<Void> scheduleRepartition(Table<?> table) {
         return executorService.submit(() -> {
             try {
@@ -359,17 +366,31 @@ public class RollupProcessor {
             final Timestamp snapshot, final RollupType rollupType, @Nonnull MultiStageTimer timer) {
         timer.start(rollupType.getLabel() + " Prep");
         // schedule all the task for execution in the thread pool
-        final List<Pair<Table, List<Future<Void>>>> tableFutures = tables.stream()
+        final List<Pair<Table, List<Future<Void>>>> tableFutures = new ArrayList<>();
+        List<Table> tablesToRollUp = tables.stream()
                 .filter(rollupType::canRollup)
-                .map(t -> Pair.of(t, scheduleRollupTasks(t, rollupType, snapshot)))
+                // no point performing a rollup if the source table is empty; this will often be
+                // the case when a customer topology contains no entities of a given type, and if
+                // a type shows up and later disappears, the source tables (latest + hourly) will
+                // return to empty state in about a week based on default retention settings, and
+                // we'll start skipping again when that happens
+                .filter(t -> dsl.fetchExists(rollupType.getSourceTable(t)))
                 .collect(Collectors.toList());
+        for (Table table : tablesToRollUp) {
+            try {
+                tableFutures.add(Pair.of(table, scheduleRollupTasks(table, rollupType, snapshot)));
+            } catch (PartitionProcessingException e) {
+                logger.error("Failed to perform rollups for table {}", table, e);
+            }
+        }
         timer.stop();
         // now wait for each one to complete, and then we're done
         waitForRollupTasks(tableFutures, rollupType, timer);
     }
 
     private List<Future<Void>> scheduleRollupTasks(@Nonnull Table table,
-            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
+            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime)
+            throws PartitionProcessingException {
         // Since CLUSTER is also part of EntityType, we need to first check CLUSTER_STATS_LATEST table.
         // Otherwise, entity stats roll up logic will be applied to cluster stats roll up.
         // TODO: improve the logic for cluster stats roll up
@@ -388,19 +409,22 @@ public class RollupProcessor {
     private List<Future<Void>> scheduleEntityStatsRollupTasks(@Nonnull Table table,
             @Nonnull RollupType rollupType,
             @Nonnull Timestamp snapshotTime,
-            int numTasks) {
+            int numTasks) throws PartitionProcessingException {
+        Table source = rollupType.getSourceTable(table);
+        Table rollup = rollupType.getRollupTable(table);
+        Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
+        if (dsl.dialect() == SQLDialect.POSTGRES) {
+            partmanHelper.prepareForInsertion(rollup, rollupTime);
+        }
         List<Future<Void>> futures = new ArrayList<>();
         int lowBound = 0;
         for (Integer highBound : getBoundaries(numTasks)) {
-            Table source = rollupType.getSourceTable(table);
-            Table rollup = rollupType.getRollupTable(table);
             if (source == null || rollup == null) {
                 logger.warn("Source or rollup for table {} were missing", table.getName());
                 return futures;
             }
             String low = lowBound > 0 ? String.format("'%x'", lowBound) : null;
             String high = highBound < 16 ? String.format("'%x'", highBound) : null;
-            Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
             futures.add(executorService.submit(() -> {
                 unpooledDsl.transaction(trans -> {
                     trans.dsl().connection(conn ->

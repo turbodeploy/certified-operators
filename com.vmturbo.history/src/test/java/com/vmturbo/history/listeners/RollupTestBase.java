@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.core.Is.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -112,6 +113,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
      */
     private static final long RANDOM_SEED = 0L;
     protected final Random rand = new Random(RANDOM_SEED);
+    PartmanHelper partmanHelper = mock(PartmanHelper.class);
 
     SimpleBulkLoaderFactory loaders;
     BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
@@ -127,8 +129,8 @@ public abstract class RollupTestBase extends MultiDbTestBase {
      */
     @Before
     public void rolllupTestBaseBefore() {
-        loaders = new SimpleBulkLoaderFactory(dsl, config, Executors.newSingleThreadExecutor());
-        rollupProcessor = new RollupProcessor(dsl, dsl, Executors.newFixedThreadPool(8));
+        loaders = new SimpleBulkLoaderFactory(dsl, config, partmanHelper, Executors.newSingleThreadExecutor());
+        rollupProcessor = new RollupProcessor(dsl, dsl, partmanHelper, Executors.newFixedThreadPool(8));
         IdentityGenerator.initPrefix(1L);
         RetentionPolicy.init(dsl);
     }

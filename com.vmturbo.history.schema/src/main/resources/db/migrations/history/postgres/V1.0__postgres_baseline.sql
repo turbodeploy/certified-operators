@@ -13,7 +13,8 @@ BEGIN
     'relation smallint, commodity_key varchar(80),'
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float,'
-    'hour_key char(32))', prefix);
+    'hour_key char(32))'
+    'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_latest_snapshot_time_idx '
     'ON %1$I_stats_latest(snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_latest_uuid_idx '
@@ -30,7 +31,8 @@ BEGIN
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float, samples integer,'
     'hour_key char(32) NOT NULL,'
-    'PRIMARY KEY(hour_key, snapshot_time))', prefix);
+    'PRIMARY KEY(hour_key, snapshot_time))'
+    'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_hour_snapshot_time_idx '
     'ON %1$I_stats_by_hour(snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_hour_uuid_idx '
@@ -47,7 +49,8 @@ BEGIN
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float, samples integer,'
     'day_key char(32),'
-    'PRIMARY KEY(day_key, snapshot_time))', prefix);
+    'PRIMARY KEY(day_key, snapshot_time))'
+    'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_day_snapshot_time_idx '
     'ON %1$I_stats_by_day(snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_day_uuid_idx '
@@ -64,7 +67,8 @@ BEGIN
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float, samples integer,'
     'month_key char(32),'
-    'PRIMARY KEY(month_key, snapshot_time))', prefix);
+    'PRIMARY KEY(month_key, snapshot_time))'
+    'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_month_snapshot_time_idx '
     'ON %1$I_stats_by_month(snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_month_uuid_idx '

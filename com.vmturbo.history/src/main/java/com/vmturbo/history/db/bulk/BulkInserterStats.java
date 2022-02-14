@@ -88,6 +88,15 @@ public class BulkInserterStats {
     }
 
     /**
+     * Check if this stats object shows no insertions or failed insertion attempts.
+     *
+     * @return true if no (attempted) insertions were recorded.
+     */
+    public boolean isEmpty() {
+        return batches == 0 && failedBatches == 0;
+    }
+
+    /**
      * Get total time spent in database operations by this writer.
      *
      * @return work time, in nanoseconds
@@ -172,5 +181,4 @@ public class BulkInserterStats {
         long millis = TimeUnit.NANOSECONDS.toMillis(nanos);
         return DurationFormatUtils.formatDuration(millis, "H:ss.SSS");
     }
-
 }

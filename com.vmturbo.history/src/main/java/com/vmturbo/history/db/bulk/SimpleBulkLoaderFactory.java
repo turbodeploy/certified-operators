@@ -3,6 +3,7 @@ package com.vmturbo.history.db.bulk;
 import static com.vmturbo.history.db.bulk.DbInserters.excludeFieldsUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.simpleUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.valuesInserter;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
 import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
@@ -26,11 +27,13 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -42,6 +45,8 @@ import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.history.listeners.PartmanHelper;
+import com.vmturbo.history.listeners.PartmanHelper.PartitionProcessingException;
 import com.vmturbo.sql.utils.jooq.ProxyKey;
 
 /**
@@ -64,54 +69,61 @@ import com.vmturbo.sql.utils.jooq.ProxyKey;
  * <p>For all other tables, no transformer is applied, and the values inserter is used.</p>
  */
 public class SimpleBulkLoaderFactory implements AutoCloseable {
+    private static final Logger logger = LogManager.getLogger();
 
     // these column names are common to all the stats_latest tables
     private static final String HOUR_KEY_FIELD_NAME = VM_STATS_LATEST.HOUR_KEY.getName();
     private static final String DAY_KEY_FIELD_NAME = VM_STATS_LATEST.DAY_KEY.getName();
     private static final String MONTH_KEY_FIELD_NAME = VM_STATS_LATEST.MONTH_KEY.getName();
 
+    private DSLContext dsl;
+
     // we delegate to this factory for all the writers we create
     private final BulkInserterFactory factory;
+    private PartmanHelper partmanHelper;
 
     /**
      * Create a new instance.
      *
-     * @param dsl base db utilities
+     * @param dsl           base db utilities
      * @param defaultConfig config to be used by default when creating inserters
-     * @param executor executor service to manage concurrent statement executions
+     * @param partmanHelper for integration with pg_partman postgres extension if needed
+     * @param executor      executor service to manage concurrent statement executions
      */
     public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
-            final @Nonnull BulkInserterConfig defaultConfig,
+            final @Nonnull BulkInserterConfig defaultConfig, PartmanHelper partmanHelper,
             final @Nonnull ExecutorService executor) {
-        this(dsl, new BulkInserterFactory(dsl, defaultConfig, executor));
+        this(dsl, new BulkInserterFactory(dsl, defaultConfig, executor), partmanHelper);
     }
 
     /**
      * Create a new instance, supplying a BulkInserterFactory instance.
      *
-     * @param dsl base db utilities
-     * @param factory underlying BulkInserterFactory instance
+     * @param dsl           base db utilities
+     * @param factory       underlying BulkInserterFactory instance
+     * @param partmanHelper for integration with pg_partman postgres extension if needed
      */
     public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
-            final @Nonnull BulkInserterFactory factory) {
+            final @Nonnull BulkInserterFactory factory, PartmanHelper partmanHelper) {
+        this.dsl = dsl;
         this.factory = factory;
+        this.partmanHelper = partmanHelper;
     }
 
     /**
      * Get access to the underlying {@link BulkInserterFactory} used by this instance.
      *
      * <p>Clients can use this to create bulk loaders that are configured differently than what
-     * this class would create. But keep in mind that only one bulk loader for a given table
-     * can be created by any factory, so if a bulk loader has already been created for a given
-     * table, this factory will only ever return that loader for that table, regardless of
-     * specified configuration options.
+     * this class would create. But keep in mind that only one bulk loader for a given table can be
+     * created by any factory, so if a bulk loader has already been created for a given table, this
+     * factory will only ever return that loader for that table, regardless of specified
+     * configuration options.
      *
      * @return the bulk loader factory underlying this factory
      */
     public BulkInserterFactory getFactory() {
         return factory;
     }
-
 
     /**
      * Get a loader for records of the given table, configured appropriately.
@@ -121,24 +133,51 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * @return an appropriately configured writer
      */
     public <R extends Record> BulkLoader<R> getLoader(final @Nonnull Table<R> table) {
-        return factory.getInserter(table, table, getRecordTransformer(table), getDbInserter(table,
-            Collections.emptySet()));
+        BulkInserter<R, R> loader = factory.getInserter(table, table, getRecordTransformer(table),
+                getDbInserter(table, Collections.emptySet()));
+        setPreInstallHook(table, loader);
+        return loader;
     }
 
     /**
      * Get loader for records of the given table, configured appropriately.
      *
-     * @param table the table into which records will be inserted
+     * @param table           the table into which records will be inserted
      * @param fieldsToExclude set of fields that should not be updated
-     * @param <R> the underlying record type
+     * @param <R>             the underlying record type
      * @return an appropriately configured writer
      */
     //TODO(OM-64657): replace fieldsToExclude with a more generic parameter.
     public <R extends Record> BulkLoader<R> getLoader(
-        @Nonnull final Table<R> table, @Nonnull final Set<Field<?>> fieldsToExclude) {
+            @Nonnull final Table<R> table, @Nonnull final Set<Field<?>> fieldsToExclude) {
         final String key = table.getName() + "/" + fieldsToExclude;
-        return factory.getInserter(key, table, table, getRecordTransformer(table),
-            getDbInserter(table, fieldsToExclude));
+        BulkInserter<R, R> loader = factory.getInserter(key, table, table,
+                getRecordTransformer(table),
+                getDbInserter(table, fieldsToExclude));
+        setPreInstallHook(table, loader);
+        return loader;
+    }
+
+    private <R extends Record> void setPreInstallHook(@NotNull Table<R> table,
+            BulkInserter<R, R> loader) {
+        if (dsl.dialect() == SQLDialect.POSTGRES) {
+            Table<?> latestTable = EntityType.fromTable(table)
+                    .flatMap(EntityType::getLatestTable)
+                    .orElse(null);
+            if (latestTable != null && latestTable != CLUSTER_STATS_LATEST) {
+                loader.setPreInsertionHook(r -> {
+                    try {
+                        Timestamp timestamp = r.getValue(StringConstants.SNAPSHOT_TIME,
+                                Timestamp.class);
+                        partmanHelper.prepareForInsertion(table, timestamp);
+                        return true;
+                    } catch (PartitionProcessingException e) {
+                        logger.error("Partition preparation failed for table {}", table, e);
+                        return false;
+                    }
+                });
+            }
+        }
     }
 
     /**
@@ -147,8 +186,8 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * <p>A transient loader is a loader that loads records not into the given table, but into a
      * copy of that table created specifically for this request, and with the same record structure
      * as the given table. This is similar in concept to the "temporary table" facilities ofr MySQL,
-     * but the tables are not bound to the connection from which they were created, which makes
-     * them far more suitable for use with bulk loaders.</p>
+     * but the tables are not bound to the connection from which they were created, which makes them
+     * far more suitable for use with bulk loaders.</p>
      *
      * <p>The jOOQ {@link Table} object returned can in many cases be used where a primary table
      * object can be used, and will access the transient table. But there are some cases where this
@@ -164,12 +203,14 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      *
      * <p>When the loader is closed, the transient table is dropped automatically.</p>
      *
-     * @param table             the table whose structure will be copied when creating the transient
-     * @param postTableCreateOp a function to perform operations on the table after it has been created
+     * @param table             the table whose structure will be copied when creating the
+     *                          transient
+     * @param postTableCreateOp a function to perform operations on the table after it has been
+     *                          created
      * @param <R>               record type of underlying and transient tables
      * @return the transient table, as a jOOQ {@link Table} instance
      * @throws InstantiationException if we can't create the jOOQ table object
-     * @throws DataAccessException if there's a problem with DB connection
+     * @throws DataAccessException    if there's a problem with DB connection
      * @throws IllegalAccessException if we can't create the jOOQ tabel object
      */
     public <R extends Record> BulkLoader<R> getTransientLoader(
@@ -177,14 +218,14 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
             throws InstantiationException, DataAccessException, IllegalAccessException {
         return factory.getTransientInserter(
                 table, table, getRecordTransformer(table), getDbInserter(table,
-                Collections.emptySet()),
+                        Collections.emptySet()),
                 postTableCreateOp);
     }
 
     private <R extends Record> RecordTransformer<R, R> getRecordTransformer(Table<R> table) {
         final Optional<EntityType> entityType = EntityType.fromTable(table);
         if (entityType.map(EntityType::rollsUp).orElse(false)
-                || table == MARKET_STATS_LATEST) {
+                || table.equals(MARKET_STATS_LATEST)) {
             return new RollupKeyTransfomer<>();
         } else {
             return RecordTransformer.identity();
@@ -192,12 +233,12 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     }
 
     private <R extends Record> DbInserter<R> getDbInserter(Table<R> table,
-                                                           Set<Field<?>> fieldsToExclude) {
-        if (ENTITIES == table || HIST_UTILIZATION == table) {
+            Set<Field<?>> fieldsToExclude) {
+        if (ENTITIES.equals(table) || HIST_UTILIZATION.equals(table)) {
             // Entities table uses upserts so that previously existing entities get any changes
             // to display name that show up in the topology.
             return simpleUpserter();
-        } else if (VOLUME_ATTACHMENT_HISTORY == table) {
+        } else if (VOLUME_ATTACHMENT_HISTORY.equals(table)) {
             return excludeFieldsUpserter(fieldsToExclude);
         } else {
             // nothing else currently using bulk loader should ever have a primary key collision,
@@ -243,7 +284,9 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
         factory.close(logger);
     }
 
-    /** RecordTransformer that adds rollup keys to a stats record.
+    /**
+     * RecordTransformer that adds rollup keys to a stats record.
+     *
      * @param <R> Type of stats record
      */
     static class RollupKeyTransfomer<R extends Record> implements RecordTransformer<R, R> {
@@ -253,7 +296,7 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
             Builder<String, Object> rollupKeyMap = ImmutableMap.builder();
 
             if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                if (inTable == MARKET_STATS_LATEST) {
+                if (inTable.equals(MARKET_STATS_LATEST)) {
                     // market-stats gets a key in non-legacy scenarios
                     String key = getMarketStatsKey(record);
                     rollupKeyMap.put(MARKET_STATS_LATEST.TIME_SERIES_KEY.getName(), key);

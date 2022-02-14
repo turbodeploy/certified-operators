@@ -1,11 +1,13 @@
 package com.vmturbo.history.listeners;
 
 import static com.vmturbo.history.listeners.RollupProcessor.VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD;
+import static org.mockito.Mockito.mock;
 
 import java.sql.Date;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -27,7 +29,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
@@ -51,8 +55,7 @@ public class RollupProcessorTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return new Object[][]{MultiDbTestBase.DBENDPOINT_POSTGRES_PARAMS};
-        //        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     private final DSLContext dsl;
@@ -92,12 +95,53 @@ public class RollupProcessorTest extends MultiDbTestBase {
                 .maxRetryBackoffMsec(1000)
                 .maxPendingBatches(1)
                 .build();
-        loaders = new SimpleBulkLoaderFactory(dsl, config, Executors.newSingleThreadExecutor());
-        rollupProcessor = new RollupProcessor(dsl, dsl, Executors.newFixedThreadPool(8));
+        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class),
+                Executors.newSingleThreadExecutor());
+        rollupProcessor = new RollupProcessor(dsl, dsl, mock(PartmanHelper.class),
+                Executors.newFixedThreadPool(8));
+        RetentionPolicy.init(dsl);
+        IdentityGenerator.initPrefix(1L);
     }
 
+    private static final String UUID_FIELD = "uuid";
+    private static final String PRODUCER_UUID_FIELD = "producer_uuid";
+    private static final String PROPERTY_TYPE_FIELD = "property_type";
+    private static final String PROPERTY_SUBTYPE_FIELD = "property_subtype";
+    private static final String COMMODITY_KEY_FIELD = "commodity_key";
+    private static final String RELATION_FIELD = "relation";
+    private static final String CAPACITY_FIELD = "capacity";
+    private static final String EFFECTIVE_CAPACITY_FIELD = "effective_capacity";
+    private static final String AVG_VALUE_FIELD = "avg_value";
+    private static final String MAX_VALUE_FIELD = "max_value";
+    private static final String MIN_VALUE_FIELD = "min_value";
+    private static final String SNAPSHOT_TIME_FIELD = "snapshot_time";
+    private static final String SAMPLES_FIELD = "samples";
+
+    private static final String INTERNAL_NAME_FIELD = "internal_name";
+    private static final String RECORDED_ON_FIELD = "recorded_on";
+    private static final String VALUE_FIELD = "value";
+
+    /**
+     * Seed for random number generator.
+     *
+     * <p>There's considerable awkwardness in this test due to the fact that the database type of
+     * value- and capacity-related columns in the stats tables is DECIMAL(15,3), but we have a jOOQ
+     * conversion to Double configured for the component. This makes it difficult to compare values
+     * of internally computed averages to those computed in the database. We use approximate
+     * equality tests to help address this, but even then, the test with different values could
+     * suffer false failures. While there's value in creating a stream of values with internal
+     * randomness (mostly in terms of conciseness of test specification), there's no value in having
+     * different random values from one execution to the next. So we fix the seed to a value that is
+     * known to work. If a change to this test class causes some tests to fail for no other likely
+     * reason, one thing to try is changing this seed value to find one that works with the other
+     * code changes.</p>
+     */
+    private static final long RANDOM_SEED = 0L;
+
+    private static String testDbName;
     private SimpleBulkLoaderFactory loaders;
     private RollupProcessor rollupProcessor;
+    private final Random rand = new Random(RANDOM_SEED);
 
     /**
      * Delete any records inserted during this test.
@@ -128,10 +172,6 @@ public class RollupProcessorTest extends MultiDbTestBase {
      */
     @Test
     public void testPurgeVolumeAttachmentHistoryRecordsRemoval() throws DataAccessException {
-        // TODO Remove this when purging procs have been replaced with Java code
-        if (dsl.dialect() == SQLDialect.POSTGRES) {
-            return;
-        }
         final long currentTime = System.currentTimeMillis();
         final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
@@ -159,10 +199,6 @@ public class RollupProcessorTest extends MultiDbTestBase {
      */
     @Test
     public void testPurgeVolumeAttachmentHistoryRecordsNoRemovals() throws DataAccessException {
-        // TODO Remove this when purging procs have been replaced with Java code
-        if (dsl.dialect() == SQLDialect.POSTGRES) {
-            return;
-        }
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);
@@ -194,10 +230,6 @@ public class RollupProcessorTest extends MultiDbTestBase {
      */
     @Test
     public void testPurgeVolumeAttachmentHistoryRecordsOneRemoval() throws DataAccessException {
-        // TODO Remove this when purging procs have been replaced with Java code
-        if (dsl.dialect() == SQLDialect.POSTGRES) {
-            return;
-        }
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);

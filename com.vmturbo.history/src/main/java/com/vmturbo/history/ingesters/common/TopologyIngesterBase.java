@@ -132,6 +132,7 @@ public class TopologyIngesterBase<T>
                 String.format("  %-25s %11s %7s %5s\n", "TABLE", "RECORDS", "BATCHES", "FAILS")
                         + stats.getKeys().stream()
                         .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
+                        .filter(key -> !stats.getByKey(key).isEmpty())
                         .map(key -> {
                             BulkInserterStats stat = stats.getByKey(key);
                             return String.format("  %-25s %,11d %,7d %,5d",

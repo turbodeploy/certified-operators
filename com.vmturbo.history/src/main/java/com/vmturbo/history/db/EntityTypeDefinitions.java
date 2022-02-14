@@ -22,6 +22,7 @@ import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -168,18 +169,42 @@ public class EntityTypeDefinitions {
             .collect(ImmutableMap.toImmutableMap(EntityType::getName, Functions.identity()));
 
     /** Map from entity stats tables (all time frames) to associated entity types. */
-    static final Map<Table<?>, EntityType> TABLE_TO_ENTITY_TYPE_MAP = createTableToEntityTypeMap();
+    static final Map<Class<?>, EntityType> TABLE_TO_ENTITY_TYPE_MAP = createTableToEntityTypeMap();
 
-    private static Map<Table<?>, EntityType> createTableToEntityTypeMap() {
-        final ImmutableMap.Builder<Table<?>, EntityType> builder = ImmutableMap.builder();
+    private static Map<Class<?>, EntityType> createTableToEntityTypeMap() {
+        final ImmutableMap.Builder<Class<?>, EntityType> builder = ImmutableMap.builder();
         ENTITY_TYPE_DEFINITIONS.stream()
                 .map(type -> (EntityTypeDefinition)type)
                 .filter(type -> type.aliasee == null)
                 .forEach(type -> {
-                    Optional.ofNullable(type.latestTable).ifPresent(table -> builder.put(table, type));
-                    Optional.ofNullable(type.hourTable).ifPresent(table -> builder.put(table, type));
-                    Optional.ofNullable(type.dayTable).ifPresent(table -> builder.put(table, type));
-                    Optional.ofNullable(type.monthTable).ifPresent(table -> builder.put(table, type));
+                    Optional.ofNullable(type.latestTable).ifPresent(table -> builder.put(
+                            table.getClass(), type));
+                    Optional.ofNullable(type.hourTable).ifPresent(
+                            table -> builder.put(table.getClass(), type));
+                    Optional.ofNullable(type.dayTable).ifPresent(
+                            table -> builder.put(table.getClass(), type));
+                    Optional.ofNullable(type.monthTable).ifPresent(
+                            table -> builder.put(table.getClass(), type));
+                });
+        return builder.build();
+    }
+
+    static final Map<Class<?>, TimeFrame> TABLE_TO_TIME_FRAME_MAP = createTableToTimeFrameMap();
+
+    private static Map<Class<?>, TimeFrame> createTableToTimeFrameMap() {
+        final ImmutableMap.Builder<Class<?>, TimeFrame> builder = ImmutableMap.builder();
+        ENTITY_TYPE_DEFINITIONS.stream()
+                .map(type -> (EntityTypeDefinition)type)
+                .filter(type -> type.aliasee == null)
+                .forEach(type -> {
+                    Optional.ofNullable(type.latestTable).ifPresent(table -> builder.put(
+                            table.getClass(), TimeFrame.LATEST));
+                    Optional.ofNullable(type.hourTable).ifPresent(
+                            table -> builder.put(table.getClass(), TimeFrame.HOUR));
+                    Optional.ofNullable(type.dayTable).ifPresent(
+                            table -> builder.put(table.getClass(), TimeFrame.DAY));
+                    Optional.ofNullable(type.monthTable).ifPresent(
+                            table -> builder.put(table.getClass(), TimeFrame.MONTH));
                 });
         return builder.build();
     }
