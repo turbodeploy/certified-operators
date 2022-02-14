@@ -23,8 +23,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-import io.netty.util.collection.LongObjectHashMap;
-import io.netty.util.collection.LongObjectMap;
+import io.grpc.netty.shaded.io.netty.util.collection.LongObjectHashMap;
+import io.grpc.netty.shaded.io.netty.util.collection.LongObjectMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
