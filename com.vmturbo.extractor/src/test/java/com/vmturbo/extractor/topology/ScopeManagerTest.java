@@ -51,6 +51,8 @@ import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.tables.Entity;
+import com.vmturbo.extractor.schema.tables.Scope;
 import com.vmturbo.extractor.schema.tables.records.EntityRecord;
 import com.vmturbo.extractor.schema.tables.records.ScopeRecord;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
@@ -66,7 +68,6 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
-@CleanupOverrides(checkOthers = true)
 public class ScopeManagerTest implements ApplicationContextAware {
 
     private ScopeManager scopeManager;
@@ -147,6 +148,7 @@ public class ScopeManagerTest implements ApplicationContextAware {
      * @throws SQLException                if there's a DB error
      */
     @Test
+    @CleanupOverrides(truncate = {Scope.class})
     public void testReloadOnRestart() throws UnsupportedDialectException, InterruptedException, SQLException {
         OffsetDateTime time = OffsetDateTime.now();
         preload(1L, time, 100L, 101L, 201L);
@@ -171,6 +173,7 @@ public class ScopeManagerTest implements ApplicationContextAware {
      * @throws SQLException                if DB error
      */
     @Test
+    @CleanupOverrides(truncate = {Entity.class, Scope.class})
     public void testMultiCycleScopes() throws UnsupportedDialectException, InterruptedException, SQLException {
         OffsetDateTime t1 = OffsetDateTime.now();
         setupEntities(100L, 101L, 200L, 201L, 300L);

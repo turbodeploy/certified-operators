@@ -40,7 +40,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -117,12 +116,6 @@ public class PlanExportRpcServiceTest extends MultiDbTestBase {
                 TestPlanOrchestratorDBEndpointConfig::planEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /**
-     * Rule chain to manage DB provisioning and lifecycle.
-     */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final long UNKNOWN_DESTINATION_ID = 707;
     private static final long IN_PROGRESS_DESTINATION_ID = 717;

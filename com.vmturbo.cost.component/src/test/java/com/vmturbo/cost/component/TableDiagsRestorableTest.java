@@ -14,9 +14,7 @@ import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.impl.TableImpl;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -74,10 +72,6 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
         this.dsl = super.getDslContext();
         // this.dialect = dialect;
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     /**
      * Test one particular table export and import.

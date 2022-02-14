@@ -15,9 +15,7 @@ import com.google.common.collect.Table;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -67,10 +65,6 @@ public class ComponentRegistryTest extends MultiDbTestBase {
                 TestClustermgrDbEndpointConfig::clusterMgrEndpoint);
         dsl = super.getDslContext();
     }
-
-    /** Rule chain that provides optimized DB access durint tests. */
-    @Rule
-    public TestRule multiDbRuleChain = super.ruleChain;
 
     private static final UriInfo URI_INFO = UriInfo.newBuilder()
             .setRoute("route")

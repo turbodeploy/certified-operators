@@ -51,7 +51,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -142,12 +141,6 @@ public class SettingStoreTest extends MultiDbTestBase {
                 TestGroupDBEndpointConfig::groupEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /**
-     * Rule chain to manage database provisioning and lifecycle.
-     */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final long DEFAULT_POLICY_ID = 1023L;
     private static final float VMEM_INCREMENT = 10.0f;

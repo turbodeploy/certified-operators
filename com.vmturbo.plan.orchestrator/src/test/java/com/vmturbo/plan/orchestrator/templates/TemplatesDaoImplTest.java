@@ -22,7 +22,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -79,12 +78,6 @@ public class TemplatesDaoImplTest extends MultiDbTestBase {
                 TestPlanOrchestratorDBEndpointConfig::planEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /**
-     * Rule chain to manage DB provisioning and lifecycle.
-     */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     /**
      * Captures expected exceptions in a test.

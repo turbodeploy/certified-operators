@@ -31,7 +31,6 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ErrorCollector;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -97,10 +96,6 @@ public class LiveStatsDBTest extends MultiDbTestBase {
         super(Vmtdb.VMTDB, configurableDbDialect, dialect, "history", TestHistoryDbEndpointConfig::historyEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private HistorydbIO historydbIO;
 

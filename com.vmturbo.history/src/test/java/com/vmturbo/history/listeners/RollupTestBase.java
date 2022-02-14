@@ -36,8 +36,6 @@ import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -91,10 +89,6 @@ public abstract class RollupTestBase extends MultiDbTestBase {
                 TestHistoryDbEndpointConfig::historyEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /** Rule chain to manage db provisioning and lifecycle. */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     /**
      * Seed for random number generator.

@@ -29,6 +29,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.extractor.schema.tables.Entity;
 import com.vmturbo.sql.utils.DbAdapter;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -47,7 +48,6 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 // username property configuration is made to work with MySQL which has a username length restriction of 16.
 @TestPropertySource(properties = {"enableReporting=true", "dbs.search.user=s",
         "dbs.search.host=localhost", "dbs.search.port=3306", "sqlDialect=POSTGRES"})
-@CleanupOverrides(checkOthers = true)
 public class ExtractorDbConfigTest implements ApplicationContextAware {
     private static final Logger logger = LogManager.getLogger();
 
@@ -79,6 +79,7 @@ public class ExtractorDbConfigTest implements ApplicationContextAware {
      * @throws InterruptedException        if interrupted
      */
     @Test
+    @CleanupOverrides(truncate = {Entity.class})
     public void testIngesterCanReadAndWrite()
             throws UnsupportedDialectException, SQLException, InterruptedException {
         checkCanReadTables(ingesterEndpoint);

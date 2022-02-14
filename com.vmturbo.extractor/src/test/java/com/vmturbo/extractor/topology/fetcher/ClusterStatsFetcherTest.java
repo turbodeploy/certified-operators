@@ -66,7 +66,6 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true", "sqlDialect=POSTGRES"})
-@CleanupOverrides(checkOthers = true)
 public class ClusterStatsFetcherTest implements ApplicationContextAware {
 
     @Autowired
@@ -153,6 +152,7 @@ public class ClusterStatsFetcherTest implements ApplicationContextAware {
      * @throws InterruptedException        if interrupted
      */
     @Test
+    @CleanupOverrides(truncate = {Metric.class, Entity.class})
     public void testBackfillingData() throws UnsupportedDialectException, InterruptedException,
         SQLException {
         OffsetDateTime yesterday = OffsetDateTime.now().minus(Duration.ofDays(1));
@@ -201,6 +201,7 @@ public class ClusterStatsFetcherTest implements ApplicationContextAware {
      * @throws InterruptedException        if interrupted
      */
     @Test
+    @CleanupOverrides(truncate = {Metric.class, Entity.class})
     public void testBackfillingDataExceedBuffer() throws UnsupportedDialectException,
         InterruptedException, SQLException {
         OffsetDateTime nowMinusMaxBackfillingTime =

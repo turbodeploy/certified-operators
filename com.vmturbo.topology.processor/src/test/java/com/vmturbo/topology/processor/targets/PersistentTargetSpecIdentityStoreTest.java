@@ -22,9 +22,7 @@ import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -73,12 +71,6 @@ public class PersistentTargetSpecIdentityStoreTest extends MultiDbTestBase {
                 TestTopologyProcessorDbEndpointConfig::tpEndpoint);
         this.dsl = super.getDslContext();
     }
-
-    /**
-     * Rule chain to manage Db provisioning and lifecycle.
-     */
-    @Rule
-    public TestRule multiDbRules = super.ruleChain;
 
     private static final long TARGET_OID_1 = 2333L;
     private static final long TARGET_OID_2 = 666L;
