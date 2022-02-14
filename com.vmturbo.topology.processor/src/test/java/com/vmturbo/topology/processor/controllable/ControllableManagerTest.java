@@ -3,8 +3,10 @@ package com.vmturbo.topology.processor.controllable;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,9 +15,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -23,18 +29,23 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
-import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class ControllableManagerTest {
+    private static final long NOW_MS = 60 * 60 * 1000L;
 
     private final EntityActionDao entityActionDao = Mockito.mock(EntityActionDao.class);
 
     private final EntityMaintenanceTimeDao entityMaintenanceTimeDao = Mockito.mock(EntityMaintenanceTimeDao.class);
+
+    private final Clock clock = mock(Clock.class);
 
     private ControllableManager controllableManager;
 
@@ -187,12 +198,13 @@ public class ControllableManagerTest {
             PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.NOT_AUTOMATED)));
 
     private final Map<Long, Builder> topology = new HashMap<>();
-
-    private TopologyGraph<TopologyEntity> topologyGraph;
+    private GraphWithSettings topologyGraph;
 
     @Before
     public void setup() {
-        controllableManager = new ControllableManager(entityActionDao, entityMaintenanceTimeDao, true);
+        controllableManager = new ControllableManager(entityActionDao, entityMaintenanceTimeDao,
+                        clock);
+        Mockito.when(clock.millis()).thenReturn(NOW_MS);
         topology.put(vmFooEntityBuilder.getOid(), TopologyEntity.newBuilder(vmFooEntityBuilder));
         topology.put(vmBarEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBarEntityBuilder));
         topology.put(vmBazEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBazEntityBuilder));
@@ -227,7 +239,7 @@ public class ControllableManagerTest {
         topology.put(pmInMaintenance3.getOid(), TopologyEntity.newBuilder(pmInMaintenance3));
         topology.put(pmInMaintenance4.getOid(), TopologyEntity.newBuilder(pmInMaintenance4));
 
-        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+        topologyGraph = createNoSettingsGraph(topology);
     }
 
     /**
@@ -304,9 +316,9 @@ public class ControllableManagerTest {
         topology.put(vmToRemove.getOid(), TopologyEntity.newBuilder(vmToRemove)
                 .addConsumer(topology.get(pod3.getOid())));
 
-        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+        topologyGraph = createNoSettingsGraph(topology);
 
-        controllableManager.setUncontrollablePodsToControllableInPlan(topologyGraph);
+        controllableManager.setUncontrollablePodsToControllableInPlan(topologyGraph.getTopologyGraph());
         assertTrue(pod1.getAnalysisSettings().getControllable());
         assertTrue(pod2.getAnalysisSettings().getControllable());
         // Pod with provider still in topology keeps controllable false
@@ -344,7 +356,7 @@ public class ControllableManagerTest {
     @Test
     public void testApplyControllableUnknownHost() {
         topology.get(pmFailover.getOid()).getEntityBuilder().setEntityState(EntityState.UNKNOWN);
-        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+        topologyGraph = createNoSettingsGraph(topology);
 
         Mockito.when(entityActionDao.getNonControllableEntityIds())
             .thenReturn(Collections.emptySet());
@@ -383,7 +395,7 @@ public class ControllableManagerTest {
         topology.get(pmPoweredOn.getOid()).addConsumer(topology.get(suspendedVM.getOid()));
         topology.get(pod2.getOid()).addConsumer(topology.get(suspendedContainer.getOid()));
 
-        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+        topologyGraph = createNoSettingsGraph(topology);
         Mockito.when(entityActionDao.getNonControllableEntityIds())
             .thenReturn(Collections.emptySet());
         int numModified = controllableManager.applyControllable(topologyGraph);
@@ -411,24 +423,13 @@ public class ControllableManagerTest {
     }
 
     /**
-     * When maintenance mode feature is disabled, controllable flag doesn't change.
-     */
-    @Test
-    public void testApplyControllableAutomationLevelFeatureDisabled() {
-        controllableManager = new ControllableManager(entityActionDao, entityMaintenanceTimeDao, false);
-        int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(2, numModified);
-        assertTrue(pmInMaintenance2.getAnalysisSettings().getControllable());
-    }
-
-    /**
      * Test application of scale.
      */
     @Test
     public void testApplyScale() {
         when(entityActionDao.ineligibleForScaleEntityIds())
                 .thenReturn(Sets.newHashSet(1L, 2L, 3L, 24L));
-        controllableManager.applyScaleEligibility(topologyGraph);
+        controllableManager.applyScaleEligibility(topologyGraph.getTopologyGraph());
         assertTrue(vmFooEntityBuilder.getAnalysisSettings().getIsEligibleForScale());
         assertTrue(vmBarEntityBuilder.getAnalysisSettings().getIsEligibleForScale());
         // This is false because on this entity has VM entity type.
@@ -443,7 +444,7 @@ public class ControllableManagerTest {
     public void testApplyResizeDownEligibility() {
         when(entityActionDao.ineligibleForResizeDownEntityIds())
                 .thenReturn(Sets.newHashSet(1L, 2L, 3L));
-        controllableManager.applyResizable(topologyGraph);
+        controllableManager.applyResizable(topologyGraph.getTopologyGraph());
         assertTrue(vmFooEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
         assertTrue(vmBarEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
         // This is true because on this entity has VM entity type.
@@ -455,7 +456,7 @@ public class ControllableManagerTest {
      */
     @Test
     public void testMarkVMsOnMaintenanceHostAsNotResizable() {
-        controllableManager.applyResizable(topologyGraph);
+        controllableManager.applyResizable(topologyGraph.getTopologyGraph());
         for (CommoditySoldDTO.Builder commSold : vmMaintenance1.getCommoditySoldListBuilderList()) {
             assertFalse(commSold.getIsResizeable());
         }
@@ -473,15 +474,35 @@ public class ControllableManagerTest {
      */
     @Test
     public void testKeepControllableFalseAfterExitingMaintenanceMode() {
-        when(entityMaintenanceTimeDao.getControllableFalseHost())
-            .thenReturn(ImmutableSet.of(pmPoweredOn.getOid(), pmInMaintenance.getOid(), pmFailover.getOid()));
+        final long windowMin = 20L;
+        topologyGraph = new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
+                        ImmutableMap.of(pmPoweredOn.getOid(), createDrsWindowSetting(windowMin),
+                                        pmFailover.getOid(), createDrsWindowSetting(windowMin * 2)),
+                        Collections.emptyMap());
+        // pmPoweredOn is out of the drs window, pmFailover is still in
+        when(entityMaintenanceTimeDao.getHostsThatLeftMaintenance())
+                        .thenReturn(ImmutableMap.of(pmPoweredOn.getOid(), (long)(NOW_MS * Units.MILLI - windowMin * 2 * 60),
+                                        pmFailover.getOid(), (long)((NOW_MS * Units.MILLI - windowMin * 60))));
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(6, numModified);
-        assertFalse(pmPoweredOn.getAnalysisSettings().getControllable());
-        assertFalse(pmInMaintenance.getAnalysisSettings().getControllable());
+        assertEquals(4, numModified);
+        assertTrue(pmPoweredOn.getAnalysisSettings().getControllable());
+        assertTrue(pmInMaintenance.getAnalysisSettings().getControllable());
         assertFalse(pmFailover.getAnalysisSettings().getControllable());
         assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
         assertFalse(vm1.getAnalysisSettings().getControllable());
         assertFalse(vm2.getAnalysisSettings().getControllable());
+    }
+
+    private static EntitySettings createDrsWindowSetting(long value) {
+        return EntitySettings.newBuilder().addUserSettings(SettingToPolicyId.newBuilder()
+            .setSetting(Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.DrsMaintenanceProtectionWindow.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value))))
+            .build();
+    }
+
+    private static GraphWithSettings createNoSettingsGraph(Map<Long, Builder> topology) {
+        return new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
+                        Collections.emptyMap(), Collections.emptyMap());
     }
 }

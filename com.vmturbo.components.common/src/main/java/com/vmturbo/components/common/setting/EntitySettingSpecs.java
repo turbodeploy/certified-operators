@@ -1171,6 +1171,18 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_VOLUME),
             new BooleanSettingDataType(true),
+            true),
+
+    /**
+     * After the hosts in fully automated clusters leave maintenance, keep them not controllable for so long.
+     */
+    DrsMaintenanceProtectionWindow(
+            "drsMaintenanceProtectionWindow",
+            "Maintenance Automation Avoidance (minutes)",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            numeric(0, 240, 0),
             true);
 
     private static final Logger logger = LogManager.getLogger();
@@ -1180,6 +1192,7 @@ public enum EntitySettingSpecs {
         .add(EntitySettingSpecs.ScalingPolicy.name)
         .add(EntitySettingSpecs.UseHypervisorMetricsForResizing.name)
         .add(EntitySettingSpecs.ShopTogether.name)
+        .add(EntitySettingSpecs.DrsMaintenanceProtectionWindow.name)
         .addAll(Arrays.stream(ConfigurableActionSettings.values())
             .map(ConfigurableActionSettings::getSettingName)
             .collect(Collectors.toList()))

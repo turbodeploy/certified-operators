@@ -13,7 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Set;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
@@ -91,7 +91,7 @@ public class EntityMaintenanceTimeDaoTest extends MultiDbTestBase {
      */
     @Before
     public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
-        entityMaintenanceTimeDao = new EntityMaintenanceTimeDao(dsl, 30 * 60, clock, true);
+        entityMaintenanceTimeDao = new EntityMaintenanceTimeDao(dsl, clock);
     }
 
     /**
@@ -153,9 +153,9 @@ public class EntityMaintenanceTimeDaoTest extends MultiDbTestBase {
         // Records in db after state changes: (oid1, timestamp), (oid2, null)
         final Instant afterTwentyMins = Instant.parse("2021-04-23T09:50:31Z");
         when(clock.instant()).thenReturn(afterTwentyMins);
-        Set<Long> oids = entityMaintenanceTimeDao.getControllableFalseHost();
+        Map<Long, Long> oids = entityMaintenanceTimeDao.getHostsThatLeftMaintenance();
         assertThat(oids.size(), is(1));
-        assertThat(oids.iterator().next(), is(oid1));
+        assertThat(oids.entrySet().iterator().next().getKey(), is(oid1));
         records = dsl.selectFrom(ENTITY_MAINTENANCE).where(ENTITY_MAINTENANCE.ENTITY_OID.eq(oid1)).fetch();
         assertThat(records.size(), is(1));
         assertThat(records.get(0).getExitTime().toInstant(ZoneOffset.UTC), is(timestamp));
@@ -171,18 +171,18 @@ public class EntityMaintenanceTimeDaoTest extends MultiDbTestBase {
                 .setEntityState(EntityState.FAILOVER)
                 .build());
         entityMaintenanceTimeDao.onEntitiesWithNewState(builder.build());
-        oids = entityMaintenanceTimeDao.getControllableFalseHost();
+        oids = entityMaintenanceTimeDao.getHostsThatLeftMaintenance();
         assertThat(oids.size(), is(1));
-        assertThat(oids.iterator().next(), is(oid1));
+        assertThat(oids.entrySet().iterator().next().getKey(), is(oid1));
         records = dsl.selectFrom(ENTITY_MAINTENANCE).where(ENTITY_MAINTENANCE.ENTITY_OID.eq(oid1)).fetch();
         assertThat(records.size(), is(1));
         assertThat(records.get(0).getExitTime().toInstant(ZoneOffset.UTC), is(timestamp));
 
-        // After 40 mins, record with oid1 should be deleted.
+        // After 300 mins (more than max window), record with oid1 should be deleted.
         // host with oid2 exits maintenance mode
-        // Records in db after state changes: (oid2, afterFortyMins)
-        final Instant afterFortyMins = Instant.parse("2021-04-23T10:10:31Z");
-        when(clock.instant()).thenReturn(afterFortyMins);
+        // Records in db after state changes: (oid2, afterFiveHours)
+        final Instant afterFiveHours = Instant.parse("2021-04-23T15:30:31Z");
+        when(clock.instant()).thenReturn(afterFiveHours);
         builder = EntitiesWithNewState.newBuilder()
             .addTopologyEntity(TopologyEntityDTO.newBuilder()
                 .setOid(oid2)
@@ -192,18 +192,18 @@ public class EntityMaintenanceTimeDaoTest extends MultiDbTestBase {
                     PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.FULLY_AUTOMATED)))
                 .build());
         entityMaintenanceTimeDao.onEntitiesWithNewState(builder.build());
-        oids = entityMaintenanceTimeDao.getControllableFalseHost();
+        oids = entityMaintenanceTimeDao.getHostsThatLeftMaintenance();
         assertThat(oids.size(), is(1));
-        assertThat(oids.iterator().next(), is(oid2));
+        assertThat(oids.entrySet().iterator().next().getKey(), is(oid2));
         records = dsl.selectFrom(ENTITY_MAINTENANCE).fetch();
         assertThat(records.size(), is(1));
         assertThat(records.get(0).getEntityOid(), is(oid2));
-        assertThat(records.get(0).getExitTime().toInstant(ZoneOffset.UTC), is(afterFortyMins));
+        assertThat(records.get(0).getExitTime().toInstant(ZoneOffset.UTC), is(afterFiveHours));
 
-        // After 50 mins, host with oid2 enters maintenance mode again
+        // After 360 mins, host with oid2 enters maintenance mode again
         // // Records in db after state changes: (oid2, null)
-        final Instant afterFiftyMins = Instant.parse("2021-04-23T10:20:31Z");
-        when(clock.instant()).thenReturn(afterFiftyMins);
+        final Instant afterSixHours = Instant.parse("2021-04-23T16:30:31Z");
+        when(clock.instant()).thenReturn(afterSixHours);
         builder = EntitiesWithNewState.newBuilder()
             .addTopologyEntity(TopologyEntityDTO.newBuilder()
                 .setOid(oid2)
@@ -211,7 +211,7 @@ public class EntityMaintenanceTimeDaoTest extends MultiDbTestBase {
                 .setEntityState(EntityState.MAINTENANCE)
                 .build());
         entityMaintenanceTimeDao.onEntitiesWithNewState(builder.build());
-        oids = entityMaintenanceTimeDao.getControllableFalseHost();
+        oids = entityMaintenanceTimeDao.getHostsThatLeftMaintenance();
         assertThat(oids.size(), is(0));
         records = dsl.selectFrom(ENTITY_MAINTENANCE).fetch();
         assertThat(records.size(), is(1));
