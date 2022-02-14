@@ -10,6 +10,7 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -54,6 +55,7 @@ import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory.RollupKeyTransfomer;
+import com.vmturbo.history.listeners.PartmanHelper;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
@@ -118,7 +120,7 @@ public class BulkInserterTest extends MultiDbTestBase {
             e.printStackTrace();
         }
         config = mkConfig(2);
-        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class), threadPool);
     }
 
     private static ExecutorService threadPool;
@@ -202,7 +204,7 @@ public class BulkInserterTest extends MultiDbTestBase {
     @Test
     public void testInserterAndTransfomerConfigurations() {
         final BulkInserterFactory factory = mock(BulkInserterFactory.class);
-        loaders = new SimpleBulkLoaderFactory(dsl, factory);
+        loaders = new SimpleBulkLoaderFactory(dsl, factory, mock(PartmanHelper.class));
         final ArgumentCaptor<DbInserter> inserterCaptor = ArgumentCaptor.forClass(DbInserter.class);
         final ArgumentCaptor<RecordTransformer> transformerCaptor
                 = ArgumentCaptor.forClass(RecordTransformer.class);
@@ -215,6 +217,7 @@ public class BulkInserterTest extends MultiDbTestBase {
         assertSame(transformerCaptor.getValue(), RecordTransformer.IDENTITY);
         reset(factory);
 
+        doReturn(mock(BulkInserter.class)).when(factory).getInserter(any(), any(), any(), any());
         loaders.getLoader(VM_STATS_LATEST);
         verify(factory).getInserter(any(VmStatsLatest.class), any(VmStatsLatest.class),
                 transformerCaptor.capture(), inserterCaptor.capture());
@@ -293,7 +296,7 @@ public class BulkInserterTest extends MultiDbTestBase {
         ExecutorService pool = Executors.newFixedThreadPool(4);
         loaders.close();
         config = mkConfig(100);
-        loaders = new SimpleBulkLoaderFactory(dsl, config, threadPool);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class), threadPool);
         List<Future<Void>> futures = new ArrayList<>();
         for (long i = 0; i < 4000; i += 1000) {
             final long finalI = i;

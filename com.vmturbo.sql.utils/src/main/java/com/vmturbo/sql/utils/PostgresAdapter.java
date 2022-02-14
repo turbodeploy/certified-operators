@@ -6,6 +6,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.sql.DataSource;
 
@@ -217,12 +218,18 @@ public class PostgresAdapter extends DbAdapter {
     @Override
     protected void createSchema() throws SQLException, UnsupportedDialectException {
         createDatabaseIfNotExists(config.getDatabaseName());
+        createSchema(config.getSchemaName(), false);
+    }
+
+    private void createSchema(String schemaName, boolean setOwner)
+            throws SQLException, UnsupportedDialectException {
         try (Connection conn = getRootConnection()) {
             // we don't really want a "public" schema here, but more importantly, when it's created
             // during database creation, the timescaledb plugin is automatically installed in it,
             // and that prevents it being installed in the endpoint schema, where we want it.
             execute(conn, "DROP SCHEMA IF EXISTS public CASCADE");
-            execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"", config.getSchemaName()));
+            execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"%s", schemaName,
+                    setOwner ? " AUTHORIZATION \"" + config.getUserName() + "\"" : ""));
         }
     }
 
@@ -292,8 +299,24 @@ public class PostgresAdapter extends DbAdapter {
     @Override
     protected void createPlugins() throws SQLException, UnsupportedDialectException {
         for (DbPlugin plugin : config.getPlugins()) {
-            try (Connection conn = getRootConnection()) {
-                execute(conn, plugin.getInstallSQL(config.getSchemaName()));
+            if (plugin instanceof PostgresPlugin) {
+                Optional<String> pluginSchema = ((PostgresPlugin)plugin).getPluginSchema();
+                if (pluginSchema.isPresent()) {
+                    createSchema(pluginSchema.get(), true);
+                }
+                try (Connection conn = getRootConnection()) {
+                    String schemaName = pluginSchema.orElse(config.getSchemaName());
+                    execute(conn, plugin.getInstallSQL(schemaName));
+                    execute(conn,
+                            String.format("GRANT ALL ON ALL TABLES IN SCHEMA \"%s\" TO \"%s\"",
+                                    schemaName, config.getUserName()));
+                    execute(conn,
+                            String.format("GRANT ALL ON ALL ROUTINES IN SCHEMA \"%s\" TO \"%s\"",
+                                    schemaName, config.getUserName()));
+                }
+            } else {
+                logger.error("Non-Postgres plugin declared for Postgres endpoint: {}",
+                        plugin.getName());
             }
         }
     }

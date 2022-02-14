@@ -117,20 +117,24 @@ public abstract class DbAdapter {
     void init() throws DbEndpointException {
         try {
             // perform provisioning where this endpoint has responsibility
+            // database/schema and user first, since they may both be needed for plugins
             if (config.getShouldProvisionDatabase()) {
                 createSchema();
+            }
+            if (config.getShouldProvisionUser()) {
+                createNonRootUser();
+            }
+            if (config.getShouldProvisionDatabase()) {
                 createPlugins();
                 createReadersGroup();
                 createWritersGroup();
             }
             if (config.getShouldProvisionUser()) {
-                createNonRootUser();
                 performNonRootGrants();
                 if (config.getShouldProvisionDatabase()
                         && config.getAccess() == DbEndpointAccess.ALL) {
                     provisionForMigrations();
                 }
-
             }
             // check to make sure that the endpoint user can now connect to the database
             //noinspection EmptyTryBlock

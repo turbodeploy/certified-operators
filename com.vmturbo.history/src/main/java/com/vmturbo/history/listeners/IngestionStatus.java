@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -164,6 +165,8 @@ class IngestionStatus {
     List<Table<?>> getActiveTables() {
         return activeTables.stream()
                 .map(Vmtdb.VMTDB::getTable)
+                // transient tables' names won't be known to the schema
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
