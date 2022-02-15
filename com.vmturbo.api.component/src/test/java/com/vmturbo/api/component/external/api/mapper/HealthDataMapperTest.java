@@ -14,7 +14,11 @@ import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.HealthChecksTestBase;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
+import com.vmturbo.api.dto.target.DiscoveryInfoApiDTO;
+import com.vmturbo.api.dto.target.TargetErrorDetailsApiDTO;
+import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.health.HealthState;
+import com.vmturbo.api.enums.health.TargetStatusSubcategory;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
@@ -68,5 +72,32 @@ public class HealthDataMapperTest extends HealthChecksTestBase {
                                     Collectors.mapping(AggregatedHealthResponseDTO::getHealthState,
                                                        Collectors.toSet())));
         Assert.assertEquals(EXPECTED_STATES, categoryToStates);
+    }
+
+    /**
+     * Test the case of NORMAL target discovery health state when the number of consecutive discovery failures
+     * was below the threshold.
+     */
+    @Test
+    public void testNormalHealthWithFailuresMapping() {
+        final Long targetId = 10L;
+        final String targetDisplayName = "normalDiscoveryWithFailuresExample";
+        final int numberOfFailures = 1;
+        TargetHealth normalDiscoveryWithFailures = makeDiscoveryHealthNormal(targetDisplayName,
+                        ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(
+                                        ConnectionTimeOutErrorType.getDefaultInstance()).build(), numberOfFailures);
+
+        TargetHealthApiDTO targetHealthApiDTO = HealthDataMapper.mapTargetHealthInfoToDTO(
+                        targetId, normalDiscoveryWithFailures);
+
+        Assert.assertEquals(targetId.toString(), targetHealthApiDTO.getUuid());
+        Assert.assertEquals(targetDisplayName, targetHealthApiDTO.getTargetName());
+        Assert.assertEquals(HealthState.NORMAL, targetHealthApiDTO.getHealthState());
+        Assert.assertEquals(TargetStatusSubcategory.DISCOVERY, targetHealthApiDTO.getTargetStatusSubcategory());
+        Assert.assertFalse(targetHealthApiDTO.getTargetErrorDetails().isEmpty());
+
+        TargetErrorDetailsApiDTO errorDetails = targetHealthApiDTO.getTargetErrorDetails().iterator().next();
+        Assert.assertTrue(errorDetails instanceof DiscoveryInfoApiDTO);
+        Assert.assertEquals(numberOfFailures, ((DiscoveryInfoApiDTO)errorDetails).getNumberOfConsecutiveFailures());
     }
 }

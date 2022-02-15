@@ -74,4 +74,17 @@ public class HealthChecksTestBase {
                         .setTargetName(targetDisplayName)
                         .build();
     }
+
+    protected TargetHealth makeDiscoveryHealthNormal(final String targetDisplayName,
+                    final ErrorTypeInfo errorTypeInfo, final int failureTimes) {
+        TargetHealth.Builder builder = TargetHealth.newBuilder()
+                        .setHealthState(HealthState.NORMAL)
+                        .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                        .setTargetName(targetDisplayName)
+                        .setConsecutiveFailureCount(failureTimes);
+        if (failureTimes > 0) {
+            builder.addErrorTypeInfo(errorTypeInfo);
+        }
+        return builder.build();
+    }
 }

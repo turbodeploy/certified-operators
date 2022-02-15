@@ -291,9 +291,14 @@ public class TargetHealthRetriever {
                     .setMessageText(probeStatus.getSecond()).build();
         }
 
+        if (discoveryFailure == null) {
+            targetHealthBuilder.setConsecutiveFailureCount(0);
+        } else {
+            targetHealthBuilder.addAllErrorTypeInfo(discoveryFailure.getErrorTypeInfos())
+                    .setConsecutiveFailureCount(discoveryFailure.getFailsCount());
+        }
         return targetHealthBuilder.setHealthState(HealthState.NORMAL)
                 .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                .setConsecutiveFailureCount(discoveryFailure == null ? 0 : discoveryFailure.getFailsCount())
                 .build();
     }
 
