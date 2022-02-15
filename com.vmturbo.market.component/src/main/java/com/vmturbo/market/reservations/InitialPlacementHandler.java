@@ -1,7 +1,11 @@
 package com.vmturbo.market.reservations;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,6 +25,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementR
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 
 /**
@@ -35,6 +40,11 @@ public class InitialPlacementHandler {
 
     // Logger
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * The clock to record the time to clone economy.
+     */
+    private final Clock clock = Clock.systemUTC();
 
     @VisibleForTesting
     protected InitialPlacementFinder placementFinder;
@@ -82,8 +92,20 @@ public class InitialPlacementHandler {
      */
     public Future<?> updateCachedEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
             @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtime) {
-        return cacheAccessService.submit(() ->
-            placementFinder.updateCachedEconomy(originalEconomy, commTypeToSpecMap, isRealtime));
+
+        try {
+            Instant economyCloningStartTime = clock.instant();
+            Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy, false);
+            Instant economyCloningEndTime = clock.instant();
+            logger.info(placementFinder.logPrefix + "cloning economy for cache updation done in : "
+                + economyCloningStartTime.until(economyCloningEndTime, ChronoUnit.SECONDS) + " seconds");
+
+            return cacheAccessService.submit(() ->
+                    placementFinder.updateCachedEconomy(clonedEconomy, commTypeToSpecMap, isRealtime));
+        } catch (Exception e) {
+            logger.error(placementFinder.logPrefix + "Error cloning economy.", e);
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     /**
