@@ -2,6 +2,7 @@ package com.vmturbo.cost.component;
 
 import org.junit.Test;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.sql.utils.MultiDBMigrationTest;
 
 /**
@@ -9,8 +10,12 @@ import com.vmturbo.sql.utils.MultiDBMigrationTest;
  */
 public class CostMultiDBMigrationTest extends MultiDBMigrationTest {
 
-
-    private static final int INITIAL_OFFSET = 76;
+    /**
+     * This initial offset represents the last mariadb migration that is included in the base migration for Postgres.
+     * This is intended to NEVER be changed, with the exception of very few occasions. If that happens, we need to make sure
+     * to update both the number, and put the new MariaDB migration name.
+     */
+    private static final Pair<Integer, String> INITIAL_OFFSET = new Pair<>(76, "V1_75__reorder_primary_keys_date_first.sql");
     private static final String DEFAULT_PATH = "src/main/resources/db/migration";
     private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/cost/mariadb";
     private static final String POSTGRES_PATH = "src/main/resources/db/migrations/cost/postgres";
@@ -20,7 +25,7 @@ public class CostMultiDBMigrationTest extends MultiDBMigrationTest {
      */
     @Test
     public void testMigrations() {
-        testMultiDBMigrations(INITIAL_OFFSET, DEFAULT_PATH, MARIA_DB_PATH, POSTGRES_PATH);
+        testMultiDBMigrations(INITIAL_OFFSET.first, DEFAULT_PATH, MARIA_DB_PATH, POSTGRES_PATH);
     }
 
 }
