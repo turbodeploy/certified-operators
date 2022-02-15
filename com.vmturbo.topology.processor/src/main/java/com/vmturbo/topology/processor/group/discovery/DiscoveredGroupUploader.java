@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -303,7 +304,14 @@ public class DiscoveredGroupUploader {
             }
 
             if (settings.size() > 0) {
-                result.add(createPolicy(group, targetId, settings, "Setting policy", "SET"));
+                result.add(createPolicy(
+                        group,
+                        targetId,
+                        settings,
+                        "Setting policy",
+                        "SET",
+                        group.getSettingPolicy().getDisplayName()
+                ));
             } else {
                 logger.warn("No setting policy were created for \"{}\" discovered from \"{}\"",
                         group.getDisplayName(), targetName);
@@ -313,14 +321,38 @@ public class DiscoveredGroupUploader {
         return result;
     }
 
-    private DiscoveredSettingPolicyInfo createPolicy(GroupDTO group, long targetId,
-                                List<Setting> settings, String displayNameId, String nameId) {
+    private DiscoveredSettingPolicyInfo createPolicy(
+            GroupDTO group,
+            long targetId,
+            List<Setting> settings,
+            String displayNameId,
+            String nameId) {
+        return createPolicy(
+            group,
+            targetId,
+            settings,
+            displayNameId,
+            nameId,
+            null
+        );
+    }
+
+    private DiscoveredSettingPolicyInfo createPolicy(
+            GroupDTO group,
+            long targetId,
+            List<Setting> settings,
+            String displayNameId,
+            String nameId,
+            @Nullable final String displayName) {
         DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
         policy.setEntityType(group.getEntityType().getNumber());
         policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-        String name = String.format("%s - %s (target %d)",
-                group.getDisplayName(), displayNameId, targetId);
-        policy.setDisplayName(name);
+        if (StringUtils.isEmpty(displayName)) {
+            String name = String.format("%s - %s (target %d)", group.getDisplayName(), displayNameId, targetId);
+            policy.setDisplayName(name);
+        } else {
+            policy.setDisplayName(String.format("%s (target %d)", displayName, targetId));
+        }
         policy.setName(createPolicyName(group, targetId, nameId));
         policy.addAllSettings(settings);
         return policy.build();
