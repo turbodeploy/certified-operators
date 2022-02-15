@@ -35,6 +35,3 @@ __pycache__
 *.pyc
 
 .cache
-
-#ignoreFlatternPom
-.flattened-pom.xml
