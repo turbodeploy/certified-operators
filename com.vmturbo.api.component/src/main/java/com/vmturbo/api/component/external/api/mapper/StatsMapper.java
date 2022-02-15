@@ -1058,11 +1058,33 @@ public class StatsMapper {
         if (statRecord.hasValues()) {
             resultBuilder.setValues(bytesToBits(statRecord.getValues()));
         }
+        if (!statRecord.getHistUtilizationValueList().isEmpty()) {
+            final List<HistUtilizationValue> newHistUtilizationValues = statRecord.getHistUtilizationValueList().stream()
+                .map(StatsMapper::bytesToBits)
+                .collect(Collectors.toList());
+            resultBuilder.clearHistUtilizationValue();
+            resultBuilder.addAllHistUtilizationValue(newHistUtilizationValues);
+        }
         return resultBuilder.build();
     }
 
     @Nonnull
-    private StatValue bytesToBits(@Nonnull StatValue statValue) {
+    private static HistUtilizationValue bytesToBits(@Nonnull HistUtilizationValue histUtilizationValue) {
+        final HistUtilizationValue.Builder resultBuilder = HistUtilizationValue.newBuilder();
+        if (histUtilizationValue.hasType()) {
+            resultBuilder.setType(histUtilizationValue.getType());
+        }
+        if (histUtilizationValue.hasUsage()) {
+            resultBuilder.setUsage(bytesToBits(histUtilizationValue.getUsage()));
+        }
+        if (histUtilizationValue.hasCapacity()) {
+            resultBuilder.setCapacity(bytesToBits(histUtilizationValue.getCapacity()));
+        }
+        return resultBuilder.build();
+    }
+
+    @Nonnull
+    private static StatValue bytesToBits(@Nonnull StatValue statValue) {
         final StatValue.Builder resultBuilder = StatValue.newBuilder();
         if (statValue.hasAvg()) {
             resultBuilder.setAvg(statValue.getAvg() * 8);

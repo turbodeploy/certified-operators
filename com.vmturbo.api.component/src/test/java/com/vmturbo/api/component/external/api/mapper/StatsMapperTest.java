@@ -1018,22 +1018,29 @@ public class StatsMapperTest {
     /**
      * Tests that when converting from {@link StatRecord} to {@link StatApiDTO} with commodities
      * that need conversion from bytes to bits, totalMax & totalMin in capacity & values fields are
-     * being populated correctly.
+     * being populated correctly. Also verifies that {@link StatApiDTO#histUtilizations} is properly converted.
      */
     @Test
     public void testToStatApiDtoTotalMaxMinWithByteToBitConversion() {
         // GIVEN
         float totalMax = 123.0f;
         float totalMin = 9.0f;
+        float average = 100.0f;
         StatRecord record = StatRecord.newBuilder()
                 .setName(StringConstants.IO_THROUGHPUT)
                 .setUnits(BYTE_PER_SEC)
-                .setCapacity(buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f,
+                .setCapacity(buildStatValueWithCustomValues(totalMax, totalMin, average, 110.0f,
                         totalMax, totalMin))
-                .setUsed(buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f,
+                .setUsed(buildStatValueWithCustomValues(totalMax, totalMin, average, 110.0f,
                         totalMax, totalMin))
-                .setValues(buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f,
+                .setValues(buildStatValueWithCustomValues(totalMax, totalMin, average, 110.0f,
                         totalMax, totalMin))
+                .addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                        .setType("percentile")
+                        .setCapacity(buildStatValueWithCustomValues(totalMax, totalMax, average, 110.0f,
+                                totalMax, totalMax))
+                        .setUsage(buildStatValueWithCustomValues(totalMax, totalMax, average, 110.0f,
+                                totalMax, totalMax)).build())
                 .build();
 
         // WHEN
@@ -1044,6 +1051,9 @@ public class StatsMapperTest {
         assertEquals(totalMin * 8, dto.getCapacity().getTotalMin().doubleValue(), 0.001);
         assertEquals(totalMax * 8, dto.getValues().getTotalMax().doubleValue(), 0.001);
         assertEquals(totalMin * 8, dto.getValues().getTotalMin().doubleValue(), 0.001);
+        final StatHistUtilizationApiDTO histUtilizationValue = dto.getHistUtilizations().get(0);
+        assertEquals(average * 8, histUtilizationValue.getCapacity().doubleValue(), 0.001);
+        assertEquals(average * 8, histUtilizationValue.getUsage().doubleValue(), 0.001);
     }
 
     /**
