@@ -258,12 +258,12 @@ public class CloudCommitmentStatsSubQueryTest {
         final List<StatSnapshotApiDTO> result1 =
                 cloudCommitmentStatsSubQuery.getAggregateStats(Collections.singleton(input), context);
         verifyInternalTopologyCommitmentCoverageRequest(1, TopologyType.TOPOLOGY_TYPE_PROJECTED, captor);
-        assertEquals(2, result1.size());
+        assertEquals(1, result1.size());
         result1.forEach(stat -> {
             assertEquals(Epoch.PROJECTED, stat.getEpoch());
-            assertEquals(1, stat.getStatistics().size());
-            final StatApiDTO innerStat = stat.getStatistics().get(0);
-            verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_COVERAGE);
+            assertEquals(2, stat.getStatistics().size());
+            stat.getStatistics().forEach(innerStat ->
+                    verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_COVERAGE));
         });
 
         Mockito.when(context.requestProjected()).thenReturn(false);
@@ -272,12 +272,12 @@ public class CloudCommitmentStatsSubQueryTest {
         final List<StatSnapshotApiDTO> result2 =
                 cloudCommitmentStatsSubQuery.getAggregateStats(Collections.singleton(input), context);
         verifyInternalTopologyCommitmentCoverageRequest(2, TopologyType.TOPOLOGY_TYPE_SOURCE, captor);
-        assertEquals(2, result2.size());
+        assertEquals(1, result2.size());
         result2.forEach(stat -> {
             assertEquals(Epoch.CURRENT, stat.getEpoch());
-            assertEquals(1, stat.getStatistics().size());
-            final StatApiDTO innerStat = stat.getStatistics().get(0);
-            verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_COVERAGE);
+            assertEquals(2, stat.getStatistics().size());
+            stat.getStatistics().forEach(innerStat ->
+                    verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_COVERAGE));
         });
     }
 
@@ -344,16 +344,12 @@ public class CloudCommitmentStatsSubQueryTest {
         final List<StatSnapshotApiDTO> result1 =
                 cloudCommitmentStatsSubQuery.getAggregateStats(Collections.singleton(input), context);
         verifyInternalTopologyCommitmentUtilizationRequest(1, TopologyType.TOPOLOGY_TYPE_PROJECTED, captor);
-        assertEquals(2, result1.size());
+        assertEquals(1, result1.size());
         result1.forEach(stat -> {
             assertEquals(Epoch.PROJECTED, stat.getEpoch());
-            assertEquals(1, stat.getStatistics().size());
-            final StatApiDTO innerStat = stat.getStatistics().get(0);
-            verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_UTILIZATION);
-            assertNotNull(innerStat.getRelatedEntity());
-            assertEquals(oid, Long.valueOf(innerStat.getRelatedEntity().getUuid()).longValue());
-            assertEquals(StringConstants.CLOUD_COMMITMENT, innerStat.getRelatedEntity().getClassName());
-            assertEquals(StringConstants.CLOUD_COMMITMENT, innerStat.getRelatedEntityType());
+            assertEquals(2, stat.getStatistics().size());
+            stat.getStatistics().forEach(innerStat ->
+                    verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_UTILIZATION));
         });
         Mockito.when(context.requestProjected()).thenReturn(false);
         Mockito.when(context.includeCurrent()).thenReturn(true);
@@ -361,16 +357,12 @@ public class CloudCommitmentStatsSubQueryTest {
         final List<StatSnapshotApiDTO> result2 =
                 cloudCommitmentStatsSubQuery.getAggregateStats(Collections.singleton(input), context);
         verifyInternalTopologyCommitmentUtilizationRequest(2, TopologyType.TOPOLOGY_TYPE_SOURCE, captor);
-        assertEquals(2, result2.size());
+        assertEquals(1, result2.size());
         result2.forEach(stat -> {
             assertEquals(Epoch.CURRENT, stat.getEpoch());
-            assertEquals(1, stat.getStatistics().size());
-            final StatApiDTO innerStat = stat.getStatistics().get(0);
-            verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_UTILIZATION);
-            assertNotNull(innerStat.getRelatedEntity());
-            assertEquals(oid, Long.valueOf(innerStat.getRelatedEntity().getUuid()).longValue());
-            assertEquals(StringConstants.CLOUD_COMMITMENT, innerStat.getRelatedEntity().getClassName());
-            assertEquals(StringConstants.CLOUD_COMMITMENT, innerStat.getRelatedEntityType());
+            assertEquals(2, stat.getStatistics().size());
+            stat.getStatistics().forEach(innerStat ->
+                    verifyInnerTopologyStat(capacity, used, innerStat, StringConstants.CLOUD_COMMITMENT_UTILIZATION));
         });
     }
 
