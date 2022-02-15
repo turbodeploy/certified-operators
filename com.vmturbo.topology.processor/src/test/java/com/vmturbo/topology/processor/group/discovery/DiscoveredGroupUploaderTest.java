@@ -12,6 +12,7 @@ import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupCons
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STORAGE_INTERPRETED_CLUSTER;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TOPOLOGY;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.VCPU_RESIZE_THRESHOLD_DTO;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -606,6 +607,61 @@ public class DiscoveredGroupUploaderTest {
         assertThat(policySettingInfo.getDiscoveredGroupNames(0), is("0-group"));
         assertThat(policySettingInfo.getDisplayName(),
                 is("Freedom is slavery. - Setting policy (target 1)"));
+        assertThat(policySettingInfo.getSettingsCount(), is(2));
+        final Optional<SettingProto.Setting> minSetting = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs
+                        .ResizeVcpuMinThreshold
+                        .getSettingName()))
+                .findAny();
+        assertTrue(minSetting.isPresent());
+        assertThat((double)minSetting.get().getNumericSettingValue().getValue(),
+                closeTo(4.0, 0.001));
+
+        final Optional<SettingProto.Setting> maxSetting = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs
+                        .ResizeVcpuMaxThreshold
+                        .getSettingName()))
+                .findAny();
+        assertTrue(maxSetting.isPresent());
+        assertThat((double)maxSetting.get().getNumericSettingValue().getValue(),
+                closeTo(16.0, 0.001));
+
+        assertTrue(policyInfos.isEmpty());
+    }
+
+    /**
+     * Same as {@link #testConvertVcpuResizeThresholdSettingPolicy()} but has a policy
+     * display name.
+     */
+    @Test
+    public void testVcpuResizeWithPolicyDisplayName() {
+        // ACT
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID,
+                Arrays.asList(
+                        DiscoveredGroupConstants.VCPU_RESIZE_THRESHOLD_DTO.toBuilder()
+                            .setSettingPolicy(VCPU_RESIZE_THRESHOLD_DTO.getSettingPolicy().toBuilder()
+                                    .setDisplayName("DO NOT USE GROUP NAME")
+                                    .build()
+                            )
+                            .build()
+                )
+        );
+
+        // ASSERT
+        final List<DiscoveredPolicyInfo> policyInfos = getPoliciesOfTarget(TARGET_ID);
+        final List<DiscoveredSettingPolicyInfo> settingPolicyInfos =
+                getSettingPoliciesOfTarget(TARGET_ID);
+
+        assertThat(settingPolicyInfos.size(), is(1));
+        final DiscoveredSettingPolicyInfo policySettingInfo = settingPolicyInfos.get(0);
+        assertThat(policySettingInfo.getName(), is("SET:group:1"));
+        assertThat(policySettingInfo.getEntityType(), is(EntityType.VIRTUAL_MACHINE_VALUE));
+        assertThat(policySettingInfo.getDiscoveredGroupNamesCount(), is(1));
+        assertThat(policySettingInfo.getDiscoveredGroupNames(0), is("0-group"));
+        assertThat(policySettingInfo.getDisplayName(),
+                is("DO NOT USE GROUP NAME (target 1)"));
         assertThat(policySettingInfo.getSettingsCount(), is(2));
         final Optional<SettingProto.Setting> minSetting = policySettingInfo.getSettingsList()
                 .stream()
