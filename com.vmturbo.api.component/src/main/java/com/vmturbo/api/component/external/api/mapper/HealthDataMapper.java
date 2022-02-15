@@ -29,7 +29,6 @@ import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.commons.Pair;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ErrorTypeInfoCase;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ThirdPartyApiFailureErrorType;
 
@@ -45,8 +44,6 @@ public class HealthDataMapper {
      * A suffix appended to the message (error) text for hidden targets.
      */
     public static final String HIDDEN_TARGET_MESSAGE_SUFFIX = " (Hidden Target)";
-
-    private static final Map<ErrorType, TargetErrorType> ERROR_TYPE_CONVERTER = initializeErrorTypeConverter();
 
     private static final Map<ErrorTypeInfoCase, TargetErrorType> ERROR_TYPE_INFO_CONVERTER = Maps.newHashMap();
 
@@ -66,23 +63,6 @@ public class HealthDataMapper {
         ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.DELAYED_DATA_ERROR_TYPE, TargetErrorType.DELAYED_DATA);
         ERROR_TYPE_INFO_CONVERTER.put(ErrorTypeInfoCase.THIRD_PARTY_API_FAILURE_ERROR_TYPE,
                 TargetErrorType.THIRD_PARTY_FAILURE);
-    }
-
-    private static Map<ErrorType, TargetErrorType> initializeErrorTypeConverter() {
-        final Map<ErrorType, TargetErrorType> result = new EnumMap<>(ErrorType.class);
-        result.put(ErrorType.CONNECTION_TIMEOUT, TargetErrorType.CONNECTIVITY_ERROR);
-        result.put(ErrorType.UNAUTHENTICATED, TargetErrorType.UNAUTHENTICATED);
-        result.put(ErrorType.UNAUTHORIZED, TargetErrorType.UNAUTHENTICATED);
-        result.put(ErrorType.TOKEN_UNAVAILABLE, TargetErrorType.TOKEN_UNAVAILABLE);
-        result.put(ErrorType.TOKEN_EXPIRED, TargetErrorType.TOKEN_UNAVAILABLE);
-        result.put(ErrorType.VERSION_NOT_SUPPORTED, TargetErrorType.VERSION_NOT_SUPPORTED);
-        result.put(ErrorType.DATA_IS_MISSING, TargetErrorType.DATA_ACCESS_ERROR);
-        result.put(ErrorType.PROBE_PARSING_ERROR, TargetErrorType.DATA_ACCESS_ERROR);
-        result.put(ErrorType.OTHER, TargetErrorType.INTERNAL_PROBE_ERROR);
-        result.put(ErrorType.INTERNAL_PROBE_ERROR, TargetErrorType.INTERNAL_PROBE_ERROR);
-        result.put(ErrorType.DUPLICATION, TargetErrorType.DUPLICATION);
-        result.put(ErrorType.DELAYED_DATA, TargetErrorType.DELAYED_DATA);
-        return result;
     }
 
     private static final Map<TargetErrorType, String> TARGET_ERROR_TYPE_RECOMMENDATIONS =

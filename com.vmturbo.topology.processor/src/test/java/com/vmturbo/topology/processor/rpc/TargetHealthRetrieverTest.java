@@ -40,6 +40,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ConnectionTimeOutErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DataIsMissingErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DelayedDataErrorType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ErrorTypeInfoCase;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.OtherErrorType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -374,6 +375,9 @@ public class TargetHealthRetrieverTest {
         Assert.assertEquals(HealthState.NORMAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
         Assert.assertEquals(numberOfFailures, healthInfo.getConsecutiveFailureCount());
+        Assert.assertFalse(healthInfo.getErrorTypeInfoList().isEmpty());
+        Assert.assertEquals(ErrorTypeInfoCase.DATA_IS_MISSING_ERROR_TYPE,
+                        healthInfo.getErrorTypeInfoList().get(0).getErrorTypeInfoCase());
 
         //Now increase the number of failures by 1.
         numberOfFailures++;
