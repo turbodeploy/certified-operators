@@ -50,10 +50,8 @@ public class MarketComponentDiagnosticsHandler implements IDiagnosticsHandler {
                     }
                 }
             }
-            zipStream.close();
         } catch (Exception e) {
             logger.error("Exception trying to create directory ", e);
         }
-
     }
 }
