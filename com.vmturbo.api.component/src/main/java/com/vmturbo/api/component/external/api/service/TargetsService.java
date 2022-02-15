@@ -571,8 +571,7 @@ public class TargetsService implements ITargetsService {
         if (details.hasHealthDetails()) {
             TargetHealthApiDTO targetHealth = HealthDataMapper.mapTargetHealthInfoToDTO(details.getTargetId(),
                     details.getHealthDetails());
-            TargetHealthSummaryApiDTO targetHealthSummary =
-                    new TargetHealthSummaryApiDTO();
+            TargetHealthSummaryApiDTO targetHealthSummary = new TargetHealthSummaryApiDTO();
             targetHealthSummary.setHealthState(targetHealth.getHealthState());
             targetHealthSummary.setTimeOfLastSuccessfulDiscovery(
                     targetHealth.getTimeOfLastSuccessfulDiscovery());
