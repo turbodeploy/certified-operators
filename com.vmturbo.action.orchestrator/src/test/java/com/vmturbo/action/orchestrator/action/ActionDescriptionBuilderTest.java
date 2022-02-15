@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -20,7 +19,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -99,6 +97,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureReasonCommoditiesRecommendation;
+    private ActionDTO.Action reconfigureTaintCommoditiesRecommendation;
     private ActionDTO.Action reconfigureReasonSettingsRecommendation;
     private ActionDTO.Action reconfigureWithoutSourceRecommendation;
     private ActionDTO.Action provisionBySupplyRecommendation;
@@ -136,6 +135,7 @@ public class ActionDescriptionBuilderTest {
 
     private static final ReasonCommodity BALLOONING = createReasonCommodity(CommodityDTO.CommodityType.BALLOONING_VALUE, null);
     private static final ReasonCommodity CPU_ALLOCATION = createReasonCommodity(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE, null);
+    private static final ReasonCommodity TAINT = createReasonCommodity(CommodityDTO.CommodityType.TAINT_VALUE, "key1=value1:NoSchedule");
     private static final Long VM1_ID = 11L;
     private static final String VM1_DISPLAY_NAME = "vm1_test";
     private static final Long PM_SOURCE_ID = 22L;
@@ -166,6 +166,10 @@ public class ActionDescriptionBuilderTest {
     private static final String REGION_DISPLAY_NAME = "Manhattan";
     private static final Long CONTAINER1_ID = 11L;
     private static final String CONTAINER1_DISPLAY_NAME = "container1_test";
+    private static final Long CONTAINER_POD_ID = 222L;
+    private static final String CONTAINER_POD_DISPLAY_NAME = "container_pod_test";
+    private static final Long VM_SOURCE_ID = 777L;
+    private static final String VM_SOURCE_DISPLAY_NAME = "vm_source_test";
     private static final Long VSAN_STORAGE_ID = 333L;
     private static final String VSAN_STORAGE_DISPLAY_NAME = "vsan_storage";
     private static final Long VSAN_PM_ID = 444L;
@@ -399,6 +403,11 @@ public class ActionDescriptionBuilderTest {
         reconfigureReasonSettingsRecommendation = makeRec(makeReconfigureInfo(VM1_ID, PM_SOURCE_ID),
                 SupportLevel.SUPPORTED, reconfigureExplanation2).build();
         reconfigureWithoutSourceRecommendation = makeRec(makeReconfigureInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        Explanation reconfigureExplanationTaint = Explanation.newBuilder().setReconfigure(
+                makeReconfigureTaintCommoditiesExplanation()).build();
+        reconfigureTaintCommoditiesRecommendation = makeRec(
+                makeReconfigureInfo(CONTAINER_POD_ID, VM_SOURCE_ID), SupportLevel.SUPPORTED,
+                reconfigureExplanationTaint).build();
 
         Explanation provisionExplanation1 = Explanation.newBuilder().setProvision(
                 makeProvisionBySupplyExplanation()).build();
@@ -968,6 +977,16 @@ public class ActionDescriptionBuilderTest {
     }
 
     /**
+     * Create a {@link ReconfigureExplanation} with taint commodities.
+     * @return {@link ReconfigureExplanation}
+     */
+    private ReconfigureExplanation makeReconfigureTaintCommoditiesExplanation() {
+        return ReconfigureExplanation.newBuilder()
+                .addReconfigureCommodity(TAINT)
+                .build();
+    }
+
+    /**
      * Create a {@link ReconfigureExplanation} with reason settings.
      *
      * @return {@link ReconfigureExplanation}
@@ -1486,6 +1505,24 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, scaleRecommendation);
         assertEquals("Scale Virtual Machine vm1_test from tier_t1 to tier_t2", description);
+    }
+
+    @Test
+    public void testBuildReconfigureActionTaintCommoditiesDescription()
+            throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_POD_ID)))
+                .thenReturn((createEntity(CONTAINER_POD_ID,
+                                          EntityType.CONTAINER_POD_VALUE,
+                                          CONTAINER_POD_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getEntityFromOid(eq(VM_SOURCE_ID)))
+                .thenReturn((createEntity(VM_SOURCE_ID,
+                                          EntityType.VIRTUAL_MACHINE_VALUE,
+                                          VM_SOURCE_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(CONTAINER_POD_ID)))
+                .thenReturn(Optional.empty());
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, reconfigureTaintCommoditiesRecommendation);
+        assertEquals("Reconfigure Container Pod container_pod_test to apply tolerations", description);
     }
 
     /**

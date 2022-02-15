@@ -82,6 +82,8 @@ import org.apache.logging.log4j.util.Strings;
 public class ExplanationComposer {
     private static final Logger logger = LogManager.getLogger();
 
+    private static final String TAINT_MOVE_COMPLIANCE_EXPLANATION_FORMATION =
+        "{0} cannot tolerate taints {1} on {2}";
     private static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
         "{0} can not satisfy the request for resource(s) ";
     private static final String MOVE_EVACUATION_RECONFIGURE_EXPLANATION_FORMAT =
@@ -103,6 +105,8 @@ public class ExplanationComposer {
     private static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
     private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION =
         "Configure supplier to update resource(s) ";
+    private static final String RECONFIGURE_TAINT_COMMODITY_EXPLANATION =
+        "Apply tolerations to match taints {0}";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
     private static final String SINGLE_DELETED_POLICY_MSG = "a compliance policy that used to exist";
@@ -209,6 +213,22 @@ public class ExplanationComposer {
         return internalComposeExplanation(action, false,
             settingPolicyIdToSettingPolicyName, topology, topologyInfo, relatedActions)
             .iterator().next();
+    }
+
+    /**
+     * Get a set of commodity keys for TAINT commodities from the given reason commodities.
+     *
+     * @param reasonCommodities a given list of reason commodities
+     * @return an optional set of commodity keys for TAINT commodities
+     */
+    @Nonnull
+    static Set<String> getTaintReasons(@Nonnull final List<ReasonCommodity> reasonCommodities) {
+        return reasonCommodities.stream()
+                .map(ReasonCommodity::getCommodityType)
+                .filter(commodityType -> CommodityDTO.CommodityType.TAINT_VALUE ==
+                        commodityType.getType())
+                .map(CommodityType::getKey)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -436,7 +456,7 @@ public class ExplanationComposer {
                         changeProviderExplanation.getCompliance().getReasonSettingsList(),
                         settingPolicyIdToSettingPolicyName, topology, keepItShort));
                 } else if (!changeProviderExplanation.getCompliance().getMissingCommoditiesList().isEmpty()) {
-                    return buildComplianceReasonCommodityExplanation(optionalSourceEntity,
+                    return buildComplianceReasonCommodityExplanation(optionalSourceEntity, target,
                         changeProviderExplanation.getCompliance().getMissingCommoditiesList(),
                         topology, keepItShort);
                 } else if (changeProviderExplanation.getCompliance().hasIsCsgCompliance()) {
@@ -477,6 +497,7 @@ public class ExplanationComposer {
      */
     private static Set<String> buildComplianceReasonCommodityExplanation(
             @Nonnull final Optional<ActionEntity> optionalSourceEntity,
+            @Nonnull final ActionEntity target,
             @Nonnull final List<ReasonCommodity> reasonCommodities,
             @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             final boolean keepItShort) {
@@ -491,12 +512,22 @@ public class ExplanationComposer {
                 }
             }).collect(Collectors.toSet());
         }
-
-        return Collections.singleton(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT,
-            optionalSourceEntity.map(e -> buildEntityNameOrType(e, topology)).orElse("Current supplier"))
-            + reasonCommodities.stream().map(ReasonCommodity::getCommodityType)
-                .map(commType -> commodityDisplayName(commType, false))
-                .collect(Collectors.joining(", ")));
+        final String providerName = optionalSourceEntity
+                .map(e -> buildEntityNameOrType(e, topology))
+                .orElse("Current supplier");
+        final Set<String> taintReasons = getTaintReasons(reasonCommodities);
+        if (!taintReasons.isEmpty()) {
+            return Collections.singleton(
+                    MessageFormat.format(TAINT_MOVE_COMPLIANCE_EXPLANATION_FORMATION,
+                                         buildEntityTypeAndName(target, topology),
+                                         String.join(", ", taintReasons),
+                                         providerName));
+        }
+        return Collections.singleton(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT, providerName)
+            + reasonCommodities.stream()
+            .map(ReasonCommodity::getCommodityType)
+            .map(commType -> commodityDisplayName(commType, false))
+            .collect(Collectors.joining(", ")));
     }
 
     @Nonnull
@@ -1048,14 +1079,18 @@ public class ExplanationComposer {
      * e.g. full explanation:
      *      "Enable supplier to offer requested resource(s) Ballooning, Network Commodity test_network"
      *
-     * @param commodityTypes a list of missing reason commodities
+     * @param reasonCommodities a list of missing reason commodities
      * @return the explanation sentence
      */
     private static String buildReconfigureReasonCommodityExplanation(
-            @Nonnull final Collection<ReasonCommodity> commodityTypes) {
-        return RECONFIGURE_REASON_COMMODITY_EXPLANATION +
-            commodityTypes.stream().map(reason ->
-                getCommodityDisplayName(reason.getCommodityType()))
+            @Nonnull final List<ReasonCommodity> reasonCommodities) {
+        final Set<String> taintReasons = getTaintReasons(reasonCommodities);
+        if (!taintReasons.isEmpty()) {
+            return MessageFormat.format(RECONFIGURE_TAINT_COMMODITY_EXPLANATION,
+                                        String.join(", ", taintReasons));
+        }
+        return RECONFIGURE_REASON_COMMODITY_EXPLANATION + reasonCommodities.stream()
+                .map(reason -> getCommodityDisplayName(reason.getCommodityType()))
                 .collect(Collectors.joining(", "));
     }
 
