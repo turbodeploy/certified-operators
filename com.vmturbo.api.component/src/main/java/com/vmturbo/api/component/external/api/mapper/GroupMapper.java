@@ -138,6 +138,7 @@ public class GroupMapper {
             .put(StringConstants.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
             .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
             .put(StringConstants.RESOURCE_GROUP, GroupType.RESOURCE)
+            .put(StringConstants.BUSINESS_ACCOUNT_FOLDER, GroupType.BUSINESS_ACCOUNT_FOLDER)
             .put(StringConstants.NODE_POOL, GroupType.NODE_POOL)
             .put(StringConstants.BILLING_FAMILY, GroupType.BILLING_FAMILY)
             .build();
