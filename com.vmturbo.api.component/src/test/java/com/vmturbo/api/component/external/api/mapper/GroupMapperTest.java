@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.BUSINESS_ACCOUNT_FOLDER;
 import static com.vmturbo.common.protobuf.utils.StringConstants.RESOURCE_GROUP;
 import static com.vmturbo.common.protobuf.utils.StringConstants.WORKLOAD;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -1442,6 +1443,55 @@ public class GroupMapperTest {
         assertThat(mappedDto.getClassName(), is(RESOURCE_GROUP));
         assertThat(((ResourceGroupApiDTO)mappedDto).getParentDisplayName(), is(parentDisplayName));
         assertThat(((ResourceGroupApiDTO)mappedDto).getParentUuid(), is(String.valueOf(parentId)));
+    }
+
+    /**
+     * Tests conversion of a Business Account Folder message.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapBusinessAccountFolder() throws Exception {
+        final long parentId = 1L;
+        final String parentDisplayName = "Test Business Account Folder";
+        final Grouping group = Grouping.newBuilder().setId(9L)
+                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.BUSINESS_ACCOUNT_FOLDER)
+                        .setDisplayName("foo")
+                        .setOwner(parentId))
+                .build();
+
+        List<MinimalEntity> entities = new ArrayList<>();
+        for (long i = 1; i <= 9; i++) {
+            entities.add(MinimalEntity.newBuilder()
+                    .setOid(i)
+                    .build());
+        }
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(entities);
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
+
+        final MultiEntityRequest testRg = ApiTestUtils.mockMultiMinEntityReq(
+                Collections.singletonList(MinimalEntity.newBuilder()
+                        .setOid(parentId)
+                        .setDisplayName(parentDisplayName)
+                        .build()));
+        when(repositoryApi.entitiesRequest(Collections.singleton(parentId))).thenReturn(testRg);
+
+        when(groupExpander.getMembersForGroups(Arrays.asList(group))).thenReturn(Arrays.asList(ImmutableGroupAndMembers.builder()
+                .group(group).entities(GroupProtoUtil.getStaticMembers(group))
+                .members(GroupProtoUtil.getStaticMembers(group)).build()));
+        Mockito.when(targetCache.getAllTargets())
+                .thenReturn(Collections.singletonList(AWS_TARGET));
+
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
+
+        assertThat(mappedDto.getTemporary(), is(false));
+        assertThat(mappedDto.getUuid(), is("9"));
+        assertThat(mappedDto.getClassName(), is(BUSINESS_ACCOUNT_FOLDER));
     }
 
     @Test

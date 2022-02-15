@@ -208,9 +208,14 @@ public class StringConstants {
     public static final String NODE_POOL = "NodePool";
 
     /**
+     * The class name used in UI for folders.
+     */
+    public static final String BUSINESS_ACCOUNT_FOLDER = "BusinessAccountFolder";
+
+    /**
      * Group types set.
      */
-    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP, VIRTUAL_MACHINE_CLUSTER);
+    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP, VIRTUAL_MACHINE_CLUSTER, BUSINESS_ACCOUNT_FOLDER);
 
     // Entity type class names
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
