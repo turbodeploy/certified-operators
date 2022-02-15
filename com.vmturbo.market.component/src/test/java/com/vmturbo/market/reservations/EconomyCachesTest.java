@@ -1124,7 +1124,8 @@ public class EconomyCachesTest {
         economy.removeTrader(pm4);
         economy.getTopology().getModifiableTraderOids().remove(pm3Oid);
         economy.getTopology().getModifiableTraderOids().remove(pm4Oid);
-        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+        Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(economy, false);
+        economyCaches.updateRealtimeCachedEconomy(clonedEconomy, commTypeToSpecMap, new HashMap<>(),
                 new HashMap<>());
         long buyer1Oid = 1234L;
         long buyer1SlOid = 1000L;
@@ -1332,7 +1333,8 @@ public class EconomyCachesTest {
                         ImmutableList.of(455L));
         final long oid = 237612L;
         pm5.setOid(oid);
-        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+        Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(economy, false);
+        economyCaches.updateRealtimeCachedEconomy(clonedEconomy, commTypeToSpecMap, new HashMap<>(),
                 new HashMap<>());
         Assert.assertEquals(1, economyCaches.historicalCachedEconomy.getTraders().stream()
                 .filter(t -> t.getOid() == oid).count());

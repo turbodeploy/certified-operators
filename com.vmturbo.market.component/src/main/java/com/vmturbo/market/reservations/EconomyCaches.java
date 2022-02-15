@@ -41,7 +41,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Placement;
 import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -307,23 +306,22 @@ public class EconomyCaches {
     /**
      * Update real time cached economy.
      *
-     * @param originalEconomy the economy to be cloned.
+     * @param clonedEconomy the cloned economy to use.
      * @param commTypeToSpecMap the commodity type to commoditySpecification's type mapping.
      * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
      * @param existingReservations a map of existing reservations by oid.
      */
-    public void updateRealtimeCachedEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
+    public void updateRealtimeCachedEconomy(@Nonnull final Economy clonedEconomy,
             @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
             @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
-        Economy newEconomy;
         try {
+
             realtimeCacheStartUpdateTime = clock.instant();
-            newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy, false);
             // Add reservation entities to newEconomy which only contains PM and DS
             logger.debug(logPrefix + "Adding reservation {} with buyers {} on real time economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
-            addExistingReservationEntities(newEconomy, HashBiMap.create(commTypeToSpecMap),
+            addExistingReservationEntities(clonedEconomy, HashBiMap.create(commTypeToSpecMap),
                     buyerOidToPlacement, existingReservations, false, true);
         } catch (Exception exception) {
             realtimeCacheEndUpdateTime = clock.instant();
@@ -335,7 +333,7 @@ public class EconomyCaches {
         // Update commodity type to specification map, it can be different every market cycle
         realtimeCachedCommTypeMap = HashBiMap.create(commTypeToSpecMap);
         // Update cachedEconomy
-        realtimeCachedEconomy = newEconomy;
+        realtimeCachedEconomy = clonedEconomy;
         realtimeCacheEndUpdateTime = clock.instant();
         getState().setRealtimeCacheReceived(true);
         logger.info(logPrefix + "Real time economy cache is ready now.");
@@ -424,25 +422,25 @@ public class EconomyCaches {
     /**
      * Update historical cached economy.
      *
-     * @param originalEconomy the economy to be cloned.
+     * @param clonedEconomy the economy to be used as model.
      * @param commTypeToSpecMap the commodity type to commoditySpecification's type mapping.
      * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
      * @param existingReservations a map of existing reservations by oid.
      * @return a map of buyer oid to its placement decisions after update.
      */
     public Map<Long, List<InitialPlacementDecision>> updateHistoricalCachedEconomy(
-            @Nonnull final UnmodifiableEconomy originalEconomy,
+            @Nonnull final Economy clonedEconomy,
             @Nonnull final Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
             @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
-        return updateHistoricalCachedEconomy(originalEconomy, commTypeToSpecMap, buyerOidToPlacement, existingReservations,
+        return updateHistoricalCachedEconomy(clonedEconomy, commTypeToSpecMap, buyerOidToPlacement, existingReservations,
                 new HashMap<>());
     }
 
     /**
      * Update historical cached economy.
      *
-     * @param originalEconomy the economy to be cloned.
+     * @param clonedEconomy the economy to be cloned.
      * @param commTypeToSpecMap the commodity type to commoditySpecification's type mapping.
      * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
      * @param existingReservations a map of existing reservations by oid.
@@ -450,21 +448,18 @@ public class EconomyCaches {
      * @return a map of buyer oid to its placement decisions after update.
      */
     public Map<Long, List<InitialPlacementDecision>> updateHistoricalCachedEconomy(
-            @Nonnull final UnmodifiableEconomy originalEconomy,
+            @Nonnull final Economy clonedEconomy,
             @Nonnull final Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
             @Nonnull final Map<Long, InitialPlacementDTO> existingReservations,
             Map<Long, List<InitialPlacementDecision>> buyerPlacements) {
-        Economy newEconomy;
         try {
             buyerPlacements.clear();
             historicalCacheStartUpdateTime = clock.instant();
-            // Clone a new economy from cluster headroom plan with no workloads.
-            newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy, false);
             // Replay all existing reservation entities to newEconomy which currently only contains PM and DS
             logger.debug(logPrefix + "Replaying reservation {} with buyers {} on historical economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
-            buyerPlacements.putAll(replayReservationBuyers(newEconomy, HashBiMap.create(commTypeToSpecMap),
+            buyerPlacements.putAll(replayReservationBuyers(clonedEconomy, HashBiMap.create(commTypeToSpecMap),
                     buyerOidToPlacement, existingReservations));
         } catch (Exception exception) { // Return old placement decisions if update has exceptions.
             historicalCacheEndUpdateTime = clock.instant();
@@ -476,7 +471,7 @@ public class EconomyCaches {
         // Update commodity type to comm specification mapping, it can be different every update cycle
         historicalCachedCommTypeMap = HashBiMap.create(commTypeToSpecMap);
         // Update cachedEconomy
-        historicalCachedEconomy = newEconomy;
+        historicalCachedEconomy = clonedEconomy;
         historicalCacheEndUpdateTime = clock.instant();
         getState().setHistoricalCacheReceived(true);
         logger.info(logPrefix + "Historical economy cache is ready now.");

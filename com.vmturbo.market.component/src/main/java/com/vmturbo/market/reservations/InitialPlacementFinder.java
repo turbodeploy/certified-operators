@@ -44,7 +44,7 @@ import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedExc
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
-import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.economy.Economy;
 
 /**
  * The class to support fast reservation placement.
@@ -155,24 +155,24 @@ public class InitialPlacementFinder {
     /**
      * Triggers the update of economy caches.
      *
-     * @param originalEconomy the economy to be used as model for clone.
+     * @param clonedEconomy the economy to be used as model updation.
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
      * @param isRealtime true if to update the real time cached economy, false if to update the
      * historical cached economy.
      */
-    public void updateCachedEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
+    public void updateCachedEconomy(@Nonnull final Economy clonedEconomy,
             @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtime) {
         if (isRealtime) {
             // Update the providers with the latest broadcast in real time economy cache,
             // Apply all successfully placed reservations to the same providers that were
             // recorded in buyerPlacements.
-            economyCaches.updateRealtimeCachedEconomy(originalEconomy, commTypeToSpecMap,
+            economyCaches.updateRealtimeCachedEconomy(clonedEconomy, commTypeToSpecMap,
                         buyerPlacements, existingReservations);
         } else {
             // Update the providers with providers generated in headroom plan in historical economy
             // cache. Rerun all successfully placed reservations and update the providers in
             // buyerPlacements.
-            economyCaches.updateHistoricalCachedEconomy(originalEconomy, commTypeToSpecMap,
+            economyCaches.updateHistoricalCachedEconomy(clonedEconomy, commTypeToSpecMap,
                     buyerPlacements, existingReservations, buyerPlacements);
         }
     }
