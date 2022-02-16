@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,11 +16,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -212,7 +212,8 @@ public class ControllableManager {
             .filter(entity -> entity.getTypeSpecificInfoOrBuilder().getPhysicalMachineOrBuilder().getAutomationLevel() == AutomationLevel.FULLY_AUTOMATED)
             .map(entity -> {
                 entity.getAnalysisSettingsBuilder().setControllable(false);
-                logger.trace("Mark suspended entity {} as not controllable", entity);
+                logger.trace("Mark entity in maintenance {}({}) as not controllable",
+                                entity.getDisplayName(), entity.getOid());
                 return entity.getOid();
             })
             .collect(Collectors.toSet());
@@ -230,6 +231,7 @@ public class ControllableManager {
         Set<Long> oidsToKeep = new HashSet<>();
         long now = clock.millis();
 
+        logger.trace("Hosts that left maintenance: {}", oids2exitMaintenances);
         for (Map.Entry<Long, Long> oid2exitMaintenance : oids2exitMaintenances.entrySet()) {
             long oid = oid2exitMaintenance.getKey();
             Optional<TopologyEntity> host = topology.getTopologyGraph().getEntity(oid);
@@ -237,26 +239,30 @@ public class ControllableManager {
                 // could be already removed from topology, will expire in maintenance table at max setting window
                 continue;
             }
-            EntitySettings hostSettings = topology.getSettingsByEntity().get(oid);
-            if (hostSettings == null) {
+            Collection<Setting> hostSettings = topology.getSettingsForEntity(oid);
+            if (CollectionUtils.isEmpty(hostSettings)) {
                 continue;
             }
-            for (SettingToPolicyId settingToId : hostSettings.getUserSettingsList()) {
-                Setting setting = settingToId.getSetting();
-                if (EntitySettingSpecs.DrsMaintenanceProtectionWindow.getSettingName()
-                                .equals(setting.getSettingSpecName())
-                                && setting.hasNumericSettingValue()) {
-                    long delay = (long)setting.getNumericSettingValue().getValue();
-                    if (delay > 0 && Instant.ofEpochMilli(now).minus(delay, ChronoUnit.MINUTES).compareTo(
-                                    Instant.ofEpochSecond(oid2exitMaintenance.getValue())) < 0) {
-                        logger.trace("Keeping controllable false for host that left maintenance {}", host.get());
-                        host.get().getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
-                        oidsToKeep.add(oid);
-                    }
-                }
+            long delay = (long)getNumericSettingValue(hostSettings, EntitySettingSpecs.DrsMaintenanceProtectionWindow);
+            if (delay > 0 && Instant.ofEpochMilli(now).minus(delay, ChronoUnit.MINUTES).compareTo(
+                            Instant.ofEpochSecond(oid2exitMaintenance.getValue())) < 0) {
+                logger.trace("Keeping controllable false for host that left maintenance {}", host.get());
+                host.get().getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                oidsToKeep.add(oid);
             }
         }
         return oidsToKeep;
+    }
+
+    private static double getNumericSettingValue(Collection<Setting> settings,
+                    EntitySettingSpecs spec) {
+        for (Setting setting : settings) {
+            if (spec.getSettingName().equals(setting.getSettingSpecName())
+                            && setting.hasNumericSettingValue()) {
+                return setting.getNumericSettingValue().getValue();
+            }
+        }
+        return spec.getNumericDefault();
     }
 
     /**
