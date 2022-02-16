@@ -163,6 +163,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -359,7 +360,9 @@ public class ActionSpecMapperTest {
                         supplyChainService,
                         policiesService,
                         reservedInstancesService,
-                        groupServiceGrpc);
+                        groupServiceGrpc,
+                        SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        mock(SettingsMapper.class));
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))

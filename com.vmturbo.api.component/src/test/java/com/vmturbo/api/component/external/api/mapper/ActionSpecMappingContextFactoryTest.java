@@ -78,9 +78,17 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlocking
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -89,11 +97,13 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
  */
 public class ActionSpecMappingContextFactoryTest {
 
-    private final BuyReservedInstanceServiceMole buyRIMole = Mockito.spy(new BuyReservedInstanceServiceMole());
+    private final BuyReservedInstanceServiceMole buyRIMole =
+            Mockito.spy(new BuyReservedInstanceServiceMole());
 
     private final PolicyServiceMole policyMole = Mockito.spy(new PolicyServiceMole());
 
-    private final ReservedInstanceSpecServiceMole riSpecMole = Mockito.spy(new ReservedInstanceSpecServiceMole());
+    private final ReservedInstanceSpecServiceMole riSpecMole =
+            Mockito.spy(new ReservedInstanceSpecServiceMole());
 
     private final SupplyChainServiceMole supplyChainMole = Mockito.spy(new SupplyChainServiceMole());
 
@@ -103,6 +113,9 @@ public class ActionSpecMappingContextFactoryTest {
 
     private final ReservedInstancesService reservedInstancesService =
             Mockito.mock(ReservedInstancesService.class);
+
+    private final SettingPolicyServiceMole settingPolicyServiceMole =
+            Mockito.spy(new SettingPolicyServiceMole());
 
     private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
@@ -120,7 +133,7 @@ public class ActionSpecMappingContextFactoryTest {
      */
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(buyRIMole, policyMole,
-            riSpecMole, supplyChainMole, costServiceMole);
+            riSpecMole, supplyChainMole, costServiceMole, settingPolicyServiceMole);
 
     /**
      * Setup before tests, add mock for virtualVolumeAspectMapper.
@@ -195,7 +208,9 @@ public class ActionSpecMappingContextFactoryTest {
                             buyRIServiceClient, riSpecService,
                             Mockito.mock(ServiceEntityMapper.class),
                             supplyChainService, policiesService, reservedInstancesService,
-                            groupService);
+                            groupService,
+                            SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                            mock(SettingsMapper.class));
 
         final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                 buyRIIdToRIBoughtandRISpec = actionSpecMappingContextFactory
@@ -315,7 +330,9 @@ public class ActionSpecMappingContextFactoryTest {
             777777,
             buyRIServiceClient, riSpecService,
             serviceEntityMapper,
-            supplyChainService, policiesService, reservedInstancesService, groupService);
+            supplyChainService, policiesService, reservedInstancesService, groupService,
+            SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            mock(SettingsMapper.class));
         final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
         when(repositoryApiMock.entitiesRequest(Sets.newHashSet(73367284550436L)))
                 .thenReturn(dbReq);
@@ -416,7 +433,9 @@ public class ActionSpecMappingContextFactoryTest {
                 Mockito.mock(ServiceEntityMapper.class),
                 SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
                 policiesService,
-                reservedInstancesService, groupService);
+                reservedInstancesService, groupService,
+                SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                mock(SettingsMapper.class));
 
         List<ApiPartialEntity> planPartialEntities = new ArrayList<>();
         planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("aws-EU (Paris)")
@@ -456,6 +475,44 @@ public class ActionSpecMappingContextFactoryTest {
 
         assertEquals(4, entities.size());
         assertEquals(entities.keySet(), planRequestIds);
+    }
+
+
+    /**
+     * The method settingPolicyService.getSettingPolicy returns an empty SettingPolicy object
+     * when the requested id is not found.
+     * The logic in actionSpecMappingContextFactory.getSettingsPolicies should
+     * filter out these empty setting policies.
+     */
+    @Test
+    public void testGetSettingsPolicies() {
+        final long realtimeContextId = 777777L;
+        final SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub settingPolicyService =
+                SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        when(settingPolicyServiceMole.getSettingPolicy(any()))
+                .thenReturn(GetSettingPolicyResponse.getDefaultInstance());
+
+        final ActionSpecMappingContextFactory actionSpecMappingContextFactory = new
+                ActionSpecMappingContextFactory(PolicyServiceGrpc.newBlockingStub(
+                grpcTestServer.getChannel()),
+                Mockito.mock(ExecutorService.class),
+                Mockito.mock(RepositoryApi.class),
+                Mockito.mock(EntityAspectMapper.class),
+                virtualVolumeAspectMapper,
+                realtimeContextId,
+                BuyReservedInstanceServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                ReservedInstanceSpecServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                Mockito.mock(ServiceEntityMapper.class),
+                SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                Mockito.mock(PoliciesService.class),
+                reservedInstancesService,
+                GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                settingPolicyService, Mockito.mock(SettingsMapper.class));
+
+        List<SettingProto.SettingPolicy> settingPolicies = actionSpecMappingContextFactory
+                .getSettingsPolicies(ImmutableSet.of(10L));
+
+        assertEquals(0, settingPolicies.size());
     }
 }
 
