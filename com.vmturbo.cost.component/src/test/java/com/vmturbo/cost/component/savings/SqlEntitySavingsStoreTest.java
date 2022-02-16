@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 import java.sql.SQLException;
@@ -25,6 +26,7 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -50,9 +52,12 @@ import com.vmturbo.cost.component.db.tables.EntitySavingsByDay;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByMonth;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
+import com.vmturbo.cost.component.db.tables.records.EntitySavingsByDayRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
+import com.vmturbo.cost.component.db.tables.records.EntitySavingsByMonthRecord;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RolledUpTable;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
@@ -283,7 +288,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
 
         // add new data to the store, and compute eligible rollups
         store.addHourlyStats(hourlyStats, dsl);
-        rollupProcessor.process(hourlyTimes);
+        rollupProcessor.process(RollupDurationType.HOURLY, hourlyTimes);
 
         final LastRollupTimes newLastTimes = rollupTimesStore.getLastRollupTimes();
         assertNotNull(newLastTimes);
@@ -376,7 +381,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         int count = dsl.fetchCount(EntitySavingsByHour.ENTITY_SAVINGS_BY_HOUR);
         assertEquals(hourlyStats.size(), count);
         // and perform daily and monthly rollups
-        rollupProcessor.process(hourlyTimes);
+        rollupProcessor.process(RollupDurationType.HOURLY, hourlyTimes);
 
         final LastRollupTimes newLastTimes = rollupTimesStore.getLastRollupTimes();
         assertNotNull(newLastTimes);
@@ -705,5 +710,67 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         // Because 1st record with value 0.1 got inserted, and then we ignore 0.2 and 0.3 insertion
         // attempts (because of onDuplicateKeyIgnore()).
         assertEquals(expectedValue, records.iterator().next().getStatsValue(), 0.00001d);
+    }
+
+    /**
+     * Testing direct insertion into daily stats table and its rollup to monthly table.
+     *
+     * @throws EntitySavingsException Thrown on DB errors.
+     */
+    @Test
+    public void dailyStatsInsertAndRollup()  throws EntitySavingsException {
+        // timeExact0PM = 1990-01-12T12:00
+        // Feb-12, 2 PM = 1990-02-12T14:00
+        final LocalDateTime timeFeb12th = timeExact0PM.plusMonths(1).plusHours(2);
+
+        final EntitySavingsStatsType statsType = EntitySavingsStatsType.REALIZED_SAVINGS;
+        final Set<EntitySavingsStats> dailyStats = new HashSet<>();
+        int firstMultiple = 10;
+        setStatsValues(dailyStats, vm1Id, timeFeb12th, firstMultiple, ImmutableSet.of(statsType));
+        store.addDailyStats(dailyStats, dsl);
+
+        dailyStats.clear();
+        int duplicateMultiple = 20;
+        setStatsValues(dailyStats, vm1Id, timeFeb12th, duplicateMultiple, ImmutableSet.of(statsType));
+        store.addDailyStats(dailyStats, dsl);
+
+        final Result<EntitySavingsByDayRecord> dayRecords = dsl.selectFrom(
+                EntitySavingsByDay.ENTITY_SAVINGS_BY_DAY)
+                .fetch();
+        double expectedValue = getDummyValue(statsType, duplicateMultiple, vm1Id);
+        assertEquals(1, dayRecords.size());
+        final EntitySavingsByDayRecord dailyRecord = dayRecords.iterator().next();
+        assertEquals(expectedValue, dailyRecord.getStatsValue(), EPSILON_PRECISION);
+
+        // Perform monthly rollup.
+        final LastRollupTimes lastTimes = rollupTimesStore.getLastRollupTimes();
+        assertNotNull(lastTimes);
+        assertFalse(lastTimes.hasLastTimeByDay());
+
+        long timeMillis = TimeUtil.localDateTimeToMilli(timeFeb12th, clock);
+        rollupProcessor.process(RollupDurationType.DAILY, ImmutableList.of(timeMillis));
+
+        final LastRollupTimes newLastTimes = rollupTimesStore.getLastRollupTimes();
+        assertNotNull(newLastTimes);
+
+        // Get dayStartTime - 12 AM time on Feb-12.
+        LocalDateTime startOfDayFeb12 = SavingsUtil.getDayStartTime(timeMillis, clock);
+        long dayStartTime = TimeUtil.localDateTimeToMilli(startOfDayFeb12, clock);
+        assertEquals(dayStartTime, newLastTimes.getLastTimeByDay());
+
+        // Get month end time - Feb-28 12 AM.
+        long monthEndFeb = SavingsUtil.getMonthEndTime(startOfDayFeb12, clock);
+        assertEquals(monthEndFeb, newLastTimes.getLastTimeByMonth());
+
+        final Result<EntitySavingsByMonthRecord> monthRecords = dsl.selectFrom(
+                        EntitySavingsByMonth.ENTITY_SAVINGS_BY_MONTH)
+                .fetch();
+        assertEquals(1, monthRecords.size());
+        final EntitySavingsByMonthRecord monthlyRecord = monthRecords.iterator().next();
+
+        // Check monthly value and timestamp (end of Feb).
+        assertEquals(expectedValue, monthlyRecord.getStatsValue(), EPSILON_PRECISION);
+        long monthlyTimeMillis = TimeUtil.localDateTimeToMilli(monthlyRecord.getStatsTime(), clock);
+        assertEquals(monthEndFeb, monthlyTimeMillis);
     }
 }

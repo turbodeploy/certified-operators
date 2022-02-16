@@ -66,10 +66,12 @@ public class RollupSavingsProcessor {
      * Checks if any rollup needs to be done for the hourly stats data that has just been written
      * to DB. If needed, performs daily/monthly rollup of that data set.
      *
-     * @param hourlyStatsTimes Hourly stats data written to DB in this cycle.
+     * @param durationType If Hourly, then data is rolled up to daily and monthly tables.
+     *          If Daily, then data is rolled up to monthly table.
+     * @param statsTimes Hourly stats data written to DB in this cycle.
      */
-    void process(@Nonnull final List<Long> hourlyStatsTimes) {
-        if (hourlyStatsTimes.isEmpty()) {
+    void process(RollupDurationType durationType, @Nonnull final List<Long> statsTimes) {
+        if (statsTimes.isEmpty()) {
             logger.info("Entity Savings rollup: Nothing to rollup.");
             return;
         }
@@ -79,7 +81,7 @@ public class RollupSavingsProcessor {
             lastRollupTimes = rollupTimesStore.getLastRollupTimes();
             logger.trace("Last times: {}", lastRollupTimes);
         }
-        List<RollupTimeInfo> nextRollupTimes = checkRollupRequired(hourlyStatsTimes,
+        List<RollupTimeInfo> nextRollupTimes = checkRollupRequired(durationType, statsTimes,
                 lastRollupTimes, clock);
         logger.debug("Entity Savings rollup: {}", () -> nextRollupTimes.stream()
                 .map(RollupTimeInfo::toString)
@@ -122,38 +124,42 @@ public class RollupSavingsProcessor {
      * Util function to check if any rollup is required to be done this time, based on the latest
      * stats data that has just been written to DB.
      *
-     * @param hourlyStatsTimes Times (all at hour mark) for stats data written to DB this cycle.
+     * @param durationType Whether to roll up to monthly only (if daily), or both daily and
+     *      monthly (if hourly).
+     * @param statsTimes Times (all at mark or day mark) for stats data written to DB this cycle.
      * @param rollupTimes Last rollup time metadata read from DB.
      * @param clock UTC clock.
      * @return List of times for which daily or monthly rollup needs to be done.
      */
     @Nonnull
     @VisibleForTesting
-    static List<RollupTimeInfo> checkRollupRequired(@Nonnull final List<Long> hourlyStatsTimes,
-            @Nonnull final LastRollupTimes rollupTimes, @Nonnull final Clock clock) {
-        long lastHourlyRolledUp = rollupTimes.getLastTimeByHour();
+    static List<RollupTimeInfo> checkRollupRequired(RollupDurationType durationType,
+            @Nonnull final List<Long> statsTimes, @Nonnull final LastRollupTimes rollupTimes,
+            @Nonnull final Clock clock) {
+        boolean isHourly = durationType == RollupDurationType.HOURLY;
+        long lastRolledUp = isHourly ? rollupTimes.getLastTimeByHour() : rollupTimes.getLastTimeByDay();
 
         final List<RollupTimeInfo> nextRollupTimes = new ArrayList<>();
-        for (Long eachHourlyTime : hourlyStatsTimes) {
+        for (Long eachTime : statsTimes) {
             // Skip any times that we have already done hourly rollup for.
             // This should not happen, but just in case.
-            if (eachHourlyTime <= lastHourlyRolledUp) {
+            if (eachTime <= lastRolledUp) {
                 continue;
             }
-            Instant eachInstant = Instant.ofEpochMilli(eachHourlyTime);
-            LocalDateTime eachDateUtc = eachInstant.atZone(clock.getZone()).toLocalDateTime();
-
             // This is a newer time for which we haven't yet done rollup.
             // From an hourly time like 2/18 11:00:00 AM, get day start 2/18 00:00:00 (12 AM).
-            LocalDateTime startOfDay = eachDateUtc.toLocalDate().atStartOfDay();
+            LocalDateTime startOfDay = SavingsUtil.getDayStartTime(eachTime, clock);
             long dayStartTime = TimeUtil.localDateTimeToMilli(startOfDay, clock);
 
-            nextRollupTimes.add(new RollupTimeInfo(RollupDurationType.DAILY, eachHourlyTime,
-                    dayStartTime));
+            if (isHourly) {
+                nextRollupTimes.add(
+                        new RollupTimeInfo(RollupDurationType.DAILY, eachTime, dayStartTime));
+            }
 
             // By now, we have rolled up current hourly data into daily tables.
             // Check if it is the first hour of the day.
-            if (eachHourlyTime == dayStartTime) {
+            // If rolling up daily -> monthly, then do it for all input day times.
+            if (eachTime == dayStartTime) {
                 // The previous day is now 'done', so we can roll it up to monthly.
                 LocalDateTime dayBefore = startOfDay.minusDays(1L);
                 long previousDayStartTime = TimeUtil.localDateTimeToMilli(dayBefore, clock);
@@ -161,6 +167,9 @@ public class RollupSavingsProcessor {
                 long monthEndTime = SavingsUtil.getMonthEndTime(dayBefore, clock);
                 nextRollupTimes.add(new RollupTimeInfo(RollupDurationType.MONTHLY,
                         previousDayStartTime, monthEndTime));
+            } else if (!isHourly) {
+                nextRollupTimes.add(new RollupTimeInfo(RollupDurationType.MONTHLY,
+                        dayStartTime, SavingsUtil.getMonthEndTime(startOfDay, clock)));
             }
         }
         return nextRollupTimes;

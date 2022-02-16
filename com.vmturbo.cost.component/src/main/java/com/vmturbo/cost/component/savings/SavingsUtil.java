@@ -66,4 +66,17 @@ public class SavingsUtil {
         YearMonth month = YearMonth.from(dayTime);
         return TimeUtil.localDateToMilli(month.atEndOfMonth(), clock);
     }
+
+    /**
+     * Gets 12:00 AM on the start of the day of the given input time.
+     *
+     * @param timeMillis Epoch time in millis. E.g. for a time like 'Feb 12, 2022 1:30:00 PM'
+     * @param clock Clock to use.
+     * @return Day start time, e.g. 'Feb 12, 2022 12:00:00 AM'
+     */
+    public static LocalDateTime getDayStartTime(long timeMillis, final Clock clock) {
+        Instant eachInstant = Instant.ofEpochMilli(timeMillis);
+        LocalDateTime eachDateUtc = eachInstant.atZone(clock.getZone()).toLocalDateTime();
+        return eachDateUtc.toLocalDate().atStartOfDay();
+    }
 }
