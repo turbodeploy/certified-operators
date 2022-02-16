@@ -49,7 +49,6 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.components.api.tracing.Tracing;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
@@ -151,7 +150,9 @@ public class MapperConfig {
             communicationConfig.supplyChainRpcService(),
             serviceConfig.policiesService(),
             serviceConfig.reservedInstancesService(),
-            communicationConfig.groupRpcService());
+            communicationConfig.groupRpcService(),
+            communicationConfig.settingPolicyRpcService(),
+            settingsMapper());
     }
 
     @Bean
