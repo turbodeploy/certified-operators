@@ -153,10 +153,7 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         }
 
         vmInfo.putAllPartitions(parsePartitions(entity));
-//        if (vmData.getAgentSoftwareProperties().hasVersion()) {
-            vmInfo.setVendorToolsInstalled(vmData.getAgentSoftwareProperties().hasVersion());
-        logger.info("------------------- Log test = " + vmData.getAgentSoftwareProperties().hasVersion());
-  //      }
+        vmInfo.setVendorToolsVersion(vmData.getAgentSoftwareProperties().getVersion());
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
     }
 

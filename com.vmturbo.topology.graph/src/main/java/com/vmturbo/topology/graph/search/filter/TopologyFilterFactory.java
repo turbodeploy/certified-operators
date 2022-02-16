@@ -68,6 +68,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
         // Nothing to do
     }
 
+
     /**
      * Construct a filter for a generic {@link SearchFilter}.
      *
@@ -404,13 +405,6 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getPricingModel()),
                         DatabaseProps.class);
             }
-            case SearchableProperties.VENDOR_TOOLS_INSTALLED:
-                if (stringCriteria.getOptionsCount() == 1) {
-                    final boolean expectedValue = getExpectedValue(stringCriteria);
-                    return PropertyFilter.typeSpecificFilter(
-                                    vmProps -> vmProps.hasVendorToolsInstalled()
-                                         == expectedValue, VmProps.class);
-                }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);
@@ -607,19 +601,20 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         return createVmPropsIntegerFilter(filter, VmProps::getNumberOfSockets);
                     case SearchableProperties.VM_INFO_NUM_CPUS:
                         return createVmPropsIntegerFilter(filter, VmProps::getNumCpus);
-//                    case SearchableProperties.VENDOR_TOOLS_INSTALLED:
-//                        if(string)
-//                        return createVmPropsIntegerFilter(filter, VmProps::getNumCpus);
-
-//                    case SearchableProperties.HOT_ADD_MEMORY:
-//                        if (stringCriteria.getOptionsCount() == 1) {
-//                            final boolean expectedValue = getExpectedValue(stringCriteria);
-//                            return PropertyFilter.typeSpecificFilter(
-//                                            v -> v.isHotAddSupported(CommodityType.VMEM.getNumber())
-//                                                 == expectedValue, VmProps.class);
-//                        }
-
-
+                    case SearchableProperties.VENDOR_TOOLS_INSTALLED:
+                        if (filter.getStringFilter().getOptionsCount() == 1) {
+                            final boolean expectedValue = getExpectedValue(filter.getStringFilter());
+                            return PropertyFilter.typeSpecificFilter(
+                                            vmProps -> vmProps.hasVendorToolsInstalled()
+                                                       == expectedValue, VmProps.class);
+                        }
+                    case SearchableProperties.VENDOR_TOOLS_VERSION:
+                        if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+                            throw new IllegalArgumentException("Expecting StringFilter for " +
+                                                               filter.getPropertyName() + ", but got " + filter);
+                        }
+                        final Predicate<String> strPredicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(vmProps -> strPredicate.test(vmProps.getVendorToolsVersion()), VmProps.class);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                                 filter.getPropertyName() + " on " + propertyName);

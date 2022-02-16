@@ -199,6 +199,14 @@ public interface SearchableProps {
          * @return The installation status of tool.
          */
         boolean hasVendorToolsInstalled();
+
+        /**
+         * Get the version of tools is available for the VM.
+         *
+         * @return The version of vendor tool.
+         */
+        String getVendorToolsVersion();
+
     }
 
     /**
