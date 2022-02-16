@@ -47,7 +47,7 @@ public class ExtractorGlobalConfig {
     @Value("${enableBillingCost:true}")
     private boolean enableBillingCost;
 
-    @Value("${enableIndividualVStorages:false}")
+    @Value("${enableIndividualVStorages:true}")
     private boolean enableIndividualVStorages;
 
     /**
