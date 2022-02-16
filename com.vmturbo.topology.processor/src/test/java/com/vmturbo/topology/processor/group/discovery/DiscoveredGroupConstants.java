@@ -106,6 +106,7 @@ class DiscoveredGroupConstants {
 
     static final long PLACEHOLDER_GROUP_MEMBER = 10L;
     static final long PLACEHOLDER_CLUSTER_MEMBER = 11L;
+    static final String PLACEHOLDER_GROUP_MEMBER_LOCAL_ID = "member-local-id";
 
     static final UploadedGroup PLACEHOLDER_GROUP = GroupTestUtils.createUploadedStaticGroup(
             GroupProtoUtil.extractId(STATIC_MEMBER_DTO), EntityType.VIRTUAL_MACHINE_VALUE,
@@ -114,6 +115,12 @@ class DiscoveredGroupConstants {
     static final UploadedGroup PLACEHOLDER_CLUSTER = GroupTestUtils.createUploadedCluster(
             GroupProtoUtil.extractId(CLUSTER_DTO), GroupType.COMPUTE_HOST_CLUSTER,
             Collections.singletonList(PLACEHOLDER_CLUSTER_MEMBER)).build();
+
+    private static final UploadedGroup PLACEHOLDER_GROUP_WITH_MEMBER_LOCAL_IDS = GroupTestUtils
+            .createUploadedStaticGroup(GroupProtoUtil.extractId(STATIC_MEMBER_DTO),
+                    EntityType.VIRTUAL_MACHINE_VALUE,
+                    Collections.singletonList(PLACEHOLDER_GROUP_MEMBER),
+                    Collections.singletonList(PLACEHOLDER_GROUP_MEMBER_LOCAL_ID)).build();
 
     static final DiscoveredSettingPolicyInfo DISCOVERED_SETTING_POLICY_INFO = DiscoveredSettingPolicyInfo.newBuilder()
         .addDiscoveredGroupNames(CLUSTER_DTO.getGroupName())
@@ -141,6 +148,10 @@ class DiscoveredGroupConstants {
 
     static final InterpretedGroup PLACEHOLDER_INTERPRETED_GROUP = new InterpretedGroup(TARGET_ID,
             STATIC_MEMBER_DTO, Optional.of(PLACEHOLDER_GROUP.getDefinition().toBuilder()));
+
+    static final InterpretedGroup PLACEHOLDER_INTERPRETED_GROUP_WITH_MEMBER_LOCAL_IDs =
+            new InterpretedGroup(TARGET_ID, STATIC_MEMBER_DTO,
+                    Optional.of(PLACEHOLDER_GROUP_WITH_MEMBER_LOCAL_IDS.getDefinition().toBuilder()));
 
     static final InterpretedGroup PLACEHOLDER_INTERPRETED_CLUSTER = new InterpretedGroup(TARGET_ID,
             CLUSTER_DTO, Optional.of(PLACEHOLDER_CLUSTER.getDefinition().toBuilder()));

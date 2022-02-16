@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.util;
 
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -29,10 +30,11 @@ public final class GroupTestUtils {
      * @param groupDisplayName display name of the group
      * @param entityType entity type of the members
      * @param memberOids member oids
+     * @param memberLocalIds member local (vendor) IDs
      * @return {@link GroupDefinition.Builder}
      */
     public static GroupDefinition.Builder createStaticGroupDef(@Nonnull String groupDisplayName,
-            int entityType, @Nonnull List<Long> memberOids) {
+            int entityType, @Nonnull List<Long> memberOids, @Nonnull List<String> memberLocalIds) {
         return GroupDefinition.newBuilder()
                 .setType(GroupType.REGULAR)
                 .setDisplayName(groupDisplayName)
@@ -40,7 +42,21 @@ public final class GroupTestUtils {
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(MemberType.newBuilder()
                                         .setEntity(entityType))
-                                .addAllMembers(memberOids)));
+                                .addAllMembers(memberOids)
+                                .addAllMemberLocalId(memberLocalIds)));
+    }
+
+    /**
+     * Create a GroupDefinition containing static group members.
+     *
+     * @param groupDisplayName display name of the group
+     * @param entityType entity type of the members
+     * @param memberOids member oids
+     * @return {@link GroupDefinition.Builder}
+     */
+    public static GroupDefinition.Builder createStaticGroupDef(@Nonnull String groupDisplayName,
+            int entityType, @Nonnull List<Long> memberOids) {
+        return createStaticGroupDef(groupDisplayName, entityType, memberOids, Collections.emptyList());
     }
 
     /**
@@ -78,13 +94,30 @@ public final class GroupTestUtils {
      * @param groupId source id of the group
      * @param entityType entity type of the members
      * @param memberOids member oids
+     * @param memberLocalIds member local (vendor) IDs
+     * @return {@link UploadedGroup.Builder}
+     */
+    public static UploadedGroup.Builder createUploadedStaticGroup(
+            @Nonnull String groupId,
+            int entityType,
+            @Nonnull List<Long> memberOids,
+            @Nonnull List<String> memberLocalIds) {
+        return UploadedGroup.newBuilder()
+                .setSourceIdentifier(groupId)
+                .setDefinition(createStaticGroupDef(groupId, entityType, memberOids, memberLocalIds));
+    }
+
+    /**
+     * Create an UploadedGroup containing static members.
+     *
+     * @param groupId source id of the group
+     * @param entityType entity type of the members
+     * @param memberOids member oids
      * @return {@link UploadedGroup.Builder}
      */
     public static UploadedGroup.Builder createUploadedStaticGroup(@Nonnull String groupId,
             int entityType, @Nonnull List<Long> memberOids) {
-        return UploadedGroup.newBuilder()
-                .setSourceIdentifier(groupId)
-                .setDefinition(createStaticGroupDef(groupId, entityType, memberOids));
+        return createUploadedStaticGroup(groupId, entityType, memberOids, Collections.emptyList());
     }
 
     /**
