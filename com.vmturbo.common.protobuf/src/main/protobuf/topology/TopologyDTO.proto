@@ -234,7 +234,7 @@ message TypeSpecificInfo {
 
         // Specifies the number of cores that the tier has
         // This is used for license price calculation (since not all templates are used by VMs)
-        optional int32 num_cores = 4;
+        optional int32 num_cores = 4[deprecated = true];
 
         // Information about the types of customers this compute tier can support
         optional SupportedCustomerInfo supported_customer_info = 5;
@@ -272,6 +272,10 @@ message TypeSpecificInfo {
         // Possible disk counts supported for compute tier. Normally single value like 8 for AWS,
         // but others like GCP support multiple options like: 2, 4, 8, 16, or 24
         repeated int32 instance_disk_counts = 12;
+
+        // Number of cores - supports fractional number of cores.
+        // Recommended to be used in place of num_cores
+        optional double num_of_cores = 14;
      }
 
 

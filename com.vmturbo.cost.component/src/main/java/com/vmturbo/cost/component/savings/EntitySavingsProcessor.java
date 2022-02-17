@@ -21,6 +21,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 
 /**
@@ -127,7 +128,8 @@ class EntitySavingsProcessor {
                     endTime, Collections.emptySet());
 
             logger.info("Invoking RollupSavingsProcessor to process rollup.");
-            rollupProcessor.process(hourlyStatsTimes);
+            // TODO: Pass in daily stats here if they are being written directly.
+            rollupProcessor.process(RollupDurationType.HOURLY, hourlyStatsTimes);
 
             logger.info("Invoking data retention processor.");
             dataRetentionProcessor.process(false);

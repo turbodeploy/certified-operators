@@ -123,10 +123,10 @@ public class StitchingGroupFixer {
      * @param group The group whose membership may be replaced.
      */
     private void replaceGroupMembersFor(@Nonnull final InterpretedGroup group) {
-        final Map<String, DiscoveredGroupMembers> groupIdToDiscvoeredGroupMembers =
+        final Map<String, DiscoveredGroupMembers> groupIdToDiscoveredGroupMembers =
                 modifiedGroups.get(group.getTargetId());
-        if (groupIdToDiscvoeredGroupMembers != null) {
-            final DiscoveredGroupMembers modifiedGroup = groupIdToDiscvoeredGroupMembers.get(
+        if (groupIdToDiscoveredGroupMembers != null) {
+            final DiscoveredGroupMembers modifiedGroup = groupIdToDiscoveredGroupMembers.get(
                     group.getSourceId());
             if (modifiedGroup != null) {
                 group.getGroupDefinition()

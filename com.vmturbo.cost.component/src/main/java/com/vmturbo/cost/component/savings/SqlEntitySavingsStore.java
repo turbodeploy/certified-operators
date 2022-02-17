@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
@@ -30,7 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.InsertOnDuplicateSetMoreStep;
-import org.jooq.InsertValuesStep4;
+import org.jooq.InsertValuesStepN;
 import org.jooq.Record3;
 import org.jooq.Record5;
 import org.jooq.Result;
@@ -152,33 +153,76 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
     @Override
     public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats, DSLContext dsl)
             throws EntitySavingsException {
+        addStats(RollupDurationType.HOURLY, hourlyStats, dsl);
+    }
+
+    @Override
+    public void addDailyStats(@Nonnull Set<EntitySavingsStats> dailyStats, DSLContext dsl)
+            throws EntitySavingsException {
+        addStats(RollupDurationType.DAILY, dailyStats, dsl);
+    }
+
+    /**
+     * Adds stats to hourly or daily stats tables. Rollup if any needs to be done separately.
+     *
+     * @param tableType Table type (hourly/daily) to add stats to.
+     * @param savingsStats Stats to insert.
+     * @param dsl DB handle.
+     * @throws EntitySavingsException Thrown on insert error.
+     */
+    private void addStats(RollupDurationType tableType,
+            @Nonnull Set<EntitySavingsStats> savingsStats, DSLContext dsl)
+            throws EntitySavingsException {
+        final StatsTypeFields fieldTypes = statsFieldsByRollup.get(tableType);
+        boolean isDaily = tableType == RollupDurationType.DAILY;
         try {
+            final Table<?> table = isDaily ? ENTITY_SAVINGS_BY_DAY : ENTITY_SAVINGS_BY_HOUR;
+            final List<TableField<?, ?>> commonFields = ImmutableList.of(
+                    fieldTypes.oidField,
+                    fieldTypes.timeField,
+                    fieldTypes.typeField);
+            final List<TableField<?, ?>> allFields = new ArrayList<>(commonFields);
+            allFields.add(fieldTypes.valueField);
+            if (isDaily) {
+                allFields.add(fieldTypes.samplesField);
+            }
             // Add to batch and bind in chunks based on chunk size.
-            Iterators.partition(hourlyStats.iterator(), chunkSize)
+            Iterators.partition(savingsStats.iterator(), chunkSize)
                     .forEachRemaining(chunk -> {
-                        final InsertValuesStep4<EntitySavingsByHourRecord, Long, LocalDateTime, Integer, Double> insert = dsl
-                                .insertInto(ENTITY_SAVINGS_BY_HOUR)
-                                .columns(ENTITY_SAVINGS_BY_HOUR.ENTITY_OID,
-                                        ENTITY_SAVINGS_BY_HOUR.STATS_TIME,
-                                        ENTITY_SAVINGS_BY_HOUR.STATS_TYPE,
-                                        ENTITY_SAVINGS_BY_HOUR.STATS_VALUE);
-                        chunk.forEach(stats -> insert.values(stats.getEntityId(),
-                                            SavingsUtil.getLocalDateTime(stats.getTimestamp(), clock),
-                                            stats.getType().getNumber(), stats.getValue())
+                        final InsertValuesStepN<?> insert = dsl
+                                .insertInto(table)
+                                .columns(allFields);
+                        chunk.forEach(stats -> {
+                            // If daily, we insert with 12:00 AM day time always.
+                            final LocalDateTime statsTime = isDaily
+                                    ? SavingsUtil.getDayStartTime(stats.getTimestamp(), clock)
+                                    : SavingsUtil.getLocalDateTime(stats.getTimestamp(), clock);
+                            final List<Object> baseValues = ImmutableList.of(stats.getEntityId(),
+                                    statsTime, stats.getType().getNumber(), stats.getValue());
+                            final List<Object> values = new ArrayList<>(baseValues);
+                            if (isDaily) {
+                                // Set the 'samples' field value.
+                                // for daily table that we are directly inserting to, we don't really
+                                // know for how many hours this is for. So we assume 24 hours.
+                                values.add(24);
+                            }
+
+                            // If dup, update the stats value.
+                            insert.values(values)
                                     .onDuplicateKeyUpdate()
-                                    .set(ENTITY_SAVINGS_BY_HOUR.STATS_VALUE, stats.getValue())
-                        );
+                                    .set(fieldTypes.valueField, stats.getValue());
+                        });
                         int inserted = insert.execute();
                         if (inserted < chunk.size()) {
-                            logger.warn("Hourly entity savings stats: Could only insert {} out of "
+                            logger.warn("{} entity savings stats: Could only insert {} out of "
                                             + "batch size of {}. Total input stats count: {}. "
-                                            + "Chunk size: {}",
-                                    inserted, chunkSize, hourlyStats.size(), chunk.size());
+                                            + "Chunk size: {}", isDaily ? "Daily" : "Hourly",
+                                    inserted, chunkSize, savingsStats.size(), chunk.size());
                         }
                     });
         } catch (Exception e) {
-            throw new EntitySavingsException("Could not add " + hourlyStats.size()
-                    + " hourly entity savings stats to DB.", e);
+            throw new EntitySavingsException("Could not add " + savingsStats.size()
+                    + (isDaily ? " daily" : " hourly") + " entity savings stats to DB.", e);
         }
     }
 

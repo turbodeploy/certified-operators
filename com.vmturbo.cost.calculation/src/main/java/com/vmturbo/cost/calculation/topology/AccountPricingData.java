@@ -220,10 +220,13 @@ public class AccountPricingData<T> {
                                                      Map<ComputeTierOSType, LicenseOverride> licenseOverrideMap) {
 
         final ComputeTierOSType computeTierOSType = ComputeTierOSType.of(tierConfig.computeTierOid(), os);
-        final int numCores = licenseOverrideMap.containsKey(computeTierOSType)
+        // Azure core constrained family of compute tiers is an example use case for LicenseOverride
+        // For instance, Standard_DS12-2_v2 VM may have 12 cores, but, for the purpose of
+        // base OS license costs, the number of cores is 4.
+        final double numCores = licenseOverrideMap.containsKey(computeTierOSType)
                 // Right now, we assume if an override is provided, it will override the number
                 // of cores.
-                ? licenseOverrideMap.get(computeTierOSType).getOverrideValue().getNumCores()
+                ? licenseOverrideMap.get(computeTierOSType).getOverrideValue().getNumOfCores()
                 : tierConfig.numCores();
         final boolean isBurstableCPU = tierConfig.isBurstableCPU();
 
@@ -231,7 +234,8 @@ public class AccountPricingData<T> {
         if (licensePriceEntry == null) {
             return Optional.empty();
         }
-
+        // license prices are based on tiers of number of cores tiers. pick the license price tier
+        // based on the number of cores in compute config.
         final Optional<LicensePrice> licensePrice = licensePriceEntry.licensePrices()
                 .stream()
                 .filter(s -> s.getNumberOfCores() >= numCores)
@@ -241,7 +245,11 @@ public class AccountPricingData<T> {
             final CurrencyAmount catalogRate = catalogPrice.getPrice().getPriceAmount();
             if (catalogPrice.getIsPerCoreRate()) {
                 return catalogRate.toBuilder()
-                        .setAmount(catalogRate.getAmount() * numCores)
+                        // Round up the number of cores for instances where the compute tier
+                        // config has a fractional cores as in the case of GCP shared core
+                        // machine type families. An e2.micro may have numCores = 0.25, but
+                        // for the license price it will be considered a 1 core.
+                        .setAmount(catalogRate.getAmount() * Math.ceil(numCores))
                         .build();
             } else {
                 return catalogRate;

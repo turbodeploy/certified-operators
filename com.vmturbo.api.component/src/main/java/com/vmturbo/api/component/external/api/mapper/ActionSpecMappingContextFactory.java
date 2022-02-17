@@ -28,9 +28,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -78,6 +76,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -121,11 +120,9 @@ public class ActionSpecMappingContextFactory {
 
     private final ReservedInstancesService reservedInstancesService;
 
-    @Autowired
-    private CommunicationConfig communicationConfig;
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
 
-    @Autowired
-    private MapperConfig mapperConfig;
+    private final SettingsMapper settingsMapper;
 
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
@@ -139,7 +136,9 @@ public class ActionSpecMappingContextFactory {
                                            @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient,
                                            @Nonnull PoliciesService policiesService,
                                            @Nonnull ReservedInstancesService reservedInstancesService,
-                                           @Nonnull GroupServiceBlockingStub groupServiceBlockingStub) {
+                                           @Nonnull GroupServiceBlockingStub groupServiceBlockingStub,
+                                           @Nonnull SettingPolicyServiceBlockingStub settingPolicyService,
+                                           @Nonnull SettingsMapper settingsMapper) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -153,6 +152,8 @@ public class ActionSpecMappingContextFactory {
         this.policiesService = Objects.requireNonNull(policiesService);
         this.reservedInstancesService = Objects.requireNonNull(reservedInstancesService);
         this.groupsService  = Objects.requireNonNull(groupServiceBlockingStub);
+        this.settingPolicyService  = Objects.requireNonNull(settingPolicyService);
+        this.settingsMapper = settingsMapper;
     }
 
     /**
@@ -245,8 +246,7 @@ public class ActionSpecMappingContextFactory {
          Map<Long, BaseApiDTO> settingPolicyIdToBaseApiDTO = Collections.emptyMap();
         if (!involvedPolicies.isEmpty()) {
             if(actions.stream().filter(a -> isCloudReconfigure(a)).findFirst().isPresent()) {
-                SettingsMapper mapper = mapperConfig.settingsMapper();
-                settingPolicyIdToBaseApiDTO = executorService.submit(() -> mapper
+                settingPolicyIdToBaseApiDTO = executorService.submit(() -> settingsMapper
                                 .convertSettingPoliciesToBaseDTO(getSettingsPolicies(involvedPolicies))
                                 .stream()
                                 .collect(Collectors.toMap(p -> Long.valueOf(p.getUuid()), Function.identity()))).get();
@@ -726,13 +726,14 @@ public class ActionSpecMappingContextFactory {
     }
 
     @Nonnull
-    private List<SettingProto.SettingPolicy> getSettingsPolicies(@Nonnull Collection<Long> policyIds) {
+    @VisibleForTesting
+    public List<SettingProto.SettingPolicy> getSettingsPolicies(@Nonnull Collection<Long> policyIds) {
 
-        final List<SettingProto.SettingPolicy> settingsPolicies = new ArrayList<>(policyIds.size());
-        SettingPolicyServiceBlockingStub settingsPolicyService = communicationConfig.settingPolicyRpcService();
-        policyIds.stream().forEach(id -> settingsPolicies
-                .add((settingsPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
-                .setId(id).build()).getSettingPolicy())));
+        final List<SettingProto.SettingPolicy> settingsPolicies = policyIds.stream()
+                .map(id -> settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
+                        .setId(id).build()).getSettingPolicy())
+                .filter(SettingPolicy::hasInfo)
+                .collect(Collectors.toList());
         return settingsPolicies;
     }
 

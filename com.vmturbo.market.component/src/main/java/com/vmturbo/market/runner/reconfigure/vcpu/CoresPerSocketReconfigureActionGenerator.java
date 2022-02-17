@@ -55,8 +55,6 @@ public class CoresPerSocketReconfigureActionGenerator
         return generateActionsForEntitiesWithUndesiredNumericValue(settingPolicyService,
                 EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketValue,
                 vmsWithUserSpecifiedCoresPerSocketToPolicyIds, topologyEntities,
-                entity -> (float)entity.getTypeSpecificInfo()
-                        .getVirtualMachine()
-                        .getCoresPerSocketRatio(), EntityAttribute.CORES_PER_SOCKET);
+                EntityAttribute.CORES_PER_SOCKET);
     }
 }

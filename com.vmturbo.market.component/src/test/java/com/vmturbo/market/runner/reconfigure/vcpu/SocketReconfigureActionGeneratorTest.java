@@ -16,22 +16,17 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Test cores per socket actions generated correctly.
@@ -66,8 +61,6 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
      */
     @Test
     public void testSocketUserSpecifiedAction() {
-        TopologyEntityDTO vm1 = makeVM(1, 2, 2, true, null);
-        TopologyEntityDTO vm2 = makeVM(2, 4, 8, true, null);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "CORES", null);
         GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "USER_SPECIFIED", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
@@ -75,14 +68,24 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
         when(settingPolicyServiceMole.getEntitySettings(any(GetEntitySettingsRequest.class)))
                 .thenReturn(ImmutableList.of(response1), ImmutableList.of(response2), ImmutableList.of(response3));
 
+        TopologyEntityDTO pm2 = makePM(222, 32);
+        TopologyEntityDTO vm1 = makeVM(1, 2, 2, true, pm2.getOid());
+        TopologyEntityDTO vm2 = makeVM(2, 4, 8, true, pm2.getOid());
+        topology.put(pm2.getOid(), pm2);
         topology.put(1L, vm1);
         topology.put(2L, vm2);
 
         List<Action> actions = generator.execute(settingPolicyService, topology, Collections.emptyList());
         //Generate actions only if the request socket are different from current value.
         Assert.assertEquals(1, actions.size());
-        Assert.assertEquals(1, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
+        final Map<EntityAttribute, SettingChange> changesOfTheFirstAction =
+                        getChangesOfTheFirstAction(actions);
+        final SettingChange socketChange = changesOfTheFirstAction.get(EntityAttribute.SOCKET);
+        final SettingChange cpsChange = changesOfTheFirstAction.get(EntityAttribute.CORES_PER_SOCKET);
+        Assert.assertEquals(1, socketChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, socketChange.getNewValue(), 0.0001);
+        Assert.assertEquals(2, cpsChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(1, cpsChange.getNewValue(), 0.0001);
         Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertTrue(actions.get(0).getExplanation().getReconfigure().getReasonSettingsList().containsAll(ImmutableList.of(1L, 2L)));
     }
@@ -92,8 +95,6 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
      */
     @Test
     public void testNoActionIfVMHasResize() {
-        TopologyEntityDTO vm1 = makeVM(1, 2, 2, true, null);
-        TopologyEntityDTO vm2 = makeVM(2, 2, 2, true, null);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "CORES", null);
         GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "USER_SPECIFIED", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
@@ -101,6 +102,10 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
         when(settingPolicyServiceMole.getEntitySettings(any(GetEntitySettingsRequest.class)))
                 .thenReturn(ImmutableList.of(response1), ImmutableList.of(response2), ImmutableList.of(response3));
 
+        TopologyEntityDTO pm2 = makePM(222, 32);
+        TopologyEntityDTO vm1 = makeVM(1, 2, 2, true, pm2.getOid());
+        TopologyEntityDTO vm2 = makeVM(2, 2, 2, true, pm2.getOid());
+        topology.put(pm2.getOid(), pm2);
         topology.put(1L, vm1);
         topology.put(2L, vm2);
 
@@ -110,8 +115,14 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
 
         //Generate actions only if the VM doesn't have resize action on it.
         Assert.assertEquals(1, actions.size());
-        Assert.assertEquals(1, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
+        final Map<EntityAttribute, SettingChange> changesOfTheFirstAction =
+                        getChangesOfTheFirstAction(actions);
+        final SettingChange socketChange = changesOfTheFirstAction.get(EntityAttribute.SOCKET);
+        final SettingChange cpsChange = changesOfTheFirstAction.get(EntityAttribute.CORES_PER_SOCKET);
+        Assert.assertEquals(1, socketChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, socketChange.getNewValue(), 0.0001);
+        Assert.assertEquals(2, cpsChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(1, cpsChange.getNewValue(), 0.0001);
         Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertTrue(actions.get(0).getExplanation().getReconfigure().getReasonSettingsList().containsAll(ImmutableList.of(1L, 2L)));
     }
@@ -128,7 +139,7 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
                 .thenReturn(ImmutableList.of(response1), ImmutableList.of(response2));
 
         TopologyEntityDTO pm1 = makePM(111, 2);
-        TopologyEntityDTO pm2 = makePM(222, 3);
+        TopologyEntityDTO pm2 = makePM(222, 32);
 
         TopologyEntityDTO vm1 = makeVM(1, 2, 2, true, 111L);
         TopologyEntityDTO vm2 = makeVM(2, 4, 8, true, 111L);
@@ -144,12 +155,20 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
                 Collections.emptyList());
         //Generate actions only if the hosts' sockets are different from current value.
         Assert.assertEquals(2, actions.size());
-        Assert.assertEquals(1, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
+        final Map<EntityAttribute, SettingChange> changesOfTheFirstAction =
+                        getChangesOfTheFirstAction(actions);
+        final SettingChange socketChange =
+                        changesOfTheFirstAction.get(EntityAttribute.SOCKET);
+        final SettingChange cpsChange =
+                        changesOfTheFirstAction.get(EntityAttribute.CORES_PER_SOCKET);
+        Assert.assertEquals(1, socketChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, socketChange.getNewValue(), 0.0001);
+        Assert.assertEquals(2, cpsChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(1, cpsChange.getNewValue(), 0.0001);
         Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertEquals(ImmutableList.of(1L), actions.get(0).getExplanation().getReconfigure().getReasonSettingsList());
         Assert.assertEquals(4, actions.get(1).getInfo().getReconfigure().getSettingChange(0).getCurrentValue(), 0.0001);
-        Assert.assertEquals(3, actions.get(1).getInfo().getReconfigure().getSettingChange(0).getNewValue(), 0.0001);
+        Assert.assertEquals(32, actions.get(1).getInfo().getReconfigure().getSettingChange(0).getNewValue(), 0.0001);
         Assert.assertEquals(3, actions.get(1).getInfo().getReconfigure().getTarget().getId(), 0.0001);
     }
 
@@ -203,9 +222,6 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
      */
     @Test
     public void testMultipleEntitySettingGroup() {
-        //Only VMs who have USER_SPECIFIED policy will have the actions generated
-        TopologyEntityDTO vm1 = makeVM(1, 4, 4, true, null);
-        TopologyEntityDTO vm2 = makeVM(2, 4, 4, true, null);
         EntitySettingGroup.Builder settingGroup1 = makeEntitySettingGroup(ImmutableList.of(1L), 1, "USER_SPECIFIED", null);
         EntitySettingGroup.Builder settingGroup2 = makeEntitySettingGroup(ImmutableList.of(2L), 1, "PRESERVE_SOCKETS", null);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "CORES", null);
@@ -218,6 +234,11 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
         when(settingPolicyServiceMole.getEntitySettings(any(GetEntitySettingsRequest.class)))
                 .thenReturn(ImmutableList.of(response1), ImmutableList.of(response2), ImmutableList.of(response3));
 
+        TopologyEntityDTO pm2 = makePM(222, 32);
+        //Only VMs who have USER_SPECIFIED policy will have the actions generated
+        TopologyEntityDTO vm1 = makeVM(1, 4, 4, true, pm2.getOid());
+        TopologyEntityDTO vm2 = makeVM(2, 4, 4, true, pm2.getOid());
+        topology.put(pm2.getOid(), pm2);
         topology.put(1L, vm1);
         topology.put(2L, vm2);
 
@@ -227,42 +248,6 @@ public class SocketReconfigureActionGeneratorTest extends VcpuScalingReconfigure
         Assert.assertEquals(1, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
     }
 
-    private TopologyEntityDTO makeVM(long oid, int currentCoresPerSocket, int numCpu,
-            boolean changeable, Long pmId) {
-        TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder()
-                .setOid(oid)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setEnvironmentType(EnvironmentType.ON_PREM)
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setReconfigurable(true))
-                .setTypeSpecificInfo(
-                        TypeSpecificInfo.newBuilder()
-                                .setVirtualMachine(
-                                        VirtualMachineInfo.newBuilder()
-                                                .setCoresPerSocketRatio(currentCoresPerSocket)
-                                                .setCoresPerSocketChangeable(changeable)
-                                                .setNumCpus(numCpu))
-                );
-        if (pmId != null) {
-            vmBuilder.addCommoditiesBoughtFromProviders(
-                    CommoditiesBoughtFromProvider.newBuilder()
-                            .setProviderId(pmId)
-                            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            );
-        }
-        return vmBuilder.build();
-    }
 
-    private TopologyEntityDTO makePM(long oid, int socketsNum) {
-        return TopologyEntityDTO.newBuilder()
-                .setOid(oid)
-                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .setEnvironmentType(EnvironmentType.ON_PREM)
-                .setTypeSpecificInfo(
-                        TypeSpecificInfo.newBuilder()
-                                .setPhysicalMachine(
-                                        PhysicalMachineInfo.newBuilder()
-                                                .setNumCpuSockets(socketsNum)
-                                )).build();
-    }
 
 }

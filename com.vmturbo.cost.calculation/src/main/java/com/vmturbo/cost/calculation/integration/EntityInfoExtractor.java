@@ -337,7 +337,7 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
          * The number of cores of this compute tier.
          * See: {@link ComputeTierInfo#getNumCores()}
          */
-        int numCores();
+        double numCores();
 
         /**
          * Determine if this compute tier support burstableCPUs.

@@ -31,6 +31,17 @@ public interface EntitySavingsStore<T> {
             throws EntitySavingsException;
 
     /**
+     * Stores records to daily stats table.
+     *
+     * @param dailyStats Set of stats to store. Each is of a particular stats type, has a timestamp,
+     *  and the entityId that the stats belongs to.
+     * @param transaction object used for transaction management
+     * @throws EntitySavingsException Thrown on write error.
+     */
+    void addDailyStats(@Nonnull Set<EntitySavingsStats> dailyStats, T transaction)
+            throws EntitySavingsException;
+
+    /**
      * Gets stats related to savings and investments, based on the given time frame.
      *
      * @param timeFrame Info about what time range to fetch stats for.

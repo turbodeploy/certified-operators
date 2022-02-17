@@ -1600,6 +1600,31 @@ public class ActionInterpreter {
         return Optional.of(providerId);
     }
 
+    /**
+     * Given a VM and topology, return the CPU threads of its projected host.
+     *
+     * @param topology topologies
+     * @param entity the entity resides on PM
+     * @return The CPU threads of PM that hosts the entity, if present
+     */
+    public static Optional<Integer> getCPUThreadsFromPM(
+                    @Nonnull final Map<Long, TopologyEntityDTO> topology,
+                    @Nonnull final TopologyEntityDTO entity) {
+        final Optional<Integer> cpuThreadsOfHost = entity.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(comm -> comm.hasProviderEntityType()
+                                        && comm.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                        .map(comm -> topology.get(comm.getProviderId()))
+                        .filter(Objects::nonNull)
+                        .filter(TopologyEntityDTO::hasTypeSpecificInfo)
+                        .map(TopologyEntityDTO::getTypeSpecificInfo)
+                        .filter(TypeSpecificInfo::hasPhysicalMachine)
+                        .map(TypeSpecificInfo::getPhysicalMachine)
+                        .filter(PhysicalMachineInfo::hasNumCpuThreads)
+                        .map(PhysicalMachineInfo::getNumCpuThreads)
+                        .findFirst();
+        return cpuThreadsOfHost;
+    }
+
     @HiddenImmutableTupleImplementation
     @Immutable
     interface ActionData {
@@ -1645,27 +1670,4 @@ public class ActionInterpreter {
         }
     }
 
-    /**
-     * Given a VM and topology, return the CPU threads of its projected host.
-     * @param topology topologies
-     * @param entity the entity resides on PM
-     * @return The CPU threads of PM that hosts the entity, if present
-     */
-     public static Optional<Integer> getCPUThreadsFromPM(@Nonnull final Map<Long, ProjectedTopologyEntity> topology,
-            TopologyEntityDTO entity) {
-        Optional<Integer> cpuThreadsOfHost = entity.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(comm -> comm.hasProviderEntityType()
-                        && comm.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                .map(comm -> topology.get(comm.getProviderId()))
-                .filter(Objects::nonNull)
-                .map(ProjectedTopologyEntity::getEntity)
-                .filter(TopologyEntityDTO::hasTypeSpecificInfo)
-                .map(TopologyEntityDTO::getTypeSpecificInfo)
-                .filter(TypeSpecificInfo::hasPhysicalMachine)
-                .map(TypeSpecificInfo::getPhysicalMachine)
-                .filter(PhysicalMachineInfo::hasNumCpuThreads)
-                .map(PhysicalMachineInfo::getNumCpuThreads)
-                .findFirst();
-        return cpuThreadsOfHost;
-    }
 }

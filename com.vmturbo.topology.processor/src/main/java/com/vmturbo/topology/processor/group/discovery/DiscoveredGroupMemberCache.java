@@ -64,14 +64,13 @@ public class DiscoveredGroupMemberCache {
      */
     public static class DiscoveredGroupMembers {
         private final InterpretedGroup associatedGroup;
-        private final Map<MemberType, Set<Long>> membersByType;
+        private final Map<MemberType, MembersIds> membersByType;
 
         @VisibleForTesting
         DiscoveredGroupMembers(@Nonnull final InterpretedGroup associatedGroup) {
             this.associatedGroup = Objects.requireNonNull(associatedGroup);
             this.membersByType = associatedGroup.getStaticMembers().stream()
-                    .collect(Collectors.toMap(StaticMembersByType::getType,
-                            member -> new HashSet<>(member.getMembersList())));
+                    .collect(Collectors.toMap(StaticMembersByType::getType, MembersIds::new));
         }
 
         /**
@@ -81,8 +80,8 @@ public class DiscoveredGroupMemberCache {
          * @return True if the discovered group contains the member, false otherwise.
          */
         public boolean hasMember(final long memberOid) {
-            for (Set<Long> members : membersByType.values()) {
-                if (members.contains(memberOid)) {
+            for (MembersIds members : membersByType.values()) {
+                if (members.memberOids.contains(memberOid)) {
                     return true;
                 }
             }
@@ -103,9 +102,9 @@ public class DiscoveredGroupMemberCache {
          *         present and could not be replaced.
          */
         public boolean swapMember(final long existingMemberOid, final long replacementOid) {
-            for (Set<Long> members : membersByType.values()) {
-                if (members.remove(existingMemberOid)) {
-                    members.add(replacementOid);
+            for (MembersIds members : membersByType.values()) {
+                if (members.memberOids.remove(existingMemberOid)) {
+                    members.memberOids.add(replacementOid);
                     return true;
                 }
             }
@@ -121,7 +120,9 @@ public class DiscoveredGroupMemberCache {
             return membersByType.entrySet().stream()
                     .map(entry -> StaticMembersByType.newBuilder()
                             .setType(entry.getKey())
-                            .addAllMembers(entry.getValue()).build())
+                            .addAllMembers(entry.getValue().memberOids)
+                            .addAllMemberLocalId(entry.getValue().memberLocalIds)
+                            .build())
                     .collect(Collectors.toList());
         }
 
@@ -133,6 +134,16 @@ public class DiscoveredGroupMemberCache {
         @Nonnull
         public InterpretedGroup getAssociatedGroup() {
             return associatedGroup;
+        }
+
+        private static class MembersIds {
+            private final Set<Long> memberOids;
+            private final Set<String> memberLocalIds;
+
+            public MembersIds(final StaticMembersByType staticMembersByType) {
+                this.memberOids = new HashSet<>(staticMembersByType.getMembersList());
+                this.memberLocalIds = new HashSet<>(staticMembersByType.getMemberLocalIdList());
+            }
         }
     }
 }

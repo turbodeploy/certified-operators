@@ -15,6 +15,7 @@ import org.junit.Test;
 
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
+import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimeInfo;
 
 /**
@@ -35,7 +36,7 @@ public class RollupSavingsProcessorTest {
         long time7AmUtc = getTimeMillis("2021-02-25T07:00:00");
 
         final List<RollupTimeInfo> nextRollupTimes = RollupSavingsProcessor.checkRollupRequired(
-                ImmutableList.of(time7AmUtc), lastRollupTimes, clock);
+                RollupDurationType.HOURLY, ImmutableList.of(time7AmUtc), lastRollupTimes, clock);
 
         assertEquals(1, nextRollupTimes.size());
         final RollupTimeInfo rollupTime = nextRollupTimes.get(0);
@@ -86,7 +87,7 @@ public class RollupSavingsProcessorTest {
         final long time12AmUtcMonthEnd = getTimeMillis(timeMonthEnd);
 
         final List<RollupTimeInfo> nextRollupTimes = RollupSavingsProcessor.checkRollupRequired(
-                ImmutableList.of(time12AmUtcToday), lastRollupTimes, clock);
+                RollupDurationType.HOURLY, ImmutableList.of(time12AmUtcToday), lastRollupTimes, clock);
         assertEquals(2, nextRollupTimes.size());
 
         final RollupTimeInfo rollupTimeDaily = nextRollupTimes.get(0);

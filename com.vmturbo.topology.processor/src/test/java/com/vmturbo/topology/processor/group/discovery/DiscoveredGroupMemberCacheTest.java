@@ -4,6 +4,7 @@ import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -18,6 +19,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -124,5 +126,17 @@ public class DiscoveredGroupMemberCacheTest {
         assertThat(members,
             containsInAnyOrder(DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_CLUSTER,
             multiMemberGroup));
+    }
+
+    @Test
+    public void testHasMemberLocalIds() {
+        final DiscoveredGroupMembers groupMembers = new DiscoveredGroupMembers(
+                DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_GROUP_WITH_MEMBER_LOCAL_IDs);
+
+        final List<StaticMembersByType> staticMembersByTypeList = groupMembers.getMembers();
+        final List<String> memberLocalIds = staticMembersByTypeList.get(0).getMemberLocalIdList();
+
+        assertEquals(1, memberLocalIds.size());
+        assertEquals(DiscoveredGroupConstants.PLACEHOLDER_GROUP_MEMBER_LOCAL_ID, memberLocalIds.get(0));
     }
 }
