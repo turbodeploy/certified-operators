@@ -724,7 +724,7 @@ public class StatsQueryExecutorTest {
         // compute tier info
         TopologyDTO.TypeSpecificInfo.ComputeTierInfo computeTierInfo = TopologyDTO.TypeSpecificInfo.ComputeTierInfo
                 .newBuilder()
-                .setNumCores(numCores)
+                .setNumOfCores(numCores)
                 .build();
         // type specific info
         TopologyDTO.TypeSpecificInfo typeSpecificInfo = TopologyDTO.TypeSpecificInfo.newBuilder()

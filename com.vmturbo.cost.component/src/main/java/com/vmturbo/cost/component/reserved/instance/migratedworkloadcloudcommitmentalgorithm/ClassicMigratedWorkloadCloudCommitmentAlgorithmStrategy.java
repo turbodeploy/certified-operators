@@ -852,7 +852,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 ComputeTierInfo computeTierInfo = typeSpecificInfo.getComputeTier();
                 if (computeTierInfo != null) {
                     // Get the number of cores for our compute tier
-                    int numberOfCores = computeTierInfo.getNumCores();
+                    double numberOfCores = computeTierInfo.getNumOfCores();
 
                     // Find the license price for the number of cores in the compute tier
                     Optional<LicensePrice> licensePrice = osLicensePriceEntry.get().getLicensePricesList().stream()

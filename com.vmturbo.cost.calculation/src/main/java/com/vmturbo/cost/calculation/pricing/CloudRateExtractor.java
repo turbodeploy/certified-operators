@@ -565,7 +565,7 @@ public class CloudRateExtractor {
         final DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
         final double discount = (1.0 - discountApplicator.getDiscountPercentage(tier).getValue());
 
-        final int numCores = tier.getTypeSpecificInfo().getComputeTier().getNumCores();
+        final int numCores = 0; // TODO tier.getTypeSpecificInfo().getComputeTier().getNumCores();
         final boolean burstableCPU = tier.getTypeSpecificInfo().getComputeTier().getBurstableCPU();
 
         final Optional<TopologyDTO.CommodityType> vcoreCommodityTime = tier.getCommoditySoldListList().stream()

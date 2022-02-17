@@ -316,7 +316,7 @@ public class TopologyTestUtil {
                 .setFamily("xxx")
                 .setInstanceDiskSizeGb(1000)
                 .setInstanceDiskType(InstanceDiskType.HDD)
-                .setNumCores(12)
+                //TODO .setNumCores(12)
                 .setNumCoupons(1)
                 .setNumInstanceDisks(3)
                 .setQuotaFamily("xxx")

@@ -1228,7 +1228,7 @@ public class TopologyConverterFromMarketTest {
             .toBuilder()
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                 .setComputeTier(ComputeTierInfo.newBuilder()
-                    .setNumCores(newComputeTierCpus)
+                    .setNumOfCores(newComputeTierCpus)
                     .build())
             ).build();
 

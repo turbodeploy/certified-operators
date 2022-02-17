@@ -572,7 +572,8 @@ public final class TopologyDTOUtil {
                     .setComputeTier(ActionComputeTierInfo.newBuilder()
                         .setFamily(tierInfo.getFamily())
                         .setQuotaFamily(tierInfo.getQuotaFamily())
-                        .setNumCores(tierInfo.getNumCores())
+                            //TODO
+                        .setNumCores((int)tierInfo.getNumOfCores())
                         .setSupportedCustomerInfo(tierInfo.getSupportedCustomerInfo())));
             case VIRTUAL_MACHINE:
                 // This will get the reservation values for all commodities
