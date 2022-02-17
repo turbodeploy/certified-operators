@@ -127,7 +127,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to {1} {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES("Reconfigure {0} to provide {1} from {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
-        ACTION_DESCRIPTION_RECONFIGURE_TAINT_COMMODITIES("Reconfigure {0} to apply tolerations"),
+        ACTION_DESCRIPTION_RECONFIGURE_TAINT_COMMODITIES("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} changing {1}"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
