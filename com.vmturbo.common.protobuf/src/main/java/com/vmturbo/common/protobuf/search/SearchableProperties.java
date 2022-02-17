@@ -228,5 +228,10 @@ public class SearchableProperties {
      */
     public static final String DB_PRICING_MODEL = "dbPricingModel";
 
+    /**
+     * Database Service Tier.
+     */
+    public static final String DB_SERVICE_TIER = "dbServiceTier";
+
     private SearchableProperties() {}
 }
