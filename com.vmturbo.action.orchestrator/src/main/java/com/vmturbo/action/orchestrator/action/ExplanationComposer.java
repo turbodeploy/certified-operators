@@ -106,7 +106,7 @@ public class ExplanationComposer {
     private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION =
         "Configure supplier to update resource(s) ";
     private static final String RECONFIGURE_TAINT_COMMODITY_EXPLANATION =
-        "Apply tolerations to match taints {0}";
+        "The pod does not tolerate taint(s) on any node";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
     private static final String SINGLE_DELETED_POLICY_MSG = "a compliance policy that used to exist";
@@ -1086,8 +1086,7 @@ public class ExplanationComposer {
             @Nonnull final List<ReasonCommodity> reasonCommodities) {
         final Set<String> taintReasons = getTaintReasons(reasonCommodities);
         if (!taintReasons.isEmpty()) {
-            return MessageFormat.format(RECONFIGURE_TAINT_COMMODITY_EXPLANATION,
-                                        String.join(", ", taintReasons));
+            return RECONFIGURE_TAINT_COMMODITY_EXPLANATION;
         }
         return RECONFIGURE_REASON_COMMODITY_EXPLANATION + reasonCommodities.stream()
                 .map(reason -> getCommodityDisplayName(reason.getCommodityType()))

@@ -1522,7 +1522,7 @@ public class ActionDescriptionBuilderTest {
                 .thenReturn(Optional.empty());
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, reconfigureTaintCommoditiesRecommendation);
-        assertEquals("Reconfigure Container Pod container_pod_test to apply tolerations", description);
+        assertEquals("Reconfigure Container Pod container_pod_test", description);
     }
 
     /**
