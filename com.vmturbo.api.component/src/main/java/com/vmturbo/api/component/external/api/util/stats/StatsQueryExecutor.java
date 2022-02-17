@@ -382,8 +382,8 @@ public class StatsQueryExecutor {
                     if (statsRequested.isEmpty() || statsRequested.contains(StringConstants.NUM_CORES)
                             && metric.equals(StringConstants.NUM_CORES)) {
                         StatApiDTO statApiDTO = new StatApiDTO();
-                        float capacityValue = topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
-                                .getNumCores();
+                        float capacityValue = (float)topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
+                                .getNumOfCores();
                         final StatValueApiDTO capacity = new StatValueApiDTO();
                         capacity.setAvg(capacityValue);
                         capacity.setMax(capacityValue);

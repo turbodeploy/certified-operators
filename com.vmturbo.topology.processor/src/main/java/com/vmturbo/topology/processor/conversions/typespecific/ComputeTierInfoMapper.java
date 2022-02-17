@@ -72,6 +72,7 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
                 .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
                 .setNumCoupons(ctData.getNumCoupons())
                 .setNumCores(ctData.getNumCores())
+                .setNumOfCores(ctData.getNumOfCores())
                 .setBurstableCPU(ctData.getBurstableCPU())
                 .setSupportedCustomerInfo(supportedCustomerInfo);
         if (ctData.hasInstanceDiskSizeGb()) {

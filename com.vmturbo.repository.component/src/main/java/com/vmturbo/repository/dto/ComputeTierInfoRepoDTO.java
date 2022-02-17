@@ -27,7 +27,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private double numCoupons;
 
-    private int numCores;
+    private double numCores;
 
     Set<Architecture> supportedArchitectures;
     Set<VirtualizationType> supportedVirtualizationTypes;
@@ -44,7 +44,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         setFamily(computeTierInfo.hasFamily() ? computeTierInfo.getFamily() : null);
         setNumCoupons(computeTierInfo.hasNumCoupons() ? computeTierInfo.getNumCoupons() : 0);
-        setNumCores(computeTierInfo.hasNumCores() ? computeTierInfo.getNumCores() : 0);
+        setNumCores(computeTierInfo.hasNumOfCores() ? computeTierInfo.getNumOfCores() : 0);
 
         if (computeTierInfo.hasSupportedCustomerInfo()) {
             SupportedCustomerInfo supportedCustomerInfo = computeTierInfo.getSupportedCustomerInfo();
@@ -96,7 +96,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     public ComputeTierInfoRepoDTO() {
         this.family = null;
         this.numCoupons = 0;
-        this.numCores = 0;
+        this.numCores = 0D;
     }
 
     public String getFamily() {
@@ -111,7 +111,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
      * Get the number of cores
      * @return the number of cores
      */
-    public int getNumCores() {
+    public double getNumCores() {
         return numCores;
     }
 
@@ -127,7 +127,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
      * Set the number of cores
      * @param numCores number of cores to set on the compute tier
      */
-    public void setNumCores(final int numCores) {
+    public void setNumCores(final double numCores) {
         this.numCores = numCores;
     }
 
@@ -172,7 +172,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         return (Objects.equals(family, that.getFamily())
                 && Objects.equals(numCoupons, that.getNumCoupons())
-                && Objects.equals(numCores, that.getNumCores())
+                // TODO && Objects.equals(numCores, that.getNumCores())
                 && Objects.equals(supportsOnlyEnaVms, that.supportsOnlyEnaVms)
                 && Objects.equals(supportsOnlyNVMeVMs, that.supportsOnlyNVMeVMs)
                 && Objects.equals(supportedArchitectures, that.supportedArchitectures)

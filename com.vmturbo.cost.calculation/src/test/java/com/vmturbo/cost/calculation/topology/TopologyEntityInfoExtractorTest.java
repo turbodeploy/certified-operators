@@ -123,7 +123,10 @@ public class TopologyEntityInfoExtractorTest {
         .setOid(DEFAULT_ID)
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setComputeTier(ComputeTierInfo.newBuilder()
-                .setNumCoupons(COMPUTE_NUM_OF_COUPONS).setNumCores(2).build()))
+                .setNumCoupons(COMPUTE_NUM_OF_COUPONS)
+                    // TODO .setNumCores(2)
+                    .setNumOfCores(2)
+                    .build()))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
                     CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).build()).setCapacity(10D))
         .build();

@@ -137,7 +137,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
         return Optional.of(ComputeTierConfig.builder()
                 .computeTierOid(entity.getOid())
-                .numCores(tierInfo.getNumCores())
+                .numCores(tierInfo.getNumOfCores())
                 .numCoupons(tierInfo.getNumCoupons())
                 .isBurstableCPU(tierInfo.getBurstableCPU())
                 .build());
@@ -167,7 +167,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         Map<TopologyDTO.CommodityType, Double> computeTierPricingCommodities = new HashMap<>();
         final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
         computeTierPricingCommodities.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.NUM_VCORE_VALUE).build(),
-                Double.valueOf(tierInfo.getNumCores()));
+                Double.valueOf(tierInfo.getNumOfCores()));
         Optional<Float> memProvisioned = getRawCommodityCapacity(entity, CommodityType.MEM_PROVISIONED);
         if (memProvisioned.isPresent()) {
             computeTierPricingCommodities.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_PROVISIONED_VALUE).build(),

@@ -1932,7 +1932,7 @@ public class TopologyConverter {
                     return;
                 }
 
-                int newCores = newComputeTier.getTypeSpecificInfo().getComputeTier().getNumCores();
+                int newCores = (int)newComputeTier.getTypeSpecificInfo().getComputeTier().getNumOfCores();
 
                 entityBuilder.setTypeSpecificInfo(
                     TypeSpecificInfo.newBuilder().setVirtualMachine(
