@@ -63,6 +63,7 @@ public class VirtualMachineInfoMapperTest {
                         .setBillingType(VirtualMachineData.VMBillingType.BIDDING)
                         .addAllConnectedNetworks(CONNECTED_ENTITY_NAME_LIST)
                         .setDriverInfo(DriverInfo.getDefaultInstance())
+                        .setVendorToolsVersion(VirtualMachineInfo.getDefaultInstance().getVendorToolsVersion())
                         .build())
                 .build();
     }
