@@ -1,7 +1,5 @@
 package com.vmturbo.market.runner.reconfigure.vcpu;
 
-import static com.vmturbo.market.topology.conversions.MarketAnalysisUtils.EPSILON;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -9,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -21,10 +18,10 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.components.common.setting.VcpuScalingCoresPerSocketSocketModeEnum;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -75,7 +72,7 @@ public class SocketReconfigureActionGenerator extends VcpuScalingReconfigureActi
 
         return generateActionsForEntitiesWithUndesiredNumericValue(settingPolicyService,
                 EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketValue,
-                vmsWithUserSpecifiedCoresPerSocketToPolicyIds, topologyEntities, getVMCurrentSockets, EntityAttribute.SOCKET);
+                vmsWithUserSpecifiedCoresPerSocketToPolicyIds, topologyEntities, EntityAttribute.SOCKET);
     }
 
     /**
@@ -121,27 +118,15 @@ public class SocketReconfigureActionGenerator extends VcpuScalingReconfigureActi
             }
 
             //If VM's current socket is different from the host's socket, generate actions.
-            float currentSocket = getVMCurrentSockets.apply(vm);
-            if (Math.abs(currentSocket - hostSockets) > EPSILON) {
+            final int currentSocket =
+                            ATTRIBUTE_TO_VALUE_GETTER.get(EntityAttribute.SOCKET).apply(vm, logger);
+            if (Math.abs(currentSocket - hostSockets) > MarketAnalysisUtils.EPSILON) {
                 Set<Long> reasonPolicies = vmsWithScaleInCoresPerSocketToPolicyIds.get(vmOid);
-                Action reconfigureAction =
-                        generateReconfigureActionWithEntityAttribute(vm,
-                                currentSocket, hostSockets, reasonPolicies, EntityAttribute.SOCKET);
-                result.add(reconfigureAction);
+                generateReconfigureActionWithEntityAttribute(vm, currentSocket, hostSockets,
+                                reasonPolicies, topologyEntities, EntityAttribute.SOCKET).ifPresent(
+                                result::add);
             }
         }
         return result;
     }
-
-    private Function<TopologyEntityDTO, Float> getVMCurrentSockets = vm -> {
-        //Calculate the current socket number of this VM.
-        VirtualMachineInfo vmInfo = vm.getTypeSpecificInfo().getVirtualMachine();
-        float numCpus = vmInfo.getNumCpus();
-        float coresPerSocket = vmInfo.getCoresPerSocketRatio();
-        if (coresPerSocket == 0) {
-            logger.warn("VM {} got a 0 cores per socket so current sockets can't be calculated, using numCPUs", vm.getDisplayName());
-            return numCpus;
-        }
-        return numCpus / coresPerSocket;
-    };
 }

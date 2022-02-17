@@ -16,12 +16,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -59,8 +61,6 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
      */
     @Test
     public void testCoresPerSocketActionGenerated() {
-        TopologyEntityDTO vm1 = makeVM(1, 2, true, false);
-        TopologyEntityDTO vm2 = makeVM(2, 4, true, false);
         GetEntitySettingsResponse response1 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "SOCKETS", null);
         GetEntitySettingsResponse response2 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 1, "USER_SPECIFIED", null);
         GetEntitySettingsResponse response3 = makeGetEntitySettingsResponse(ImmutableList.of(1L, 2L), 2, null, 2f);
@@ -68,15 +68,25 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
         when(settingPolicyServiceMole.getEntitySettings(any(GetEntitySettingsRequest.class)))
                 .thenReturn(ImmutableList.of(response1), ImmutableList.of(response2), ImmutableList.of(response3));
 
-        topology.put(1L, vm1);
-        topology.put(2L, vm2);
+        TopologyEntityDTO pm1 = makePM(111, 2);
+        TopologyEntityDTO vm1 = makeVM(1, 2, 4, true, 111L);
+        TopologyEntityDTO vm2 = makeVM(2, 4, 4, true, 111L);
+        topology.put(pm1.getOid(), pm1);
+        topology.put(vm1.getOid(), vm1);
+        topology.put(vm2.getOid(), vm2);
 
         List<Action> actions = generator.execute(settingPolicyService, topology,
                 Collections.emptyList());
         //Generate actions only if the request cores per socket are different from current value.
         Assert.assertEquals(1, actions.size());
-        Assert.assertEquals(4, getFirstSettingChangeOfTheFirstAction(actions).getCurrentValue(), 0.0001);
-        Assert.assertEquals(2, getFirstSettingChangeOfTheFirstAction(actions).getNewValue(), 0.0001);
+        final Map<EntityAttribute, SettingChange> changesOfTheFirstAction =
+                        getChangesOfTheFirstAction(actions);
+        final SettingChange socketChange = changesOfTheFirstAction.get(EntityAttribute.SOCKET);
+        Assert.assertEquals(1, socketChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, socketChange.getNewValue(), 0.0001);
+        final SettingChange cpsChange = changesOfTheFirstAction.get(EntityAttribute.CORES_PER_SOCKET);
+        Assert.assertEquals(4, cpsChange.getCurrentValue(), 0.0001);
+        Assert.assertEquals(2, cpsChange.getNewValue(), 0.0001);
         Assert.assertEquals(2, actions.get(0).getInfo().getReconfigure().getTarget().getId(), 0.0001);
         Assert.assertTrue(actions.get(0).getExplanation().getReconfigure().getReasonSettingsList().containsAll(ImmutableList.of(1L, 2L)));
     }

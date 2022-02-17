@@ -8,13 +8,19 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -24,6 +30,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange.Builder;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -33,10 +40,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionGenerator;
+import com.vmturbo.market.topology.conversions.ActionInterpreter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -44,6 +53,24 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Abstract class for vcpu scaling reconfigure generators.
  */
 abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigureActionGenerator {
+    protected static final Map<EntityAttribute, BiFunction<TopologyEntityDTO, Logger, Integer>> ATTRIBUTE_TO_VALUE_GETTER =
+                    ImmutableMap.of(EntityAttribute.CORES_PER_SOCKET, (vm, logger) -> vm.getTypeSpecificInfo()
+                                    .getVirtualMachine()
+                                    .getCoresPerSocketRatio(), EntityAttribute.SOCKET,
+                                    (vm, logger) -> {
+                                        //Calculate the current socket number of this VM.
+                                        final VirtualMachineInfo vmInfo = vm.getTypeSpecificInfo().getVirtualMachine();
+                                        final int numCpus = vmInfo.getNumCpus();
+                                        final float coresPerSocket = vmInfo.getCoresPerSocketRatio();
+                                        if (coresPerSocket <= 0) {
+                                            logger.warn("VM {} got a 0 cores per socket so current sockets can't be calculated, using numCPUs", vm.getDisplayName());
+                                            return numCpus;
+                                        }
+                                        return (int)Math.ceil(numCpus / coresPerSocket);
+                                    });
+    private static final Logger LOGGER =
+                    LogManager.getLogger(VcpuScalingReconfigureActionGenerator.class);
+
     abstract List<Action> generateActions(
             @Nonnull SettingPolicyServiceBlockingStub settingPolicyService,
             @Nonnull Map<Long, TopologyEntityDTO> topologyEntities, Collection<Long> sourceVMs);
@@ -126,35 +153,64 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
      * @param currentValue Current value.
      * @param newValue New value.
      * @param reasonSettings The policies that triggered this action.
+     * @param topologyEntities oid to entity
      * @param attribute The entityAttribute this reconfigure action wants to change.
      * @return Reconfigure action.
      */
-    protected static Action generateReconfigureActionWithEntityAttribute(TopologyEntityDTO entity,
-            float currentValue, float newValue, Set<Long> reasonSettings,
-            EntityAttribute attribute) {
-
-        Reconfigure.Builder reconfigure = Reconfigure.newBuilder().setTarget(
+    protected static Optional<Action> generateReconfigureActionWithEntityAttribute(TopologyEntityDTO entity,
+                    float currentValue, float newValue, Set<Long> reasonSettings,
+                    Map<Long, TopologyEntityDTO> topologyEntities, EntityAttribute attribute) {
+        final Reconfigure.Builder reconfigureBuilder = Reconfigure.newBuilder().setTarget(
                 ActionEntity.newBuilder()
                         .setId(entity.getOid())
                         .setType(entity.getEntityType())
-                        .setEnvironmentType(entity.getEnvironmentType())).addSettingChange(
-                SettingChange.newBuilder()
-                        .setCurrentValue(currentValue)
-                        .setNewValue(newValue)
-                        .setEntityAttribute(attribute));
+                        .setEnvironmentType(entity.getEnvironmentType()))
+                        .addSettingChange(createSettingChange(currentValue, newValue, attribute));
+        final EntityAttribute relatedAttribute = getRelatedAttribute(attribute);
+        final BiFunction<TopologyEntityDTO, Logger, Integer> relatedValueGetter =
+                        ATTRIBUTE_TO_VALUE_GETTER.get(relatedAttribute);
+        if (relatedValueGetter != null) {
+            final Integer relatedValue = relatedValueGetter.apply(entity, LOGGER);
+            if (relatedValue > 0) {
+                final float currentCapacity = currentValue * relatedValue;
+                if (newValue - 0 < EPSILON) {
+                    return Optional.empty();
+                }
+                final int relatedDesiredValue = (int)Math.ceil(currentCapacity / newValue);
+                final float newCapacity = relatedDesiredValue * newValue;
+                final Integer hostCapacity =
+                                ActionInterpreter.getCPUThreadsFromPM(topologyEntities, entity)
+                                                .orElse(Integer.MIN_VALUE);
+                if (newCapacity > hostCapacity) {
+                    LOGGER.warn("Desired capacity '{}' for '{}' exceeds host capacity '{}'",
+                                    newCapacity, entity.getOid(), hostCapacity);
+                    return Optional.empty();
+                }
+                reconfigureBuilder.addSettingChange(
+                                createSettingChange(relatedValue, relatedDesiredValue,
+                                                relatedAttribute));
+            }
+        }
 
         final Action.Builder action = Action.newBuilder()
                 .setId(IdentityGenerator.next())
                 .setExplanation(Explanation.newBuilder()
                         .setReconfigure(ReconfigureExplanation.newBuilder()
                                 .addAllReasonSettings(reasonSettings)))
-                .setInfo(ActionInfo.newBuilder().setReconfigure(reconfigure))
+                .setInfo(ActionInfo.newBuilder().setReconfigure(reconfigureBuilder))
                 .setDeprecatedImportance(-1.0d)
                 //Todo: mark true when probe execution available.
-                .setExecutable(false)
+                .setExecutable(true)
                 .setSupportingLevel(SupportLevel.SUPPORTED)
                 .setDisruptive(true);
-        return action.build();
+        return Optional.of(action.build());
+    }
+
+    @Nonnull
+    private static Builder createSettingChange(float currentValue, float newValue,
+                    EntityAttribute attribute) {
+        return SettingChange.newBuilder().setCurrentValue(currentValue).setNewValue(newValue)
+                        .setEntityAttribute(attribute);
     }
 
     /**
@@ -165,7 +221,6 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
      * @param desiredSetting The setting we want to compare, must be numeric.
      * @param entitiesToPolicyIds Entities to the reason policy ids.
      * @param topologyEntities Topology entities
-     * @param getCurrentValue Get current attribute value from entity.
      * @param attribute The attribute to change within this action.
      * @return Reconfigure actions for VMs whose current cores per socket ratio is different from
      *         user specified.
@@ -175,7 +230,6 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
             @Nonnull EntitySettingSpecs desiredSetting,
             @Nonnull Map<Long, Set<Long>> entitiesToPolicyIds,
             @Nonnull Map<Long, TopologyEntityDTO> topologyEntities,
-            @Nonnull Function<TopologyEntityDTO, Float> getCurrentValue,
             @Nonnull EntityAttribute attribute) {
 
         List<Action> result = new ArrayList<>();
@@ -197,7 +251,13 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
                         continue;
                     }
                     //If VM's current attribute is different from what the setting specifies, generate actions.
-                    float currentValue = getCurrentValue.apply(entity);
+                    final BiFunction<TopologyEntityDTO, Logger, Integer> currentValueGetter =
+                                    ATTRIBUTE_TO_VALUE_GETTER.get(attribute);
+                    if (currentValueGetter == null) {
+                        return;
+                    }
+                    final float currentValue = currentValueGetter.apply(entity, LOGGER);
+
                     if (Math.abs(currentValue - desiredValue) > EPSILON) {
                         //The reason policies contain both the policies from previous filtering
                         //and the policy in this method.
@@ -205,14 +265,22 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
                         for (SettingPolicyId policyId : entitySettingGroup.getPolicyIdList()) {
                             reasonPolicies.add(policyId.getPolicyId());
                         }
-                        Action reconfigureAction = generateReconfigureActionWithEntityAttribute(
-                                entity, currentValue, desiredValue, reasonPolicies, attribute);
-                        result.add(reconfigureAction);
+
+                        generateReconfigureActionWithEntityAttribute(entity, currentValue,
+                                        desiredValue, reasonPolicies, topologyEntities,
+                                        attribute).ifPresent(result::add);
                     }
                 }
             }
         });
         return result;
+    }
+
+    private static EntityAttribute getRelatedAttribute(EntityAttribute current) {
+        if (current == EntityAttribute.CORES_PER_SOCKET) {
+            return EntityAttribute.SOCKET;
+        }
+        return EntityAttribute.CORES_PER_SOCKET;
     }
 
     /**
