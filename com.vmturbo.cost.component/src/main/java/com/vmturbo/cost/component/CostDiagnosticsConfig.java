@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -8,6 +9,9 @@ import com.google.common.collect.Lists;
 
 import io.prometheus.client.CollectorRegistry;
 
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -20,14 +24,17 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
+import com.vmturbo.cost.component.billedcosts.SqlBilledCostStore;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
+import com.vmturbo.cost.component.diags.CostDiagnosticsHandler;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.stores.DiagnosableDataStoreCollector;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Class for handling cost diagnostics export and import.
@@ -75,6 +82,9 @@ public class CostDiagnosticsConfig {
     @Autowired
     private DiagnosableDataStoreCollector projectedTopologyCommitmentMappingStoreDiagnosable;
 
+    @Autowired
+    private DbAccessConfig dbAccessConfig;
+
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveAllocationDemandDiags;
 
@@ -91,8 +101,20 @@ public class CostDiagnosticsConfig {
 
     @Bean
     public DiagnosticsHandlerImportable diagsHandler() {
-        return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
-                getStoresToDump());
+        try {
+            DSLContext dsl = dbAccessConfig.dsl();
+            if (dsl.dialect() == SQLDialect.POSTGRES) {
+                return new CostDiagnosticsHandler(recursiveZipReaderFactory(), getStoresToDump(),
+                        dbAccessConfig.dsl());
+            }
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create DiagnosticsHandlerImportable bean",
+                    e);
+        }
+        return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(), getStoresToDump());
     }
 
     @Bean
