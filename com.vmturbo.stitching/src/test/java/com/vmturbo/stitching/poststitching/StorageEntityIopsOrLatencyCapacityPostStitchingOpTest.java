@@ -266,7 +266,7 @@ public class StorageEntityIopsOrLatencyCapacityPostStitchingOpTest {
     }
 
     /**
-     * Test provider capacity is not over-writing pre-existing capacity.
+     * Test provider capacity does over-write pre-existing capacity.
      */
     @Test
     public void testPreexistingCapacityWinsOverProvider() {
@@ -286,6 +286,6 @@ public class StorageEntityIopsOrLatencyCapacityPostStitchingOpTest {
         applyChanges(resultBuilder, stitchingJournal);
 
         // ASSERT
-        assertEquals(0, resultBuilder.getChanges().size());
+        assertEquals(1, resultBuilder.getChanges().size());
     }
 }
