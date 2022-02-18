@@ -87,6 +87,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                     .put(EntityType.SERVICE_VALUE, this::getOwner)
                     .put(EntityType.LOAD_BALANCER_VALUE,
                             v -> getProviderByType(v, EntityType.SERVICE_VALUE))
+                    .put(EntityType.CLOUD_COMMITMENT_VALUE, this::getOwner)
                     .build();
 
     /**
@@ -317,6 +318,19 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     public Optional<TopologyEntityDTO> getOwner(final long entityId) {
         return Optional.ofNullable(ownedBy.get(entityId))
             .flatMap(this::getEntity);
+    }
+
+    @Override
+    public Stream<TopologyEntityDTO> streamOwnedEntitiesOfType(long entityId, int entityType) {
+        return getEntity(entityId)
+                .map(entity -> entity.getConnectedEntityListList().stream()
+                        .filter(connectedEntity -> connectedEntity.getConnectionType() == ConnectionType.OWNS_CONNECTION
+                                && connectedEntity.getConnectedEntityType() == entityType)
+                        .map(ConnectedEntity::getConnectedEntityId)
+                        .map(this::getEntity)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get))
+                .orElse(Stream.empty());
     }
 
     @Override
