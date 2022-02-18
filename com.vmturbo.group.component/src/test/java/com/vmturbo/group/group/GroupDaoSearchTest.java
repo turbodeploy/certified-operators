@@ -4,7 +4,6 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -233,9 +232,7 @@ public class GroupDaoSearchTest extends MultiDbTestBase {
                                         .setCaseSensitive(false)))
                         .setIncludeHidden(true)
                         .build());
-        // In PG we do not support case insensitve search
-        HashSet<Long> expectedSet = dsl.dialect().equals(SQLDialect.POSTGRES) ? Sets.newHashSet(OID2) : Sets.newHashSet(OID2, OID3);
-        Assert.assertEquals(expectedSet,
+        Assert.assertEquals(Sets.newHashSet(OID2, OID3),
                 groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -288,10 +285,8 @@ public class GroupDaoSearchTest extends MultiDbTestBase {
                         .setCaseSensitive(false)))
                 .setIncludeHidden(true)
                 .build());
-        // In PG we do not support case insensitve search
-        HashSet<Long> expectedSet = dsl.dialect().equals(SQLDialect.POSTGRES) ? Sets.newHashSet(OID2, OID3) : Sets.newHashSet(OID2);
-        // In MariaDB and MySQL only "father" should be returned, since grandfather matches both.
-        Assert.assertEquals(expectedSet,
+        // Only "father" should be returned, since grandfather matches both.
+        Assert.assertEquals(Sets.newHashSet(OID2),
             groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -316,10 +311,8 @@ public class GroupDaoSearchTest extends MultiDbTestBase {
                         .setCaseSensitive(false)))
                 .setIncludeHidden(true)
                 .build());
-        // In PG we do not support case insensitve search
-        HashSet<Long> expectedSet = dsl.dialect().equals(SQLDialect.POSTGRES) ? Sets.newHashSet() : Sets.newHashSet(OID3);
-        // In MariaDB and MySQL only "grandfather" should be returned.
-        Assert.assertEquals(expectedSet,
+        // Only "grandfather" should be returned.
+        Assert.assertEquals(Sets.newHashSet(OID3),
             groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
