@@ -1811,11 +1811,6 @@ public class GroupDaoTest extends MultiDbTestBase {
 
         // THEN
         Assert.assertEquals(2, response.getGroupsCount());
-        //In Postgres we do not support case insensitive search, so no results should be returned
-        if (dsl.dialect().equals(SQLDialect.POSTGRES)) {
-            Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
-            return;
-        }
         Assert.assertEquals("2", response.getPaginationResponse().getNextCursor());
         Assert.assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
         Assert.assertEquals(group4DisplayName,
@@ -2868,7 +2863,6 @@ public class GroupDaoTest extends MultiDbTestBase {
      * Tests updating group supplementary info in a bulk.
      * Any groups that are not currently in the database (in main `grouping` table) are expected to
      * be skipped.
-     * TO DO: remove the ignore once the integration with postgres works
      *
      * @throws StoreOperationException to satisfy compiler.
      */
