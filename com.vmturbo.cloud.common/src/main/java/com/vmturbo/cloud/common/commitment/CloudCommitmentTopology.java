@@ -1,5 +1,6 @@
 package com.vmturbo.cloud.common.commitment;
 
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,31 @@ public interface CloudCommitmentTopology {
      */
     double getCoverageCapacityForEntity(long entityOid,
                                         @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo);
+
+    /**
+     * Resolves the set of supported coverage vector types for the entity. These the vectors in which is should be expected
+     * the entity would have a non-zero capacity.
+     * @param entityOid The entity OID.
+     * @return The supported coverage vector types for the entity.
+     */
+    @Nonnull
+    Set<CloudCommitmentCoverageTypeInfo> getSupportedCoverageVectors(long entityOid);
+
+    /**
+     * Resolves a map of the provided commitment's capacity by coverage vectors.
+     * @param commitmentOid The commitment oid.
+     * @return An immutable map of commitment capacity by coverage vector.
+     */
+    @Nonnull
+    Map<CloudCommitmentCoverageTypeInfo, Double> getCommitmentCapacityVectors(long commitmentOid);
+
+    /**
+     * Checks whether the provided account is supported for cloud commitment coverage. If the account is supported, this
+     * indicates {@link #getSupportedCoverageVectors(long)} for entities under the supported account would not be empty.
+     * @param accountOid The account OID.
+     * @return True, if this account is supported for cloud commitment coverage.
+     */
+    boolean isSupportedAccount(long accountOid);
 
     /**
      * A factory for creating {@link CloudCommitmentTopology} instances.

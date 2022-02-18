@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.topology.cloud.listener;
 
 import java.util.Map;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
@@ -17,6 +18,8 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
+import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentCoverageEstimator;
+import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentCoverageEstimator.CommitmentCoverageEstimatorFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
@@ -39,6 +42,8 @@ public class EntityCostWriter implements LiveCloudTopologyListener {
 
     private final EntityCostStore entityCostStore;
 
+    private final CommitmentCoverageEstimatorFactory commitmentCoverageEstimatorFactory;
+
     private final CostNotificationSender costNotificationSender;
 
     /**
@@ -50,17 +55,21 @@ public class EntityCostWriter implements LiveCloudTopologyListener {
      * @param costJournalRecorder The cost journal recorder.
      * @param entityCostStore The entity cost store.
      * @param costNotificationSender The cost notification sender
+     * @param commitmentCoverageEstimatorFactory  The commitment coverage estimator factory.
      */
     public EntityCostWriter(@Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
             @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
             @Nonnull final CostJournalRecorder costJournalRecorder,
             @Nonnull final EntityCostStore entityCostStore,
-            @Nonnull final CostNotificationSender costNotificationSender) {
+            @Nonnull final CostNotificationSender costNotificationSender,
+            @Nonnull CommitmentCoverageEstimatorFactory commitmentCoverageEstimatorFactory) {
+
         this.reservedInstanceCoverageUpdate = reservedInstanceCoverageUpdate;
         this.topologyCostCalculatorFactory = topologyCostCalculatorFactory;
         this.journalRecorder = costJournalRecorder;
         this.entityCostStore = entityCostStore;
         this.costNotificationSender = costNotificationSender;
+        this.commitmentCoverageEstimatorFactory = Objects.requireNonNull(commitmentCoverageEstimatorFactory);
     }
 
     @Override
@@ -69,6 +78,11 @@ public class EntityCostWriter implements LiveCloudTopologyListener {
         // before cost calculation to accurately reflect costs based on up-to-date
         // RI coverage
         reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo, cloudTopology);
+
+        final TopologyCommitmentCoverageEstimator commitmentCoverageEstimator =
+                commitmentCoverageEstimatorFactory.newEstimator(topologyInfo, cloudTopology);
+        commitmentCoverageEstimator.estimateAndPersistCoverage();
+
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo, cloudTopology);
         final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                 topologyCostCalculator.calculateCosts(cloudTopology);

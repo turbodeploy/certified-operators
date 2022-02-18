@@ -6,11 +6,13 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.List;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -25,6 +27,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
@@ -37,14 +41,14 @@ import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory.DefaultTopologyCostCalculatorFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentConfig;
+import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentCoverageEstimator.CommitmentCoverageEstimatorFactory;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
@@ -59,7 +63,6 @@ import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceRollupProcessor;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtilizationStore;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsTopologyMonitor;
@@ -95,7 +98,9 @@ import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
         CloudCommitmentAnalysisStoreConfig.class,
         CostClientConfig.class,
         CostComponentGlobalConfig.class,
-        RollupConfig.class})
+        RollupConfig.class,
+        TopologyCommitmentConfig.class
+})
 public class TopologyListenerConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -167,9 +172,10 @@ public class TopologyListenerConfig {
     private String liveTopologyCleanupInterval;
 
     @Bean
-    public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
+    public LiveTopologyEntitiesListener liveTopologyEntitiesListener(
+            @Nonnull EntityCostWriter entityCostWriter) {
         List<LiveCloudTopologyListener> cloudTopologyListenerList =
-                new ArrayList<>(Arrays.asList(entityCostWriter(), riBuyRunner(), ccaDemandCollector()));
+                new ArrayList<>(Arrays.asList(entityCostWriter, riBuyRunner(), ccaDemandCollector()));
         if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
                 cloudTopologyListenerList.add(entitySavingsTopologyMonitor());
         }
@@ -340,10 +346,14 @@ public class TopologyListenerConfig {
      * @return An instance of the entity cost writer.
      */
     @Bean
-    public EntityCostWriter entityCostWriter() {
+    public EntityCostWriter entityCostWriter(
+            // Imported from TopologyCommitmentConfig
+            @Nonnull CommitmentCoverageEstimatorFactory commitmentCoverageEstimatorFactory) {
+
         return new EntityCostWriter(reservedInstanceConfig.reservedInstanceCoverageUpload(), topologyCostCalculatorFactory(),
                 costJournalRecorder(), entityCostConfig.entityCostStore(),
-                costNotificationConfig.costNotificationSender());
+                costNotificationConfig.costNotificationSender(),
+                commitmentCoverageEstimatorFactory);
     }
 
     /**
