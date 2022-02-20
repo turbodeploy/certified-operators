@@ -20,6 +20,8 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -475,10 +477,12 @@ public class ControllableManagerTest {
     @Test
     public void testKeepControllableFalseAfterExitingMaintenanceMode() {
         final long windowMin = 20L;
+        long defaultId = 12L;
+        // user settings but no default policy
         topologyGraph = new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
-                        ImmutableMap.of(pmPoweredOn.getOid(), createDrsWindowSetting(windowMin),
-                                        pmFailover.getOid(), createDrsWindowSetting(windowMin * 2)),
-                        Collections.emptyMap());
+                        ImmutableMap.of(pmPoweredOn.getOid(), createDrsWindowEntitySettings(windowMin, defaultId),
+                                        pmFailover.getOid(), createDrsWindowEntitySettings(windowMin * 2, defaultId)),
+                        Collections.singletonMap(defaultId, SettingPolicy.newBuilder().build()));
         // pmPoweredOn is out of the drs window, pmFailover is still in
         when(entityMaintenanceTimeDao.getHostsThatLeftMaintenance())
                         .thenReturn(ImmutableMap.of(pmPoweredOn.getOid(), (long)(NOW_MS * Units.MILLI - windowMin * 2 * 60),
@@ -493,11 +497,45 @@ public class ControllableManagerTest {
         assertFalse(vm2.getAnalysisSettings().getControllable());
     }
 
-    private static EntitySettings createDrsWindowSetting(long value) {
+    /**
+     * Test that default drs protection window value applies if there is no user policy.
+     */
+    @Test
+    public void testKeepControllableFalseAfterExitingMaintenanceModeDefaultDrsSetting() {
+        // default policy but no user settings
+        long defaultWindow = 40L;
+        SettingPolicy defaultPolicy = SettingPolicy.newBuilder()
+                        .setInfo(SettingPolicyInfo.newBuilder().addSettings(
+                                        createSingleDrsWindowSetting(40L)).build())
+                        .build();
+        topologyGraph = new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
+                        Collections.emptyMap(),
+                        Collections.singletonMap(1L, defaultPolicy));
+        // pmPoweredOn is out of the drs window
+        when(entityMaintenanceTimeDao.getHostsThatLeftMaintenance()).thenReturn(ImmutableMap.of(
+                        pmPoweredOn.getOid(),
+                        (long)(NOW_MS * Units.MILLI - defaultWindow * Units.MINUTE - 1)));
+        int numModified = controllableManager.applyControllable(topologyGraph);
+        assertEquals(3, numModified);
+        assertTrue(pmPoweredOn.getAnalysisSettings().getControllable());
+        assertTrue(pmInMaintenance.getAnalysisSettings().getControllable());
+        assertTrue(pmFailover.getAnalysisSettings().getControllable());
+        assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
+        assertFalse(vm1.getAnalysisSettings().getControllable());
+        assertFalse(vm2.getAnalysisSettings().getControllable());
+    }
+
+    private static Setting createSingleDrsWindowSetting(long value) {
+        return Setting.newBuilder()
+                        .setSettingSpecName(EntitySettingSpecs.DrsMaintenanceProtectionWindow.getSettingName())
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value))
+                        .build();
+    }
+
+    private static EntitySettings createDrsWindowEntitySettings(long value, long defaultId) {
         return EntitySettings.newBuilder().addUserSettings(SettingToPolicyId.newBuilder()
-            .setSetting(Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.DrsMaintenanceProtectionWindow.getSettingName())
-                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value))))
+            .setSetting(createSingleDrsWindowSetting(value)))
+            .setDefaultSettingPolicyId(defaultId)
             .build();
     }
 

@@ -66,12 +66,6 @@ public class StorageEntityIopsOrLatencyCapacityPostStitchingOp
                 return;
             }
 
-            // Continue only if there is no preexisting capacity
-            Optional<Double> preexistingCapacity = getCapacity(storage, commodity);
-            if (preexistingCapacity.isPresent()) {
-                return;
-            }
-
             // We always start with the closest provider
             Optional<Double> parentPoolCapacity =
                     getProviderCapacity(storage.getProviders(), commodity.getNumber(),

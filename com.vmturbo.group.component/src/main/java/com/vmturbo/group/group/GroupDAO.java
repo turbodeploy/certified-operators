@@ -184,7 +184,7 @@ public class GroupDAO implements IGroupStore {
                         SearchableProperties.DISPLAY_NAME,
                         GroupDAO::createDisplayNameSearchCondition)
                         .put(StringConstants.TAGS_ATTR, (propertyFilter, dslContext) -> Optional.of(
-                                createTagsSearchCondition(propertyFilter)))
+                                createTagsSearchCondition(propertyFilter, dslContext)))
                         .put(StringConstants.OID, (propertyFilter, dslContext) -> Optional.of(
                                 createOidCondition(propertyFilter, GROUPING.ID)))
                         .put(StringConstants.ACCOUNTID, (propertyFilter, dslContext) -> Optional.of(
@@ -1741,9 +1741,16 @@ public class GroupDAO implements IGroupStore {
         final StringFilter filter = propertyFilter.getStringFilter();
         if (filter.hasStringPropertyRegex()) {
             Field<String> displayNameField = GROUPING.DISPLAY_NAME;
-            // We do a case insensitive regex match only for MySQL and MariaDB. This is not supported for PG
-            if (!dslContext.dialect().equals(SQLDialect.POSTGRES) && !filter.getCaseSensitive()) {
-                displayNameField = displayNameField.collate(CASE_INSENSITIVE_COLLATION);
+            if (!filter.getCaseSensitive()) {
+                // We do case-insensitive regex match for Postgres with raw SQL as it's not supported by JOOQ.
+                if (dslContext.dialect().equals(SQLDialect.POSTGRES)) {
+                    return Optional.of(filter.getPositiveMatch()
+                            ? DSL.condition("{0} ~* {1}", displayNameField, filter.getStringPropertyRegex())
+                            : DSL.condition("{0} !~* {1})", displayNameField, filter.getStringPropertyRegex()));
+                } else {
+                    // To do a case-insensitive regex match for MySQL and MariaDB, we need to use a case-insensitive collation.
+                    displayNameField = displayNameField.collate(CASE_INSENSITIVE_COLLATION);
+                }
             }
             Condition regex = filter.getPositiveMatch() ? displayNameField.likeRegex(filter.getStringPropertyRegex())
                     : displayNameField.notLikeRegex(filter.getStringPropertyRegex());
@@ -1773,7 +1780,8 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private static Condition createTagsSearchCondition(@Nonnull PropertyFilter propertyFilter) {
+    private static Condition createTagsSearchCondition(
+            @Nonnull PropertyFilter propertyFilter, @Nonnull DSLContext dslContext) {
         if (!propertyFilter.hasMapFilter()) {
             throw new IllegalArgumentException(
                     "MapFilter is expected for " + StringConstants.TAGS_ATTR + " filter: "
@@ -1786,7 +1794,7 @@ public class GroupDAO implements IGroupStore {
             // string key=value must match the regex
             final Field<String> stringToMatch =
                     DSL.concat(GROUP_TAGS.TAG_KEY, DSL.val("="), GROUP_TAGS.TAG_VALUE);
-            tagCondition = stringToMatch.likeRegex(filter.getRegex());
+            tagCondition = getCaseInsensitiveRegexMatchCondition(stringToMatch, filter.getRegex(), dslContext);
         } else {
             // key is present in the filter
             // key must match and value must satisfy a specific predicate
@@ -1794,7 +1802,8 @@ public class GroupDAO implements IGroupStore {
             final Condition tagValueCondition;
             if (!StringUtils.isEmpty(filter.getRegex())) {
                 // value must match regex
-                tagValueCondition = GROUP_TAGS.TAG_VALUE.likeRegex(filter.getRegex());
+                tagValueCondition = getCaseInsensitiveRegexMatchCondition(
+                        GROUP_TAGS.TAG_VALUE, filter.getRegex(), dslContext);
             } else if (!filter.getValuesList().isEmpty()) {
                 // value must be equal to one of the options
                 tagValueCondition = GROUP_TAGS.TAG_VALUE.in(filter.getValuesList());
@@ -1813,6 +1822,16 @@ public class GroupDAO implements IGroupStore {
             return GROUPING.ID.notIn(tagSubQuery);
         }
 
+    }
+
+    @Nonnull
+    private static Condition getCaseInsensitiveRegexMatchCondition(
+            @Nonnull Field<?> fieldToMatch, @Nonnull String regex, @Nonnull DSLContext dsl) {
+        return !dsl.dialect().equals(SQLDialect.POSTGRES)
+                // For MariaDB, MySQL default collation, regex matching is case-insensitive.
+                ? fieldToMatch.likeRegex(regex)
+                // For Postgres, we do case-insensitive regex match with raw SQL as it's not supported by JOOQ.
+                : DSL.condition("{0} ~* {1}", fieldToMatch, regex);
     }
 
     @Nonnull

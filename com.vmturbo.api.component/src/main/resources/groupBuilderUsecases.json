@@ -219,7 +219,8 @@
             {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:Database", "filterCategory": "entity", "filterType": "dbByAvailabilityZoneName"},
             {"inputType": "*", "elements": "Region:displayName:AGGREGATES:Database", "filterCategory": "entity", "filterType": "dbByRegionName"},
             {"inputType": "s", "elements": "dbReplicationRole", "filterCategory": "property", "filterType": "databaseByReplicationRole", "loadOptions": true},
-            {"inputType": "s", "elements": "dbPricingModel", "filterCategory": "property", "filterType": "databaseByPricingModel", "loadOptions": true}
+            {"inputType": "s", "elements": "dbPricingModel", "filterCategory": "property", "filterType": "databaseByPricingModel", "loadOptions": true},
+            {"inputType": "s", "elements": "dbServiceTier", "filterCategory": "property", "filterType": "databaseByServiceTier", "loadOptions": true}
         ]
     },
 

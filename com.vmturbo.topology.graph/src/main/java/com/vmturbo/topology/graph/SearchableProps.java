@@ -378,5 +378,12 @@ public interface SearchableProps {
          */
 
         String getPricingModel();
+        /**
+         * Get Service Tier.
+         *
+         * @return Service Tier
+         */
+
+        String getServiceTier();
     }
 }

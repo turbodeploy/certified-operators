@@ -15,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.DatabasePricingModel;
+import com.vmturbo.api.enums.DatabaseServiceTier;
 import com.vmturbo.api.enums.ReplicationRole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
@@ -27,10 +28,8 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
 
     private static final String MAX_CONCURRENT_SESSION = "max_concurrent_session";
     private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
-    private static final String PRICING_MODEL = "pricing_model";
     private static final String STORAGE_TIER = "storage_tier";
     private static final String DB_SERVER_NAME_PROPERTY = "DB_SERVER_NAME";
-    private static final String DB_SERVICE_TIER = "server_service_tier";
     private static final String DB_COMPUTE_TIER = "server_compute_tier";
     private static final String DB_HW_GENERATION = "server_hardware_generation";
 
@@ -42,9 +41,10 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
                             (aspect, v) -> aspect.setMaxConcurrentWorkers(Integer.parseInt(v)))
                     .put(STORAGE_TIER, DBEntityAspectApiDTO::setStorageTier)
                     .put(DB_SERVER_NAME_PROPERTY, DBEntityAspectApiDTO::setDbServerName)
-                    .put(DB_SERVICE_TIER, DBEntityAspectApiDTO::setServiceTier)
                     .put(DB_COMPUTE_TIER, DBEntityAspectApiDTO::setComputeTier)
                     .put(DB_HW_GENERATION, DBEntityAspectApiDTO::setHardwareGeneration)
+                    .put(StringConstants.DB_SERVICE_TIER,
+                            (aspect, v) -> Optional.of(DatabaseServiceTier.valueOf(v)).ifPresent(aspect::setServiceTier))
                     .put(StringConstants.DB_PRICING_MODEL,
                             (aspect, v) -> Optional.of(DatabasePricingModel.valueOf(v)).ifPresent(aspect::setPricingModel))
                     .put(StringConstants.DB_REPLICATION_ROLE,

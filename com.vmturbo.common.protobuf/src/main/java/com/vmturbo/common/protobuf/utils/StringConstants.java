@@ -586,6 +586,11 @@ public class StringConstants {
     public static final String DB_PRICING_MODEL = "pricing_model";
 
     /**
+     * Database pricing model.
+     */
+    public static final String DB_SERVICE_TIER = "server_service_tier";
+
+    /**
      * Azure availability set recommend only policy prefix.
      */
     public static final String AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX = "ASRO:";

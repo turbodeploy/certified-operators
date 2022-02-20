@@ -421,6 +421,11 @@ public class ThickSearchableProps implements SearchableProps {
         public String getPricingModel() {
             return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DB_PRICING_MODEL, null);
         }
+
+        @Override
+        public String getServiceTier() {
+            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DB_SERVICE_TIER, null);
+        }
     }
 
 }

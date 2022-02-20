@@ -197,11 +197,8 @@ public class JooqUtil {
         final String disableStatement;
         switch (dialect) {
             case POSTGRES:
-                // TODO find a way to disable foreign key constraint for Postgres without requiring admin user.
-                // Postgres foreign key constrain is enforced by “system triggers” on a table.
-                // Only admin user can disable "system triggers". For now before restoring cost diags,
-                // we need to execute "set session_replication_role to replica;" and then
-                // "set session_replication_role to default;"; after finished.
+                // foreign keys disabled for postgres in CostDiagnosticsHandler.java
+                // do nothing here
                 return;
             case MARIADB:
             case MYSQL:
@@ -225,6 +222,8 @@ public class JooqUtil {
         final String enableStatement;
         switch (dialect) {
             case POSTGRES:
+                // foreign keys enabled for postgres in CostDiagnosticsHandler.java
+                // do nothing here
                 return;
             case MARIADB:
             case MYSQL:

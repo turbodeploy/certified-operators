@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -179,6 +180,8 @@ public interface CloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<ENTITY_CLASS> getOwner(final long entityId);
+
+    Stream<ENTITY_CLASS> streamOwnedEntitiesOfType(final long entityId, int entityType);
 
     /**
      * Returns aggregated entities for entity ID of types contained in entity types. If entity types

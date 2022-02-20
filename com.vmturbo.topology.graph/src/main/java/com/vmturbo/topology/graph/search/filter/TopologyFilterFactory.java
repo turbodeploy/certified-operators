@@ -405,6 +405,11 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getPricingModel()),
                         DatabaseProps.class);
             }
+            case SearchableProperties.DB_SERVICE_TIER: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getServiceTier()),
+                        DatabaseProps.class);
+            }
+
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);
