@@ -610,8 +610,10 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         if (filter.getStringFilter().getOptionsCount() == 1) {
                             final boolean expectedValue = getExpectedValue(filter.getStringFilter());
                             return PropertyFilter.typeSpecificFilter(
-                                            vmProps -> vmProps.hasVendorToolsInstalled()
+                                            vmProps -> !(StringUtils.isEmpty(vmProps.getVendorToolsVersion()))
                                                        == expectedValue, VmProps.class);
+                        } else {
+                            throw new InvalidSearchFilterException("Caught an exception for filter 'Vendor Tools Installed'. Expecting either True or False but received " + filter.getStringFilter().getOptionsList());
                         }
                     case SearchableProperties.VENDOR_TOOLS_VERSION:
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {

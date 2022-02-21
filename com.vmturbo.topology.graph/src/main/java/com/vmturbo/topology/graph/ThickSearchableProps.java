@@ -211,11 +211,6 @@ public class ThickSearchableProps implements SearchableProps {
             return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketRatio();
         }
 
-        @Override
-        public boolean hasVendorToolsInstalled() {
-            return !getVendorToolsVersion().isEmpty();
-        }
-
         @Override public String getVendorToolsVersion() {
             return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getVendorToolsVersion();
         }
