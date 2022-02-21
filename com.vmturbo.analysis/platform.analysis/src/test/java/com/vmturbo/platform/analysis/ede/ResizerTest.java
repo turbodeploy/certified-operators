@@ -1321,11 +1321,14 @@ public class ResizerTest {
     private static Object[] parametersForTestResizeDecisionsForContainers() {
         return new Object[][] {
                 // nsAndPodVmemLimitCapacity, contVmemCapacity, vmemUsedByApp, vmemUsedByCont,
-                //vmemLimitUsedByPod, numActions
+                //vmemLimitUsedByPod, numActions, executable
                 // executable resize Up by only 1 increment. Though desired was higher.
                 {100, 95, 90, 90, 80, 1, true},
                 // non-executable action since we are exceeding headroom on NS
                 {100, 100, 90, 90, 100, 1, false},
+                // non-executable action since we are exceeding headroom on NS and new capacity is
+                // more than double of old capacity (resize from 2 to 7)
+                {2, 2, 2, 2, 2, 1, false},
                 // executable resize UP
                 {100, 80, 70, 80, 80, 1, true},
                 // no resize action

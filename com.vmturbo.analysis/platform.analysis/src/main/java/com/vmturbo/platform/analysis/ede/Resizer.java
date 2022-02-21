@@ -437,7 +437,7 @@ public class Resizer {
         double totalCapOnConsumers = calculateTotalCapacityOnCoConsumersForResizeUp(economy, commSpec, seller);
         for (Map.Entry<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialEntry : rawMaterials.entrySet()) {
             CommoditySold rawMaterial = rawMaterialEntry.getValue().first;
-            if (totalCapOnConsumers + finalDesiredIncrement > rawMaterial.getEffectiveCapacity()) {
+            if (totalCapOnConsumers + finalDesiredIncrement > rawMaterial.getEffectiveCapacity() && rawMaterialEntry.getKey().isHardConstraint()) {
                 logger.debug("The sum of the effCap sold by all the customers is {}. This is "
                                 + "much larger than the raw material {}'s effCap {} after resizing up by {} for {} on {}",
                         totalCapOnConsumers, rawMaterial.getEffectiveCapacity(),
