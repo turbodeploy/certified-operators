@@ -617,7 +617,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         }
                     case SearchableProperties.VENDOR_TOOLS_VERSION:
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
-                            throw new IllegalArgumentException("Expecting StringFilter for " +
+                            throw new InvalidSearchFilterException("Expecting StringFilter for " +
                                                                filter.getPropertyName() + ", but got " + filter);
                         }
                         final Predicate<String> strPredicate = stringPredicate(filter.getStringFilter());
