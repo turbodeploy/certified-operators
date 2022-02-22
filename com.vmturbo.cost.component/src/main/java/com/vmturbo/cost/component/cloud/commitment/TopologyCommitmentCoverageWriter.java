@@ -177,6 +177,12 @@ public class TopologyCommitmentCoverageWriter {
             final UtilizationInfo.Builder utilizationInfo = UtilizationInfo.builder().topologyInfo(topologyInfo);
 
             cloudTopology.getAllEntitiesOfType(EntityType.CLOUD_COMMITMENT_VALUE).stream()
+                    .filter(commitment -> cloudTopology.getOwner(commitment.getOid())
+                            .map(purchasingAccount -> commitmentTopology.isSupportedAccount(purchasingAccount.getOid()))
+                            .orElseGet(() -> {
+                                logger.warn("Unable to resolve purchasing account for commitment {}", commitment.getOid());
+                                return false;
+                            }))
                     .map(TopologyEntityDTO::getOid)
                     .map(commitmentOid -> createScopedUtilization(commitmentOid, allocations.column(commitmentOid).values()))
                     .forEach(scopedUtilization -> utilizationInfo.putCommitmentUtilizationMap(scopedUtilization.getCloudCommitmentOid(),

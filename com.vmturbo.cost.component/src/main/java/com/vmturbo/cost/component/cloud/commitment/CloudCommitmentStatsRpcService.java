@@ -215,6 +215,7 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
                 .cloudCommitmentFilter(request.getCloudCommitmentFilter())
                 .accountFilter(request.getAccountFilter())
                 .regionFilter(request.getRegionFilter())
+                .serviceProviderFilter(request.getServiceProviderFilter())
                 .build();
 
         topologyUtilizationStore.filterData(request.getTopologyType(), utilizationFilter)
