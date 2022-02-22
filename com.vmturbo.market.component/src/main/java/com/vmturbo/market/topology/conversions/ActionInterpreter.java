@@ -1299,9 +1299,8 @@ public class ActionInterpreter {
         final ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         final long actionTargetId = slInfo.getCollapsedBuyerId().orElse(slInfo.getBuyerId());
         ChangeProviderExplanation.Builder changeProviderExplanation;
-        int actionTargetEntityType = projectedTopology.containsKey(actionTargetId) ?
-                projectedTopology.get(actionTargetId).getEntity().getEntityType() : -1;
-        ChangeExplainer changeExplainer = ChangeExplainerFactory.createChangeExplainer(actionTargetEntityType,
+        ChangeExplainer changeExplainer = ChangeExplainerFactory.createChangeExplainer(
+                projectedTopology.containsKey(actionTargetId) ? projectedTopology.get(actionTargetId).getEntity() : null,
                 commoditiesResizeTracker, cloudTc, projectedRICoverageCalculator, shoppingListOidToInfos,
                 commodityIndex, originalTopology);
         switch (moveExplanation.getExplanationTypeCase()) {

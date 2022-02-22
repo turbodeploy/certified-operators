@@ -2,7 +2,6 @@ package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityLookupType.CONSUMER;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE;
-import static com.vmturbo.trax.Trax.trax;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -32,6 +31,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.enums.DatabasePricingModel;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.market.topology.MarketTier;
@@ -491,10 +492,15 @@ public class InterpretCloudExplanationTest {
      */
     @Test
     public void testFreeScaleUp() {
-        // Under utilized Vmem, free scale up for VCPU. Under utilized commodity takes precedence over wasted cost.
+        // DTU: Under utilized Vmem, free scale up for VCPU. Under utilized commodity takes precedence over wasted cost.
         interpretFreeScaleUpAction(EntityType.DATABASE_VALUE, 10, 80, 120, 1, 1, false);
-        // Free scale up for VCPU and VMEM, wasted cost.
+        // DTU: Free scale up for VCPU and VMEM, wasted cost.
         interpretFreeScaleUpAction(EntityType.DATABASE_VALUE, 10, 120, 120, 2, 0, true);
+
+        // vCore: Under utilized Vmem, free scale up for VCPU. Under utilized commodity takes precedence over wasted cost.
+        interpretFreeScaleUpAction(EntityType.DATABASE_VALUE, true, 10, 80, 120, 0, 1, false);
+        // vCore: Free scale up for VCPU and VMEM, wasted cost.
+        interpretFreeScaleUpAction(EntityType.DATABASE_VALUE, true, 10, 120, 120, 0, 0, false);
 
         // Same scenarios for VMs should not result in scale up commodities
         interpretFreeScaleUpAction(EntityType.VIRTUAL_MACHINE_VALUE, 10, 80, 120, 0, 1, false);
@@ -502,6 +508,12 @@ public class InterpretCloudExplanationTest {
     }
 
     private void interpretFreeScaleUpAction(int entityType, double savings, double newVmemCapacity, double newVcpuCapacity,
+                                            int expectedFreeScaleUpCommodityCount, int expectedUnderUtilizedCommodityCount, boolean isWastedCost) {
+        interpretFreeScaleUpAction(entityType, false, savings, newVmemCapacity, newVcpuCapacity,
+                expectedFreeScaleUpCommodityCount, expectedUnderUtilizedCommodityCount, isWastedCost);
+    }
+
+    private void interpretFreeScaleUpAction(int entityType, boolean isVCore, double savings, double newVmemCapacity, double newVcpuCapacity,
                                  int expectedFreeScaleUpCommodityCount, int expectedUnderUtilizedCommodityCount, boolean isWastedCost) {
         Set<CommodityTypeWithLookup> underUtilizedCommodities = ImmutableSet.of(VMEMWithLookup, VCPUWithLookup);
         // Congested / Under-utilized commodities
@@ -521,12 +533,16 @@ public class InterpretCloudExplanationTest {
         Builder vmemSoldCommodity = CommoditySoldDTO.newBuilder().setCommodityType(VMEM);
         Builder vcpuSoldCommodity = CommoditySoldDTO.newBuilder().setCommodityType(VCPU);
         Map<Long, ProjectedTopologyEntity> projectedTopologyMap = new HashMap<>();
-        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+        TopologyEntityDTO.Builder topologyEntityDTOBuilder = TopologyEntityDTO.newBuilder()
                 .setOid(VM1_OID)
                 .setEntityType(entityType)
                 .addCommoditySoldList(vmemSoldCommodity.setCapacity(newVmemCapacity))
-                .addCommoditySoldList(vcpuSoldCommodity.setCapacity(newVcpuCapacity))
-                .build();
+                .addCommoditySoldList(vcpuSoldCommodity.setCapacity(newVcpuCapacity));
+        if (isVCore) {
+            topologyEntityDTOBuilder.putEntityPropertyMap(
+                    StringConstants.DB_PRICING_MODEL, DatabasePricingModel.vCore.toString());
+        }
+        TopologyEntityDTO topologyEntityDTO = topologyEntityDTOBuilder.build();
         ProjectedTopologyEntity projectedTopology = ProjectedTopologyEntity.newBuilder()
                 .setEntity(topologyEntityDTO)
                 .build();
