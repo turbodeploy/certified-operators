@@ -1608,12 +1608,12 @@ public class ActionInterpreter {
      * @return The CPU threads of PM that hosts the entity, if present
      */
     public static Optional<Integer> getCPUThreadsFromPM(
-                    @Nonnull final Map<Long, TopologyEntityDTO> topology,
+                    @Nonnull final Function<Long, TopologyEntityDTO> topology,
                     @Nonnull final TopologyEntityDTO entity) {
         final Optional<Integer> cpuThreadsOfHost = entity.getCommoditiesBoughtFromProvidersList().stream()
                         .filter(comm -> comm.hasProviderEntityType()
                                         && comm.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                        .map(comm -> topology.get(comm.getProviderId()))
+                        .map(comm -> topology.apply(comm.getProviderId()))
                         .filter(Objects::nonNull)
                         .filter(TopologyEntityDTO::hasTypeSpecificInfo)
                         .map(TopologyEntityDTO::getTypeSpecificInfo)

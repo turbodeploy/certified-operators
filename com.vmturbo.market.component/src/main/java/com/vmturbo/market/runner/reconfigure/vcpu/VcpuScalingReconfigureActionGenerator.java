@@ -179,7 +179,7 @@ abstract class VcpuScalingReconfigureActionGenerator extends ExternalReconfigure
                 final int relatedDesiredValue = (int)Math.ceil(currentCapacity / newValue);
                 final float newCapacity = relatedDesiredValue * newValue;
                 final Integer hostCapacity =
-                                ActionInterpreter.getCPUThreadsFromPM(topologyEntities, entity)
+                                ActionInterpreter.getCPUThreadsFromPM(topologyEntities::get, entity)
                                                 .orElse(Integer.MIN_VALUE);
                 if (newCapacity > hostCapacity) {
                     LOGGER.warn("Desired capacity '{}' for '{}' exceeds host capacity '{}'",

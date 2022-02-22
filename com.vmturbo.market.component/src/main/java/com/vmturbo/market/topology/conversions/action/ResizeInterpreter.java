@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.CpuScalingPolicy;
+import com.vmturbo.market.topology.conversions.ActionInterpreter;
 import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
@@ -75,7 +76,8 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                 commodityIndex.getCommSold(projectedEntity.getOid(), topologyCommodityType);
         double oldCapacity = TopologyConverter.reverseScaleComm(resizeTO.getOldCapacity(), originalCommoditySold, CommoditySoldDTO::getScalingFactor);
         double newCapacity = TopologyConverter.reverseScaleComm(resizeTO.getNewCapacity(), originalCommoditySold, CommoditySoldDTO::getScalingFactor);
-        Pair<Integer, Integer> cpsrChanges = null;
+
+        final ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder();
         // Convert VCPU from MHz to cores for virtual machine
         if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
                 && topologyCommodityType.getType() == CommodityDTO.CommodityType.VCPU_VALUE) {
@@ -85,8 +87,7 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
             }
             // We don't have to find the sold commodities on the original entities, because it
             // should be identical to the "old" capacity.
-            final VirtualMachineInfo vmInfo =
-                            originalEntity.getTypeSpecificInfo().getVirtualMachine();
+            VirtualMachineInfo vmInfo = originalEntity.getTypeSpecificInfo().getVirtualMachine();
 
             final int numCores = Math.max(vmInfo.getNumCpus(), 1);
 
@@ -99,13 +100,39 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
             // First round to the 2nd decimal places and then do ceiling to handle cases like
             // 14400.523 / 2400 = 6.0002179167
             newCapacity = Math.ceil((int)(newCapacity / cpuSpeedMhz * 100) / 100.0f);
-            cpsrChanges = getCpsrChanges(vmInfo, newCapacity);
+            Pair<Double, Integer> roundedNewCapacityAndCoresPerSocket = roundUpNewCapacityAndCoresPerSocket(vmInfo, newCapacity, originalEntity.getDisplayName());
             // double comparison normally applies epsilon, but in this case both capacities are
             // result of Math.round and Math.ceil so the values are actually integers.
+
+            //if the new capacity of the VM is rounded up and can not fit into the host's logical processors, drop the action.
+            double roundedNewCapacity = roundedNewCapacityAndCoresPerSocket.getFirst();
+            if (roundedNewCapacity != newCapacity) {
+                logger.info("Resize action for VM {} 's new capacity was rounded up from {} to {} to compromise new cores per socket",
+                        entityId, newCapacity, roundedNewCapacity);
+                Optional<Integer> numCpuThreadsOfProjectedHost = ActionInterpreter
+                        .getCPUThreadsFromPM(id ->
+                                        Optional.of(projectedTopology.get(id))
+                                                .map(ProjectedTopologyEntity::getEntity).orElse(null),
+                                projectedEntity);
+                if (numCpuThreadsOfProjectedHost.isPresent()
+                        && numCpuThreadsOfProjectedHost.get() < roundedNewCapacity) {
+                    logger.info("Resize action for VM {} was dropped because the new rounded capacity was {} but the CPU threads of projected host was {}",
+                            entityId, roundedNewCapacity, numCpuThreadsOfProjectedHost);
+                    //TODO: should show dropped actions in UI, instead of dropping them quietly.
+                    return Optional.empty();
+                }
+                //TODO: check the unreserved MHz on the host is sufficient to fit the new capacity
+                newCapacity = roundedNewCapacity;
+            }
             if (Double.compare(oldCapacity, newCapacity) == 0) {
                 // If the from and to end up being the same number of CPUs, this action is not
                 // really meaningful.
                 return Optional.empty();
+            }
+            if (roundedNewCapacityAndCoresPerSocket.getSecond() != null) {
+                resizeBuilder
+                        .setOldCpsr(vmInfo.getCoresPerSocketRatio())
+                        .setNewCpsr(roundedNewCapacityAndCoresPerSocket.getSecond());
             }
         }
 
@@ -117,16 +144,11 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
         if (!validResizeTrigger(oldCapacity, newCapacity, resizeTO)) {
             return Optional.empty();
         }
-
-        final ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
-                .setTarget(createActionEntity(entityId, projectedEntity.getEntityType(), projectedEntity.getEnvironmentType()))
+        resizeBuilder.setTarget(createActionEntity(entityId, projectedEntity.getEntityType(), projectedEntity.getEnvironmentType()))
                 .setNewCapacity((float)newCapacity)
                 .setOldCapacity((float)oldCapacity)
                 .setCommodityType(topologyCommodityType);
-        if (cpsrChanges != null) {
-            resizeBuilder.setOldCpsr(cpsrChanges.getFirst());
-            resizeBuilder.setNewCpsr(cpsrChanges.getSecond());
-        }
+
         setHotAddRemove(resizeBuilder, resizeCommSold);
         if (resizeTO.hasScalingGroupId()) {
             resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
@@ -134,22 +156,39 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
         return Optional.of(resizeBuilder.build());
     }
 
-    @Nullable
-    private static Pair<Integer, Integer> getCpsrChanges(@Nonnull VirtualMachineInfo vmInfo,
-                    double newCapacity) {
-        if (vmInfo.hasCpuScalingPolicy() && vmInfo.getCoresPerSocketChangeable()) {
-            final CpuScalingPolicy cpuScalingPolicy = vmInfo.getCpuScalingPolicy();
-            if (cpuScalingPolicy.hasSockets()) {
-                return Pair.create(vmInfo.getCoresPerSocketRatio(),
-                                (int)(Math.ceil(newCapacity / cpuScalingPolicy.getSockets())));
+    /**
+     * Round up the new capacity to a multiple of new cores per socket.
+     * @param vmInfo virtual machine info of the target VM
+     * @param newCapacity the new capacity recommended by market
+     * @param vmName the vm's displayName
+     * @return Pair(Rounded new capacity, new suggested cores per socket)
+     */
+    @Nonnull
+    private Pair<Double, Integer> roundUpNewCapacityAndCoresPerSocket(@Nonnull VirtualMachineInfo vmInfo,
+                    double newCapacity, @Nonnull String vmName) {
+        int projectedCoresPerSocket = vmInfo.getCoresPerSocketRatio();
+        if (vmInfo.getCoresPerSocketChangeable()) {
+            if (vmInfo.hasCpuScalingPolicy()) {
+                final CpuScalingPolicy cpuScalingPolicy = vmInfo.getCpuScalingPolicy();
+                if (cpuScalingPolicy.hasSockets() && cpuScalingPolicy.getCoresPerSocket() > 0) {
+                    int newCoresPerSocket = (int)(Math.ceil(newCapacity / cpuScalingPolicy.getSockets()));
+                    double roundedNewCapacity = newCoresPerSocket * cpuScalingPolicy.getSockets();
+                    return Pair.create(roundedNewCapacity, newCoresPerSocket);
+                } else if (cpuScalingPolicy.hasCoresPerSocket() && cpuScalingPolicy.getCoresPerSocket() > 0) {
+                    projectedCoresPerSocket = cpuScalingPolicy.getCoresPerSocket();
+                } else {
+                    logger.warn("The virutalmachineinfo of vm {} is incomplete, as its cpuScalingPolicy doesn't contain valid cores per socket or socket value", vmName);
+                }
             }
-            if (cpuScalingPolicy.hasCoresPerSocket()) {
-                return Pair.create(vmInfo.getCoresPerSocketRatio(),
-                                cpuScalingPolicy.getCoresPerSocket());
-            }
+            double newSocket = Math.ceil(newCapacity / projectedCoresPerSocket);
+            double roundedNewCapacity = newSocket * projectedCoresPerSocket;
+            return Pair.create(roundedNewCapacity, projectedCoresPerSocket);
         }
-        return null;
+        //Cores per socket is meaningless if corespersocketchangeable is false.
+        return Pair.create(newCapacity, null);
     }
+
+
 
     @Nullable
     private Resize interpretRemoveLimit(@Nonnull final TopologyEntityDTO projectedEntity,
