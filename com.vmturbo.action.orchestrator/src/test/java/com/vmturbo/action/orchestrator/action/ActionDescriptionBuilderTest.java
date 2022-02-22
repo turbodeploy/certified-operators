@@ -1733,8 +1733,8 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                                                      entitySettingsCache, resizeRecommendation);
 
-        assertEquals(description,
-                "Resize up VCPU for Virtual Machine vm1_test from 10 to 20 cores in Development");
+        Assert.assertThat(description,
+                Matchers.stringContainsInOrder(CommodityDTO.CommodityType.VCPU.name(), "vm1_test", "10", "20", "Development"));
     }
 
     /**
@@ -1755,7 +1755,8 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeRecommendation);
 
-        assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20 cores");
+        Assert.assertThat(description,
+                Matchers.stringContainsInOrder(CommodityDTO.CommodityType.VCPU.name(), "vm1_test", "10", "20"));
     }
 
     @Test
@@ -1805,9 +1806,8 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
                 makeRec(makeResizeVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build());
 
-        assertEquals(
-                "Resize down VCPU and Reservation for Virtual Machine vm1_test from 16 to 8 cores",
-                description);
+        Assert.assertThat(description,
+                Matchers.stringContainsInOrder(CommodityDTO.CommodityType.VCPU.name(), "Reservation", "vm1_test", "16", "8"));
     }
 
 
@@ -1873,8 +1873,8 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuRecommendationForVM);
 
-        assertEquals(description,
-            "Resize down VCPU for Virtual Machine vm1_test from 16 to 8 cores");
+        Assert.assertThat(description,
+                Matchers.stringContainsInOrder(CommodityDTO.CommodityType.VCPU.name(), "vm1_test", "16", "8"));
     }
 
     /**
@@ -1894,7 +1894,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(entitySettingsCache,
                         resizeVcpuRecommendationForVM);
         Assert.assertThat(description,
-                        Matchers.stringContainsInOrder("VCPU", "vm1_test", "8", "16", "1", "2"));
+                        Matchers.stringContainsInOrder(CommodityDTO.CommodityType.VCPU.name(), "vm1_test", "8", "16"));
     }
 
     /**
@@ -1914,8 +1914,8 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuReservationRecommendationForVM);
 
-        assertEquals(description,
-            "Resize down VCPU reservation for Virtual Machine vm1_test from 16 to 8 cores");
+        Assert.assertThat(description,
+                Matchers.stringContainsInOrder(CommodityDTO.CommodityType.VCPU.name(), "reservation", "vm1_test", "16", "8"));
     }
 
     /**
