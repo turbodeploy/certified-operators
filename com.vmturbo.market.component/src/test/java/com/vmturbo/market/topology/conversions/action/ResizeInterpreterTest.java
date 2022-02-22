@@ -10,7 +10,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -23,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.CpuScalingPolicy;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
@@ -50,6 +54,67 @@ public class ResizeInterpreterTest {
 
     private ResizeInterpreter resizeInterpreter = new ResizeInterpreter(commodityConverter,
             commodityIndex, oidToProjectedTraders, originalTopology);
+
+    /**
+     * Checks that resize with CPS will be generated in case CPS marked as changeable for entity.
+     */
+    @Test
+    public void testResizeWithCpsForCpsChangeable() {
+        checkResizeWithCps(true);
+    }
+
+    /**
+     * Checks that resize with CPS will not be generated in case CPS marked as unchangeable for
+     * entity.
+     */
+    @Test
+    public void testResizeWithCpsForCpsUnchangeable() {
+        checkResizeWithCps(false);
+    }
+
+    private void checkResizeWithCps(boolean cpsChangeable) {
+        final CommoditySpecificationTO commSpec = CommoditySpecificationTO.newBuilder()
+                        .setType(UICommodityType.VCPU.typeNumber())
+                        .setBaseType(UICommodityType.VCPU.typeNumber())
+                        .build();
+        final CommodityType topologyCommType = CommodityType.newBuilder()
+                        .setType(UICommodityType.VCPU.typeNumber())
+                        .build();
+        Mockito.when(commodityConverter.marketToTopologyCommodity(commSpec))
+                        .thenReturn(Optional.of(topologyCommType));
+        final long entityId = 7;
+        addEntity(entityId, ApiEntityType.VIRTUAL_MACHINE, e -> {
+            e.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                            .setCommodityType(topologyCommType)
+                            .setHotResizeInfo(HotResizeInfo.newBuilder()
+                                            .setHotAddSupported(true)
+                                            .setHotRemoveSupported(true)));
+            final VirtualMachineInfo.Builder vmBuilder =
+                            e.getTypeSpecificInfoBuilder().getVirtualMachineBuilder();
+            vmBuilder.setCpuScalingPolicy(CpuScalingPolicy.newBuilder().setSockets(3).build());
+            vmBuilder.setCoresPerSocketChangeable(cpsChangeable);
+        }, t -> { });
+        Mockito.when(commodityIndex.getCommSold(entityId, topologyCommType))
+                        .thenReturn(Optional.empty());
+        ResizeTO resizeTO = ResizeTO.newBuilder()
+                        .setSellingTrader(entityId)
+                        .setOldCapacity(1)
+                        .setNewCapacity(2)
+                        .setReasonCommodity(commSpec)
+                        .setSpecification(commSpec)
+                        .setScalingGroupId("foo")
+                        .build();
+
+        final Resize resize = resizeInterpreter.interpret(resizeTO, projectedTopology).get();
+        Assert.assertThat(resize.getCommodityType(), is(topologyCommType));
+        Assert.assertThat(resize.getNewCapacity(), is(2.0f));
+        Assert.assertThat(resize.getOldCapacity(), is(1.0f));
+        Assert.assertThat(resize.getScalingGroupId(), is("foo"));
+        Assert.assertThat(resize.getHotAddSupported(), is(true));
+        Assert.assertThat(resize.getHotRemoveSupported(), is(true));
+        Assert.assertThat(resize.hasNewCpsr(), CoreMatchers.is(cpsChangeable));
+        Assert.assertThat(resize.hasOldCpsr(), CoreMatchers.is(cpsChangeable));
+    }
 
     /**
      * Interpret a resize with no special cases.

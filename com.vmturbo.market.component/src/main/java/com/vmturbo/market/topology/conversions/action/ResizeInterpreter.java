@@ -137,7 +137,7 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
     @Nullable
     private static Pair<Integer, Integer> getCpsrChanges(@Nonnull VirtualMachineInfo vmInfo,
                     double newCapacity) {
-        if (vmInfo.hasCpuScalingPolicy()) {
+        if (vmInfo.hasCpuScalingPolicy() && vmInfo.getCoresPerSocketChangeable()) {
             final CpuScalingPolicy cpuScalingPolicy = vmInfo.getCpuScalingPolicy();
             if (cpuScalingPolicy.hasSockets()) {
                 return Pair.create(vmInfo.getCoresPerSocketRatio(),
