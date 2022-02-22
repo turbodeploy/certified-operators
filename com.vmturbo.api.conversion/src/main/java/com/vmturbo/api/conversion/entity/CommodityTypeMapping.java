@@ -43,7 +43,7 @@ public class CommodityTypeMapping {
     /**
      * Core unit shown as "cores" for VCPU commodity types.
      */
-    public static final String CPU_CORE = "vCPUs";
+    public static final String CPU_CORE = "cores";
     /**
      * Name of the vCPU units that have to be used when action is going to change limit or
      * reservation {@link CommodityAttribute} values.
