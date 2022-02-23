@@ -295,6 +295,9 @@ public class TopologyCommitmentCoverageWriterTest {
         when(cloudTopology.getServiceProvider(anyLong())).thenReturn(Optional.of(serviceProviderEntity));
         when(cloudTopology.getAllEntitiesOfType(EntityType.CLOUD_COMMITMENT_VALUE)).thenReturn(ImmutableList.of(cloudCommitment));
 
+        // set up the commitment topology
+        when(commitmentTopology.isSupportedAccount(anyLong())).thenReturn(true);
+
         // setup commitment capacity
         final CloudCommitmentCoverageTypeInfo coreVector = CloudCommitmentCoverageTypeInfo.newBuilder()
                 .setCoverageType(CloudCommitmentCoverageType.COMMODITY)

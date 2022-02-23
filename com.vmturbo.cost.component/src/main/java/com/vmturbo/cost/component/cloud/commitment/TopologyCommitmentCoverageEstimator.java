@@ -18,6 +18,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology.CloudCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.TopologyCommitmentData;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
@@ -122,6 +124,8 @@ public class TopologyCommitmentCoverageEstimator {
 
         private final CloudCommitmentAggregatorFactory commitmentAggregatorFactory;
 
+        private final CloudCommitmentTopologyFactory<TopologyEntityDTO> commitmentTopologyFactory;
+
         private final boolean isEstimatorEnabled;
 
         /**
@@ -131,6 +135,7 @@ public class TopologyCommitmentCoverageEstimator {
          * @param coverageAllocatorFactory The coverage allocator factory.
          * @param coverageTopologyFactory The coverage topology factory.
          * @param commitmentAggregatorFactory The commitment aggregator factory.
+         * @param commitmentTopologyFactory The commitment topology factory.
          * @param isEstimatorEnabled A flag indicating whether estimates are enabled.
          */
         public CommitmentCoverageEstimatorFactory(@Nonnull EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
@@ -138,6 +143,7 @@ public class TopologyCommitmentCoverageEstimator {
                                                   @Nonnull CoverageAllocatorFactory coverageAllocatorFactory,
                                                   @Nonnull CoverageTopologyFactory coverageTopologyFactory,
                                                   @Nonnull CloudCommitmentAggregatorFactory commitmentAggregatorFactory,
+                                                  @Nonnull CloudCommitmentTopologyFactory<TopologyEntityDTO> commitmentTopologyFactory,
                                                   boolean isEstimatorEnabled) {
 
             this.entityReservedInstanceMappingStore = Objects.requireNonNull(entityReservedInstanceMappingStore);
@@ -145,6 +151,7 @@ public class TopologyCommitmentCoverageEstimator {
             this.coverageAllocatorFactory = Objects.requireNonNull(coverageAllocatorFactory);
             this.coverageTopologyFactory = Objects.requireNonNull(coverageTopologyFactory);
             this.commitmentAggregatorFactory = Objects.requireNonNull(commitmentAggregatorFactory);
+            this.commitmentTopologyFactory = Objects.requireNonNull(commitmentTopologyFactory);
             this.isEstimatorEnabled = isEstimatorEnabled;
         }
 
@@ -181,11 +188,19 @@ public class TopologyCommitmentCoverageEstimator {
 
         private Set<CloudCommitmentAggregate> createCommitmentAggregates(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
 
+            final CloudCommitmentTopology commitmentTopology = commitmentTopologyFactory.createTopology(cloudTopology);
             final CloudCommitmentAggregator cloudCommitmentAggregator =
                     commitmentAggregatorFactory.newIdentityAggregator(cloudTopology);
 
             final List<CloudCommitmentData> commitmentDataList = cloudTopology.getAllEntitiesOfType(EntityType.CLOUD_COMMITMENT_VALUE)
                     .stream()
+                    // filter out commitments for which the commitment topology does not currently support coverage
+                    .filter(commitment -> cloudTopology.getOwner(commitment.getOid())
+                            .map(purchasingAccount -> commitmentTopology.isSupportedAccount(purchasingAccount.getOid()))
+                            .orElseGet(() -> {
+                                logger.warn("Unable to resolve purchasing account for commitment {}", commitment.getOid());
+                                return false;
+                            }))
                     .map(commitment -> TopologyCommitmentData.builder()
                             .commitment(commitment)
                             .build())
