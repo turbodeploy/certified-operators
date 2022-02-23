@@ -16,6 +16,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -33,6 +34,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
@@ -82,7 +84,7 @@ public class TopologyEditor {
 
     private final GroupServiceBlockingStub groupServiceClient;
 
-    private final EntityCloneEditorFactory entityCloneEditorFactory;
+    private final IdentityProvider identityProvider;
 
     private static final Set<Integer> UTILIZATION_LEVEL_TYPES = ImmutableSet
             .of(CommodityType.CPU_VALUE, CommodityType.MEM_VALUE);
@@ -90,10 +92,9 @@ public class TopologyEditor {
     TopologyEditor(@Nonnull final IdentityProvider identityProvider,
                    @Nonnull final TemplateConverterFactory templateConverterFactory,
                    @Nonnull final GroupServiceBlockingStub groupServiceClient) {
-        Objects.requireNonNull(identityProvider);
         this.templateConverterFactory = Objects.requireNonNull(templateConverterFactory);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
-        entityCloneEditorFactory = new EntityCloneEditorFactory(identityProvider);
+        this.identityProvider =  Objects.requireNonNull(identityProvider);;
     }
 
     /**
@@ -101,6 +102,7 @@ public class TopologyEditor {
      * input topology in-place.
      *
      * @param topology The entities in the topology, arranged by ID.
+     * @param scope The plan scope.
      * @param changes The list of changes to make. Some of these changes may not be topology-related.
      *                We ignore those.
      * @param context Context containing topology info.
@@ -110,6 +112,7 @@ public class TopologyEditor {
      * @throws GroupResolutionException Thrown when we could not resolve groups.
      */
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
+                             @Nullable final PlanScope scope,
                              @Nonnull final List<ScenarioChange> changes,
                              @Nonnull final TopologyPipelineContext context,
                              @Nonnull final GroupResolver groupResolver,
@@ -296,12 +299,16 @@ public class TopologyEditor {
             }
         }
         // Clone the added entities and add the cloned entities into the topology
+        // We need to create a new factory as it caches clone functions which in turn may cache
+        // information such as taint collection. This information changes for each plan run.
+        final EntityCloneEditorFactory entityCloneEditorFactory =
+                new EntityCloneEditorFactory(identityProvider);
         entityAdditions.forEach((oid, addCount) -> Optional.ofNullable(topology.get(oid))
                 .ifPresent(entity -> {
                     final DefaultEntityCloneEditor cloneFunction = entityCloneEditorFactory
-                            .createEntityCloneFunction(entity, topologyInfo);
+                            .createEntityCloneFunction(entity, topologyInfo, topology, scope);
                     LongStream.range(0, addCount).forEach(i -> cloneFunction
-                            .clone(entity.getTopologyEntityImpl(), i, topology));
+                            .clone(entity.getTopologyEntityImpl(), i));
         }));
 
         // Prepare any entities that are getting removed as part of the plan, for removal from the
