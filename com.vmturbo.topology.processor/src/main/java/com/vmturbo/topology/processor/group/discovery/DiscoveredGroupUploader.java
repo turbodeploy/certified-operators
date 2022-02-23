@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.DiscoveredGroup;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -295,6 +297,14 @@ public class DiscoveredGroupUploader {
                           .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(discoveredSetting.getNumericSettingValueType().getValue())
                                 .build());
+                        settings.add(setting.build());
+                        break;
+                    case MOVE_AUTOMATION_MODE:
+                        setting = Setting.newBuilder()
+                            .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
+                            .setEnumSettingValue(SettingProto.EnumSettingValue.newBuilder()
+                                .setValue(discoveredSetting.getStringSettingValueType().getValue())
+                            .build());
                         settings.add(setting.build());
                         break;
                     default:
