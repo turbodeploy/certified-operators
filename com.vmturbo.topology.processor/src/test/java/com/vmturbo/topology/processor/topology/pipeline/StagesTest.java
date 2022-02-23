@@ -453,15 +453,16 @@ public class StagesTest {
         GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
         when(searchFilterResolver.resolveExternalFilters(any()))
                 .thenAnswer(invocation -> invocation.getArguments()[0]);
+        final PlanScope scope = PlanScope.newBuilder().build();
         final TopologyEditStage stage =
-                new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient,
-                        searchFilterResolver);
+                new TopologyEditStage(topologyEditor, searchResolver, scope, changes,
+                                      groupServiceClient, searchFilterResolver);
         final TopologyPipelineContext context = createStageContext(stage, topologyInfo,
             new MemberDef<>(TopologyPipelineContextMembers.PLAN_SOURCE_ENTITIES, new HashSet<>()),
             new MemberDef<>(TopologyPipelineContextMembers.PLAN_DESTINATION_ENTITIES, new HashSet<>()));
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         stage.execute(Collections.emptyMap());
-        verify(topologyEditor).editTopology(eq(Collections.emptyMap()),
+        verify(topologyEditor).editTopology(eq(Collections.emptyMap()), eq(scope),
             eq(Collections.emptyList()), any(), any(GroupResolver.class), anySet(), anySet());
     }
 

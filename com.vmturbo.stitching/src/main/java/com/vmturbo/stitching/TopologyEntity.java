@@ -633,6 +633,11 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
             return consumers;
         }
 
+        @Nonnull
+        public List<TopologyEntity> getAggregatedEntities() {
+            return aggregatedEntities;
+        }
+
         /**
          * Create a deep copy of this {@link TopologyEntity.Builder}.
          *
