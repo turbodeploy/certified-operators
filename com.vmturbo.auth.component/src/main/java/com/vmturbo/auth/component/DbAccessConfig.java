@@ -4,6 +4,8 @@ import java.sql.SQLException;
 
 import javax.sql.DataSource;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,14 +37,21 @@ public class DbAccessConfig {
     @Value("${dbMonitorEnabled:true}")
     private boolean dbMonitorEnabled;
 
+    private final Logger logger = LogManager.getLogger(AuthComponent.class);
+
     /**
      * Start db monitor if enabled.
      */
     public void startDbMonitor() {
         if (dbMonitorEnabled) {
-            // todo: OM-76858 implement dbmonitor for postgres
             if (authDBConfig != null) {
                 authDBConfig.startDbMonitor();
+            } else {
+                try {
+                    authDbEndpointConfig.authDbEndpoint().startDbMonitor();
+                } catch (UnsupportedDialectException e) {
+                    logger.error("Could not initialize the DBMonitor due to", e);
+                }
             }
         }
     }

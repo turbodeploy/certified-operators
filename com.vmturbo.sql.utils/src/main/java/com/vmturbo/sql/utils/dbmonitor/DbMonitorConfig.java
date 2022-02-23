@@ -36,6 +36,7 @@ public class DbMonitorConfig {
             // now because JSON object properties are not considered to be ordered.
             + "\"?\":\n"
             + "  \".*`?information_schema`?.`?processlist`?\": dbmonitor\n"
+            + "  \".*`?pg_stat_activity`?\": dbmonitor\n"
             + "vmtdb:\n"
             // bulk loading of stats records
             + "  \"insert into `?(?<table>[a-z_0-9]+_latest)`?\": stats ingestion [${table}]\n"

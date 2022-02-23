@@ -39,7 +39,7 @@ public class DbEndpointCompatConfig {
      *
      * @return Value of this component's username property or null if not configured
      * */
-    private String getDbUserName() {
+    public String getDbUserName() {
         String propName = SecretPropertiesReader.getDbUsernamePropertyName(componentName);
         return propName != null ? springEnvironment.getProperty(propName) : null;
     }

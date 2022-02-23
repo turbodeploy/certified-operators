@@ -22,6 +22,7 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.vmturbo.sql.utils.dbmonitor.MySQLDbMonitor;
 import com.zaxxer.hikari.HikariDataSource;
 
 import org.apache.commons.lang3.StringUtils;
@@ -683,7 +684,7 @@ public abstract class SQLDatabaseConfig {
 
     @Bean
     public DbMonitor dbMonitorLoop() {
-        return new DbMonitor(processListClassifier, dsl(), dbMonitorIntervalSec,
+        return new MySQLDbMonitor(processListClassifier, dsl(), dbMonitorIntervalSec,
                 longRunningQueryThresholdSecs, getDbSchemaName(), getDbUsername());
     }
 

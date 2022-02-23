@@ -1,6 +1,5 @@
 package com.vmturbo.sql.utils.dbmonitor;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,42 +10,39 @@ import java.util.stream.Collectors;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
-import com.google.common.collect.MultimapBuilder.ListMultimapBuilder;
+import com.google.common.collect.MultimapBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.Record2;
 import org.jooq.exception.DataAccessException;
-import org.jooq.types.ULong;
 
 import com.vmturbo.proactivesupport.DataMetricGauge;
-import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier.ProcessListRecord;
 
 /**
  * This class periodically logs information about state of the database, to provide information
  * that may be helpful in diagnosing DB-related failures.
  */
-public class DbMonitor {
+public abstract class DbMonitor {
     private static final String UNCLASSIFIED_QUERY = "<unclassified>";
     private static final String SLEEP_COMMAND = "Sleep";
     private static final String DAEMON_COMMAND = "Daemon";
-    private static Logger logger = LogManager.getLogger();
+    static Logger logger = LogManager.getLogger();
 
     private final ProcessListClassifier processListClassifier;
-    private final DSLContext dsl;
+    final DSLContext dsl;
     private final int intervalSec;
     private final int longRunningThresholdSecs;
 
     private Map<Long, String> priorLongRunning = new HashMap<>();
 
-    private final String dbSchemaName;
-    private final String dbUsername;
+    final String dbSchemaName;
+    final String dbUsername;
 
     /**
-     * Prometheus metric to capture connection counts collected by {@link DbMonitor}.
+     * Prometheus metric to capture connection counts collected by {@link MySQLDbMonitor}.
      */
-    private static final DataMetricGauge CONNECTION_COUNTS = DataMetricGauge.builder()
+    public static final DataMetricGauge CONNECTION_COUNTS = DataMetricGauge.builder()
             .withName("db_connections")
             .withHelp("Connection counts reported by database")
             .withLabelNames("schema", "category")
@@ -54,20 +50,20 @@ public class DbMonitor {
             .register();
 
     /** connection count category for active connections of all variety. */
-    private static final String CONNECTION_COUNT_ACTIVE = "active";
+    public static final String CONNECTION_COUNT_ACTIVE = "active";
     /** connection count category for available connections (max - active). */
-    private static final String CONNECTION_COUNT_AVAILABLE = "available";
+    public static final String CONNECTION_COUNT_AVAILABLE = "available";
     /** connection count category for max allowed connections (db config value). */
-    private static final String CONNECTION_COUNT_MAX = "max_allowed";
+    public static final String CONNECTION_COUNT_MAX = "max_allowed";
     /** connection count category for long-running connections. */
-    private static final String CONNECTION_COUNT_LONG_RUNNING = "long_running";
+    public static final String CONNECTION_COUNT_LONG_RUNNING = "long_running";
 
     /**
      * Data metric scope: GLOBAL
      * Database Prometheus metrics has two labels: schema and category. DB connection counts
      * are not specific to a schema and the "GLOBAL" scope will be used.
      */
-    private static final String METRIC_SCOPE_GLOBAL = "GLOBAL";
+    public static final String METRIC_SCOPE_GLOBAL = "GLOBAL";
 
     /**
      * Create a new instance of the monitor.
@@ -105,10 +101,14 @@ public class DbMonitor {
         }
     }
 
+    abstract void logConnectionCounts();
+
+    abstract List<ProcessListClassifier.ProcessListRecord> getCurrentProcessList();
+
     private void runOnePass() {
         try {
             logConnectionCounts();
-            final List<ProcessListRecord> processes = getCurrentProcessList();
+            final List<ProcessListClassifier.ProcessListRecord> processes = getCurrentProcessList();
             logConnectionsByClassification(processes);
             logLongRunningConnections(processes);
         } catch (DataAccessException e) {
@@ -116,32 +116,10 @@ public class DbMonitor {
         }
     }
 
-    private void logConnectionCounts() {
-        final String sql = "SELECT variable_value, @@GLOBAL.max_connections "
-                + "FROM information_schema.global_status WHERE variable_name = 'Threads_connected'";
-        try {
-            final Record2<String, ULong> counts = (Record2<String, ULong>)dsl.fetchOne(sql);
-            if (counts != null) {
-                final Double threadConnected = Double.valueOf(counts.value1());
-                logger.info("Global connection count {}/{}", counts.value1(), counts.value2());
-                CONNECTION_COUNTS.labels(METRIC_SCOPE_GLOBAL, CONNECTION_COUNT_ACTIVE)
-                        .setData(threadConnected);
-                CONNECTION_COUNTS.labels(METRIC_SCOPE_GLOBAL, CONNECTION_COUNT_MAX)
-                        .setData(counts.value2().doubleValue());
-                CONNECTION_COUNTS.labels(METRIC_SCOPE_GLOBAL, CONNECTION_COUNT_AVAILABLE)
-                        .setData(counts.value2().doubleValue() - threadConnected);
-            } else {
-                throw new DataAccessException("No record returned from query: " + sql);
-            }
-        } catch (DataAccessException | NumberFormatException e) {
-            logger.warn("Failed to retrieve connection counts:", e);
-        }
-    }
-
-    private void logConnectionsByClassification(List<ProcessListRecord> proceses) {
-        final ListMultimap<Object, ProcessListRecord> byClassification =
-                ListMultimapBuilder.linkedHashKeys().arrayListValues().build();
-        for (final ProcessListRecord record : proceses) {
+    private void logConnectionsByClassification(List<ProcessListClassifier.ProcessListRecord> proceses) {
+        final ListMultimap<Object, ProcessListClassifier.ProcessListRecord> byClassification =
+                MultimapBuilder.ListMultimapBuilder.linkedHashKeys().arrayListValues().build();
+        for (final ProcessListClassifier.ProcessListRecord record : proceses) {
             final Object cls = processListClassifier.classify(record).orElse(new Object() {
                 @Override
                 public String toString() {
@@ -157,9 +135,9 @@ public class DbMonitor {
         }
     }
 
-    private void logLongRunningConnections(final List<ProcessListRecord> processes) {
+    private void logLongRunningConnections(final List<ProcessListClassifier.ProcessListRecord> processes) {
         final Map<Long, String> currentLongRunning = new HashMap<>();
-        for (ProcessListRecord process : processes) {
+        for (ProcessListClassifier.ProcessListRecord process : processes) {
             if (isLongRunning(process)) {
                 // we try to eliminate false positives for pooled connections by only logging
                 // when a process shows up as long-running with the same "info" string in two
@@ -177,37 +155,20 @@ public class DbMonitor {
         this.priorLongRunning = currentLongRunning;
     }
 
-    private void logLongRunner(final ProcessListRecord process) {
+    private void logLongRunner(final ProcessListClassifier.ProcessListRecord process) {
         logger.warn("Long Running Connection: #{} {} {}({}) {}: {}",
                 process.getId(), process.getDb(), process.getCommand(), process.getState(),
                 formatSec(process.getTime()), process.getInfo());
     }
 
-    private List<ProcessListRecord> getCurrentProcessList() {
-        try {
-            final String sql = "SELECT id, db, command, time, state, info "
-                    + "FROM information_schema.processlist WHERE user = '"
-                    + dbUsername + "' ORDER BY id";
-            final List<ProcessListRecord> processes = dsl.fetch(sql).into(ProcessListRecord.class);
-            if (processes == null) {
-                throw new DataAccessException("Null results object from query");
-            } else {
-                return processes;
-            }
-        } catch (DataAccessException e) {
-            logger.warn("Failed to obtain process list data: {}", e);
-            return Collections.emptyList();
-        }
-    }
-
-    private boolean isLongRunning(ProcessListRecord process) {
+    private boolean isLongRunning(ProcessListClassifier.ProcessListRecord process) {
         return !ImmutableSet.of(SLEEP_COMMAND, DAEMON_COMMAND).contains(process.getCommand())
                 && process.getTime() >= longRunningThresholdSecs;
     }
 
-    private String summarize(List<ProcessListRecord> records) {
+    private String summarize(List<ProcessListClassifier.ProcessListRecord> records) {
         final long totsec = records.stream()
-                .collect(Collectors.summingLong(ProcessListRecord::getTime));
+                .collect(Collectors.summingLong(ProcessListClassifier.ProcessListRecord::getTime));
         String info = records.stream()
                 .map(r -> !Strings.isNullOrEmpty(r.getInfo()) ? r.getTrimmedInfo(30)
                         : !Strings.isNullOrEmpty(r.getState()) ? r.getState()
@@ -216,7 +177,7 @@ public class DbMonitor {
                 .findFirst()
                 .orElse("-");
         String command = records.stream()
-                .map(ProcessListRecord::getCommand)
+                .map(ProcessListClassifier.ProcessListRecord::getCommand)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse("-");
