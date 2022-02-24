@@ -29,8 +29,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class TopologyEntityCommitmentTopology implements CloudCommitmentTopology {
 
-    private static final Set<EntityType> COVERAGE_SUPPORTED_ENTITY_TYPES = ImmutableSet.of(
-            EntityType.VIRTUAL_MACHINE);
+    private static final Set<Integer> COVERAGE_SUPPORTED_ENTITY_TYPES = ImmutableSet.of(
+            EntityType.VIRTUAL_MACHINE_VALUE);
 
     private static final SetMultimap<String, CloudCommitmentCoverageTypeInfo> SERVICE_PROVIDER_COVERAGE_VECTOR_MAP =
             ImmutableSetMultimap.<String, CloudCommitmentCoverageTypeInfo>builder()
