@@ -68,6 +68,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
         // Nothing to do
     }
 
+
     /**
      * Construct a filter for a generic {@link SearchFilter}.
      *
@@ -605,6 +606,22 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         return createVmPropsIntegerFilter(filter, VmProps::getNumberOfSockets);
                     case SearchableProperties.VM_INFO_NUM_CPUS:
                         return createVmPropsIntegerFilter(filter, VmProps::getNumCpus);
+                    case SearchableProperties.VENDOR_TOOLS_INSTALLED:
+                        if (filter.getStringFilter().getOptionsCount() == 1) {
+                            final boolean expectedValue = getExpectedValue(filter.getStringFilter());
+                            return PropertyFilter.typeSpecificFilter(
+                                            vmProps -> !(StringUtils.isEmpty(vmProps.getVendorToolsVersion()))
+                                                       == expectedValue, VmProps.class);
+                        } else {
+                            throw new InvalidSearchFilterException("Caught an exception for filter 'Vendor Tools Installed'. Expecting either True or False but received " + filter.getStringFilter().getOptionsList());
+                        }
+                    case SearchableProperties.VENDOR_TOOLS_VERSION:
+                        if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+                            throw new InvalidSearchFilterException("Expecting StringFilter for " +
+                                                               filter.getPropertyName() + ", but got " + filter);
+                        }
+                        final Predicate<String> strPredicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(vmProps -> strPredicate.test(vmProps.getVendorToolsVersion()), VmProps.class);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                                 filter.getPropertyName() + " on " + propertyName);
@@ -757,7 +774,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                             try {
                                 return intPredicate(filter.getNumericFilter()).test(
                                                 propertyValueGetter.apply(vmProps));
-                            } catch (InvalidSearchFilterException e) {
+                             } catch (InvalidSearchFilterException e) {
                                 throw new IllegalArgumentException(e.getMessage());
                             }
                         }, VmProps.class);

@@ -210,6 +210,11 @@ public class ThickSearchableProps implements SearchableProps {
         public int getCoresPerSocket() {
             return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketRatio();
         }
+
+        @Override
+        public String getVendorToolsVersion() {
+            return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getVendorToolsVersion();
+        }
     }
 
     /**

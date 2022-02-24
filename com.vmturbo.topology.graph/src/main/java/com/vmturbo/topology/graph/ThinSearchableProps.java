@@ -245,6 +245,7 @@ public class ThinSearchableProps implements SearchableProps {
         private final String guesOs;
         private final int numCpus;
         private final int coresPerSocket;
+        private final String vendorToolsVersion;
 
         private ThinVmProps(@Nonnull final TagIndex tagIndex,
                 @Nonnull final CommodityValueFetcher commodities,
@@ -255,6 +256,7 @@ public class ThinSearchableProps implements SearchableProps {
             guesOs = vmInfo.getGuestOsInfo().getGuestOsName();
             numCpus = vmInfo.getNumCpus();
             coresPerSocket = vmInfo.getCoresPerSocketRatio();
+            vendorToolsVersion = vmInfo.getVendorToolsVersion();
         }
 
         @Nonnull
@@ -277,6 +279,11 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public int getCoresPerSocket() {
             return coresPerSocket;
+        }
+
+        @Override
+        public String getVendorToolsVersion() {
+            return vendorToolsVersion;
         }
     }
 

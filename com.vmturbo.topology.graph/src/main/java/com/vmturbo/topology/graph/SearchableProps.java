@@ -192,6 +192,14 @@ public interface SearchableProps {
          * @return the cores per socket ratio for the VM.
          */
         int getCoresPerSocket();
+
+        /**
+         * Get the version of tools is available for the VM.
+         *
+         * @return The version of vendor tool.
+         */
+        String getVendorToolsVersion();
+
     }
 
     /**

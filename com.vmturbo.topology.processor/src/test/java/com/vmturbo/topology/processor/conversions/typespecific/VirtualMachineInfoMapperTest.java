@@ -53,8 +53,13 @@ public class VirtualMachineInfoMapperTest {
     }
 
     private TypeSpecificInfo createTypeSpecificInfo(EntityDTO.LicenseModel licenseModel) {
+        final VirtualMachineInfo.Builder vmBuilder = VirtualMachineInfo.newBuilder();
+        if (VirtualMachineInfo.getDefaultInstance().hasVendorToolsVersion()) {
+            vmBuilder.setVendorToolsVersion(
+                            VirtualMachineInfo.getDefaultInstance().getVendorToolsVersion());
+        }
         return TypeSpecificInfo.newBuilder()
-                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                .setVirtualMachine(vmBuilder
                         .setGuestOsInfo(OS.newBuilder()
                                 .setGuestOsType(OSType.UNKNOWN_OS)
                                 .setGuestOsName(StringConstants.UNKNOWN))

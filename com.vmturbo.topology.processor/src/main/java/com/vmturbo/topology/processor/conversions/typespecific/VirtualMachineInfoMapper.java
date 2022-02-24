@@ -151,7 +151,11 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         if (StringUtils.isNotBlank(locks)) {
             vmInfo.setLocks(locks);
         }
+
         vmInfo.putAllPartitions(parsePartitions(entity));
+        if (vmData.getAgentSoftwareProperties().hasVersion()) {
+            vmInfo.setVendorToolsVersion(vmData.getAgentSoftwareProperties().getVersion());
+        }
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
     }
 

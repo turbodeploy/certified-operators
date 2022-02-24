@@ -82,6 +82,10 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
             if (virtualMachineInfo.getLicenseModel() == LicenseModel.AHUB) {
                 aspect.setAHUBLicense(true);
             }
+
+            if (virtualMachineInfo.hasVendorToolsVersion()) {
+                aspect.setVendorToolsVersion(virtualMachineInfo.getVendorToolsVersion());
+            }
         }
         return aspect;
     }
