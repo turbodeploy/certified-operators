@@ -33,7 +33,6 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
-import com.vmturbo.api.component.external.api.util.ValidationUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -134,12 +133,6 @@ public class SupplyChainsService implements ISupplyChainsService {
                                                    @Nullable List<String> aspectNames,
                                                    @Nullable Boolean includeHealthSummary)
                                                    throws Exception {
-        try {
-            ValidationUtils.validateExternalEntityTypes(entityTypes);
-        } catch (IllegalArgumentException e) {
-            // TODO - don't catch exception once feature is fully enabled
-            logger.error("Validation failed", e);
-        }
         if (uuids.isEmpty()) {
             throw new RuntimeException("UUIDs list is empty");
         }

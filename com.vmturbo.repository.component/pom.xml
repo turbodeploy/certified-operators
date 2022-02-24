@@ -16,6 +16,7 @@
     <properties>
         <swagger.component.name>Repository</swagger.component.name>
 
+        <assertj.version>3.6.1</assertj.version>
         <derive4j.version>0.9.1</derive4j.version>
         <handlerbars.version>4.0.6</handlerbars.version>
         <javaslang.version>2.0.5</javaslang.version>
@@ -498,6 +499,7 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
