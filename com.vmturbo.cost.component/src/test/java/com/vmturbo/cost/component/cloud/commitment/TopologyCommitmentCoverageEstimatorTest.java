@@ -20,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology.CloudCommitmentTopologyFactory;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.topology.CloudTopology;
@@ -70,6 +71,9 @@ public class TopologyCommitmentCoverageEstimatorTest {
     private CloudCommitmentAggregator cloudCommitmentAggregator;
 
     @Mock
+    private CloudCommitmentTopologyFactory<TopologyEntityDTO> commitmentTopologyFactory;
+
+    @Mock
     private CloudTopology<TopologyEntityDTO> cloudTopology;
 
     @Before
@@ -90,6 +94,7 @@ public class TopologyCommitmentCoverageEstimatorTest {
                 coverageAllocatorFactory,
                 coverageTopologyFactory,
                 commitmentAggregatorFactory,
+                commitmentTopologyFactory,
                 true);
 
 

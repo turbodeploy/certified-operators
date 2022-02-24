@@ -80,6 +80,7 @@ public class TopologyCommitmentConfig {
                 coverageAllocatorFactory,
                 coverageTopologyFactory,
                 commitmentAggregatorFactory,
+                new TopologyEntityCommitmentTopologyFactory(),
                 isCoverageEstimatorEnabled);
     }
 }

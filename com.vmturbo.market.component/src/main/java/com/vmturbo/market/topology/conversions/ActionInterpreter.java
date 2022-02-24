@@ -1299,9 +1299,8 @@ public class ActionInterpreter {
         final ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         final long actionTargetId = slInfo.getCollapsedBuyerId().orElse(slInfo.getBuyerId());
         ChangeProviderExplanation.Builder changeProviderExplanation;
-        int actionTargetEntityType = projectedTopology.containsKey(actionTargetId) ?
-                projectedTopology.get(actionTargetId).getEntity().getEntityType() : -1;
-        ChangeExplainer changeExplainer = ChangeExplainerFactory.createChangeExplainer(actionTargetEntityType,
+        ChangeExplainer changeExplainer = ChangeExplainerFactory.createChangeExplainer(
+                projectedTopology.containsKey(actionTargetId) ? projectedTopology.get(actionTargetId).getEntity() : null,
                 commoditiesResizeTracker, cloudTc, projectedRICoverageCalculator, shoppingListOidToInfos,
                 commodityIndex, originalTopology);
         switch (moveExplanation.getExplanationTypeCase()) {
@@ -1608,12 +1607,12 @@ public class ActionInterpreter {
      * @return The CPU threads of PM that hosts the entity, if present
      */
     public static Optional<Integer> getCPUThreadsFromPM(
-                    @Nonnull final Map<Long, TopologyEntityDTO> topology,
+                    @Nonnull final Function<Long, TopologyEntityDTO> topology,
                     @Nonnull final TopologyEntityDTO entity) {
         final Optional<Integer> cpuThreadsOfHost = entity.getCommoditiesBoughtFromProvidersList().stream()
                         .filter(comm -> comm.hasProviderEntityType()
                                         && comm.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                        .map(comm -> topology.get(comm.getProviderId()))
+                        .map(comm -> topology.apply(comm.getProviderId()))
                         .filter(Objects::nonNull)
                         .filter(TopologyEntityDTO::hasTypeSpecificInfo)
                         .map(TopologyEntityDTO::getTypeSpecificInfo)
