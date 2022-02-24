@@ -102,10 +102,12 @@ public class StatsAccumulator {
 
     @Nonnull
     public StatValue toStatValue() {
+        double min = getMin();
         return StatValue.newBuilder()
             .setAvg((float)getAvg())
             .setMax((float)getMax())
-            .setMin((float)getMin())
+            // Casting default min value (Double.MAX_VALUE) to float returns "Infinity"
+            .setMin(min == Double.MAX_VALUE ? 0 : (float) min)
             .setTotal((float)getTotal())
             .setTotalMax((float)getTotalMax())
             .setTotalMin((float)getTotalMin())
