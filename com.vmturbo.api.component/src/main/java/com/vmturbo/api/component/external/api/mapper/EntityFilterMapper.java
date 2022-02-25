@@ -442,7 +442,7 @@ public class EntityFilterMapper {
      * specified expression field coming from the UI.
      *
      * <p>The form of the value of the expression field is expected to be
-     * "k=v1|k=v2|...", where k is the key and v1, v2, ... are the possible values.
+     * "k=v1|k=v2|...", where k is the key and v1, v2, ... are the possible values (might be empty).
      * If the expression does not conform to the expected format,
      * then a filter with empty key and values fields is generated.</p>
      *
@@ -468,7 +468,7 @@ public class EntityFilterMapper {
         final List<String> values = new ArrayList<>();
         for (String kvp : keyValuePairs) {
             final List<String> kv = splitWithEscapes(kvp, '=');
-            if (kv.size() != 2) {
+            if (kv.size() < 1 || (kv.size() == 1 && !removeEscapes(kvp).endsWith("="))) {
                 logger.error("Cannot parse {} as a key/value pair", kvp);
                 return REJECT_ALL_PROPERTY_FILTER;
             }
@@ -478,11 +478,10 @@ public class EntityFilterMapper {
                 logger.error("Map filter {} contains more than one key", expField);
                 return REJECT_ALL_PROPERTY_FILTER;
             }
-            if (!kv.get(1).isEmpty()) {
-                values.add(removeEscapes(kv.get(1)));
+            if (kv.size() == 1 || kv.get(1).isEmpty()) {
+                values.add("");
             } else {
-                logger.error("Cannot parse {} as a key/value pair", kvp);
-                return REJECT_ALL_PROPERTY_FILTER;
+                values.add(removeEscapes(kv.get(1)));
             }
         }
 

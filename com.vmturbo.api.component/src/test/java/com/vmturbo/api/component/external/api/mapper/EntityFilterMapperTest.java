@@ -2,7 +2,10 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
@@ -10,7 +13,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -122,6 +124,12 @@ public class EntityFilterMapperTest {
                     SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, DS_TYPE));
     private static final SearchFilter PRODUCES_SVC = SearchProtoUtil.searchFilterTraversal(
                     SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, SERVICE_TYPE));
+
+    private static final String PROPERTY_NAME = "testProperty";
+    private static final String KEY_1 = "k1";
+    private static final String KEY_2 = "k2";
+    private static final String VAL_1 = "v1";
+    private static final String VAL_2 = "v2";
 
     /**
      * Verify that a simple byName criterion is converted properly.
@@ -994,6 +1002,70 @@ public class EntityFilterMapperTest {
                 criteriaList, ApiEntityType.PHYSICAL_MACHINE.apiStr());
         verifyTagSearchResultsSingleValue(result, GroupType.COMPUTE_HOST_CLUSTER, SearchableProperties.TAGS_TYPE_PROPERTY_NAME,
                 "Category=1", "tagWith|strangeCharact=ers", false);
+    }
+
+    /**
+     * Test property filter for expression "k1=v1|k1=v2".
+     */
+    @Test
+    public void testMapPropertyFilterForMultiMapsExact() {
+        final String expr = KEY_1 + "=" + VAL_1 + "|" + KEY_1 + "=" + VAL_2;
+        PropertyFilter propertyFilter = EntityFilterMapper.mapPropertyFilterForMultimapsExact(
+                PROPERTY_NAME, expr, true);
+        assertEquals(PROPERTY_NAME, propertyFilter.getPropertyName());
+        assertEquals(KEY_1, propertyFilter.getMapFilter().getKey());
+        assertEquals(VAL_1, propertyFilter.getMapFilter().getValues(0));
+        assertEquals(VAL_2, propertyFilter.getMapFilter().getValues(1));
+    }
+
+    /**
+     * Test property filter for expression with empty value: "k1=|k1=v2".
+     */
+    @Test
+    public void testMapPropertyFilterForMultiMapsExactWIthEmptyValue() {
+        final String expr = KEY_1 + "=" + "|" + KEY_1 + "=" + VAL_2;
+        PropertyFilter propertyFilter = EntityFilterMapper.mapPropertyFilterForMultimapsExact(
+                PROPERTY_NAME, expr, true);
+        assertEquals(PROPERTY_NAME, propertyFilter.getPropertyName());
+        assertEquals(KEY_1, propertyFilter.getMapFilter().getKey());
+        assertEquals("", propertyFilter.getMapFilter().getValues(0));
+        assertEquals(VAL_2, propertyFilter.getMapFilter().getValues(1));
+    }
+
+    /**
+     * Test that property filter mapper return {@code REJECT_ALL_PROPERTY_FILTER} if expression has
+     * multiple keys.
+     */
+    @Test
+    public void testMapPropertyFilterForMultiMapsExactMultipleKeys() {
+        final String expr = KEY_1 + "=" + VAL_1 + "|" + KEY_2 + "=" + VAL_2;
+        PropertyFilter propertyFilter = EntityFilterMapper.mapPropertyFilterForMultimapsExact(
+                PROPERTY_NAME, expr, true);
+        assertEquals(EntityFilterMapper.REJECT_ALL_PROPERTY_FILTER, propertyFilter);
+    }
+
+    /**
+     * Test that property filter mapper return {@code REJECT_ALL_PROPERTY_FILTER} if expression has
+     * empty pair "k1=v1".
+     */
+    @Test
+    public void testMapPropertyFilterForMultiMapsExactEmptyPair() {
+        final String expr = KEY_1 + "=" + VAL_1 + "||" + KEY_2 + "=" + VAL_2;
+        PropertyFilter propertyFilter = EntityFilterMapper.mapPropertyFilterForMultimapsExact(
+                PROPERTY_NAME, expr, true);
+        assertEquals(EntityFilterMapper.REJECT_ALL_PROPERTY_FILTER, propertyFilter);
+    }
+
+    /**
+     * Test that property filter mapper return {@code REJECT_ALL_PROPERTY_FILTER} if expression has
+     * no key.
+     */
+    @Test
+    public void testMapPropertyFilterForMultiMapsExactEmptyKey() {
+        final String expr = "=" + VAL_1;
+        PropertyFilter propertyFilter = EntityFilterMapper.mapPropertyFilterForMultimapsExact(
+                PROPERTY_NAME, expr, true);
+        assertEquals(EntityFilterMapper.REJECT_ALL_PROPERTY_FILTER, propertyFilter);
     }
 
     private static void verifyTagSearchResultsSingleValue(final Collection<SearchParameters> result,
