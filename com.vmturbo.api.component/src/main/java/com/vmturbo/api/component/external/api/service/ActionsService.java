@@ -57,6 +57,8 @@ import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.action.SkippedActionApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
@@ -745,4 +747,13 @@ public class ActionsService implements IActionsService {
         return RelatedActionMapper.mapXlRelatedActionsToApi(action.getActionSpec());
     }
 
+    @Override
+    public List<PolicyApiDTO> getActionPlacementPolicies(String actionUuid) {
+        throw new UnsupportedOperationException("getActionPlacementPolicies is not implemented yet");
+    }
+
+    @Override
+    public List<SettingsPolicyApiDTO> getActionSettingsPolicies(String actionUuid) {
+        throw new UnsupportedOperationException("getActionSettingsPolicies is not implemented yet");
+    }
 }
