@@ -311,11 +311,11 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                     if (existing != null && !existing.equals(descriptor)) {
                         // If we don't initialize the IdentityService until the restoration from the
                         // database completes, then this should never happen.
-                        LOGGER.error("The ID {} was associated with a different set of properties" +
-                            " than the ones retrieved from the database.", descriptor.getOID());
+                        LOGGER.error("The ID {} was associated with a different set of properties"
+                                + " than the ones retrieved from the database.", descriptor.getOID());
                     }
                 });
-                LOGGER.info("Identity Cache initialized in {} seconds", stopwatch.stop().elapsed(TimeUnit.SECONDS));
+                LOGGER.info("Identity Cache initialized in {} with {} records", stopwatch, identityRecordsToProbeId.size());
                 if (LOGGER.isDebugEnabled()) {
                     identityCache.report();
                 }
@@ -427,7 +427,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
             identityRecords.forEach(identityRecord -> {
                 identityCache.addIdentityRecord(identityRecord);
             });
-            LOGGER.info("Identity Cache initialized in {} seconds", stopwatch.stop().elapsed(TimeUnit.SECONDS));
+            LOGGER.info("Identity Cache initialized in {} with {} records", stopwatch.stop().elapsed(TimeUnit.SECONDS), identityRecords.size());
             if (LOGGER.isDebugEnabled()) {
                 identityCache.report();
             }
