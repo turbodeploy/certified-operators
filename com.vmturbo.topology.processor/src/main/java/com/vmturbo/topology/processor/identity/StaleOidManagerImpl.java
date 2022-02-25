@@ -27,6 +27,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.Iterators;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -260,7 +261,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
      * 4) Sets the result of the operation in the {@link com.vmturbo.topology.processor.db.tables.RecurrentOperations} table
      */
     private static class OidExpirationTask implements Runnable {
-
+        private static final int MAX_ERROR_LENGTH = 150;
         private final DSLContext context;
         private final long entityExpirationTimeMs;
         private final Supplier<Set<Long>> getCurrentOids;
@@ -274,6 +275,10 @@ public class StaleOidManagerImpl implements StaleOidManager {
         private long currentTimeMs;
         private int numberOfExpiredOids;
         private OidExpirationResultRecord oidExpirationResultRecord;
+        /**
+         * Batch size for oids updates.
+         */
+        private static final int BATCH_SIZE = 100;
 
         OidExpirationTask(@Nonnull final Supplier<Set<Long>> getCurrentOids, @Nonnull final Consumer<Set<Long>> notifyExpiredOids,
                 final long entityExpirationTimeMs, final DSLContext context, final boolean expireOids,
@@ -300,43 +305,46 @@ public class StaleOidManagerImpl implements StaleOidManager {
                 try {
                     deleteRecurrentOperations.get();
                 } catch (Exception e) {
+                    // We do not want to stop the task if this operation fails
                     logger.error("Exception occurred while attempting to delete recurrent operations", e);
                 }
-                this.oidExpirationResultRecord = new OidExpirationResultRecord(Instant.ofEpochMilli(clock.millis()));
-                this.currentTimeMs = clock.millis();
-                final Stopwatch stopwatch = Stopwatch.createStarted();
-                final int updatedRecords = setLastSeenTimeStamps(getCurrentOids.get());
-                oidExpirationResultRecord.setUpdatedRecords(updatedRecords);
-                OID_EXPIRATION_EXECUTION_TIME.labels(UPDATE_TIMESTAMPS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
-                stopwatch.reset();
-                if (shouldExpireOids()) {
-                    stopwatch.start();
-                    Set<Long> expiredOids = getExpiredRecords(entityExpirationTimeMs, expirationDaysPerEntity);
-                    int expiredRecord = setExpiredRecords(expirationDaysPerEntity);
-                    oidExpirationResultRecord.setExpiredRecords(expiredOids.size());
-                    if (expiredRecord > 0) {
-                        EXPIRED_ENTITIES_COUNT.increment((double)expiredRecord);
-                    }
-                    notifyExpiredOids.accept(expiredOids);
-                    OID_EXPIRATION_EXECUTION_TIME.labels(EXPIRE_RECORDS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
-                    numberOfExpiredOids = expiredOids.size();
-                    logger.info("OidExpirationTask finished in {} seconds. Number of expired oids: {}",
-                            TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - currentTimeMs),
-                            numberOfExpiredOids);
-                    stopwatch.stop();
-                }
-            // We need to catch all the exceptions to make sure the scheduled tasks will keep going even
-            // if one task fails
-            } catch (Exception e) {
-                logger.error("OidExpirationTask failed due to ", e);
-                oidExpirationResultRecord.setErrors(e.getMessage());
-            } finally {
                 try {
+                    final boolean shouldExpireOids = shouldExpireOids();
+                    logger.info("Starting the task with expiration set to {}", shouldExpireOids);
+                    this.oidExpirationResultRecord = new OidExpirationResultRecord(Instant.ofEpochMilli(clock.millis()));
+                    this.currentTimeMs = clock.millis();
+                    final Stopwatch stopwatch = Stopwatch.createStarted();
+                    final int updatedRecords = setLastSeenTimeStamps(getCurrentOids.get());
+                    oidExpirationResultRecord.setUpdatedRecords(updatedRecords);
+                    OID_EXPIRATION_EXECUTION_TIME.labels(UPDATE_TIMESTAMPS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
+                    logger.info("Updated the timestamp to {} for {} oids in {}", new Timestamp(currentTimeMs), updatedRecords, stopwatch);
+                    stopwatch.reset();
+                    if (shouldExpireOids) {
+                        stopwatch.start();
+                        Set<Long> expiredOids = getExpiredRecords(entityExpirationTimeMs, expirationDaysPerEntity);
+                        int expiredRecord = setExpiredRecords(expirationDaysPerEntity);
+                        oidExpirationResultRecord.setExpiredRecords(expiredOids.size());
+                        if (expiredRecord > 0) {
+                            EXPIRED_ENTITIES_COUNT.increment((double)expiredRecord);
+                        }
+                        notifyExpiredOids.accept(expiredOids);
+                        OID_EXPIRATION_EXECUTION_TIME.labels(EXPIRE_RECORDS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
+                        numberOfExpiredOids = expiredOids.size();
+                        logger.info("OidExpirationTask finished in {} seconds. Number of expired oids: {}",
+                                TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - currentTimeMs),
+                                numberOfExpiredOids);
+                        stopwatch.stop();
+                    }
+                } catch (Exception e) {
+                    logger.error("OidExpirationTask failed due to ", e);
+                    oidExpirationResultRecord.setErrors(e.getMessage().substring(0, Math.min(e.getMessage().length(), MAX_ERROR_LENGTH)));
+                } finally {
                     storeOidExpirationResultRecord(oidExpirationResultRecord);
-                } catch (Exception additionalException) {
-                    logger.error("Could not write failure of OidExpirationTask due to ",
-                            additionalException);
                 }
+            } catch (Throwable t) {
+                // We need to catch all the exceptions to make sure the scheduled tasks will keep going even
+                // if one task fails
+                logger.error("OidExpirationTask failed due to ", t);
             }
         }
 
@@ -375,11 +383,11 @@ public class StaleOidManagerImpl implements StaleOidManager {
 
         private int setLastSeenTimeStamps(Set<Long> currentOids) throws DataAccessException {
             final Timestamp currentTimeStamp = new Timestamp(currentTimeMs);
-            final int updatedOids =  context.update(ASSIGNED_IDENTITY)
-                .set(ASSIGNED_IDENTITY.LAST_SEEN, currentTimeStamp)
-                .where(ASSIGNED_IDENTITY.ID.in(currentOids)).execute();
-            logger.info("OidExpirationTask updated the last_seen column to {} for {} oids", currentTimeStamp, updatedOids);
-            return updatedOids;
+            Iterators.partition(currentOids.iterator(), BATCH_SIZE).forEachRemaining(batch ->
+                    context.update(ASSIGNED_IDENTITY)
+                            .set(ASSIGNED_IDENTITY.LAST_SEEN, currentTimeStamp)
+                            .where(ASSIGNED_IDENTITY.ID.in(batch)).execute());
+            return currentOids.size();
         }
 
         private Set<Long> getExpiredRecords(long entityExpirationTime, Map<Integer, Long> expirationDaysPerEntity) throws DataAccessException {
