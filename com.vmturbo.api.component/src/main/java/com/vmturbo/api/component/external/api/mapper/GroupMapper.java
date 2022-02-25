@@ -153,8 +153,9 @@ public class GroupMapper {
             .put(StringConstants.STORAGE_CLUSTER, GroupFilterMapper.STORAGE_CLUSTERS_FILTER_TYPE)
             .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupFilterMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE)
             .put(StringConstants.RESOURCE_GROUP, GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE)
-             .put(StringConstants.NODE_POOL, GroupFilterMapper.NODE_POOL_BY_NAME_FILTER_TYPE)
+            .put(StringConstants.NODE_POOL, GroupFilterMapper.NODE_POOL_BY_NAME_FILTER_TYPE)
             .put(StringConstants.BILLING_FAMILY, GroupFilterMapper.BILLING_FAMILY_FILTER_TYPE)
+            .put(StringConstants.BUSINESS_ACCOUNT_FOLDER, GroupFilterMapper.BUSINESS_ACCOUNT_FOLDER_BY_NAME_FILTER_TYPE)
             .build();
 
     /**
