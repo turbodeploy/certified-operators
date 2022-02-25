@@ -50,19 +50,28 @@ public class PmStateChangePostStitchingOperationTest {
      */
     @Test
     public void testFailoverPMStateOthersActive() {
-        testFailoverPMState(EntityState.POWERED_ON, 0);
+        testFailoverPMState(EntityState.POWERED_ON, 0, EntityState.FAILOVER);
     }
 
     /**
-     * Tests that the failover hosts state changes to active if any other host in the cluster has
-     * any other state than active and failover.
+     * Tests that the failover hosts state changes to active if any other host in the cluster went unknown.
      */
     @Test
     public void testFailoverPMStateOthersNoActive() {
-        testFailoverPMState(EntityState.MAINTENANCE, 1);
+        testFailoverPMState(EntityState.UNKNOWN, 1, EntityState.POWERED_ON);
     }
 
-    private void testFailoverPMState(@Nonnull EntityState pm4State, int expectedChanges) {
+    /**
+     * Tests that the failover hosts state does not changes to active
+     * if any other host in the cluster went in maintenance.
+     */
+    @Test
+    public void testFailoverPMStateChangeToMaintenance() {
+        testFailoverPMState(EntityState.MAINTENANCE, 0, EntityState.FAILOVER);
+    }
+
+    private void testFailoverPMState(@Nonnull EntityState pm4State, int expectedChanges,
+                    EntityState expectedPm3State) {
         final Builder pm1 = getPmBuilder(1, EntityState.POWERED_ON);
         final Builder pm2 = getPmBuilder(2, EntityState.POWERED_ON);
         final Builder pm3 = getPmBuilder(3, EntityState.FAILOVER);
@@ -77,8 +86,6 @@ public class PmStateChangePostStitchingOperationTest {
         final Iterator<TopologyEntity> hostsIterator = virtualDatacenter.getProviders().iterator();
         Assert.assertEquals(EntityState.POWERED_ON, hostsIterator.next().getEntityState());
         Assert.assertEquals(EntityState.POWERED_ON, hostsIterator.next().getEntityState());
-        final EntityState expectedPm3State =
-                pm4State != EntityState.POWERED_ON ? EntityState.POWERED_ON : EntityState.FAILOVER;
         Assert.assertEquals(expectedPm3State, hostsIterator.next().getEntityState());
         Assert.assertEquals(pm4State, hostsIterator.next().getEntityState());
     }

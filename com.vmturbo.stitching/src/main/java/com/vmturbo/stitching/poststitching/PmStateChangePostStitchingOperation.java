@@ -40,16 +40,18 @@ public class PmStateChangePostStitchingOperation implements PostStitchingOperati
             final Collection<TopologyEntity> failoverHosts = new HashSet<>();
             for (TopologyEntity p : e.getProviders()) {
                 if (p.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-                    if (p.getEntityState() != EntityState.POWERED_ON) {
-                        if (p.getEntityState() == EntityState.FAILOVER) {
-                            failoverHosts.add(p);
-                        } else {
-                            changeState = true;
-                        }
+                    // TODO this may not be enough
+                    // strictly speaking 'host HA state' is a separate from power/connectivity state
+                    // and may have to be separately discovered and passed
+                    if (p.getEntityState() == EntityState.UNKNOWN) {
+                        changeState = true;
+                    } else if (p.getEntityState() == EntityState.FAILOVER) {
+                        failoverHosts.add(p);
                     }
                 }
             }
             if (changeState && !failoverHosts.isEmpty()) {
+                // some host went down, flip the failover ones into activity
                 for (TopologyEntity failoverHost : failoverHosts) {
                     resultBuilder.queueUpdateEntityAlone(failoverHost,
                             f -> f.getTopologyEntityDtoBuilder()
