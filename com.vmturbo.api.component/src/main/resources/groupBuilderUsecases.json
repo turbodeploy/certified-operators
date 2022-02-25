@@ -287,6 +287,10 @@
         ]
     },
 
+    "BusinessAccountFolder" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessAccountFolderByName"}]
+    },
+
     "Chassis" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "chasByName"}

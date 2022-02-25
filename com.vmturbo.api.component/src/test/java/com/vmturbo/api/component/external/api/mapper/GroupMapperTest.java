@@ -459,6 +459,53 @@ public class GroupMapperTest {
     }
 
     /**
+     * Test Business Account Folder dynamic group when filtered by display name only.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testToGroupInfoDynamicGroupByBAF() throws Exception {
+        final String displayName = "group-foo";
+        final String groupType = ApiEntityType.BUSINESS_ACCOUNT.apiStr();
+        final Boolean isStatic = false;
+        final GroupApiDTO groupDto = new GroupApiDTO();
+        final FilterApiDTO filterApiDTOFirst = new FilterApiDTO();
+        filterApiDTOFirst.setExpType(EntityFilterMapper.REGEX_MATCH);
+        filterApiDTOFirst.setExpVal("BAF#1");
+        filterApiDTOFirst.setFilterType("businessAccountFolderByName");
+        final List<FilterApiDTO> criteriaList = Lists.newArrayList(filterApiDTOFirst);
+        groupDto.setDisplayName(displayName);
+        groupDto.setGroupType(groupType);
+        groupDto.setIsStatic(isStatic);
+        groupDto.setCriteriaList(criteriaList);
+
+        final GroupDefinition groupDefinition = groupMapper.toGroupDefinition(groupDto);
+        assertEquals(displayName, groupDefinition.getDisplayName());
+
+        final EntityFilter entityFilter = groupDefinition.getEntityFilters().getEntityFilter(0);
+        assertEquals(EntityType.BUSINESS_ACCOUNT.getNumber(), entityFilter.getEntityType());
+        assertEquals(GroupDefinition.SelectionCriteriaCase.ENTITY_FILTERS,
+                groupDefinition.getSelectionCriteriaCase());
+        // Verify the first search parameters' starting filter is BAF entity
+        assertEquals("entityType", entityFilter.getSearchParametersCollection()
+                .getSearchParameters(0).getStartingFilter().getPropertyName());
+        assertEquals(ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
+                entityFilter.getSearchParametersCollection().getSearchParameters(0)
+                        .getStartingFilter().getNumericFilter().getValue());
+        // Verify the first search parameters are byName search for BAF
+        assertEquals("displayName",
+                entityFilter.getSearchParametersCollection().getSearchParameters(0)
+                        .getSearchFilter(0).getPropertyFilter().getPropertyName());
+        assertEquals("^BAF#1$",
+                entityFilter.getSearchParametersCollection().getSearchParameters(0)
+                        .getSearchFilter(0).getPropertyFilter().getStringFilter()
+                        .getStringPropertyRegex());
+        assertTrue(entityFilter.getSearchParametersCollection().getSearchParameters(0)
+                .getSearchFilter(0).getPropertyFilter().getStringFilter()
+                .getPositiveMatch());
+    }
+
+    /**
      * Test Validation for invalid group type for static groups.
      *
      * @throws Exception on exceptions occured.
