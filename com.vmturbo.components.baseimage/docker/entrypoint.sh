@@ -86,6 +86,7 @@ if [[ -z ${JAVA_OPTS} ]]; then
      JAVA_BASE_OPTS="-verbose:sizes -XX:+ExitOnOutOfMemoryError
               -XX:+ClassRelationshipVerifier -XX:+CompactStrings
               -XX:-HeapDumpOnOutOfMemoryError -Xdump:what -Xdump:heap:none  -Xdump:java:file=/STDOUT/
+              -Xdump:java:events=systhrow,filter=java/lang/OutOfMemoryError,file=/STDOUT/
               -XshowSettings -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
               -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
               -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
