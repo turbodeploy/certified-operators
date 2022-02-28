@@ -906,6 +906,7 @@ public final class AnalysisToProtobuf {
                                 shoppingListOid, preferentialTraders));
                         }
                     } catch (Exception e) {
+                        ((Economy)topology.getEconomy()).getExceptionTraders().add(trader.getOid());
                         logger.error(EconomyConstants.EXCEPTION_MESSAGE, "traderTO for "
                                 + trader.getDebugInfoNeverUseInCode(), e.getMessage(), e);
                     }
