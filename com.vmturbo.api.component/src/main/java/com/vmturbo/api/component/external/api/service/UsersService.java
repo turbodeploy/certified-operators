@@ -1188,8 +1188,8 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(apiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for active directory group.");
         }
-        if (UserScopeUtils.containsSharedRole(Collections.singletonList(apiDTO.getRoleName()))) {
-            if (apiDTO.getScope().isEmpty()) {
+        if (apiDTO.getRoleName() != null && UserScopeUtils.containsSharedRole(Collections.singletonList(apiDTO.getRoleName()))) {
+            if (apiDTO.getScope() == null || apiDTO.getScope().isEmpty()) {
                 throw new IllegalArgumentException(
                         "No valid scope specified. Shared active directory groups require a valid scope.");
             }
