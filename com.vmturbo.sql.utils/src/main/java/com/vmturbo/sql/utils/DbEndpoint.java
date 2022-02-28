@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -16,7 +17,9 @@ import java.util.function.UnaryOperator;
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,6 +33,7 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultExecuteListenerProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
@@ -43,6 +47,10 @@ import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedExc
 import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
+import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
+import com.vmturbo.sql.utils.dbmonitor.MySQLDbMonitor;
+import com.vmturbo.sql.utils.dbmonitor.PostgresDbMonitor;
 
 /**
  * This class manages access to a database, including initializing the database on first use,
@@ -692,4 +700,54 @@ public class DbEndpoint {
         }
     }
 
+    /** Seconds between reports logged by DbMonitor. */
+    @Value("${dbMonitorIntervalSec:60}")
+    private int dbMonitorIntervalSec;
+
+    /**
+     * Time threshold for a process to be considered long-running.
+     *
+     * <p>Once the process is in that category at least two consecutive cycles, it will be logged
+     * individually.</p>
+     */
+    @Value("${longRunningQueryThresholdSecs:300}")
+    private int longRunningQueryThresholdSecs;
+
+    /**
+     * Start an instance of a {@link DbMonitor}.
+     */
+    public void startDbMonitor() {
+        logger.info("Starting Database monitor");
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("db-monitor-%d")
+                .setDaemon(true)
+                .build();
+        threadFactory.newThread(this::runDbMonitor).start();
+    }
+
+    /**
+     * Returns an instance of a {@link DbMonitor}.
+     * @return the db monitor
+     * @throws SQLException if there's an issue connecting with the db
+     * @throws UnsupportedDialectException if the dialect is not supported
+     * @throws InterruptedException if the operation gets interrupted
+     * @throws JsonProcessingException if we can't build the {@link com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier}
+     */
+    private DbMonitor dbMonitorLoop() throws SQLException, UnsupportedDialectException, InterruptedException, JsonProcessingException {
+        if (dslContext().dialect() == SQLDialect.POSTGRES) {
+            return new PostgresDbMonitor(new DbMonitorConfig().processListClassifier(), dslContext(), dbMonitorIntervalSec,
+                longRunningQueryThresholdSecs, getConfig().getSchemaName(), getConfig().getUserName());
+        } else {
+            return new MySQLDbMonitor(new DbMonitorConfig().processListClassifier(), dslContext(), dbMonitorIntervalSec,
+                    longRunningQueryThresholdSecs, getConfig().getSchemaName(), getConfig().getUserName());
+        }
+    }
+
+    private void runDbMonitor() {
+        try {
+            dbMonitorLoop().run();
+        } catch (InterruptedException | SQLException | UnsupportedDialectException | JsonProcessingException e) {
+            logger.error("Monitoring interrupted; db monitoring suspended");
+        }
+    }
 }

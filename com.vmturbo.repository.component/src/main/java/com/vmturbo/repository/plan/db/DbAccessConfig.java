@@ -38,9 +38,10 @@ public class DbAccessConfig {
      */
     public void startDbMonitor() {
         if (dbMonitorEnabled) {
-            // todo: OM-76858 implement dbmonitor for postgres
             if (repositoryDBConfig != null) {
                 repositoryDBConfig.startDbMonitor();
+            } else {
+                repositoryDBEndpointConfig.repositoryEndpoint().startDbMonitor();
             }
         }
     }
