@@ -608,6 +608,7 @@ message Reconfigure {
     // If it is a reconfigure to add commodity or remove.
     optional bool is_addition = 5;
 
+    // TODO this should not be here, it is describing semantics orthogonal to other Reconfigure actions
     repeated SettingChange setting_change = 6;
 
     message SettingChange {
