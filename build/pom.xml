@@ -3426,15 +3426,7 @@
         <repository>
             <id>spring-milestones</id>
             <name>Spring Milestones</name>
-            <url>http://repo.spring.io/milestone</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <!--Access to the palantir docker-compose-rule library for bringing up services in docker via compose.-->
-            <id>palantir-bintray</id>
-            <url>https://dl.bintray.com/palantir/releases</url>
+            <url>https://repo.spring.io/milestone</url>
             <snapshots>
                 <enabled>false</enabled>
             </snapshots>
