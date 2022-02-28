@@ -94,6 +94,35 @@ public class EntityFilterMapper {
     /** key of the criteria to query WorkloadController entities by controller types. */
     public static final String WORKLOAD_CONTROLLER_TYPE = SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME
         + "." + SearchableProperties.CONTROLLER_TYPE;
+    /** Key of the criteria to query containers by namespace */
+    public static final String CONTAINER_NAMESPACE =
+        "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES";
+    /** Key of the criteria to query container pods by namespace */
+    public static final String CONTAINER_POD_NAMESPACE =
+        "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES";
+    /** Key of the criteria to query container specs by namespace */
+    public static final String CONTAINER_SPEC_NAMESPACE =
+        "Namespace:displayName:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec";
+    /** Key of the criteria to query workload controllers by namespace */
+    public static final String WORKLOAD_CONTROLLER_NAMESPACE = "Namespace:displayName:PRODUCES";
+    /** Key of the criteria to query containers by container platform cluster */
+    public static final String CONTAINER_CONTAINER_PLATFORM_CLUSTER =
+        "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController:WorkloadController:PRODUCES";
+    /** Key of the criteria to query container pods by container platform cluster */
+    public static final String CONTAINER_POD_CONTAINER_PLATFORM_CLUSTER =
+        "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController:WorkloadController:PRODUCES:ContainerPod:PRODUCES";
+    /** Key of the criteria to query container specs by container platform cluster */
+    public static final String CONTAINER_SPEC_CONTAINER_PLATFORM_CLUSTER =
+        "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec";
+    /** Key of the criteria to query namespaces by container platform cluster */
+    public static final String NAMESPACE_CONTAINER_PLATFORM_CLUSTER =
+        "ContainerPlatformCluster:displayName:PRODUCES";
+    /** Key of the criteria to query workload controllers by container platform cluster */
+    public static final String WORKLOAD_CONTROLLER_CONTAINER_PLATFORM_CLUSTER =
+        "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController";
+    /** Key of the criteria to query container pods by workload controller name */
+    public static final String CONTAINER_POD_WORKLOAD_CONTROLLER_NAME =
+        "WorkloadController:displayName:PRODUCES";
     /** key of the criteria to query Container entities by controller types. */
     public static final String CONTAINER_WORKLOAD_CONTROLLER_TYPE = "WorkloadController:" + WORKLOAD_CONTROLLER_TYPE + ":PRODUCES:ContainerPod:PRODUCES";
     /** key of the criteria to query ContainerPod entities by controller types. */

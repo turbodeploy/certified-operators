@@ -120,6 +120,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
@@ -250,6 +251,17 @@ public class SearchService implements ISearchService {
                 .put(SearchableProperties.DB_REPLICATION_ROLE,(a, b, c) -> getEnumFilterOptions(ReplicationRole.class))
                 .put(SearchableProperties.DB_PRICING_MODEL,(a, b, c) -> getEnumFilterOptions(DatabasePricingModel.class))
                 .put(SearchableProperties.DB_SERVICE_TIER,(a, b, c) -> getEnumFilterOptions(DatabaseServiceTier.class))
+                .put(StringConstants.DISPLAY_NAME_ATTR, this::getDisplayNameOptions)
+                .put(EntityFilterMapper.CONTAINER_NAMESPACE, (a,b,c) -> getNamespaceOptions())
+                .put(EntityFilterMapper.CONTAINER_POD_NAMESPACE, (a,b,c) -> getNamespaceOptions())
+                .put(EntityFilterMapper.CONTAINER_SPEC_NAMESPACE, (a,b,c) -> getNamespaceOptions())
+                .put(EntityFilterMapper.WORKLOAD_CONTROLLER_NAMESPACE, (a,b,c) -> getNamespaceOptions())
+                .put(EntityFilterMapper.CONTAINER_CONTAINER_PLATFORM_CLUSTER, (a,b,c) -> getContainerPlatformClusterOptions())
+                .put(EntityFilterMapper.CONTAINER_POD_CONTAINER_PLATFORM_CLUSTER, (a,b,c) -> getContainerPlatformClusterOptions())
+                .put(EntityFilterMapper.CONTAINER_SPEC_CONTAINER_PLATFORM_CLUSTER, (a,b,c) -> getContainerPlatformClusterOptions())
+                .put(EntityFilterMapper.NAMESPACE_CONTAINER_PLATFORM_CLUSTER, (a,b,c) -> getContainerPlatformClusterOptions())
+                .put(EntityFilterMapper.WORKLOAD_CONTROLLER_CONTAINER_PLATFORM_CLUSTER, (a, b, c) -> getContainerPlatformClusterOptions())
+            .put(EntityFilterMapper.CONTAINER_POD_WORKLOAD_CONTROLLER_NAME, (a,b,c) -> getWorkloadControllerOptions())
                 .build();
     }
 
@@ -1274,6 +1286,46 @@ public class SearchService implements ISearchService {
             }
         }
         return tagsMap;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getDisplayNameOptionsByEntityType(final String entityType) {
+        final List<CriteriaOptionApiDTO> optionApiDTOS = new ArrayList<>();
+        repositoryApi.newSearchRequest(
+                SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(entityType))
+                    .build())
+            .getMinimalEntities()
+            .map(MinimalEntity::getDisplayName)
+            .collect(Collectors.toSet())
+            .forEach(displayName -> {
+                CriteriaOptionApiDTO option = new CriteriaOptionApiDTO();
+                option.setValue(displayName);
+                optionApiDTOS.add(option);
+            });
+        return optionApiDTOS;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getDisplayNameOptions(
+        final List<String> scopes,
+        final String entityType,
+        final EnvironmentType envType) {
+        return this.getDisplayNameOptionsByEntityType(entityType);
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getNamespaceOptions() {
+        return this.getDisplayNameOptionsByEntityType(ApiEntityType.NAMESPACE.apiStr());
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getContainerPlatformClusterOptions() {
+        return this.getDisplayNameOptionsByEntityType(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.apiStr());
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getWorkloadControllerOptions() {
+        return this.getDisplayNameOptionsByEntityType(ApiEntityType.WORKLOAD_CONTROLLER.apiStr());
     }
 
     @Nonnull
