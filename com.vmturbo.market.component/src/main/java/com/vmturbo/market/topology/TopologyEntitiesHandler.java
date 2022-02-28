@@ -185,6 +185,7 @@ public class TopologyEntitiesHandler {
                         ProtobufToAnalysis.addTrader(topology, traderTO);
                     }
                 } catch (Exception e) {
+                    ((Economy)topology.getEconomy()).getExceptionTraders().add(traderTO.getOid());
                     logger.error(EconomyConstants.EXCEPTION_MESSAGE, traderTO.getDebugInfoNeverUseInCode(),
                         e.getMessage(), e);
                 }
@@ -373,11 +374,18 @@ public class TopologyEntitiesHandler {
 
                     // Recreate Resize Through Supplier Trader in order to have the updated impact from the
                     // Second round of analysis actions.
-                    resizeThroughSuppliers.forEach(t -> {
-                        builder.setProjectedTopoEntityTO(t.getEconomyIndex(),
-                            AnalysisToProtobuf.traderTO(economy, t, topology.getShoppingListOids(),
-                                economy.getPreferentialShoppingLists()
-                                    .stream().map(sl -> sl.getBuyer()).collect(Collectors.toSet())));
+                    resizeThroughSuppliers.forEach(trader -> {
+                        try{
+                            builder.setProjectedTopoEntityTO(trader.getEconomyIndex(),
+                                    AnalysisToProtobuf.traderTO(economy, trader, topology.getShoppingListOids(),
+                                            economy.getPreferentialShoppingLists()
+                                                    .stream().map(sl -> sl.getBuyer()).collect(Collectors.toSet())));
+                        } catch(Exception e){
+                            economy.getExceptionTraders().add(trader.getOid());
+                            logger.error(EconomyConstants.EXCEPTION_MESSAGE, trader.getDebugInfoNeverUseInCode(),
+                                    e.getMessage(), e);
+                        }
+
                     });
                     results = builder.build();
 
@@ -425,13 +433,20 @@ public class TopologyEntitiesHandler {
                     AnalysisResults.Builder analysisResultsBuilder, List<Trader> provisionedTraders,
                     Economy economy, Topology topology) {
         for (Trader provisionedTrader : provisionedTraders) {
-            TraderTO pTraderTO = AnalysisToProtobuf.traderTO(economy, provisionedTrader,
-                            topology.getShoppingListOids(),
-                            Collections.emptySet());
-            if (pTraderTO != null) {
-                analysisResultsBuilder.addProjectedTopoEntityTO(pTraderTO);
-                logger.trace("Provisioned trader {}, added to returned traderTOs from market",
-                                provisionedTrader.getDebugInfoNeverUseInCode());
+            try {
+                TraderTO pTraderTO = AnalysisToProtobuf.traderTO(economy, provisionedTrader,
+                        topology.getShoppingListOids(),
+                        Collections.emptySet());
+
+                if (pTraderTO != null) {
+                    analysisResultsBuilder.addProjectedTopoEntityTO(pTraderTO);
+                    logger.trace("Provisioned trader {}, added to returned traderTOs from market",
+                            provisionedTrader.getDebugInfoNeverUseInCode());
+                }
+            } catch (Exception e) {
+                ((Economy)topology.getEconomy()).getExceptionTraders().add(provisionedTrader.getOid());
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, provisionedTrader.getDebugInfoNeverUseInCode(),
+                        e.getMessage(), e);
             }
         }
     }
