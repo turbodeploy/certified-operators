@@ -363,11 +363,18 @@ public class UserServiceTest {
     @Test(expected = IllegalArgumentException.class)
     public void testCreateActiveDirectoryGroupInputValidationEmptyScopeList() throws Exception {
         logon("admin");
-        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
-                Matchers.eq(HttpMethod.POST),
-                Matchers.<HttpEntity>any(),
-                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
         validateInvalidADInputsEmptyScopeList(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
+    }
+
+    /**
+     * Test create active directory group without Scope.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateActiveDirectoryGroupInputInvalidValidationNullScope() throws Exception {
+        logon("admin");
+        validateInvalidADInputsNullScope(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
     }
 
     /**
@@ -378,10 +385,6 @@ public class UserServiceTest {
     @Test(expected = IllegalArgumentException.class)
     public void testCreateActiveDirectoryGroupInputInvalidValidationEmptyUuids() throws Exception {
         logon("admin");
-        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
-                Matchers.eq(HttpMethod.POST),
-                Matchers.<HttpEntity>any(),
-                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
         validateInvalidADInputsEmptyUuids(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
     }
 
@@ -393,10 +396,6 @@ public class UserServiceTest {
     @Test(expected = IllegalArgumentException.class)
     public void testCreateActiveDirectoryGroupInputValidationOneEmptyUuid() throws Exception {
         logon("admin");
-        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
-                Matchers.eq(HttpMethod.POST),
-                Matchers.<HttpEntity>any(),
-                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
         validateInvalidADInputsOneEmptyUuid(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
     }
 
@@ -408,10 +407,6 @@ public class UserServiceTest {
     @Test(expected = IllegalArgumentException.class)
     public void testCreateActiveDirectoryGroupInputValidationEmptyStringUuid() throws Exception {
         logon("admin");
-        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
-                Matchers.eq(HttpMethod.POST),
-                Matchers.<HttpEntity>any(),
-                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
         validateInvalidADInputsEmptyStringUuid(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
     }
 
@@ -423,10 +418,6 @@ public class UserServiceTest {
     @Test(expected = IllegalArgumentException.class)
     public void testCreateActiveDirectoryGroupInputValidationNonEmptyEntities() throws Exception {
         logon("admin");
-        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
-                Matchers.eq(HttpMethod.POST),
-                Matchers.<HttpEntity>any(),
-                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
         validateInvalidADInputsNonEmptyEntities(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
     }
 
@@ -438,10 +429,6 @@ public class UserServiceTest {
     @Test(expected = IllegalArgumentException.class)
     public void testCreateActiveDirectoryGroupInputValidationInvalidUuid() throws Exception {
         logon("admin");
-        Mockito.when(restTemplate.exchange(Matchers.eq(AUTH_REQUEST),
-                Matchers.eq(HttpMethod.POST),
-                Matchers.<HttpEntity>any(),
-                Matchers.<Class<SecurityGroupDTO>>any())).thenReturn(getResponse());
         validateInvalidADInputsInvalidUUID(adGroupFromRequest -> usersService.createActiveDirectoryGroup(adGroupFromRequest));
     }
 
@@ -1149,6 +1136,21 @@ public class UserServiceTest {
         adGroupFromRequest.setRoleName(SHARED_OBSERVER);
         List scope = new ArrayList<>();
         adGroupFromRequest.setScope(scope);
+        adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
+        function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "scope" is invalid when request provide "no scope".
+     *
+     * @throws IllegalArgumentException if JSON string doesn't match Java object.
+     */
+    private void validateInvalidADInputsNullScope(
+            Function<ActiveDirectoryGroupApiDTO, ActiveDirectoryGroupApiDTO> function) {
+        ActiveDirectoryGroupApiDTO adGroupFromRequest = new ActiveDirectoryGroupApiDTO();
+        adGroupFromRequest.setRoleName(AD_GROUP_ROLE_NAME);
+        adGroupFromRequest.setType(DEDICATED_CUSTOMER);
+        adGroupFromRequest.setRoleName(SHARED_OBSERVER);
         adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
         function.apply(adGroupFromRequest);
     }
