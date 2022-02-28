@@ -159,6 +159,12 @@ public class EntitiesService implements IEntitiesService {
     private final static String UUID = "{uuid}";
     private final static String REPLACEME = "#REPLACEME";
 
+    private final static String NO_ENTITY_MESSAGE="There is no entity for the uuid specified: %s";
+
+    private final static String NO_ENTITY_GROUP_MESSAGE="There is no valid entity or group for the uuid specified: %s";
+
+    private final static String EMPTY_UUID_MESSAGE="Uuid should not be empty. It is an invalid uuid format.";
+
     private static final String ILLEGAL_UUID_MESSAGE = "%s is illegal argument. "
             + "It is an invalid uuid format.";
 
@@ -324,7 +330,8 @@ public class EntitiesService implements IEntitiesService {
     @Override
     @Nonnull
     public ServiceEntityApiDTO getEntityByUuid(@Nonnull String uuid, boolean includeAspects)
-            throws Exception {
+            throws IllegalArgumentException, OperationFailedException, ConversionException,
+            InterruptedException, UnknownObjectException {
         final long oid = getEntityOidFromString(uuid);
         // get information about this entity from the repository
         final SingleEntityRequest req = repositoryApi.entityRequest(oid);
@@ -993,7 +1000,8 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
+    public List<TagApiDTO> getTagsByEntityUuid(final String s)
+            throws IllegalArgumentException, OperationFailedException, UnknownObjectException {
         final long oid = getEntityOrGroupOidFromString(s);
         final boolean isGroup = uuidMapper.fromUuid(s).isGroup();
         final Map<String, TagValuesDTO> tagsMap = new HashMap<>();
@@ -1393,13 +1401,13 @@ public class EntitiesService implements IEntitiesService {
      * @throws OperationFailedException if the string is not an entity's OID.
      */
     private long getEntityOidFromString(@Nonnull final String uuid)
-            throws OperationFailedException {
+            throws OperationFailedException, IllegalArgumentException {
         if(org.apache.commons.lang.StringUtils.isEmpty(uuid)) {
-            throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
+            throw new IllegalArgumentException(String.format(EMPTY_UUID_MESSAGE, uuid));
         }
         ApiId apiId = uuidMapper.fromUuid(uuid);
         if (!apiId.isEntity()) {
-            throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
+            throw new IllegalArgumentException(String.format(NO_ENTITY_MESSAGE, uuid));
         }
         return apiId.oid();
     }
@@ -1412,9 +1420,12 @@ public class EntitiesService implements IEntitiesService {
      */
     private long getEntityOrGroupOidFromString(@Nonnull final String uuid)
             throws OperationFailedException {
+        if(org.apache.commons.lang.StringUtils.isEmpty(uuid)) {
+            throw new IllegalArgumentException(String.format(EMPTY_UUID_MESSAGE, uuid));
+        }
         ApiId apiId = uuidMapper.fromUuid(uuid);
         if (!apiId.isEntity() && !apiId.isGroup()) {
-            throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
+            throw new IllegalArgumentException(String.format(NO_ENTITY_GROUP_MESSAGE, uuid));
         }
         return apiId.oid();
     }

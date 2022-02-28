@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -8,6 +9,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,6 +24,7 @@ import com.google.common.collect.Sets;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.kafka.common.Uuid;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -44,6 +48,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -60,6 +65,7 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -102,6 +108,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reporting.api.protobuf.ReportingMoles.ReportingServiceMole;
@@ -109,6 +116,7 @@ import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -186,6 +194,10 @@ public class EntitiesServiceTest {
     private static final EntityState ST_STATE = EntityState.POWERED_ON;
     private static final long NON_EXISTENT_ID = 999L;
     private static final String LOCAL_NAME = "qqq";
+    private static final String INVALID_UUID_NO_ENTITY = "1234";
+    private static final String INVALID_UUID_STRING = "abcde";
+    private static final String VALID_UUID_ENTITY = "74272581024016";
+    private static final String VALID_UUID_GROUP = "285408123157776";
     private static final PerTargetEntityInformation PER_TARGET_INFO = PerTargetEntityInformation
                     .newBuilder().setVendorId(LOCAL_NAME).build();
 
@@ -345,6 +357,118 @@ public class EntitiesServiceTest {
     }
 
     /**
+     * Tests the normal behavior of the {@link EntitiesService#getEntityByUuid(String, boolean)}
+     * method, with UUID-Null.
+     *
+     * @throws IllegalArgumentException should happen.
+     */
+    @Test
+    public void testGetEntityByNullUuid()
+            throws IllegalArgumentException, ConversionException, OperationFailedException,
+            UnknownObjectException, InterruptedException {
+        ServiceEntityApiDTO pm = new ServiceEntityApiDTO();
+        pm.setUuid(null);
+        pm.setDisplayName(PM_DISPLAY_NAME);
+
+        expectedException.expectMessage("Uuid should not be empty. It is an invalid uuid format.");
+
+        // call service
+        service.getEntityByUuid(null, false);
+    }
+
+    /**
+     * Tests the normal behavior of the {@link EntitiesService#getEntityByUuid(String, boolean)}
+     * method, with UUID-1234.
+     *
+     * @throws IllegalArgumentException should happen.
+     */
+    @Test
+    public void testGetEntityByNumberUuid()
+            throws IllegalArgumentException, OperationFailedException, ConversionException,
+            UnknownObjectException, InterruptedException {
+        ServiceEntityApiDTO pm = new ServiceEntityApiDTO();
+        pm.setUuid(INVALID_UUID_NO_ENTITY);
+        pm.setDisplayName(PM_DISPLAY_NAME);
+
+        //Mocking Uuid Mapper
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isEntity()).thenReturn(false);
+        when(uuidMapper.fromUuid(INVALID_UUID_NO_ENTITY)).thenReturn(apiId);
+        expectedException.expectMessage("There is no entity for the uuid specified: "+INVALID_UUID_NO_ENTITY);
+
+        // call service
+        service.getEntityByUuid(INVALID_UUID_NO_ENTITY, false);
+    }
+
+    /**
+     * Tests the normal behavior of the {@link EntitiesService#getEntityByUuid(String, boolean)}
+     * method, with empty UUID.
+     *
+     * @throws IllegalArgumentException should happen.
+     */
+    @Test
+    public void testGetEntityByEmptyUuid()
+            throws IllegalArgumentException, ConversionException, OperationFailedException,
+            UnknownObjectException, InterruptedException {
+        ServiceEntityApiDTO pm = new ServiceEntityApiDTO();
+        pm.setUuid("");
+        pm.setDisplayName(PM_DISPLAY_NAME);
+
+        expectedException.expectMessage("Uuid should not be empty. It is an invalid uuid format.");
+
+        // call service
+        service.getEntityByUuid("", false);
+    }
+
+    /**
+     * Tests the normal behavior of the {@link EntitiesService#getEntityByUuid(String, boolean)}
+     * method, with valid UUID.
+     *
+     * @throws IllegalArgumentException should not happen.
+     */
+    @Test
+    public void testGetEntityByUuidValidEntity()
+            throws IllegalArgumentException, ConversionException, InterruptedException,
+            OperationFailedException, UnknownObjectException {
+        ServiceEntityApiDTO pm = new ServiceEntityApiDTO();
+        pm.setUuid(VALID_UUID_ENTITY);
+        pm.setDisplayName(PM_DISPLAY_NAME);
+
+        MinimalEntity vm = MinimalEntity.newBuilder()
+                .setOid(VM.getOid())
+                .setEntityType(VM.getEntityType())
+                .setDisplayName(VM.getDisplayName())
+                .build();
+
+        MinimalEntity st = MinimalEntity.newBuilder()
+                .setOid(ST.getOid())
+                .setEntityType(ST.getEntityType())
+                .setDisplayName(ST.getDisplayName())
+                .build();
+
+        SingleEntityRequest pmReq = ApiTestUtils.mockSingleEntityRequest(pm);
+        when(repositoryApi.entityRequest(Long.parseLong(VALID_UUID_ENTITY))).thenReturn(pmReq);
+
+        SearchRequest s1Req = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(vm));
+        when(repositoryApi.newSearchRequest(SearchProtoUtil.neighbors(Long.parseLong(VALID_UUID_ENTITY), TraversalDirection.PRODUCES)))
+                .thenReturn(s1Req);
+
+        SearchRequest s2Req = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(st));
+        when(repositoryApi.newSearchRequest(SearchProtoUtil.neighbors(Long.parseLong(VALID_UUID_ENTITY), TraversalDirection.CONSUMES)))
+                .thenReturn(s2Req);
+
+
+        //Mocking UUID Mapper
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(Long.valueOf(VALID_UUID_ENTITY));
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(VALID_UUID_ENTITY)).thenReturn(apiId);
+
+        // call service
+        final ServiceEntityApiDTO result = service.getEntityByUuid(VALID_UUID_ENTITY, false);
+    }
+
+    /**
      * Tests the illegal entity id 'Market'.
      *
      * @throws Exception in case of illegal entity id.
@@ -487,6 +611,108 @@ public class EntitiesServiceTest {
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(TAG_KEY, result.get(0).getKey());
         Assert.assertArrayEquals(TAG_VALUES.toArray(), result.get(0).getValues().toArray());
+    }
+
+    /**
+     * Get tags by entity id should work as expected, if uuid is a valid entity or group.
+     *
+     * @throws IllegalArgumentException if Uuid is null.
+     */
+    @Test
+    public void testGetTagsByNullUuid()
+            throws IllegalArgumentException, OperationFailedException, UnknownObjectException {
+        //Mocking Uuid Mapper
+        expectedException.expectMessage("Uuid should not be empty. It is an invalid uuid format.");
+
+        // call service
+        service.getTagsByEntityUuid(null);
+    }
+
+    /**
+     * Get tags by entity id should work as expected, if uuid is a valid entity or group.
+     *
+     * @throws IllegalArgumentException if Uuid is not an Entity or Group.
+     */
+    @Test
+    public void testGetTagsByNumberUuid()
+            throws IllegalArgumentException, OperationFailedException, UnknownObjectException {
+        //Mocking Uuid Mapper
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isEntity()).thenReturn(false);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(INVALID_UUID_NO_ENTITY)).thenReturn(apiId);
+        expectedException.expectMessage("There is no valid entity or group for the uuid specified: "+INVALID_UUID_NO_ENTITY);
+
+        // call service
+        service.getTagsByEntityUuid(INVALID_UUID_NO_ENTITY);
+    }
+
+    /**
+     * Get tags by entity id should work as expected, if uuid is a valid entity or group.
+     *
+     * @throws IllegalArgumentException if Uuid is Empty.
+     */
+    @Test
+    public void testGetTagsByEmptyUuid()
+            throws IllegalArgumentException, OperationFailedException, UnknownObjectException {
+        //Mocking Uuid Mapper
+        expectedException.expectMessage("Uuid should not be empty. It is an invalid uuid format.");
+
+        // call service
+        service.getTagsByEntityUuid("");
+    }
+
+    /**
+     * Get tags by entity id should work as expected, if uuid is a valid entity or group.
+     *
+     * @throws IllegalArgumentException if Uuid is not a valid entity.
+     */
+    @Test
+    public void testGetTagsByValidUuidEntity()
+            throws IllegalArgumentException, CommunicationException, TopologyProcessorException,
+            OperationFailedException, UnknownObjectException {
+        // add target and probe
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
+        when(repositoryApi.entityRequest(Long.parseLong(VALID_UUID_ENTITY))).thenReturn(req);
+
+        //Mocking Uuid Mapper
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(Long.valueOf(VALID_UUID_ENTITY));
+        when(apiId.isEntity()).thenReturn(true);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(Long.toString(Long.parseLong(VALID_UUID_ENTITY)))).thenReturn(apiId);
+
+        // call service
+        service.getTagsByEntityUuid(VALID_UUID_ENTITY);
+    }
+
+    /**
+     * Get tags by entity id should work as expected, if uuid is a valid entity or group.
+     *
+     * @throws Exception if Uuid is not a valid group.
+     */
+    @Test
+    public void testGetTagsByValidUuidGroup()
+            throws IllegalArgumentException, OperationFailedException, UnknownObjectException,
+            CommunicationException, TopologyProcessorException {
+        // add target and probe
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
+        when(repositoryApi.entityRequest(Long.parseLong(VALID_UUID_GROUP))).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(Long.valueOf(VALID_UUID_GROUP));
+        when(apiId.isEntity()).thenReturn(false);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(Long.parseLong(VALID_UUID_GROUP)))).thenReturn(apiId);
+
+        // call service
+        service.getTagsByEntityUuid(VALID_UUID_GROUP);
     }
 
     /**
