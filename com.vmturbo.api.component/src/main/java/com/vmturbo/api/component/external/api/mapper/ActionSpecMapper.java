@@ -61,9 +61,11 @@ import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.CpuChangeDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.ReconfigureActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.DiscoveredEntityApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -115,6 +117,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResourceGroupFilter;
@@ -147,6 +150,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
@@ -2183,16 +2187,23 @@ public class ActionSpecMapper {
                 detailsDto.setHistoricalDemandData(demandList);
                 response.put(actionIdString, detailsDto);
                 continue;
-            } else if (entity.getEnvironmentType() == EnvironmentType.ON_PREM && actionType.equals(ActionDTO.ActionType.RESIZE)) {
+            } else if (entity.getEnvironmentType() == EnvironmentType.ON_PREM
+                            && recommendation.hasInfo()) {
                 //For on-prem vcpu resize, we need to populate action details to show it in UX.
-                ActionInfo resizeInfo = recommendation.getInfo();
-                if (resizeInfo != null && resizeInfo.hasResize()) {
-                    Resize resize = resizeInfo.getResize();
+                ActionInfo actionInfo = recommendation.getInfo();
+                if (actionType == ActionDTO.ActionType.RESIZE && actionInfo.hasResize()) {
+                    Resize resize = actionInfo.getResize();
                     if (resize.getCommodityType().getType() == CommodityType.VCPU_VALUE) {
                         response.put(actionIdString, createOnPremResizeActionDetails(resize));
                     }
+                    continue;
+                } else if (actionType == ActionDTO.ActionType.RECONFIGURE
+                                && actionInfo.hasReconfigure() && actionInfo
+                                                .getReconfigure().getSettingChangeCount() > 1) {
+                    response.put(actionIdString, createOnPremReconfigureActionDetails(
+                                    actionInfo.getReconfigure()));
+                    continue;
                 }
-                continue;
             }
 
             // Skip if the entity is not a cloud entity
@@ -2291,24 +2302,53 @@ public class ActionSpecMapper {
 
     /**
      * Create OnPremResizeActionDetailsApiDTO from Resize information.
+     *
      * @param resize Resize info
      * @return created OnPremResizeActionDetails API object
      */
-    private OnPremResizeActionDetailsApiDTO createOnPremResizeActionDetails(Resize resize) {
-        OnPremResizeActionDetailsApiDTO detailsApiDTO = new OnPremResizeActionDetailsApiDTO();
+    private static ActionDetailsApiDTO createOnPremResizeActionDetails(Resize resize) {
         int vcpuBefore = (int)resize.getOldCapacity();
         int vcpuAfter = (int)resize.getNewCapacity();
         int cpsrBefore = resize.getOldCpsr();
         int cpsrAfter = resize.getNewCpsr();
         int socketsBefore = vcpuBefore / cpsrBefore;
         int socketsAfter = vcpuAfter / cpsrAfter;
-        detailsApiDTO.setVcpuBefore(vcpuBefore);
-        detailsApiDTO.setVcpuAfter(vcpuAfter);
-        detailsApiDTO.setCoresPerSocketBefore(cpsrBefore);
-        detailsApiDTO.setCoresPerSocketAfter(cpsrAfter);
-        detailsApiDTO.setSocketsBefore(socketsBefore);
-        detailsApiDTO.setSocketsAfter(socketsAfter);
-        return detailsApiDTO;
+        return createVcpuChangeActionDetails(new OnPremResizeActionDetailsApiDTO(), vcpuBefore,
+                        vcpuAfter, cpsrBefore, cpsrAfter, socketsBefore, socketsAfter);
+    }
+
+    private static ActionDetailsApiDTO createOnPremReconfigureActionDetails(Reconfigure reconfigure) {
+        Map<EntityAttribute, SettingChange> attr2change = reconfigure.getSettingChangeList()
+                        .stream()
+                        .collect(Collectors.toMap(SettingChange::getEntityAttribute, sc -> sc, (a1, a2) -> a1));
+        SettingChange cpsr = attr2change.get(EntityAttribute.CORES_PER_SOCKET);
+        SettingChange sockets = attr2change.get(EntityAttribute.SOCKET);
+        if (cpsr == null || sockets == null) {
+            logger.warn("Reconfigure for compliance action for {} has vCPU data missing",
+                            reconfigure.getTarget().getId());
+        }
+        int cpsrBefore = cpsr == null ? 1 : (int)cpsr.getCurrentValue();
+        int cpsrAfter = cpsr == null ? 1 : (int)cpsr.getNewValue();
+        int socketsBefore = sockets == null ? 1 : (int)sockets.getCurrentValue();
+        int socketsAfter = sockets == null ? 1 : (int)sockets.getNewValue();
+        // TODO API dto has parameters annotated as 'optional' but they are not nullable, dto is not designed for missing data
+        return createVcpuChangeActionDetails(new ReconfigureActionDetailsApiDTO(),
+                        cpsrBefore * socketsBefore, cpsrAfter * socketsAfter,
+                        cpsrBefore, cpsrAfter,
+                        socketsBefore, socketsAfter);
+    }
+
+    private static <T extends CpuChangeDetailsApiDTO> T
+                    createVcpuChangeActionDetails(T dto, int vcpuBefore, int vcpuAfter,
+                                    int cpsrBefore, int cpsrAfter, int socketsBefore,
+                                    int socketsAfter) {
+        dto.setVcpuBefore(vcpuBefore);
+        dto.setVcpuAfter(vcpuAfter);
+        dto.setCoresPerSocketBefore(cpsrBefore);
+        dto.setCoresPerSocketAfter(cpsrAfter);
+        dto.setSocketsBefore(socketsBefore);
+        dto.setSocketsAfter(socketsAfter);
+        return dto;
     }
 
     /**
