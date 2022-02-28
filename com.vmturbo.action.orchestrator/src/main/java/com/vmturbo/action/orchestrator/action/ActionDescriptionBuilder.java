@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -128,7 +129,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_TAINT_COMMODITIES("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
-        ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE("Reconfigure {0} changing {1}"),
+        ACTION_DESCRIPTION_RECONFIGURE_INCLUDE_POLICY("Reconfigure {0} to comply with policy {1}"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE("Scale {0} {1} for {2} from {3} to {4}"),
@@ -371,6 +372,7 @@ public class ActionDescriptionBuilder {
      */
     private static String getReconfigureActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                                    @Nonnull final ActionDTO.Action recommendation) {
+        final String messageSeparator = COMMA_SPACE;
         final Reconfigure reconfigure = recommendation.getInfo().getReconfigure();
         final long entityId = reconfigure.getTarget().getId();
         Optional<ActionPartialEntity> targetEntityDTO = entitiesSnapshot.getEntityFromOid(entityId);
@@ -418,22 +420,13 @@ public class ActionDescriptionBuilder {
                                 beautifyCommodityTypes(reconfigureCommodities)));
             }
         } else if (reconfigure.getSettingChangeCount() > 0) {
-            final StringBuilder changesBuilder = new StringBuilder();
-            final Iterator<SettingChange> it = reconfigure.getSettingChangeList().iterator();
-            while (it.hasNext()) {
-                final SettingChange change = it.next();
-                final String attributeName =
-                                change.getEntityAttribute().name().replace("_", " ").toLowerCase();
-                changesBuilder.append(MessageFormat.format("{0} from {1} to {2}", attributeName,
-                                change.getCurrentValue(), change.getNewValue()));
-                if (it.hasNext()) {
-                    changesBuilder.append(COMMA_SPACE);
-                }
-            }
+            String policyName = explanation.getReasonSettingsList().stream()
+                    .map(k -> entitiesSnapshot.getPolicyIdToDisplayName().get((long)k))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining(messageSeparator));
             return getDescriptionWithAccountName(entitiesSnapshot, entityId,
-                    ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_SETTING_CHANGE.format(
-                            beautifyEntityTypeAndName(targetEntityDTO.get()),
-                            changesBuilder.toString()));
+                    ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_INCLUDE_POLICY.format(
+                            beautifyEntityTypeAndName(targetEntityDTO.get()), policyName));
 
         } else {
             return getDescriptionWithAccountName(entitiesSnapshot, entityId,

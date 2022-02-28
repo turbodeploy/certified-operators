@@ -91,6 +91,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     public static class EntitiesAndSettingsSnapshot {
         private final Map<Long, Map<String, SettingAndPolicies>>
                 settingAndPoliciesByEntityAndSpecName;
+        private final Map<Long, String> policyIdToDisplayName;
         private final Map<Long, ActionPartialEntity> oidToEntityMap;
         private final OwnershipGraph<EntityWithConnections> ownershipGraph;
         private final Map<Long, Long> entityToResourceGroupMap;
@@ -108,6 +109,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
          *
          * @param settingsAndPoliciesMap mapping from entity oid to map contains information about
          * settings and associated policies
+         * @param policyIdToDisplayName mapping from policy id to policy display name
          * @param entityMap mapping from entity oid to entity info
          * @param ownershipGraph the graph contains connections between entities
          * @param entityToResourceGroupMap mapping from entity oid to related resource group
@@ -120,6 +122,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
          */
         public EntitiesAndSettingsSnapshot(
                 @Nonnull final Map<Long, Map<String, SettingAndPolicies>> settingsAndPoliciesMap,
+                @Nonnull final Map<Long, String> policyIdToDisplayName,
                 @Nonnull final Map<Long, ActionPartialEntity> entityMap,
                 @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
                 @Nonnull final Map<Long, Long> entityToResourceGroupMap,
@@ -128,6 +131,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 @Nonnull final Map<Long, String> actionToAcceptorMap, final long topologyContextId,
                 @Nonnull final TopologyType targetTopologyType, final long populationTimestamp) {
             this.settingAndPoliciesByEntityAndSpecName = settingsAndPoliciesMap;
+            this.policyIdToDisplayName = policyIdToDisplayName;
             this.oidToEntityMap = entityMap;
             this.ownershipGraph = ownershipGraph;
             this.entityToResourceGroupMap = entityToResourceGroupMap;
@@ -292,6 +296,11 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             return populationTimestamp;
         }
 
+        /**
+         * Returns the map of policy ids to its associated name
+         * @return policyIdToDisplayName
+         */
+        public Map<Long, String> getPolicyIdToDisplayName() { return policyIdToDisplayName; }
     }
 
     /**
@@ -307,8 +316,11 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
                                                    final long topologyContextId) {
+        final Map<Long, String> policyIdToDisplayName = new HashMap<>();
+
         final Map<Long, Map<String, SettingAndPolicies>> settingAndPoliciesMapByEntityAndSpecName =
-                retrieveEntityToSettingAndPoliciesListMap(entities, topologyContextId);
+                populatePolicyMaps(entities, topologyContextId, policyIdToDisplayName);
+
         final Map<Long, Long> entityToResourceGroupMap =
                 retrieveResourceGroupsForEntities(entities);
 
@@ -329,7 +341,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 acceptedActionsStore.getAcceptorsForAllActions();
 
         return new EntitiesAndSettingsSnapshot(settingAndPoliciesMapByEntityAndSpecName,
-                entitiesSnapshot.getEntityMap(), entitiesSnapshot.getOwnershipGraph(),
+                policyIdToDisplayName, entitiesSnapshot.getEntityMap(), entitiesSnapshot.getOwnershipGraph(),
                 entityToResourceGroupMap, entityToNodePoolMap, oidToScheduleMap, actionToAcceptorMap,
                 topologyContextId, entitiesSnapshot.getTopologyType(), System.currentTimeMillis());
     }
@@ -384,14 +396,23 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot emptySnapshot() {
-        return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(),
+        return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(), Maps.newHashMap(),
                 OwnershipGraph.empty(), Maps.newHashMap(), Maps.newHashMap(), Maps.newHashMap(), Maps.newHashMap(),
                 realtimeTopologyContextId, TopologyType.SOURCE, System.currentTimeMillis());
     }
 
+    /**
+     * @param entities The new set of entities to get settings for. This set should contain
+     *                 the IDs of all entities involved in all actions we expose to the user.
+     * @param topologyContextId The topology context of the topology broadcast that
+     *                          triggered the cache update.
+     * @param policyIdToDisplayName empty map to be populated with the names of policies from id.
+     * @return map of settingAndPoliciesMapByEntityAndSpecName.
+     */
     @Nonnull
-    private Map<Long, Map<String, SettingAndPolicies>> retrieveEntityToSettingAndPoliciesListMap(final Set<Long> entities,
-                                                                    final long topologyContextId) {
+    private Map<Long, Map<String, SettingAndPolicies>> populatePolicyMaps(
+            final Set<Long> entities, final long topologyContextId,
+            final Map<Long, String> policyIdToDisplayName) {
         // We don't currently upload action-relevant settings in plans,
         // so no point trying to get them.
         if (topologyContextId != realtimeTopologyContextId) {
@@ -409,7 +430,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                     .build();
             return Collections.unmodifiableMap(SettingDTOUtil.indexSettingsByEntity(
                 SettingDTOUtil.flattenEntitySettings(
-                    settingPolicyService.getEntitySettings(request))));
+                    settingPolicyService.getEntitySettings(request)), policyIdToDisplayName));
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());
             return Collections.emptyMap();

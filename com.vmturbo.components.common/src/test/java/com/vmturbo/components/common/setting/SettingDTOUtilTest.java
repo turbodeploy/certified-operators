@@ -13,6 +13,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -91,7 +92,7 @@ public class SettingDTOUtilTest {
             .build();
 
         final Map<Long, Map<String, SettingAndPolicies>> result =
-            SettingDTOUtil.indexSettingsByEntity(Stream.of(group1, group2, group3));
+            SettingDTOUtil.indexSettingsByEntity(Stream.of(group1, group2, group3), new HashMap<>());
         assertThat(result.keySet(), containsInAnyOrder(1L, 2L, 3L, 4L));
         assertThat(result.get(1L).keySet(), containsInAnyOrder("name1"));
         assertThat(result.get(1L).get("name1").getSetting(), is(setting1));
