@@ -11,12 +11,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.hamcrest.Matchers;
@@ -997,6 +999,12 @@ public class ActionDescriptionBuilderTest {
             .build();
     }
 
+    private ReconfigureExplanation makeReconfigureReasonSettingsExplanation(Long id) {
+        return ReconfigureExplanation.newBuilder()
+                .addReasonSettings(id)
+                .build();
+    }
+
     private ActionInfo.Builder makeAllocateInfo(long vmId, long computeTierId) {
         return ActionInfo.newBuilder().setAllocate(Allocate.newBuilder()
                 .setTarget(ActionEntity.newBuilder()
@@ -1681,8 +1689,8 @@ public class ActionDescriptionBuilderTest {
     @Test
     public void testBuildReconfigureActionSettingChange()
                     throws UnsupportedActionException {
-        checkReconfigureSettingChanges(ImmutableList.of("Virtual Machine", "vm1_test", "1", "2"),
-                        createSettingChange(EntityAttribute.SOCKET));
+        checkReconfigureSettingChanges(ImmutableList.of("Virtual Machine", "vm1_test", "reconfig_policy_1"), 12L,
+                createSettingChange(EntityAttribute.SOCKET));
     }
 
     @Nonnull
@@ -1697,23 +1705,35 @@ public class ActionDescriptionBuilderTest {
     @Test
     public void testBuildReconfigureActionSettingChanges() throws UnsupportedActionException {
         checkReconfigureSettingChanges(
-                        ImmutableList.of("Virtual Machine", "vm1_test", "1", "2", "1", "2"),
-                        createSettingChange(EntityAttribute.SOCKET),
-                        createSettingChange(EntityAttribute.CORES_PER_SOCKET));
+                        ImmutableList.of("Virtual Machine", "vm1_test", "reconfig_policy_2"), 13L,
+                createSettingChange(EntityAttribute.SOCKET),
+                createSettingChange(EntityAttribute.CORES_PER_SOCKET));
     }
 
     protected void checkReconfigureSettingChanges(List<String> expectedDescriptionParts,
-                    SettingChange... settingChanges) throws UnsupportedActionException {
+            Long policyId, SettingChange... settingChanges) throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID))).thenReturn(
                         (createEntity(VM1_ID, EntityType.VIRTUAL_MACHINE.getNumber(),
                                         VM1_DISPLAY_NAME, 0, 0)));
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
                 .thenReturn(Optional.empty());
+
+        when(entitySettingsCache.getPolicyIdToDisplayName()).thenReturn(policyIdToDisplayNameMap());
+
+        Explanation explanation = Explanation.newBuilder().setReconfigure(
+                makeReconfigureReasonSettingsExplanation(policyId)).build();
+
         final ActionDTO.Action action = makeRec(makeReconfigureInfo(VM1_ID, settingChanges),
-                        SupportLevel.SUPPORTED).build();
+                        SupportLevel.SUPPORTED, explanation).build();
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, action);
         Assert.assertThat(description, Matchers.stringContainsInOrder(expectedDescriptionParts));
+    }
+
+    private Map<Long, String> policyIdToDisplayNameMap(){
+        return ImmutableMap.of(
+                12L, "reconfig_policy_1",
+                13L, "reconfig_policy_2");
     }
 
     @Test

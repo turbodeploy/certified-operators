@@ -114,6 +114,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                 .build();
         final long associatedSettingsPolicyId = 11L;
+        final String associatedSettingsPolicyDisplayName = "policy_display_test";
 
         final ServiceEntityApiDTO entityDto = new ServiceEntityApiDTO();
         entityDto.setUuid(Long.toString(ENTITY_ID));
@@ -131,6 +132,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                         .setSetting(setting)
                         .addPolicyId(SettingPolicyId.newBuilder()
                                 .setPolicyId(associatedSettingsPolicyId)
+                                .setDisplayName(associatedSettingsPolicyDisplayName)
                                 .build())
                         .addEntityOids(ENTITY_ID))
                 .build()));
@@ -154,6 +156,10 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
         Assert.assertThat(newSettings.get(setting.getSettingSpecName()), CoreMatchers.is(setting));
         Assert.assertEquals(snapshot.getResourceGroupForEntity(ENTITY_ID).get(),
                 ASSOCIATED_RESOURCE_GROUP_ID);
+
+        Assert.assertEquals(1, snapshot.getPolicyIdToDisplayName().size());
+        Assert.assertEquals(associatedSettingsPolicyDisplayName,
+                snapshot.getPolicyIdToDisplayName().get(associatedSettingsPolicyId));
 
         final Map<String, Collection<Long>> settingPoliciesForEntity =
                 snapshot.getSettingPoliciesForEntity(ENTITY_ID);

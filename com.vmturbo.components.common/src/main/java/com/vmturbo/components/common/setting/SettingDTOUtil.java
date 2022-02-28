@@ -71,7 +71,8 @@ public final class SettingDTOUtil {
      */
     @Nonnull
     public static Map<Long, Map<String, SettingAndPolicies>> indexSettingsByEntity(
-            @Nonnull final Stream<EntitySettingGroup> settingGroups) {
+            @Nonnull final Stream<EntitySettingGroup> settingGroups,
+            @Nonnull final Map<Long, String> policyIdToDisplayName) {
         final Map<Long, Map<String, SettingAndPolicies>> settingsAndPoliciesByEntityAndName =
                 new HashMap<>();
         final Map<Long, Set<String>> entitiesWithMultipleSettings = new HashMap<>();
@@ -81,6 +82,9 @@ public final class SettingDTOUtil {
                     .stream()
                     .map(SettingPolicyId::getPolicyId)
                     .collect(Collectors.toList());
+            settingGroup.getPolicyIdList()
+                    .forEach(settingPolicyId -> policyIdToDisplayName.putIfAbsent(
+                            settingPolicyId.getPolicyId(), settingPolicyId.getDisplayName()));
             final List<Long> associatedDefaultPolicies = settingGroup.getPolicyIdList()
                     .stream()
                     .filter(p -> p.getType() == Type.DEFAULT)
