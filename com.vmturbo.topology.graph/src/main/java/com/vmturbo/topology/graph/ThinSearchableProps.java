@@ -7,6 +7,8 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -23,12 +25,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
-
 /**
  * An implementation of {@link SearchableProps} that copies the minimal required data,
  * used for graph entities that do not want to retain a full
  * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO}.
  */
+
 public class ThinSearchableProps implements SearchableProps {
 
     private final TagIndex tagIndex;
@@ -283,7 +285,10 @@ public class ThinSearchableProps implements SearchableProps {
 
         @Override
         public String getVendorToolsVersion() {
-            return vendorToolsVersion;
+            if (!StringUtils.isEmpty(vendorToolsVersion)) {
+                return vendorToolsVersion;
+            }
+            return null;
         }
     }
 

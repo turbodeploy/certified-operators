@@ -7,6 +7,8 @@ import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
@@ -22,7 +24,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Att
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
-
 /**
  * An implementation of {@link SearchableProps} backed by a full
  * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO}.
@@ -30,6 +31,7 @@ import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
  * <p/>This avoids duplicating lots of references for graph entities that contain a full
  * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO}.
  */
+
 public class ThickSearchableProps implements SearchableProps {
     protected final TopologyEntityDTOOrBuilder entityOrBldr;
 
@@ -213,7 +215,11 @@ public class ThickSearchableProps implements SearchableProps {
 
         @Override
         public String getVendorToolsVersion() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getVendorToolsVersion();
+            final String vendorToolsVersion = entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getVendorToolsVersion();
+            if (!StringUtils.isEmpty(vendorToolsVersion)) {
+                return vendorToolsVersion;
+            }
+            return null;
         }
     }
 
