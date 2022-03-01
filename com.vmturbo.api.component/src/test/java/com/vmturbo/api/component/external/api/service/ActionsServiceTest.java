@@ -32,13 +32,17 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -51,6 +55,8 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -70,32 +76,84 @@ import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.action.SkippedActionApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecutionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupAndLicencePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Test the service methods for the /actions endpoint.
@@ -110,18 +168,25 @@ public class ActionsServiceTest {
     private static final long SECOND_ACTION_ID = 20L;
     private static final long FIRST_ACTION_RECOMMENDATION_ID = 101L;
     private static final long SECOND_ACTION_RECOMMENDATION_ID = 201L;
+    private static final long FIRST_ACTION_INSTANCE_ID = 1001L;
 
     private static final long ACTION_EXECUTION_ID = 1111L;
     private static final List<Long> ACTION_EXECUTION_ACTION_IDS = ImmutableList.of(1L, 2L);
     private static final Long ACTION_EXECUTION_SKIPPED_ACTION_ID = 3L;
     private static final String ACTION_EXECUTION_SKIPPED_ACTION_REASON = "Action is in the wrong state";
 
+    private static final long VM_ID = 10001L;
+    private static final long POLICY_ID = 20001L;
+
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
      */
     private final ActionsServiceMole actionsServiceBackend =
             spy(new ActionsServiceMole());
-
+    private final RepositoryServiceMole repositoryServiceBackend = spy(new RepositoryServiceMole());
+    private final PolicyServiceMole policyServiceBackend = spy(new PolicyServiceMole());
+    private final GroupServiceMole groupServiceBackend = spy(new GroupServiceMole());
+    private final SettingPolicyServiceMole settingPolicyServiceBackend = spy(new SettingPolicyServiceMole());
     private ActionsService actionsServiceUnderTest;
 
     private ActionsService actionsServiceUsingStableId;
@@ -148,6 +213,18 @@ public class ActionsServiceTest {
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    private RepositoryServiceBlockingStub repositoryService;
+
+    private PolicyServiceBlockingStub policyRpcService;
+
+    private PolicyMapper policyMapper;
+
+    private SettingPolicyServiceBlockingStub settingPolicyService;
+
+    private SettingsMapper settingsMapper;
+
+    private GroupServiceBlockingStub groupsService;
+
     private static final long REALTIME_TOPOLOGY_ID = 777777L;
 
     private static final String UUID = "12345";
@@ -159,7 +236,8 @@ public class ActionsServiceTest {
     private ArgumentCaptor<GetInstanceIdsForRecommendationIdsRequest> instanceIdRequest;
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend,
+            repositoryServiceBackend, policyServiceBackend, groupServiceBackend, settingPolicyServiceBackend);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -171,6 +249,13 @@ public class ActionsServiceTest {
         marketsService = Mockito.mock(MarketsService.class);
         supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        repositoryService = RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        policyRpcService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        policyMapper = Mockito.mock(PolicyMapper.class);
+        settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        settingsMapper = Mockito.mock(SettingsMapper.class);
+        groupsService = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
 
         actionSearchUtil = new ActionSearchUtil(actionsRpcService, actionSpecMapper, mock(PaginationMapper.class),
                 supplyChainFetcherFactory, mock(GroupExpander.class), mock(ServiceProviderExpander.class),
@@ -182,16 +267,29 @@ public class ActionsServiceTest {
 
         actionSearchUtilSpy = spy(actionSearchUtil);
 
-        // set up the ActionsService to test
-        actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
-            repositoryApi, REALTIME_TOPOLOGY_ID,
-            actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
-                actionSearchUtilSpy, marketsService, supplyChainFetcherFactory, maxInnerPagination);
+        ActionsService.Builder builder = ActionsService.newBuilder()
+                .withActionOrchestratorRpc(actionsRpcService)
+                .withActionSpecMapper(actionSpecMapper)
+                .withRealtimeTopologyContextId(REALTIME_TOPOLOGY_ID)
+                .withActionStatsQueryExecutor(actionStatsQueryExecutor)
+                .withUuidMapper(uuidMapper)
+                .withServiceProviderExpander(serviceProviderExpander)
+                .withActionSearchUtil(actionSearchUtilSpy)
+                .withMarketsService(marketsService)
+                .withSupplyChainFetcherFactory(supplyChainFetcherFactory)
+                .withRepositoryService(repositoryService)
+                .withPolicyRpcService(policyRpcService)
+                .withPolicyMapper(policyMapper)
+                .withSettingPolicyServiceBlockingStub(settingPolicyService)
+                .withSettingsMapper(settingsMapper)
+                .withGroupService(groupsService)
+                .withApiPaginationMaxLimit(maxInnerPagination);
 
-        actionsServiceUsingStableId = new ActionsService(actionsRpcService, actionSpecMapper,
-                repositoryApi, REALTIME_TOPOLOGY_ID,
-                actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
-                actionSearchUtilWithStableIdEnabled, marketsService, supplyChainFetcherFactory, maxInnerPagination);
+        // set up the ActionsService to test
+        actionsServiceUnderTest = builder.build();
+
+        builder.withActionSearchUtil(actionSearchUtilWithStableIdEnabled);
+        actionsServiceUsingStableId = builder.build();
 
         multiActionRequestCaptor = ArgumentCaptor.forClass(MultiActionRequest.class);
         orchestratorActionCaptor = ArgumentCaptor.forClass(Collection.class);
@@ -443,6 +541,161 @@ public class ActionsServiceTest {
         verifyCallsAndResults(resultDetailMap, false, topologyContextId);
     }
 
+    /**
+     * Test get placement policies for action.
+     *
+     * @throws Exception shouldn't happen
+     */
+    @Test
+    public void testGetActionPlacementPolicies() throws Exception {
+        // ARRANGE
+        final long sourcePMid = 707664328793449L;
+        final long destinationPMid = 707664328793448L;
+        final long groupOfVMsId = 45435L;
+        final long groupOfPMsId = 3245246L;
+
+        Mockito.doReturn((Optional.of(FIRST_ACTION_INSTANCE_ID)))
+                .when(actionSearchUtilSpy)
+                .getActionInstanceId(eq(String.valueOf(FIRST_ACTION_ID)), eq(null));
+        final ActionSpec actionSpec = moveActionSpec(FIRST_ACTION_INSTANCE_ID, FIRST_ACTION_RECOMMENDATION_ID, VM_ID,
+                sourcePMid, destinationPMid);
+        final ActionOrchestratorAction mockedAction =
+                ActionOrchestratorAction.newBuilder().setActionId(FIRST_ACTION_INSTANCE_ID).setActionSpec(
+                        actionSpec).build();
+        Mockito.when(actionsServiceBackend.getAction(SingleActionRequest.newBuilder().setActionId(
+                FIRST_ACTION_INSTANCE_ID).setTopologyContextId(REALTIME_TOPOLOGY_ID).build())).thenReturn(
+                mockedAction);
+
+        final PartialEntityBatch partialEntityBatch = PartialEntityBatch.newBuilder().addEntities(
+                buildVMEntity(VM_ID, EntityType.VIRTUAL_MACHINE_VALUE, POLICY_ID)).build();
+        Mockito.when(repositoryServiceBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .addAllEntityOids(Arrays.asList(VM_ID, sourcePMid, destinationPMid))
+                        .setReturnType(Type.FULL)
+                        .build())).thenReturn(Collections.singletonList(partialEntityBatch));
+
+        final PolicyResponse policyResponse = PolicyResponse.newBuilder().setPolicy(
+                Policy.newBuilder()
+                        .setId(POLICY_ID)
+                        .setPolicyInfo(PolicyInfo.newBuilder()
+                                .setBindToGroupAndLicense(
+                                        BindToGroupAndLicencePolicy.newBuilder()
+                                                .setConsumerGroupId(groupOfVMsId)
+                                                .setProviderGroupId(groupOfPMsId)
+                                                .build())
+                                .build())
+                        .build()).build();
+        Mockito.when(policyServiceBackend.getPolicies(
+                PolicyRequest.newBuilder().addPolicyIds(POLICY_ID).build())).thenReturn(
+                Collections.singletonList(policyResponse));
+
+        final List<Grouping> groupings = Arrays.asList(
+                buildGroup(groupOfVMsId, EntityType.VIRTUAL_MACHINE_VALUE, Collections.emptyList()),
+                buildGroup(groupOfPMsId, EntityType.PHYSICAL_MACHINE_VALUE,
+                        Collections.emptyList()));
+        Mockito.when(groupServiceBackend.getGroups(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addAllId(Arrays.asList(groupOfVMsId, groupOfPMsId))
+                        .setIncludeHidden(true))
+                .build())).thenReturn(groupings);
+
+        final PolicyApiDTO mockedPolicyApiDTO = new PolicyApiDTO();
+        mockedPolicyApiDTO.setType(PolicyType.BIND_TO_GROUP_AND_LICENSE);
+        mockedPolicyApiDTO.setUuid(String.valueOf(POLICY_ID));
+
+        Mockito.when(
+                policyMapper.policyToApiDto(Collections.singletonList(policyResponse.getPolicy()),
+                        Sets.newHashSet(groupings))).thenReturn(
+                Collections.singletonList(mockedPolicyApiDTO));
+
+        // ACT
+        final List<PolicyApiDTO> placementPolicies =
+                actionsServiceUnderTest.getActionPlacementPolicies(String.valueOf(FIRST_ACTION_ID));
+
+        // ASSERT
+        Assert.assertFalse(placementPolicies.isEmpty());
+        Assert.assertEquals(1, placementPolicies.size());
+        Assert.assertEquals(String.valueOf(POLICY_ID), placementPolicies.get(0).getUuid());
+    }
+
+    @Nonnull
+    private ActionSpec moveActionSpec(final long actionId, final long actionRecommendationId,
+            final long vmId, final long sourcePMid, final long destinationPMid) {
+        return ActionSpec.newBuilder().setRecommendationId(actionRecommendationId).setRecommendation(Action.newBuilder()
+                .setId(actionId)
+                .setInfo(ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(vmId)
+                                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                                .addChanges(ChangeProvider.newBuilder()
+                                        .setSource(ActionEntity.newBuilder()
+                                                .setId(sourcePMid)
+                                                .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                                .setEnvironmentType(EnvironmentType.ON_PREM))
+                                        .setDestination(ActionEntity.newBuilder()
+                                                .setId(destinationPMid)
+                                                .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                                .setEnvironmentType(EnvironmentType.ON_PREM))
+                                        .build())))
+                .setExecutable(true)
+                .setSupportingLevel(SupportLevel.SUPPORTED)
+                .setDeprecatedImportance(0)
+                .setExplanation(Explanation.getDefaultInstance())).build();
+    }
+
+    @Nonnull
+    private ActionSpec resizeActionSpec(final long actionId, final long actionRecommendationId,
+            final long vmId) {
+        return ActionSpec.newBuilder()
+                .setRecommendationId(actionRecommendationId)
+                .setRecommendation(Action.newBuilder()
+                        .setId(actionId)
+                        .setInfo(ActionInfo.newBuilder().setResize(Resize.newBuilder().setTarget(
+                                ActionEntity.newBuilder()
+                                        .setId(vmId)
+                                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)).setOldCapacity(
+                                1).setNewCapacity(2).build()))
+                        .setExecutable(true)
+                        .setSupportingLevel(SupportLevel.SUPPORTED)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(Explanation.getDefaultInstance()))
+                .build();
+    }
+
+    private Grouping buildGroup(final long groupId, final int membersEntityType,
+            List<Long> members) {
+        return Grouping.newBuilder().setId(groupId).addExpectedTypes(
+                MemberType.newBuilder().setEntity(membersEntityType).build()).setEnvironmentType(
+                EnvironmentType.ON_PREM).setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(membersEntityType)
+                                        .build())
+                                .addAllMembers(members)
+                                .build())
+                        .build())).build();
+    }
+
+    @Nonnull
+    private PartialEntity buildVMEntity(long entityOid, int entityType, long policyId) {
+        return PartialEntity.newBuilder().setFullEntity(TopologyEntityDTO.newBuilder()
+                .setEntityType(entityType)
+                .setOid(entityOid)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE)
+                                        .setKey(String.valueOf(policyId))
+                                        .build())
+                                .build())
+                        .buildPartial())
+                .build()).build();
+    }
 
     private void setupGetActionDetailsByUuids(boolean conversionReturnRecommendationId) {
         List<ActionOrchestratorAction> orchestratorActions = Arrays.asList(
@@ -496,6 +749,144 @@ public class ActionsServiceTest {
         Collection<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getValue();
         assertEquals(2, actualOrchestratorActions.size());
         assertEquals(SECOND_ACTION_ID, actualOrchestratorActions.iterator().next().getActionId());
+    }
+
+    /**
+     * Test get settings policies for action.
+     *
+     * @throws Exception shouldn't happen
+     */
+    @Test
+    public void testGetActionSettingsPolicies() throws Exception {
+        // ARRANGE
+        final long groupOfVMsId = 45435L;
+
+        Mockito.doReturn((Optional.of(FIRST_ACTION_INSTANCE_ID)))
+                .when(actionSearchUtilSpy)
+                .getActionInstanceId(eq(String.valueOf(FIRST_ACTION_ID)), eq(null));
+        final ActionSpec actionSpec = resizeActionSpec(FIRST_ACTION_INSTANCE_ID,
+                FIRST_ACTION_RECOMMENDATION_ID, VM_ID);
+        final ActionOrchestratorAction mockedAction =
+                ActionOrchestratorAction.newBuilder().setActionId(FIRST_ACTION_INSTANCE_ID).setActionSpec(
+                        actionSpec).build();
+        Mockito.when(actionsServiceBackend.getAction(SingleActionRequest.newBuilder().setActionId(
+                FIRST_ACTION_INSTANCE_ID).setTopologyContextId(REALTIME_TOPOLOGY_ID).build())).thenReturn(
+                mockedAction);
+
+        final GetEntitySettingPoliciesResponse settingPoliciesResponse =
+                GetEntitySettingPoliciesResponse.newBuilder().addSettingPolicies(
+                        SettingPolicy.newBuilder()
+                                .setId(POLICY_ID)
+                                .setSettingPolicyType(SettingPolicy.Type.DISCOVERED)
+                                .setInfo(SettingPolicyInfo.newBuilder()
+                                        .addSettings(Setting.newBuilder()
+                                                .setNumericSettingValue(
+                                                        NumericSettingValue.newBuilder()
+                                                                .setValue(4)
+                                                                .build())
+                                                .build())
+                                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                        .setEnabled(true)
+                                        .setScope(
+                                                Scope.newBuilder().addGroups(groupOfVMsId).build())
+                                        .setDisplayName("Flexera: restrict vCPUs")
+                                        .build())
+                                .build()).build();
+
+        Mockito.when(settingPolicyServiceBackend.getEntitySettingPolicies(
+                GetEntitySettingPoliciesRequest.newBuilder()
+                        .addAllEntityOidList(Collections.singletonList(VM_ID))
+                        .build())).thenReturn(settingPoliciesResponse);
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
+        settingsPolicyApiDTO.setUuid(String.valueOf(POLICY_ID));
+
+        Mockito.when(settingsMapper.convertSettingPolicies(
+                settingPoliciesResponse.getSettingPoliciesList())).thenReturn(
+                Collections.singletonList(settingsPolicyApiDTO));
+
+        // ACT
+        final List<SettingsPolicyApiDTO> settingsPolicies =
+                actionsServiceUnderTest.getActionSettingsPolicies(String.valueOf(FIRST_ACTION_ID));
+
+        // ASSERT
+        Assert.assertFalse(settingsPolicies.isEmpty());
+        Assert.assertEquals(1, settingsPolicies.size());
+        Assert.assertEquals(String.valueOf(POLICY_ID), settingsPolicies.get(0).getUuid());
+    }
+
+    /**
+     * Test when there is no related placement policies for action.
+     *
+     * @throws Exception shouldn't happen
+     */
+    @Test
+    public void testNoRelatedPlacementPoliciesForAction() throws Exception {
+        // ARRANGE
+        final long sourcePMid = 707664328793449L;
+        final long destinationPMid = 707664328793448L;
+
+        Mockito.doReturn((Optional.of(FIRST_ACTION_INSTANCE_ID)))
+                .when(actionSearchUtilSpy)
+                .getActionInstanceId(eq(String.valueOf(FIRST_ACTION_ID)), eq(null));
+        final ActionSpec actionSpec = moveActionSpec(FIRST_ACTION_INSTANCE_ID,
+                FIRST_ACTION_RECOMMENDATION_ID, VM_ID, sourcePMid, destinationPMid);
+        final ActionOrchestratorAction mockedAction = ActionOrchestratorAction.newBuilder()
+                .setActionId(FIRST_ACTION_INSTANCE_ID)
+                .setActionSpec(actionSpec)
+                .build();
+        Mockito.when(actionsServiceBackend.getAction(SingleActionRequest.newBuilder().setActionId(
+                        FIRST_ACTION_INSTANCE_ID).setTopologyContextId(REALTIME_TOPOLOGY_ID).build()))
+                .thenReturn(mockedAction);
+
+        Mockito.when(repositoryServiceBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .addAllEntityOids(Arrays.asList(VM_ID, sourcePMid, destinationPMid))
+                        .setReturnType(Type.FULL)
+                        .build())).thenReturn(
+                Collections.singletonList(PartialEntityBatch.getDefaultInstance()));
+
+        // ACT
+        final List<PolicyApiDTO> placementPolicies =
+                actionsServiceUnderTest.getActionPlacementPolicies(String.valueOf(FIRST_ACTION_ID));
+
+        // ASSERT
+        Assert.assertTrue(placementPolicies.isEmpty());
+    }
+
+    /**
+     * Test when there is no related settings policies for action.
+     *
+     * @throws Exception shouldn't happen
+     */
+    @Test
+    public void testNoRelatedSettingsPoliciesForAction() throws Exception {
+        // ARRANGE
+        Mockito.doReturn((Optional.of(FIRST_ACTION_INSTANCE_ID)))
+                .when(actionSearchUtilSpy)
+                .getActionInstanceId(eq(String.valueOf(FIRST_ACTION_ID)), eq(null));
+        final ActionSpec actionSpec = resizeActionSpec(FIRST_ACTION_INSTANCE_ID,
+                FIRST_ACTION_RECOMMENDATION_ID, VM_ID);
+        final ActionOrchestratorAction mockedAction = ActionOrchestratorAction.newBuilder()
+                .setActionId(FIRST_ACTION_INSTANCE_ID)
+                .setActionSpec(actionSpec)
+                .build();
+        Mockito.when(actionsServiceBackend.getAction(SingleActionRequest.newBuilder().setActionId(
+                        FIRST_ACTION_INSTANCE_ID).setTopologyContextId(REALTIME_TOPOLOGY_ID).build()))
+                .thenReturn(mockedAction);
+
+        Mockito.when(settingPolicyServiceBackend.getEntitySettingPolicies(
+                GetEntitySettingPoliciesRequest.newBuilder()
+                        .addAllEntityOidList(Collections.singletonList(VM_ID))
+                        .build())).thenReturn(
+                GetEntitySettingPoliciesResponse.getDefaultInstance());
+
+        // ACT
+        final List<SettingsPolicyApiDTO> settingsPolicies =
+                actionsServiceUnderTest.getActionSettingsPolicies(String.valueOf(FIRST_ACTION_ID));
+
+        // ASSERT
+        Assert.assertTrue(settingsPolicies.isEmpty());
     }
 
     /**
