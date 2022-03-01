@@ -48,10 +48,10 @@ import com.vmturbo.trax.Trax;
 @RunWith(Parameterized.class)
 public class MergedActionChangeExplainerTest {
 
-    private static final long DBS1_OID = 1L;
-    private static final long DBS1_SL = 1000L;
-    private static final long DBS_TIER1_OID = 10L;
-    private static final long DBS_TIER2_OID = 11L;
+    private static final long ENTITY_1_OID = 1L;
+    private static final long ENTITY_1_SL = 1000L;
+    private static final long ENTITY_TIER1_OID = 10L;
+    private static final long ENTITY_TIER2_OID = 11L;
     private static final TopologyDTO.CommodityType VMEM = TopologyDTO.CommodityType.newBuilder().setType(
             VMEM_VALUE).build();
     private static final TopologyDTO.CommodityType IOPS = TopologyDTO.CommodityType.newBuilder().setType(
@@ -63,9 +63,9 @@ public class MergedActionChangeExplainerTest {
     private final CommodityIndex commodityIndex = CommodityIndex.newFactory().newIndex();
     private final CloudTopologyConverter cloudTc = mock(CloudTopologyConverter.class);
     private final ActionDTOs.MoveTO moveTO = ActionDTOs.MoveTO.newBuilder()
-            .setShoppingListToMove(DBS1_SL)
-            .setSource(DBS_TIER1_OID)
-            .setDestination(DBS_TIER2_OID)
+            .setShoppingListToMove(ENTITY_1_SL)
+            .setSource(ENTITY_TIER1_OID)
+            .setDestination(ENTITY_TIER2_OID)
             .setMoveExplanation(ActionDTOs.MoveExplanation.getDefaultInstance())
             .build();
 
@@ -81,22 +81,29 @@ public class MergedActionChangeExplainerTest {
     private final double projIopsSold;
     private final Optional<Congestion> expectedCongestion;
     private final Optional<Efficiency> expectedEfficiency;
+    private final Integer entityTierTypeValue;
+    private final Integer entityTypeValue;
 
     /**
      * Constructor for the parameterized test.
-     * @param testCaseName test case name
-     * @param sourceComputeCost source compute cost
-     * @param sourceStorageCost source storage cost
+     *
+     * @param testCaseName         test case name
+     * @param sourceComputeCost    source compute cost
+     * @param sourceStorageCost    source storage cost
      * @param projectedComputeCost projected compute cost
      * @param projectedStorageCost projected storage cost
-     * @param isVmemCongested is vmem congested?
-     * @param isIopsCongested is iops congested?
-     * @param sourceVmemSold source Vmem sold capacity
-     * @param sourceIopsSold source Iops sold capacity
-     * @param projVmemSold projected Vmem sold capacity
-     * @param projIopsSold projected Iops sold capacity
-     * @param expectedCongestion optional expected congestion message
-     * @param expectedEfficiency optional expected efficiency message
+     * @param isVmemCongested      is vmem congested?
+     * @param isIopsCongested      is iops congested?
+     * @param sourceVmemSold       source Vmem sold capacity
+     * @param sourceIopsSold       source Iops sold capacity
+     * @param projVmemSold         projected Vmem sold capacity
+     * @param projIopsSold         projected Iops sold capacity
+     * @param expectedCongestion   optional expected congestion message
+     * @param expectedEfficiency   optional expected efficiency message
+     * @param entityTierTypeValue  Integer value of entity tier type based on
+     *                             {@link com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType}.
+     * @param entityTypeValue      Integer value of entity type based on
+     *                             {@link com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType}.
      */
     public MergedActionChangeExplainerTest(String testCaseName, double sourceComputeCost, double sourceStorageCost,
                                            double projectedComputeCost, double projectedStorageCost,
@@ -104,7 +111,9 @@ public class MergedActionChangeExplainerTest {
                                            double sourceVmemSold, double sourceIopsSold,
                                            double projVmemSold, double projIopsSold,
                                            Optional<Congestion> expectedCongestion,
-                                           Optional<Efficiency> expectedEfficiency) {
+                                           Optional<Efficiency> expectedEfficiency,
+                                           Integer entityTierTypeValue,
+                                           Integer entityTypeValue) {
         this.sourceComputeCost = sourceComputeCost;
         this.sourceStorageCost = sourceStorageCost;
         this.projectedComputeCost = projectedComputeCost;
@@ -117,6 +126,8 @@ public class MergedActionChangeExplainerTest {
         this.projIopsSold = projIopsSold;
         this.expectedCongestion = expectedCongestion;
         this.expectedEfficiency = expectedEfficiency;
+        this.entityTierTypeValue  = entityTierTypeValue;
+        this.entityTypeValue  = entityTypeValue;
     }
 
     /**
@@ -124,8 +135,8 @@ public class MergedActionChangeExplainerTest {
      */
     @Before
     public void setup() {
-        shoppingListInfoMap.put(DBS1_SL, new ShoppingListInfo(DBS1_SL, DBS1_OID, DBS_TIER1_OID,
-                Collections.emptySet(), null, EntityType.DATABASE_SERVER_TIER_VALUE, Collections.emptyList()));
+        shoppingListInfoMap.put(ENTITY_1_SL, new ShoppingListInfo(ENTITY_1_SL, ENTITY_1_OID, ENTITY_TIER1_OID,
+                Collections.emptySet(), null, this.entityTierTypeValue, Collections.emptyList()));
     }
 
     /**
@@ -138,54 +149,64 @@ public class MergedActionChangeExplainerTest {
                 {"testCongestedCompute", 5, 5, 10, 5, true, false, 500, 5000, 700, 5000,
                         Optional.of(Congestion.newBuilder().addAllCongestedCommodities(
                                 ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(VMEM))).build()),
-                        Optional.empty()},
+                        Optional.empty(), EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testCongestedComputeWithUnderUtilizedStorage", 5, 5, 10, 3, true, false, 500, 5000, 1000, 1000,
                         Optional.of(Congestion.newBuilder()
                                 .addAllCongestedCommodities(ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(VMEM)))
                                 .addAllUnderUtilizedCommodities(ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(IOPS))).build()),
-                        Optional.empty()},
+                        Optional.empty(), EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testCongestedComputeWithReducedCostStorage", 5, 5, 10, 3, true, false, 500, 5000, 1000, 5000,
                         Optional.of(Congestion.newBuilder()
                                 .addAllCongestedCommodities(ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(VMEM)))
                                 .setIsWastedCost(true)
                                 .setWastedCostCategory(WastedCostCategory.STORAGE).build()),
-                        Optional.empty()},
+                        Optional.empty(),  EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testCongestedStorage", 5, 5, 5, 10, false, true, 500, 5000, 500, 7000,
                         Optional.of(Congestion.newBuilder()
                                 .addAllCongestedCommodities(ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(IOPS))).build()),
-                        Optional.empty()},
+                        Optional.empty(),  EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testCongestedStorageWithUnderUtilizedCompute", 5, 5, 3, 10, false, true, 500, 5000, 300, 10000,
                         Optional.of(Congestion.newBuilder()
                                 .addAllCongestedCommodities(ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(IOPS)))
                                 .addAllUnderUtilizedCommodities(ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(VMEM))).build()),
-                        Optional.empty()},
+                        Optional.empty(),  EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testCongestedStorageWithReducedCostCompute", 5, 5, 3, 10, false, true, 500, 5000, 500, 10000,
                         Optional.of(Congestion.newBuilder()
                                 .addAllCongestedCommodities(ChangeExplainer.commTypes2ReasonCommodities(Collections.singleton(IOPS)))
                                 .setIsWastedCost(true).setWastedCostCategory(WastedCostCategory.COMPUTE).build()),
-                        Optional.empty()},
+                        Optional.empty(), EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testUnderutilizedComputeAndStorage", 5, 5, 3, 3, false, false, 500, 5000, 300, 1000,
                         Optional.empty(),
                         Optional.of(Efficiency.newBuilder().addAllUnderUtilizedCommodities(
-                                ChangeExplainer.commTypes2ReasonCommodities(ImmutableList.of(IOPS, VMEM))).build())},
+                                ChangeExplainer.commTypes2ReasonCommodities(ImmutableList.of(IOPS, VMEM))).build()),
+                        EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testUnderutilizedComputeAndReducedCostStorage", 5, 5, 3, 3, false, false, 500, 5000, 300, 5000,
                         Optional.empty(),
                         Optional.of(Efficiency.newBuilder()
                                 .addAllUnderUtilizedCommodities(ChangeExplainer.commTypes2ReasonCommodities(ImmutableList.of(VMEM)))
                                 .setIsWastedCost(true).setWastedCostCategory(WastedCostCategory.STORAGE)
-                                .build())},
+                                .build()), EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testUnderutilizedStorageAndReducedCostCompute", 5, 5, 3, 3, false, false, 500, 5000, 500, 1000,
                         Optional.empty(),
                         Optional.of(Efficiency.newBuilder()
                                 .addAllUnderUtilizedCommodities(ChangeExplainer.commTypes2ReasonCommodities(ImmutableList.of(IOPS)))
                                 .setIsWastedCost(true).setWastedCostCategory(WastedCostCategory.COMPUTE)
-                                .build())},
+                                .build()), EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testReducedCostComputeAndStorage", 5, 5, 3, 3, false, false, 500, 5000, 500, 5000,
                         Optional.empty(),
-                        Optional.of(Efficiency.newBuilder().setIsWastedCost(true).build())},
+                        Optional.of(Efficiency.newBuilder().setIsWastedCost(true).build()),
+                        EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
                 {"testNoFreeScaleUp", 5, 5, 3, 3, false, false, 500, 5000, 700, 7000,
                         Optional.empty(),
-                        Optional.of(Efficiency.newBuilder().setIsWastedCost(true).build())},
+                        Optional.of(Efficiency.newBuilder().setIsWastedCost(true).build()),
+                        EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_SERVER_VALUE},
+                {"testUnderutilizedStorageAndReducedStorageCost", 5, 5, 3, 3, false, false, 500, 5000, 500, 1000,
+                        Optional.empty(),
+                        Optional.of(Efficiency.newBuilder()
+                                .addAllUnderUtilizedCommodities(
+                                        ChangeExplainer.commTypes2ReasonCommodities(ImmutableList.of(IOPS)))
+                                .setIsWastedCost(true).setWastedCostCategory(WastedCostCategory.STORAGE)
+                                .build()), EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_VALUE},
         });
     }
 
@@ -195,13 +216,13 @@ public class MergedActionChangeExplainerTest {
     @Test
     public void testMergedActionChangeExplanations() {
         final CalculatedSavings savings = setupCosts(sourceComputeCost, sourceStorageCost, projectedComputeCost, projectedStorageCost);
-        commoditiesResizeTracker.save(DBS1_OID, DBS_TIER1_OID, VMEM, isVmemCongested, CommodityLookupType.CONSUMER);
-        commoditiesResizeTracker.save(DBS1_OID, DBS_TIER1_OID, IOPS, isIopsCongested, CommodityLookupType.CONSUMER);
+        commoditiesResizeTracker.save(ENTITY_1_OID, ENTITY_TIER1_OID, VMEM, isVmemCongested, CommodityLookupType.CONSUMER);
+        commoditiesResizeTracker.save(ENTITY_1_OID, ENTITY_TIER1_OID, IOPS, isIopsCongested, CommodityLookupType.CONSUMER);
 
-        TopologyEntityDTO sourceDBS = createDBS(DBS1_OID, new Pair<>(VMEM, sourceVmemSold), new Pair<>(IOPS, sourceIopsSold));
+        TopologyEntityDTO sourceDBS = createEntity(ENTITY_1_OID, new Pair<>(VMEM, sourceVmemSold), new Pair<>(IOPS, sourceIopsSold));
         commodityIndex.addEntity(sourceDBS);
-        TopologyEntityDTO projectedDBS = createDBS(DBS1_OID, new Pair<>(VMEM, projVmemSold), new Pair<>(IOPS, projIopsSold));
-        projectedTopology.put(DBS1_OID, TopologyDTO.ProjectedTopologyEntity.newBuilder().setEntity(projectedDBS).build());
+        TopologyEntityDTO projectedDBS = createEntity(ENTITY_1_OID, new Pair<>(VMEM, projVmemSold), new Pair<>(IOPS, projIopsSold));
+        projectedTopology.put(ENTITY_1_OID, TopologyDTO.ProjectedTopologyEntity.newBuilder().setEntity(projectedDBS).build());
 
         ChangeExplainer changeExplainer = new MergedActionChangeExplainer(commoditiesResizeTracker, cloudTc, shoppingListInfoMap, commodityIndex);
         Optional<ChangeProviderExplanation.Builder> changeProviderExplanation = changeExplainer.changeExplanationFromTracker(moveTO, savings, projectedTopology);
@@ -243,8 +264,8 @@ public class MergedActionChangeExplainerTest {
                 .projectedTierCostDetails(projectedTierCostDetails).build()).build();
     }
 
-    private TopologyEntityDTO createDBS(long oid, Pair<TopologyDTO.CommodityType, Double>... soldCommsWithCapacities) {
-        List<TopologyDTO.CommoditySoldDTO> commsSold = new ArrayList();
+    private TopologyEntityDTO createEntity(long oid, Pair<TopologyDTO.CommodityType, Double>... soldCommsWithCapacities) {
+        List<TopologyDTO.CommoditySoldDTO> commsSold = new ArrayList<>();
         for (Pair<TopologyDTO.CommodityType, Double> soldCommTypeWithCapacity : soldCommsWithCapacities) {
             TopologyDTO.CommoditySoldDTO commSold = TopologyDTO.CommoditySoldDTO.newBuilder()
                     .setCommodityType(soldCommTypeWithCapacity.first)
@@ -253,7 +274,7 @@ public class MergedActionChangeExplainerTest {
         }
         return TopologyEntityDTO.newBuilder()
                 .setOid(oid)
-                .setEntityType(EntityType.DATABASE_SERVER_VALUE)
+                .setEntityType(entityTypeValue)
                 .addAllCommoditySoldList(commsSold)
                 .build();
     }
