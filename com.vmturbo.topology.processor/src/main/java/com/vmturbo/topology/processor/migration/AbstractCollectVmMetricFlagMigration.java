@@ -7,6 +7,9 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.components.common.RequiresDataInitialization;
@@ -33,6 +36,8 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  */
 public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
 
+    private final Logger logger = LogManager.getLogger();
+
     private static final String PROPERTY_NAME = "collectVmMetrics";
     private static final String PROPERTY_DISPLAY_NAME = "Collect Virtual Machine Metrics";
     private static final String PROPERTY_DESCRIPTION =
@@ -41,7 +46,7 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
 
     /**
      * The default value for `collectVmMetrics` property.
-     * For existing targets, we don`t want to changes behavior,
+     * For existing targets, we don`t want to change behavior,
      * so they continue to collect VM metrics.
      */
     private static final Boolean PROPERTY_DEFAULT = Boolean.TRUE;
@@ -87,12 +92,17 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
         }
     }
 
-    private void updateTargetInfo() throws InvalidTargetException, TargetNotFoundException,
-                    IdentityStoreException, IdentifierConflictException {
+    private void updateTargetInfo()
+            throws InvalidTargetException, TargetNotFoundException, IdentityStoreException,
+            IdentifierConflictException, ProbeException {
+        logger.debug(probeType + " migration: update target info");
         final Optional<Long> probeIdOpt = probeStore.getProbeIdForType(probeType);
         if (probeIdOpt.isPresent()) {
+            logger.debug("{} migration: probe id exists: {}", probeType, probeIdOpt.get());
             for (Target target : targetStore.getProbeTargets(probeIdOpt.get())) {
+                logger.debug("{} migration: update target id {}", probeType, target.getId());
                 if (!hasVmMetricFlag(target)) {
+                    logger.debug("{} migration: target id doesnt have flag {}", probeType, target.getId());
                     final long id = target.getId();
                     final List<AccountValue> accountValues
                                     = new ArrayList<>(target.getSpec().getAccountValueList());
@@ -107,6 +117,9 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
                                          target.getNoSecretDto().getSpec().getLastEditingUser());
                 }
             }
+        } else {
+            logger.error(probeType + " migration: probe id is not found in Probe Store");
+            throw new ProbeException("Probe id is not found in Probe Store");
         }
     }
 
@@ -124,6 +137,7 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
 
     @Nonnull
     private AccountValue createVmMetricsAccountValue() {
+        logger.debug("{} migration: create property {}", probeType, PROPERTY_NAME);
         return AccountValue.newBuilder()
                         .setKey(PROPERTY_NAME)
                         .setStringValue(String.valueOf(PROPERTY_DEFAULT))

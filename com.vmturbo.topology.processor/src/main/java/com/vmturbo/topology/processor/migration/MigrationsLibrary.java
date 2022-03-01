@@ -107,8 +107,6 @@ public class MigrationsLibrary {
                 new V_01_01_09__VV_Metadata_Change_Migration(probeStore, dslContext, identityProvider))
             .put("V_01_01_10__Dynatrace_Add_Vm_Metrics_Flag",
                 new V_01_01_10__Dynatrace_Add_Vm_Metrics_Flag(targetStore, probeStore))
-            .put("V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag",
-                new V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag(targetStore, probeStore))
             .put("V_01_01_12__Instana_Add_Vm_Metrics_Flag",
                 new V_01_01_12__Instana_Add_Vm_Metrics_Flag(targetStore, probeStore))
             .put("V_01_01_13__Remove_GCP_Beta_Migration",
@@ -118,7 +116,9 @@ public class MigrationsLibrary {
             .put("V_01_01_15__NewRelic_Add_Vm_Metrics_Flag",
                     new V_01_01_15__NewRelic_Add_Vm_Metrics_Flag(targetStore, probeStore))
             .put("V_01_01_16__GCP_Remove_Billing_Probe_Targets",
-                    new V_01_01_16__GCP_Remove_Billing_Probe_Targets(keyValueStore));
+                    new V_01_01_16__GCP_Remove_Billing_Probe_Targets(keyValueStore))
+            .put("V_01_01_17__AppDynamics_Add_Vm_Metrics_Flag",
+                    new V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag(targetStore, probeStore));
         return builder.build();
     }
 }
