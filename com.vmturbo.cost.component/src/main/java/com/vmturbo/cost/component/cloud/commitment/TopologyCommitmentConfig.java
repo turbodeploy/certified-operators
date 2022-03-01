@@ -31,7 +31,7 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
 @Configuration
 public class TopologyCommitmentConfig {
 
-    @Value("${topologyCommitmentCoverage.isCoverageEstimatorEnabled:true}")
+    @Value("${topologyCommitmentCoverage.isCoverageEstimatorEnabled:false}")
     private boolean isCoverageEstimatorEnabled;
 
     /**
