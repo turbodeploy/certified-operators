@@ -23,7 +23,6 @@ import io.grpc.StatusRuntimeException;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StopWatch;
@@ -226,7 +225,7 @@ public class Stages {
             final SupplementaryInfoIngestionResult result = new SupplementaryInfoIngestionResult();
             final Map<Long, GroupSupplementaryInfo> groupsToInsert = new HashMap<>();
             final MultiStageTimer timer = new MultiStageTimer(logger);
-            timer.start("Group supplementary info calculation");
+            timer.start("StoreSupplementaryGroupInfoStage - calculate environment type based on members' environment type");
             // iterate over all groups and calculate supplementary info
             for (long groupId : groups) {
                 // get group's members
@@ -261,7 +260,8 @@ public class Stages {
                         groupEnvironment.getCloudType().getNumber(),
                         groupSeverity.getNumber()));
             }
-            timer.start("Group supplementary info ingestion");
+            timer.stop();
+            timer.start("StoreSupplementaryGroupInfoStage - update database records in a batch");
             // update database records in a batch
             try {
                 transactionProvider.transaction(stores -> {
@@ -275,8 +275,7 @@ public class Stages {
             } finally {
                 timer.stop();
             }
-            timer.log(Level.DEBUG, "Group supplementary info calculation & ingestion worker "
-                    + "results: ", Detail.STAGE_SUMMARY);
+            timer.stopAll().info("StoreSupplementaryGroupInfoStage calculation & ingestion worker results: ", Detail.STAGE_SUMMARY);
             return result;
         }
 

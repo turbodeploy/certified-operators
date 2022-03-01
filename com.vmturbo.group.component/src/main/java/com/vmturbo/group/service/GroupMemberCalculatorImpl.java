@@ -14,6 +14,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.util.StopWatch;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
@@ -98,7 +99,8 @@ public class GroupMemberCalculatorImpl implements GroupMemberCalculator {
     private Set<Long> calculateGroupMembers(@Nonnull IGroupStore groupStore,
                                             @Nonnull GroupDefinition groupDefinition, boolean expandNestedGroups)
         throws StoreOperationException {
-        final long startTime = System.currentTimeMillis();
+        final StopWatch stopWatch = new StopWatch("CalculateGroupMembers - Retrieving anonymous group members");
+        stopWatch.start();
         final Set<Long> memberOids = new HashSet<>();
 
         switch (groupDefinition.getSelectionCriteriaCase()) {
@@ -148,8 +150,8 @@ public class GroupMemberCalculatorImpl implements GroupMemberCalculator {
                 logger.error("Unexpected selection criteria `{}` in group definition `{}`",
                     groupDefinition.getSelectionCriteriaCase(), groupDefinition);
         }
-        logger.debug("Retrieving anonymous group members took {}ms",
-            System.currentTimeMillis() - startTime);
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
         return memberOids;
     }
 
