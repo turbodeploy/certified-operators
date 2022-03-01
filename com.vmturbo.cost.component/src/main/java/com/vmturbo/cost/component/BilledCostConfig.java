@@ -61,10 +61,10 @@ public class BilledCostConfig {
     @Autowired
     private CostCleanupConfig costCleanupConfig;
 
-    @Value("${billedCostDataBatchSize:500}")
+    @Value("${billedCostDataBatchSize:800}")
     private int billedCostDataBatchSize;
 
-    @Value("${parallelBatchInserts:15}")
+    @Value("${parallelBatchInserts:5}")
     private int parallelBatchInserts;
 
     /**
@@ -156,6 +156,8 @@ public class BilledCostConfig {
      */
     @Bean
     public BatchInserter batchInserter() {
+        logger.info("Initializing batchInserter, billedCostDataBatchSize: {}, parallelBatchInserts: {}",
+                billedCostDataBatchSize, parallelBatchInserts);
         return new BatchInserter(billedCostDataBatchSize, parallelBatchInserts,
                 rollupConfig.billedCostRollupTimesStore());
     }
