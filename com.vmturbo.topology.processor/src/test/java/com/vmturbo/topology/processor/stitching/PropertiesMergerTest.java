@@ -13,6 +13,7 @@ import org.junit.Test;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 /**
  * Unit tests for {@link PropertiesMerger}.
@@ -25,6 +26,7 @@ public class PropertiesMergerTest {
     private static final String PROPERTY_2 = "property2";
     private static final String PROPERTY_3 = "property3";
     private static final String PROPERTY_4 = "property4";
+    private static final String PROPERTY_5 = "property5";
     private static final String VALUE = "value";
     private static final String NEW_VALUE = "newValue";
 
@@ -42,6 +44,11 @@ public class PropertiesMergerTest {
             .addEntityProperties(EntityProperty.newBuilder()
                     .setNamespace(NEW_NAMESPACE)
                     .setName(PROPERTY_3)
+                    .setValue(VALUE)
+                    .build())
+            .addEntityProperties(EntityProperty.newBuilder()
+                    .setNamespace(SDKUtil.VC_TAGS_NAMESPACE)
+                    .setName(PROPERTY_5)
                     .setValue(VALUE)
                     .build());
 
@@ -98,7 +105,7 @@ public class PropertiesMergerTest {
                 .collect(Collectors.toSet());
         final Set<String> expectedProperties = ImmutableSet.of(EXISTING_NAMESPACE + PROPERTY_1,
                 EXISTING_NAMESPACE + PROPERTY_2, NEW_NAMESPACE + PROPERTY_3,
-                EXISTING_NAMESPACE + PROPERTY_4);
+                EXISTING_NAMESPACE + PROPERTY_4, SDKUtil.VC_TAGS_NAMESPACE + PROPERTY_5);
         Assert.assertEquals(expectedProperties, resultingProperties);
 
         // Verify that the property value was NOT overridden
@@ -107,8 +114,7 @@ public class PropertiesMergerTest {
                 .filter(p -> PROPERTY_1.equals(p.getName()))
                 .findFirst();
         Assert.assertTrue(property.isPresent());
-        Assert.assertTrue(VALUE.equals(property.get()
-                .getValue()));
+        Assert.assertEquals(VALUE, property.get().getValue());
     }
 
     /**
@@ -130,7 +136,7 @@ public class PropertiesMergerTest {
                 .collect(Collectors.toSet());
         final Set<String> expectedProperties = ImmutableSet.of(EXISTING_NAMESPACE + PROPERTY_1,
                 EXISTING_NAMESPACE + PROPERTY_2, NEW_NAMESPACE + PROPERTY_3,
-                EXISTING_NAMESPACE + PROPERTY_4);
+                EXISTING_NAMESPACE + PROPERTY_4, SDKUtil.VC_TAGS_NAMESPACE + PROPERTY_5);
         Assert.assertEquals(expectedProperties, resultingProperties);
 
         // Verify that the property value was overridden
@@ -139,7 +145,6 @@ public class PropertiesMergerTest {
                 .filter(p -> PROPERTY_1.equals(p.getName()))
                 .findFirst();
         Assert.assertTrue(property.isPresent());
-        Assert.assertTrue(NEW_VALUE.equals(property.get()
-                .getValue()));
+        Assert.assertEquals(NEW_VALUE, property.get().getValue());
     }
 }
