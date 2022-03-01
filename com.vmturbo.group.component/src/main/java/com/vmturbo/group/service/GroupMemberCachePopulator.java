@@ -26,7 +26,10 @@ import org.jooq.exception.DataAccessException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
 import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.group.group.GroupDAO;
+import com.vmturbo.group.service.ImmutableGroupMembershipRelationships.Builder;
 import com.vmturbo.oid.identity.RoaringBitmapOidSet;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -88,8 +91,10 @@ public class GroupMemberCachePopulator {
 
     private GroupMembershipRelationships calculate() {
         final Tracer tracer = Tracing.tracer();
+        final MultiStageTimer stopTimer = new MultiStageTimer(logger);
         try (DataMetricTimer timer = Metrics.REGROUPING_SUMMARY.startTimer();
              Tracing.TracingScope scope = Tracing.trace("regrouping", tracer)) {
+            stopTimer.start("GroupMembershipRelationships - Query for all groups");
             final Collection<GroupDTO.Grouping> groups;
             try {
                 groups = groupDAO.getGroups(GroupDTO.GroupFilter.getDefaultInstance());
@@ -111,6 +116,8 @@ public class GroupMemberCachePopulator {
                     new Long2ObjectOpenHashMap<>(groups.size());
             final Long2ObjectOpenHashMap<LongSet> entityIdToParentGroupIds =
                     new Long2ObjectOpenHashMap<>();
+            stopTimer.stop();
+            stopTimer.start("GroupMembershipRelationships - Getting members for group with id");
             for (final GroupDTO.Grouping group : groups) {
                 try {
                     // Get the group members
@@ -147,28 +154,34 @@ public class GroupMemberCachePopulator {
                 entityIdToParentGroupIds.values().forEach(x -> ((LongOpenHashSet)x).trim());
             }
 
-
-            final MemoryMeasurer.MemoryMeasurement memory = MemoryMeasurer.measure(groupIdToMemberIds);
-            final MemoryMeasurer.MemoryMeasurement entityParentMemory = MemoryMeasurer.measure(entityIdToParentGroupIds);
-            final MemoryMeasurer.MemoryMeasurement totalMemory = MemoryMeasurer.MemoryMeasurement.add(memory,
-                    entityParentMemory);
-            Metrics.REGROUPING_SIZE_SUMMARY.observe((double)totalMemory.getTotalSizeBytes());
-            Metrics.REGROUPING_CNT_SUMMARY.observe((double)totalMemberCnt);
-            Metrics.REGROUPING_DISTINCT_CNT_SUMMARY.observe((double)distinctMembers.size());
-            logger.info("Completed regrouping in {} seconds. {} members ({} distinct entities)"
-                            + " in {} groups. Cached members memory: {} Cached parents memory: {}",
-                    timer.getTimeElapsedSecs(), totalMemberCnt, distinctMembers.size(),
-                    groups.size(), memory, entityParentMemory);
-            return ImmutableGroupMembershipRelationships.builder()
+            final Builder builder = ImmutableGroupMembershipRelationships.builder();
+            builder
                     .success(true)
                     .resolvedGroupsIds(new LongOpenHashSet(groupToType.keySet()))
                     .totalMemberCount(totalMemberCnt)
                     .distinctEntitiesCount(distinctMembers.size())
-                    .memoryMeasurement(memory)
                     .groupIdToGroupMemberIdsMap(groupIdToMemberIds)
                     .entityIdToGroupIdsMap(entityIdToParentGroupIds)
-                    .groupIdToType(groupToType)
-                    .build();
+                    .groupIdToType(groupToType);
+
+            if (logger.isDebugEnabled()) {
+                final MemoryMeasurer.MemoryMeasurement memory = MemoryMeasurer.measure(
+                        groupIdToMemberIds);
+                final MemoryMeasurer.MemoryMeasurement entityParentMemory = MemoryMeasurer.measure(
+                        entityIdToParentGroupIds);
+                final MemoryMeasurer.MemoryMeasurement totalMemory = MemoryMeasurer.MemoryMeasurement.add(memory,
+                        entityParentMemory);
+                Metrics.REGROUPING_SIZE_SUMMARY.observe((double)totalMemory.getTotalSizeBytes());
+                Metrics.REGROUPING_CNT_SUMMARY.observe((double)totalMemberCnt);
+                Metrics.REGROUPING_DISTINCT_CNT_SUMMARY.observe((double)distinctMembers.size());
+                builder.memoryMeasurement(memory);
+                logger.info("Completed regrouping in {} seconds. {} members ({} distinct entities)"
+                                + " in {} groups. Cached members memory: {} Cached parents memory: {}",
+                        timer.getTimeElapsedSecs(), totalMemberCnt, distinctMembers.size(), groups.size(), memory, entityParentMemory);
+            }
+            return builder.build();
+        } finally {
+            stopTimer.stopAll().info("GroupMembershipRelationships results: ", Detail.STAGE_SUMMARY);
         }
     }
 

@@ -1492,8 +1492,10 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     private FilteredIds getGroupIds(@Nonnull GroupDTO.GroupFilter filter,
             @Nullable PaginationParameters orderingParams) {
+        final StopWatch stopWatch = new StopWatch("Retrieving group Id with filter");
         final Optional<Condition> sqlCondition = createGroupCondition(filter);
         final Select<Record1<Long>> query;
+        stopWatch.start("grouping table");
         SelectConditionStep<Record1<Long>> queryBuilder = dslContext.select(GROUPING.ID)
                 .from(GROUPING)
                 .leftJoin(GROUP_SUPPLEMENTARY_INFO)
@@ -1517,6 +1519,8 @@ public class GroupDAO implements IGroupStore {
                 .stream()
                 .map(Record1::value1)
                 .collect(Collectors.toList());
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
         return new FilteredIds(groupingIds, !sqlCondition.isPresent());
     }
 
