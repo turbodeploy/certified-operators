@@ -46,6 +46,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.requests.CorrelationIdMismatchException;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.logging.log4j.LogManager;
@@ -294,6 +295,15 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
             }
         } catch (org.apache.kafka.common.errors.InterruptException e) {
             logger.debug("Thread interrupted polling data from Kafka server");
+        } catch (CorrelationIdMismatchException cime) {
+            /** OM-80668: Kafka consumer gets this exception in IWO specifically.
+                We catch this exception here and stop the component.
+                Component restart should recover and XL platform will work normally after that.
+             **/
+            logger.warn("FATAL ERROR: correlation id mismatch happened on component {}. "
+                    + "Component will be restarted!", consumer.groupMetadata().groupId());
+            logger.error("Error polling data", cime);
+            System.exit(1);
         } catch (Throwable t) {
             logger.warn("Error polling data", t);
         }
