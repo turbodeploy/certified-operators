@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -10,19 +11,25 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 
-import com.vmturbo.api.component.external.api.mapper.RelatedActionMapper;
-import com.vmturbo.api.dto.action.RelatedActionApiDTO;
+
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -33,9 +40,12 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.springframework.validation.Errors;
 
-import com.vmturbo.api.component.communication.RepositoryApi;
+
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
+import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
+import com.vmturbo.api.component.external.api.mapper.RelatedActionMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -49,11 +59,12 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionApiDTO;
-import com.vmturbo.api.dto.action.ActionResourceImpactStatApiInputDTO;
+
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.ActionScopesResourceImpactStatApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
+import com.vmturbo.api.dto.action.RelatedActionApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.action.SkippedActionApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
@@ -72,6 +83,8 @@ import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPagi
 import com.vmturbo.api.serviceinterfaces.IActionsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.UrlsHelp;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecutionRequest;
@@ -80,75 +93,129 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.RiskUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Service Layer to implement Actions.
  */
 public class ActionsService implements IActionsService {
+
+    @Nonnull
     private static final Logger logger = LogManager.getLogger();
 
+    @Nonnull
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
+    @Nonnull
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
-    private final RepositoryApi repositoryApi;
+    @Nonnull
 
     private final ActionSpecMapper actionSpecMapper;
 
+    @Nonnull
     private final ActionSearchUtil actionSearchUtil;
 
+    @Nonnull
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    @Nonnull
     private final MarketsService marketsService;
 
     private final long realtimeTopologyContextId;
 
+    @Nonnull
     private final UuidMapper uuidMapper;
 
+    @Nonnull
     private final ServiceProviderExpander serviceProviderExpander;
 
-    private final Logger log = LogManager.getLogger();
+    @Nonnull
+    private final RepositoryServiceBlockingStub repositoryService;
+
+    @Nonnull
+    private final PolicyServiceBlockingStub policyRpcService;
+
+    @Nonnull
+    private final PolicyMapper policyMapper;
+
+    @Nonnull
+    private final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub;
+
+    @Nonnull
+    private final SettingsMapper settingsMapper;
+
+    @Nonnull
+    private final GroupServiceBlockingStub groupService;
 
     private final int validPaginationMaxLimit = 500;
 
     // Pagination request to be used for lists of actions that are returned as an inner list of a scope.
+    @Nullable
     private ActionPaginationRequest nestedDefaultPaginationRequest;
 
-    public ActionsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                          @Nonnull final ActionSpecMapper actionSpecMapper,
-                          @Nonnull final RepositoryApi repositoryApi,
-                          final long realtimeTopologyContextId,
-                          @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-                          @Nonnull final UuidMapper uuidMapper,
-                          @Nonnull final ServiceProviderExpander serviceProviderExpander,
-                          @Nonnull final ActionSearchUtil actionSearchUtil,
-                          @Nonnull final MarketsService marketsService,
-                          @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                          final int apiPaginationMaxLimit) {
-        this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
-        this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
-        this.repositoryApi = Objects.requireNonNull(repositoryApi);
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
-        this.uuidMapper = uuidMapper;
-        this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
-        this.actionSearchUtil = actionSearchUtil;
-        this.marketsService = marketsService;
-        this.supplyChainFetcherFactory = supplyChainFetcherFactory;
+    private ActionsService(Builder builder) {
+        this.actionOrchestratorRpc = Objects.requireNonNull(builder.actionOrchestratorRpc);
+        this.actionSpecMapper = Objects.requireNonNull(builder.actionSpecMapper);
+        this.realtimeTopologyContextId = builder.realtimeTopologyContextId;
+        this.actionStatsQueryExecutor = Objects.requireNonNull(builder.actionStatsQueryExecutor);
+        this.uuidMapper =  Objects.requireNonNull(builder.uuidMapper);
+        this.serviceProviderExpander = Objects.requireNonNull(builder.serviceProviderExpander);
+        this.actionSearchUtil = Objects.requireNonNull(builder.actionSearchUtil);
+        this.marketsService = Objects.requireNonNull(builder.marketsService);
+        this.supplyChainFetcherFactory = Objects.requireNonNull(builder.supplyChainFetcherFactory);
+        this.repositoryService = Objects.requireNonNull(builder.repositoryService);
+        this.policyRpcService = Objects.requireNonNull(builder.policyRpcService);
+        this.policyMapper = Objects.requireNonNull(builder.policyMapper);
+        this.settingPolicyServiceBlockingStub = Objects.requireNonNull(builder.settingPolicyServiceBlockingStub);
+        this.settingsMapper = Objects.requireNonNull(builder.settingsMapper);
+        this.groupService = Objects.requireNonNull(builder.groupService);
+
 
         try {
             // Default to 500 actions per entity scope which is the default max limit for pagination request.
-            nestedDefaultPaginationRequest = new ActionPaginationRequest(null, apiPaginationMaxLimit < 1
-                ? validPaginationMaxLimit : apiPaginationMaxLimit, true, StringConstants.SEVERITY);
+            nestedDefaultPaginationRequest = new ActionPaginationRequest(null, builder.apiPaginationMaxLimit < 1
+                    ? validPaginationMaxLimit : builder.apiPaginationMaxLimit, true, StringConstants.SEVERITY);
         } catch (InvalidOperationException e) {
             // This should not happen as we are passing valid default configurations for APR.
             nestedDefaultPaginationRequest = null;
             logger.error("ActionsService nested default pagination request initialization failed: {}",
                     e.getLocalizedMessage());
         }
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
     }
 
     @Override
@@ -171,7 +238,7 @@ public class ActionsService implements IActionsService {
     @Override
     public ActionApiDTO getActionByUuid(@NonNull final String uuid, @Nullable final ActionDetailLevel detailLevel)
             throws Exception {
-        log.debug("Fetching actions for: {}", uuid);
+        logger.debug("Fetching actions for: {}", uuid);
 
         final long id = actionSearchUtil.getActionInstanceId(uuid, null).orElseThrow(() -> {
             logger.error("Cannot lookup action as one with ID {} cannot be found.", uuid);
@@ -183,10 +250,10 @@ public class ActionsService implements IActionsService {
             throw new UnknownObjectException("Action with given action uuid: " + id + " not found");
         }
 
-        log.debug("Mapping actions for: {}", id);
+        logger.debug("Mapping actions for: {}", id);
         final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
                 realtimeTopologyContextId, detailLevel);
-        log.trace("Result: {}", answer::toString);
+        logger.trace("Result: {}", answer::toString);
         return answer;
     }
 
@@ -215,13 +282,13 @@ public class ActionsService implements IActionsService {
                     logger.error("Cannot execute action as one with ID {} cannot be found.", actionUuid);
                     return new UnknownObjectException("Cannot find action with ID " + actionUuid);
                 });
-                log.info("Accepting action with id: {}", id);
+                logger.info("Accepting action with id: {}", id);
                 actionRequest.addActionIds(id);
             }
             return convertActionExecution(actionOrchestratorRpc.acceptActions(
                     actionRequest.build()));
         } catch (StatusRuntimeException e) {
-            log.error("Execute action error: {}", e.getMessage(), e);
+            logger.error("Execute action error: {}", e.getMessage(), e);
             throw convertToApiException(e);
         }
     }
@@ -748,12 +815,230 @@ public class ActionsService implements IActionsService {
     }
 
     @Override
-    public List<PolicyApiDTO> getActionPlacementPolicies(String actionUuid) {
-        throw new UnsupportedOperationException("getActionPlacementPolicies is not implemented yet");
+    public List<PolicyApiDTO> getActionPlacementPolicies(String actionUuid) throws Exception {
+        final Stopwatch getPoliciesWatch = Stopwatch.createStarted();
+        Set<Long> involvedEntities = getInvolvedEntitiesByUuid(actionUuid);
+        if (involvedEntities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Stream<PartialEntityBatch> topologyEntityDTOsIterator = Streams.stream(
+                    repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                        .addAllEntityOids(involvedEntities)
+                        .setReturnType(Type.FULL)
+                        .build()));
+
+        Set<Long> policyIds = topologyEntityDTOsIterator
+                .map(PartialEntityBatch::getEntitiesList)
+                .flatMap(List::stream)
+                .map(PartialEntity::getFullEntity)
+                .flatMap(this::getCommodityTypes)
+                .filter(commodityType -> RiskUtil.POLICY_COMMODITY_TYPES.contains(commodityType.getType()))
+                .map(CommodityType::getKey)
+                .map(commodityKey -> this.extractPolicyIdFromKey(commodityKey, actionUuid))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
+
+        if (policyIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Iterator<PolicyResponse> policiesIterator = policyRpcService.getPolicies(PolicyRequest.newBuilder()
+                .addAllPolicyIds(policyIds)
+                .build());
+
+        List<PolicyApiDTO> response = new ArrayList<>(policyIds.size());
+        final List<Policy> policies = new ArrayList<>(policyIds.size());
+        policiesIterator.forEachRemaining(policyResponse -> policies.add(policyResponse.getPolicy()));
+
+        final Collection<Grouping> groupings = getPoliciesGroups(policies);
+        final List<PolicyApiDTO> policyApiDTOS = policyMapper.policyToApiDto(policies, groupings);
+        response.addAll(policyApiDTOS);
+        logger.info("Get {}  policies related to {} action in {}", policyApiDTOS.size(), actionUuid,
+                getPoliciesWatch.stop().toString());
+
+        return response;
+    }
+
+    private Stream<CommodityType> getCommodityTypes(TopologyEntityDTO topologyEntityDTO) {
+        return Streams.concat(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+                    .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                    .flatMap(List::stream)
+                    .map(CommodityBoughtDTO::getCommodityType),
+            topologyEntityDTO.getCommoditySoldListList().stream()
+                    .map(CommoditySoldDTO::getCommodityType)
+        );
+    }
+
+    @Nonnull
+    private Collection<Grouping> getPoliciesGroups(final List<Policy> policies) {
+        final Set<Long> groupingIDS = policies.stream()
+                .map(GroupProtoUtil::getPolicyGroupIds)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+        final Collection<Grouping> groupings;
+        if (groupingIDS.isEmpty()) {
+            groupings = Collections.emptySet();
+        } else {
+            final Iterator<Grouping> iterator = groupService.getGroups(
+                    GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                    .addAllId(groupingIDS)
+                                    .setIncludeHidden(true))
+                            .build());
+            groupings = Sets.newHashSet(iterator);
+        }
+        return groupings;
     }
 
     @Override
-    public List<SettingsPolicyApiDTO> getActionSettingsPolicies(String actionUuid) {
-        throw new UnsupportedOperationException("getActionSettingsPolicies is not implemented yet");
+    public List<SettingsPolicyApiDTO> getActionSettingsPolicies(String actionUuid) throws Exception {
+        Set<Long> involvedEntities = getInvolvedEntitiesByUuid(actionUuid);
+        if (involvedEntities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        GetEntitySettingPoliciesResponse response = settingPolicyServiceBlockingStub.getEntitySettingPolicies(
+        GetEntitySettingPoliciesRequest.newBuilder()
+                .addAllEntityOidList(involvedEntities)
+                .build());
+
+        return settingsMapper.convertSettingPolicies(response.getSettingPoliciesList());
+    }
+
+    private Set<Long> getInvolvedEntitiesByUuid(String actionUuid) throws Exception {
+        final long actionId = actionSearchUtil.getActionInstanceId(actionUuid, null).orElseThrow(() -> {
+            logger.error("Action with given action uuid: " + actionUuid + " not found");
+            return new UnknownObjectException("Action with given action uuid: " + actionUuid + " not found");
+        });
+
+        ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(actionId));
+        if (!action.hasActionSpec() || !action.getActionSpec().hasRecommendation()) {
+            throw new UnknownObjectException("Action with given action uuid: " + actionUuid + " not found");
+        }
+
+        return ActionDTOUtil.getInvolvedEntities(action.getActionSpec().getRecommendation())
+                .stream()
+                .map(ActionEntity::getId)
+                .collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    private static Optional<Long> extractPolicyIdFromKey(@Nonnull String key,
+            @Nonnull String actionId) {
+        try {
+            return Optional.of(Long.valueOf(key));
+        } catch (NumberFormatException ex) {
+            logger.warn("Unexpected value for policy id \"{}\" associated to action {}",
+                    key, actionId);
+            return Optional.empty();
+        }
+    }
+
+    public static final class Builder {
+        private ActionStatsQueryExecutor actionStatsQueryExecutor;
+        private ActionsServiceBlockingStub actionOrchestratorRpc;
+        private ActionSpecMapper actionSpecMapper;
+        private ActionSearchUtil actionSearchUtil;
+        private SupplyChainFetcherFactory supplyChainFetcherFactory;
+        private MarketsService marketsService;
+        private long realtimeTopologyContextId;
+        private UuidMapper uuidMapper;
+        private ServiceProviderExpander serviceProviderExpander;
+        private RepositoryServiceBlockingStub repositoryService;
+        private PolicyServiceBlockingStub policyRpcService;
+        private PolicyMapper policyMapper;
+        private SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub;
+        private SettingsMapper settingsMapper;
+        private GroupServiceBlockingStub groupService;
+        private int apiPaginationMaxLimit;
+
+        private Builder() {}
+
+        public Builder withActionStatsQueryExecutor(ActionStatsQueryExecutor val) {
+            actionStatsQueryExecutor = val;
+            return this;
+        }
+
+        public Builder withActionOrchestratorRpc(ActionsServiceBlockingStub val) {
+            actionOrchestratorRpc = val;
+            return this;
+        }
+
+        public Builder withActionSpecMapper(ActionSpecMapper val) {
+            actionSpecMapper = val;
+            return this;
+        }
+
+        public Builder withActionSearchUtil(ActionSearchUtil val) {
+            actionSearchUtil = val;
+            return this;
+        }
+
+        public Builder withSupplyChainFetcherFactory(SupplyChainFetcherFactory val) {
+            supplyChainFetcherFactory = val;
+            return this;
+        }
+
+        public Builder withMarketsService(MarketsService val) {
+            marketsService = val;
+            return this;
+        }
+
+        public Builder withRealtimeTopologyContextId(long val) {
+            realtimeTopologyContextId = val;
+            return this;
+        }
+
+        public Builder withUuidMapper(UuidMapper val) {
+            uuidMapper = val;
+            return this;
+        }
+
+        public Builder withServiceProviderExpander(ServiceProviderExpander val) {
+            serviceProviderExpander = val;
+            return this;
+        }
+
+        public Builder withRepositoryService(RepositoryServiceBlockingStub val) {
+            repositoryService = val;
+            return this;
+        }
+
+        public Builder withPolicyRpcService(PolicyServiceBlockingStub val) {
+            policyRpcService = val;
+            return this;
+        }
+
+        public Builder withPolicyMapper(PolicyMapper val) {
+            policyMapper = val;
+            return this;
+        }
+
+        public Builder withSettingPolicyServiceBlockingStub(SettingPolicyServiceBlockingStub val) {
+            settingPolicyServiceBlockingStub = val;
+            return this;
+        }
+
+        public Builder withSettingsMapper(SettingsMapper val) {
+            settingsMapper = val;
+            return this;
+        }
+
+        public Builder withGroupService(GroupServiceBlockingStub val) {
+            groupService = val;
+            return this;
+        }
+
+        public Builder withApiPaginationMaxLimit(int val) {
+            apiPaginationMaxLimit = val;
+            return this;
+        }
+
+        public ActionsService build() {
+            return new ActionsService(this);
+        }
     }
 }

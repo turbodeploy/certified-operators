@@ -32,7 +32,6 @@ import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.mapper.TargetDetailsMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.service.util.SearchServiceFilterResolver;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
@@ -267,17 +266,24 @@ public class ServiceConfig {
 
     @Bean
     public ActionsService actionsService() {
-        return new ActionsService(communicationConfig.actionsRpcService(),
-                                  mapperConfig.actionSpecMapper(),
-                                  communicationConfig.repositoryApi(),
-                                  communicationConfig.getRealtimeTopologyContextId(),
-                                  actionStatsQueryExecutor(),
-                                  mapperConfig.uuidMapper(),
-                                  communicationConfig.serviceProviderExpander(),
-                                  actionSearchUtil(),
-                                  marketsService(),
-                                  communicationConfig.supplyChainFetcher(),
-                                  apiPaginationMaxLimit);
+        return ActionsService.newBuilder()
+                .withActionOrchestratorRpc(communicationConfig.actionsRpcService())
+                .withActionSpecMapper(mapperConfig.actionSpecMapper())
+                .withRealtimeTopologyContextId(communicationConfig.getRealtimeTopologyContextId())
+                .withActionStatsQueryExecutor(actionStatsQueryExecutor())
+                .withUuidMapper(mapperConfig.uuidMapper())
+                .withServiceProviderExpander(communicationConfig.serviceProviderExpander())
+                .withActionSearchUtil(actionSearchUtil())
+                .withMarketsService(marketsService())
+                .withSupplyChainFetcherFactory(communicationConfig.supplyChainFetcher())
+                .withRepositoryService(communicationConfig.repositoryRpcService())
+                .withPolicyRpcService(communicationConfig.policyRpcService())
+                .withPolicyMapper(mapperConfig.policyMapper())
+                .withSettingPolicyServiceBlockingStub(communicationConfig.settingPolicyRpcService())
+                .withSettingsMapper(mapperConfig.settingsMapper())
+                .withGroupService(communicationConfig.groupRpcService())
+                .withApiPaginationMaxLimit(apiPaginationMaxLimit)
+                .build();
     }
 
     @Bean
