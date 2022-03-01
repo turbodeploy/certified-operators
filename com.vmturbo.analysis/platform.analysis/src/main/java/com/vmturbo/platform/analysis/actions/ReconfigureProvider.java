@@ -90,7 +90,7 @@ public abstract class ReconfigureProvider extends ReconfigureBase {
         commodities_.forEach((spec, comm) -> {
             provider_.removeCommoditySold(spec);
             // decrement price weight
-            provider_.setReconfigurableCommodityCount(Math.min(0, provider_.getReconfigurableCommodityCount() - 1));
+            provider_.setReconfigurableCommodityCount(Math.max(0, provider_.getReconfigurableCommodityCount() - 1));
         });
 
         Market[] marketsToCheck = new Market[provider_.getMarketsAsSeller().size()];

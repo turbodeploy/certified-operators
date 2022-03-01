@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import com.google.common.collect.ImmutableList;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -171,29 +173,37 @@ public class ReconfigureTest {
     @Test
     public final void testReconfigureProviderRemoval() {
         Economy e = new Economy();
+        CommoditySpecification softwareCommToRemove = TestUtils.SOFTWARE_LICENSE_COMMODITY;
+        CommoditySpecification softwareComm = TestUtils.createNewCommSpec();
+        CommoditySpecification regularComm = TestUtils.MEM;
+        e.getSettings().getReconfigureableCommodities().addAll(ImmutableList.of(
+                softwareCommToRemove.getBaseType(), softwareComm.getBaseType()));
         Basket basket1 = new Basket(TestUtils.VMEM);
         Trader vm = e.addTrader(0, TraderState.ACTIVE, basket1);
-        CommoditySpecification removalComm = TestUtils.SOFTWARE_LICENSE_COMMODITY;
-        CommoditySpecification regularComm = TestUtils.MEM;
-        Basket basket2 = new Basket(removalComm, regularComm);
+
+        Basket basket2 = new Basket(regularComm, softwareCommToRemove, softwareComm);
         Trader pm = e.addTrader(1, TraderState.ACTIVE, basket2);
-        TestUtils.createAndPlaceShoppingList(e, Arrays.asList(TestUtils.MEM), vm,
-            new double[] {100}, pm);
+        TestUtils.createAndPlaceShoppingList(e, Arrays.asList(TestUtils.MEM, softwareComm), vm,
+            new double[] {100, 1}, pm);
         Map<CommoditySpecification, CommoditySold> comm = new HashMap<CommoditySpecification, CommoditySold>() {{
-            put(removalComm, pm.getCommoditySold(removalComm));
+            put(softwareCommToRemove, pm.getCommoditySold(softwareCommToRemove));
         }};
         ReconfigureProviderRemoval removalAction = new ReconfigureProviderRemoval(e,
             (TraderWithSettings)pm, comm);
         removalAction.take();
-        assertTrue(pm.getCommoditiesSold().size() == 1);
-        assertTrue(pm.getBasketSold().size() == 1);
-        assertTrue(pm.getCommoditySold(removalComm) == null);
-        assertTrue(pm.getCommoditySold(regularComm) != null);
-        removalAction.rollback();
         assertTrue(pm.getCommoditiesSold().size() == 2);
         assertTrue(pm.getBasketSold().size() == 2);
-        assertTrue(pm.getCommoditySold(removalComm) != null);
+        assertTrue(pm.getCommoditySold(softwareCommToRemove) == null);
         assertTrue(pm.getCommoditySold(regularComm) != null);
+        assertTrue(pm.getCommoditySold(softwareComm) != null);
+        assertEquals(1, pm.getReconfigurableCommodityCount());
+        removalAction.rollback();
+        assertTrue(pm.getCommoditiesSold().size() == 3);
+        assertTrue(pm.getBasketSold().size() == 3);
+        assertTrue(pm.getCommoditySold(softwareCommToRemove) != null);
+        assertTrue(pm.getCommoditySold(regularComm) != null);
+        assertTrue(pm.getCommoditySold(softwareComm) != null);
+        assertEquals(2, pm.getReconfigurableCommodityCount());
     }
 
     /**
@@ -207,6 +217,7 @@ public class ReconfigureTest {
         CommoditySpecification additionComm = TestUtils.SOFTWARE_LICENSE_COMMODITY;
         CommoditySpecification regularComm1 = TestUtils.MEM;
         CommoditySpecification regularComm2 = TestUtils.MEM;
+        e.getSettings().getReconfigureableCommodities().add(additionComm.getBaseType());
         Basket basket2 = new Basket(additionComm, regularComm1);
         Basket basket3 = new Basket(regularComm2);
         Trader pm = e.addTrader(1, TraderState.ACTIVE, basket2);
@@ -223,10 +234,12 @@ public class ReconfigureTest {
         assertTrue(pm2.getBasketSold().size() == 2);
         assertTrue(pm2.getCommoditySold(regularComm2) != null);
         assertTrue(pm2.getCommoditySold(additionComm) != null);
+        assertEquals(1, pm2.getReconfigurableCommodityCount());
         additionAction.rollback();
         assertTrue(pm2.getCommoditiesSold().size() == 1);
         assertTrue(pm2.getBasketSold().size() == 1);
         assertTrue(pm2.getCommoditySold(regularComm2) != null);
         assertTrue(pm2.getCommoditySold(additionComm) == null);
+        assertEquals(0, pm2.getReconfigurableCommodityCount());
     }
 } // end ReconfigureTest class
