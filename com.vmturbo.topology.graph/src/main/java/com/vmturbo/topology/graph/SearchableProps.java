@@ -194,7 +194,10 @@ public interface SearchableProps {
         int getCoresPerSocket();
 
         /**
-         * Get the version of tools is available for the VM.
+         * Get the version of tools if available for the VM.
+         * Method will return null to indicate tools is not installed.
+         * For filtering such VMs, resetting empty string of tool version to null is expected by StringPredicate
+         * matching logic in TopologyFilterFactory.
          *
          * @return The version of vendor tool.
          */
