@@ -19,6 +19,7 @@ import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -334,7 +335,19 @@ public class AuthDbEndpointConfig extends DbEndpointsConfig {
                                                                   : rootSqlDbUser)
                         .withRootPassword(rootSqlDbPassword)
                         .withUserName(authDbUsername)
+                        .withFlywayCallbacks(flywayCallbacks())
                         .withPassword(dbPassword)).build();
+    }
+
+    private FlywayCallback[] flywayCallbacks() {
+        switch (sqlDialect) {
+            case MARIADB:
+                return new FlywayCallback[]{};
+            case POSTGRES:
+                return new FlywayCallback[]{};
+            default:
+                return new FlywayCallback[]{};
+        }
     }
 
 }

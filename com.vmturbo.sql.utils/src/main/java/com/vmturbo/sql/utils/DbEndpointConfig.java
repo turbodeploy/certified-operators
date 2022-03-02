@@ -37,7 +37,13 @@ public class DbEndpointConfig {
     private Integer keepAliveIntervalMinutes;
     private Boolean secure;
     private String migrationLocations;
-    private FlywayCallback[] flywayCallbacks;
+    /**
+     * transient keyword has been added to flywayCallbacks to avoid
+     * serialization of the field. Serialization of the field will cause failure of unit test
+     * cases in action orchestrator causing stack overflow when flyway callbacks are added
+     * to DBEndpointConfig. A story has been created to resolve this issue - OM-81528
+     */
+    private transient FlywayCallback[] flywayCallbacks;
     private Boolean endpointEnabled;
     private Function<UnaryOperator<String>, Boolean> endpointEnabledFn;
     private DbEndpoint template;

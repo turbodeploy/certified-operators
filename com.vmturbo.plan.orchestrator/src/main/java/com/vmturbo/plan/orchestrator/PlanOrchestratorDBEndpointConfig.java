@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator;
 
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +31,18 @@ public class PlanOrchestratorDBEndpointConfig extends DbEndpointsConfig {
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true)
                 .withUserName(PLAN_ORCHESTRATOR_USER_NAME))
+                .withFlywayCallbacks(flywayCallbacks())
                 .build();
+    }
+
+    private FlywayCallback[] flywayCallbacks() {
+        switch (sqlDialect) {
+            case MARIADB:
+                return new FlywayCallback[]{};
+            case POSTGRES:
+                return new FlywayCallback[]{};
+            default:
+                return new FlywayCallback[]{};
+        }
     }
 }
