@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.db;
 
 import java.sql.SQLException;
 
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.DSLContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
@@ -38,6 +39,7 @@ public class CostDbEndpointConfig extends DbEndpointsConfig {
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true))
+                .withFlywayCallbacks(flywayCallbacks())
                 .withUserName(costDbUsername).build();
     }
 
@@ -52,6 +54,17 @@ public class CostDbEndpointConfig extends DbEndpointsConfig {
     @Bean
     public DSLContext dsl() throws SQLException, UnsupportedDialectException, InterruptedException {
         return costEndpoint().dslContext();
+    }
+
+    private FlywayCallback[] flywayCallbacks() {
+        switch (sqlDialect) {
+            case MARIADB:
+                return new FlywayCallback[]{};
+            case POSTGRES:
+                return new FlywayCallback[]{};
+            default:
+                return new FlywayCallback[]{};
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.vmturbo.market.db;
 
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +35,19 @@ public class MarketDbEndpointConfig extends DbEndpointsConfig {
                 .withShouldProvision(true)
                 .withAccess(DbEndpointAccess.ALL)
                 .withRootAccessEnabled(true))
+                .withFlywayCallbacks(flywayCallbacks())
                 .withUserName(marketDbUsername)
                 .build();
+    }
+
+    private FlywayCallback[] flywayCallbacks() {
+        switch (sqlDialect) {
+            case MARIADB:
+                return new FlywayCallback[]{};
+            case POSTGRES:
+                return new FlywayCallback[]{};
+            default:
+                return new FlywayCallback[]{};
+        }
     }
 }

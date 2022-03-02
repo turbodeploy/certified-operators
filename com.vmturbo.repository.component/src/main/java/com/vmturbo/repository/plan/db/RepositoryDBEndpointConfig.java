@@ -1,5 +1,6 @@
 package com.vmturbo.repository.plan.db;
 
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -35,6 +36,18 @@ public class RepositoryDBEndpointConfig extends DbEndpointsConfig {
                 // workaround since the Environment doesn't contain repositoryDbUsername
                 // fixEndpointForMultiDb can't find this property from spring environment
                 .withUserName(repositoryDbUsername))
+                .withFlywayCallbacks(flywayCallbacks())
                 .build();
+    }
+
+    private FlywayCallback[] flywayCallbacks() {
+        switch (sqlDialect) {
+            case MARIADB:
+                return new FlywayCallback[]{};
+            case POSTGRES:
+                return new FlywayCallback[]{};
+            default:
+                return new FlywayCallback[]{};
+        }
     }
 }
