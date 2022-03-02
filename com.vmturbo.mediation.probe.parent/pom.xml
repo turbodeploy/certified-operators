@@ -12,7 +12,7 @@
     <artifactId>xl-sdk-probe-parent</artifactId>
     <packaging>pom</packaging>
     <groupId>com.vmturbo</groupId>
-    <version>8.4.7-SNAPSHOT</version>
+    <version>8.4.8-SNAPSHOT</version>
 
     <properties>
         <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
