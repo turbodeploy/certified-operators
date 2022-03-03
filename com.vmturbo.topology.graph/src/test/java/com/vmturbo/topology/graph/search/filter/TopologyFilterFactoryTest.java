@@ -34,10 +34,13 @@ import com.google.common.collect.Table;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
@@ -102,10 +105,17 @@ public class TopologyFilterFactoryTest {
                     .addTargetIdentity(UDT_OID, VENDOR_ID2)
                     .addTargetIdentity(TARGET_ID1, VENDOR_ID1)
                     .build();
-    private static final long ONE_MINUTE_MILLIS = 60_000L;
+    private static final long TEN_SECONDS_MILLIS = 10_000L;
 
     private final TopologyFilterFactory<TestGraphEntity> filterFactory = new TopologyFilterFactory<>();
-    private final TopologyGraph<TestGraphEntity> graph = mock(TopologyGraph.class);
+
+    @Mock
+    private TopologyGraph<TestGraphEntity> graph;
+
+    @Before
+    public void initMocks() {
+        MockitoAnnotations.initMocks(this);
+    }
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -1048,7 +1058,7 @@ public class TopologyFilterFactoryTest {
     public void checkMultiTraversalPerformanceTest() {
         final Map<Long, TestGraphEntity.Builder> storages = new HashMap<>();
         final AtomicLong idGenerator = new AtomicLong();
-        final int storageAmount = 1000;
+        final int storageAmount = 500;
         final int relatedEntitiesAmount = 3000;
         final Map<Long, Collection<TestGraphEntity.Builder>> storageIdToVvs = new HashMap<>();
         final Map<Long, Collection<TestGraphEntity.Builder>> storageIdToVms = new HashMap<>();
@@ -1083,7 +1093,7 @@ public class TopologyFilterFactoryTest {
 
         final SearchFilter searchFilter = createSearchFilter(LogicalOperator.OR);
         final Iterator<Entry<Long, TestGraphEntity.Builder>> it = storages.entrySet().iterator();
-        final int attempts = 100;
+        final int attempts = 50;
         int i = 0;
         float timeInFiltering = 0;
         while (it.hasNext() && i < attempts) {
@@ -1106,8 +1116,8 @@ public class TopologyFilterFactoryTest {
         }
         Assert.assertTrue(
                         String.format("Multi-traversal filter execution takes more than '%s' milliseconds to complete",
-                                        ONE_MINUTE_MILLIS),
-                        timeInFiltering / attempts < ONE_MINUTE_MILLIS);
+                                        TEN_SECONDS_MILLIS),
+                        timeInFiltering / attempts < TEN_SECONDS_MILLIS);
     }
 
     private void checkMultiRelationsFilter(LogicalOperator operation,
