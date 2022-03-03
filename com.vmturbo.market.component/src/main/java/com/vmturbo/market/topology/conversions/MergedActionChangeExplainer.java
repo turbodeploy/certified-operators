@@ -32,10 +32,22 @@ import com.vmturbo.trax.TraxNumber;
  */
 public class MergedActionChangeExplainer extends ChangeExplainer {
 
-    private Map<Integer, Set<Integer>> computeCommoditiesByEntityType = ImmutableMap.of(EntityType.DATABASE_SERVER_VALUE,
-            ImmutableSet.of(CommodityType.VMEM_VALUE, CommodityType.VCPU_VALUE));
-    private Map<Integer, Set<Integer>> storageCommoditiesByEntityType = ImmutableMap.of(EntityType.DATABASE_SERVER_VALUE,
-            ImmutableSet.of(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_AMOUNT_VALUE));
+    private final Map<Integer, Set<Integer>> computeCommoditiesByEntityType = ImmutableMap.of(
+            EntityType.DATABASE_SERVER_VALUE, ImmutableSet.of(
+                    CommodityType.VMEM_VALUE,
+                    CommodityType.VCPU_VALUE),
+            EntityType.DATABASE_VALUE, ImmutableSet.of(
+                    CommodityType.DTU_VALUE,
+                    CommodityType.VMEM_VALUE,
+                    CommodityType.VCPU_VALUE,
+                    CommodityType.IO_THROUGHPUT_VALUE,
+                    CommodityType.STORAGE_ACCESS_VALUE));
+    private final Map<Integer, Set<Integer>> storageCommoditiesByEntityType = ImmutableMap.of(
+            EntityType.DATABASE_SERVER_VALUE, ImmutableSet.of(
+                    CommodityType.STORAGE_ACCESS_VALUE,
+                    CommodityType.STORAGE_AMOUNT_VALUE),
+            EntityType.DATABASE_VALUE, ImmutableSet.of(
+                    CommodityType.STORAGE_AMOUNT_VALUE));
 
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos;
 
