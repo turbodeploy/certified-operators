@@ -46,7 +46,13 @@ RUN cd /tmp && \
     mkdir /var/lib/zoo && \
     chown -R zookeeper /var/lib/zoo && \
     chmod a+x /start_zookeeper && \
-    chmod a+x /zookeeper-ready
+    chmod a+x /zookeeper-ready && \
+    # Remove old log4j 1.x components
+    rm /opt/zookeeper/lib/slf4j-*.* && \
+    rm /opt/zookeeper/lib/log4j-*.*
+
+# Add reload4j components
+ADD lib/* /opt/zookeeper/lib/
 
 # rsyslog
 ADD rsyslog.conf /etc
