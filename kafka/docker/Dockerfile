@@ -41,7 +41,13 @@ RUN source /etc/kafka.profile && \
     chown -R kafka /opt/kafka/logs && \
     mkdir $KAFKA_DATA_DIR && \
     chown -R kafka $KAFKA_DATA_DIR && \
-    chmod a+x /start-kafka
+    chmod a+x /start-kafka && \
+    # Remove old log4j 1.x components
+    rm /opt/kafka/libs/slf4j-*.* && \
+    rm /opt/kafka/libs/log4j-*.*
+
+# Add reload4j components
+ADD lib/* /opt/kafka/libs/
 
 # rsyslog
 ADD rsyslog.conf /etc
