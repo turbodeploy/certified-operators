@@ -86,7 +86,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
      */
     @Bean
     public DSLContext unpooledDsl() {
-        return new DefaultDSLContext(unpooledDataSource(), sqlDialect);
+        return new DefaultDSLContext(unpooledDataSource(), sqlDialect, configuration().settings());
     }
 
     @Override
