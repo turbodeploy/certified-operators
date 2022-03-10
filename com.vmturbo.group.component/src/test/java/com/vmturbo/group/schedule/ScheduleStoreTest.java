@@ -71,7 +71,6 @@ import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.group.setting.SettingsUpdatesSender;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.MultiDB;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
@@ -192,8 +191,7 @@ public class ScheduleStoreTest extends MultiDbTestBase {
         settingStore = new SettingStore(settingSpecStore, dslContextSpy, settingPolicyValidator,
                 settingsUpdatesSender);
         scheduleStore = new ScheduleStore(dslContextSpy, scheduleValidator, identityProvider);
-        final MultiDB multiDB = Mockito.mock(MultiDB.class);
-        groupStore = new GroupDAO(dslContextSpy, groupPaginationParams, multiDB);
+        groupStore = new GroupDAO(dslContextSpy, groupPaginationParams);
     }
 
     /**

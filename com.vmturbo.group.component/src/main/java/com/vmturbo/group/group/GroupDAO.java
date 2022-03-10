@@ -121,7 +121,6 @@ import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
-import com.vmturbo.sql.utils.MultiDB;
 
 /**
  * DAO implementing {@link IGroupStore} - CRUD operations with groups.
@@ -140,6 +139,13 @@ public class GroupDAO implements IGroupStore {
     private static final String DELETE_LABEL = "delete";
 
     private final GroupPaginationParams groupPaginationParams;
+
+    // The display_name field in GROUPING table is stored with a case sensitive collation by
+    // default (utf8mb4_bin). Thus, queries asking for case insensitive filtering by display
+    // name cannot be done. To bypass this, we use a case insensitive collation on the fly for case
+    // insensitive queries.
+    // For more details see https://dev.mysql.com/doc/refman/8.0/en/adding-collation.html
+    private static final String CASE_INSENSITIVE_COLLATION = "utf8mb4_unicode_ci";
 
     private static final DataMetricCounter GROUP_STORE_ERROR_COUNT = DataMetricCounter.builder()
             .withName("group_store_error_count")
@@ -165,26 +171,25 @@ public class GroupDAO implements IGroupStore {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Map<String, BiFunction<PropertyFilter, MultiDB, Optional<Condition>>>
+    private static final Map<String, BiFunction<PropertyFilter, DSLContext, Optional<Condition>>>
             PROPERTY_FILTER_CONDITION_CREATORS;
 
     private final DSLContext dslContext;
 
-    private final MultiDB multiDB;
-
     private final Set<GroupUpdateListener> groupUpdateListeners = Collections.synchronizedSet(new HashSet<>());
 
     static {
-        PROPERTY_FILTER_CONDITION_CREATORS = ImmutableMap
-                .<String, BiFunction<PropertyFilter, MultiDB, Optional<Condition>>>builder()
-                .put(SearchableProperties.DISPLAY_NAME, GroupDAO::createDisplayNameSearchCondition)
-                .put(StringConstants.TAGS_ATTR, (propertyFilter, multiDB) -> Optional.of(
-                        createTagsSearchCondition(propertyFilter, multiDB)))
-                .put(StringConstants.OID, (propertyFilter, multiDB) -> Optional.of(
-                        createOidCondition(propertyFilter, GROUPING.ID)))
-                .put(StringConstants.ACCOUNTID, (propertyFilter, multiDB) -> Optional.of(
-                        createOidCondition(propertyFilter, GROUPING.OWNER_ID)))
-                .build();
+        PROPERTY_FILTER_CONDITION_CREATORS =
+                ImmutableMap.<String, BiFunction<PropertyFilter, DSLContext, Optional<Condition>>>builder().put(
+                        SearchableProperties.DISPLAY_NAME,
+                        GroupDAO::createDisplayNameSearchCondition)
+                        .put(StringConstants.TAGS_ATTR, (propertyFilter, dslContext) -> Optional.of(
+                                createTagsSearchCondition(propertyFilter, dslContext)))
+                        .put(StringConstants.OID, (propertyFilter, dslContext) -> Optional.of(
+                                createOidCondition(propertyFilter, GROUPING.ID)))
+                        .put(StringConstants.ACCOUNTID, (propertyFilter, dslContext) -> Optional.of(
+                                createOidCondition(propertyFilter, GROUPING.OWNER_ID)))
+                        .build();
     }
 
     /**
@@ -193,14 +198,11 @@ public class GroupDAO implements IGroupStore {
      * @param dslContext DB context to execute SQL operations on
      * @param groupPaginationParams group component's internal parameters for paginated calls for
      *                              groups.
-     * @param multiDB object that provides support for multiple databases
      */
     public GroupDAO(@Nonnull final DSLContext dslContext,
-            @Nonnull final GroupPaginationParams groupPaginationParams,
-            @Nonnull final MultiDB multiDB) {
+            @Nonnull final GroupPaginationParams groupPaginationParams) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.groupPaginationParams = Objects.requireNonNull(groupPaginationParams);
-        this.multiDB = Objects.requireNonNull(multiDB);
     }
 
     /**
@@ -399,11 +401,11 @@ public class GroupDAO implements IGroupStore {
                             "Property filter " + propertyFilter.getPropertyName()
                                     + " is not supported");
                 }
-                final BiFunction<PropertyFilter, MultiDB, Optional<Condition>> conditionCreator =
+                final BiFunction<PropertyFilter, DSLContext, Optional<Condition>> conditionCreator =
                     PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
                 // try to apply the filter and check if it can be translated into real
                 // conditions, if not it throws an exception
-                conditionCreator.apply(propertyFilter, multiDB);
+                conditionCreator.apply(propertyFilter, dslContext);
             }
         }
     }
@@ -1713,13 +1715,13 @@ public class GroupDAO implements IGroupStore {
         }
         final Collection<Condition> allConditions = new ArrayList<>();
         for (PropertyFilter propertyFilter: propertyFilters) {
-            final BiFunction<PropertyFilter, MultiDB, Optional<Condition>> conditionCreator =
+            final BiFunction<PropertyFilter, DSLContext, Optional<Condition>> conditionCreator =
                     PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
             if (conditionCreator == null) {
                 throw new IllegalArgumentException(
                         "Unsupported property filter found: " + propertyFilter.getPropertyName());
             }
-            conditionCreator.apply(propertyFilter, multiDB).ifPresent(allConditions::add);
+            conditionCreator.apply(propertyFilter, dslContext).ifPresent(allConditions::add);
         }
 
         final BiFunction<Condition, Condition, Condition> combination;
@@ -1736,15 +1738,27 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     private static Optional<Condition> createDisplayNameSearchCondition(
-            @Nonnull PropertyFilter propertyFilter, @Nonnull MultiDB multiDB) {
+            @Nonnull PropertyFilter propertyFilter, @Nonnull DSLContext dslContext) {
         if (!propertyFilter.hasStringFilter()) {
             throw new IllegalArgumentException("Filter for display name must have StringFilter");
         }
         final StringFilter filter = propertyFilter.getStringFilter();
         if (filter.hasStringPropertyRegex()) {
-            return Optional.of(
-                    multiDB.matchRegex(GROUPING.DISPLAY_NAME, filter.getStringPropertyRegex(),
-                            filter.getPositiveMatch(), filter.getCaseSensitive()));
+            Field<String> displayNameField = GROUPING.DISPLAY_NAME;
+            if (!filter.getCaseSensitive()) {
+                // We do case-insensitive regex match for Postgres with raw SQL as it's not supported by JOOQ.
+                if (dslContext.dialect().equals(SQLDialect.POSTGRES)) {
+                    return Optional.of(filter.getPositiveMatch()
+                            ? DSL.condition("{0} ~* {1}", displayNameField, filter.getStringPropertyRegex())
+                            : DSL.condition("{0} !~* {1})", displayNameField, filter.getStringPropertyRegex()));
+                } else {
+                    // To do a case-insensitive regex match for MySQL and MariaDB, we need to use a case-insensitive collation.
+                    displayNameField = displayNameField.collate(CASE_INSENSITIVE_COLLATION);
+                }
+            }
+            Condition regex = filter.getPositiveMatch() ? displayNameField.likeRegex(filter.getStringPropertyRegex())
+                    : displayNameField.notLikeRegex(filter.getStringPropertyRegex());
+            return Optional.of(regex);
         } else if (filter.getOptionsCount() != 0) {
             final Optional<Condition> condition;
             if (filter.hasCaseSensitive() && filter.getCaseSensitive()) {
@@ -1770,8 +1784,8 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private static Condition createTagsSearchCondition(@Nonnull PropertyFilter propertyFilter,
-            @Nonnull MultiDB multiDB) {
+    private static Condition createTagsSearchCondition(
+            @Nonnull PropertyFilter propertyFilter, @Nonnull DSLContext dslContext) {
         if (!propertyFilter.hasMapFilter()) {
             throw new IllegalArgumentException(
                     "MapFilter is expected for " + StringConstants.TAGS_ATTR + " filter: "
@@ -1784,8 +1798,7 @@ public class GroupDAO implements IGroupStore {
             // string key=value must match the regex
             final Field<String> stringToMatch =
                     DSL.concat(GROUP_TAGS.TAG_KEY, DSL.val("="), GROUP_TAGS.TAG_VALUE);
-            tagCondition = multiDB.matchRegex(stringToMatch, filter.getRegex(), true, false,
-                    MultiDB.CHAR_SET_UTF8);
+            tagCondition = getCaseInsensitiveRegexMatchCondition(stringToMatch, filter.getRegex(), dslContext);
         } else {
             // key is present in the filter
             // key must match and value must satisfy a specific predicate
@@ -1793,8 +1806,8 @@ public class GroupDAO implements IGroupStore {
             final Condition tagValueCondition;
             if (!StringUtils.isEmpty(filter.getRegex())) {
                 // value must match regex
-                tagValueCondition =
-                        multiDB.matchRegex(GROUP_TAGS.TAG_VALUE, filter.getRegex(), true, false, MultiDB.CHAR_SET_UTF8);
+                tagValueCondition = getCaseInsensitiveRegexMatchCondition(
+                        GROUP_TAGS.TAG_VALUE, filter.getRegex(), dslContext);
             } else if (!filter.getValuesList().isEmpty()) {
                 // value must be equal to one of the options
                 tagValueCondition = GROUP_TAGS.TAG_VALUE.in(filter.getValuesList());
@@ -1813,6 +1826,16 @@ public class GroupDAO implements IGroupStore {
             return GROUPING.ID.notIn(tagSubQuery);
         }
 
+    }
+
+    @Nonnull
+    private static Condition getCaseInsensitiveRegexMatchCondition(
+            @Nonnull Field<?> fieldToMatch, @Nonnull String regex, @Nonnull DSLContext dsl) {
+        return !dsl.dialect().equals(SQLDialect.POSTGRES)
+                // For MariaDB, MySQL default collation, regex matching is case-insensitive.
+                ? fieldToMatch.likeRegex(regex)
+                // For Postgres, we do case-insensitive regex match with raw SQL as it's not supported by JOOQ.
+                : DSL.condition("{0} ~* {1}", fieldToMatch, regex);
     }
 
     @Nonnull

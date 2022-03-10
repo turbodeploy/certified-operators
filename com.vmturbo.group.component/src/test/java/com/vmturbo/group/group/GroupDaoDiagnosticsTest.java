@@ -26,7 +26,6 @@ import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.sql.utils.MultiDB;
 
 /**
  * Unit test for {@link GroupDaoDiagnostics}.
@@ -50,9 +49,8 @@ public class GroupDaoDiagnosticsTest {
     public void testDiags() throws Exception {
         final MockTransactionProvider transactionProvider = new MockTransactionProvider();
         final IGroupStore groupStore = transactionProvider.getGroupStore();
-        final MultiDB multiDB = Mockito.mock(MultiDB.class);
         final GroupDaoDiagnostics diagnostics = new GroupDaoDiagnostics(transactionProvider,
-                new GroupPaginationParams(100, 500), multiDB);
+                new GroupPaginationParams(100, 500));
         final String src1 = "discovered-group-1";
         final String src2 = "discovered-group-2";
         final Grouping group1 = createUploadedGroup(src1, Arrays.asList(1L, 2L));
