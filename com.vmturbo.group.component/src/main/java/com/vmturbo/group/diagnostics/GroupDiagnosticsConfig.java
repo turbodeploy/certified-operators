@@ -18,6 +18,7 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.group.DbAccessConfig;
+import com.vmturbo.group.GroupMultiDBConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.group.GroupDaoDiagnostics;
 import com.vmturbo.group.group.pagination.GroupPaginationConfig;
@@ -38,7 +39,8 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         SettingConfig.class,
         ScheduleConfig.class,
         TopologyDataDefinitionConfig.class,
-        RpcConfig.class})
+        RpcConfig.class,
+        GroupMultiDBConfig.class})
 public class GroupDiagnosticsConfig {
 
     @Autowired
@@ -64,6 +66,9 @@ public class GroupDiagnosticsConfig {
 
     @Autowired
     private DbAccessConfig databaseConfig;
+
+    @Autowired
+    private GroupMultiDBConfig groupMultiDBConfig;
 
     @Bean
     public DiagsZipReaderFactory recursiveZipReaderFactory() {
@@ -97,7 +102,8 @@ public class GroupDiagnosticsConfig {
     @Bean
     public GroupDaoDiagnostics groupStoreDiagnostics() {
         return new GroupDaoDiagnostics(rpcConfig.transactionProvider(),
-                groupPaginationConfig.groupPaginationParams());
+                groupPaginationConfig.groupPaginationParams(),
+                groupMultiDBConfig.multiDB());
     }
 
     @Bean
